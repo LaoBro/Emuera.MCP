@@ -16,14 +16,17 @@ internal sealed class Shape
 				drawNormalCornerBorderLeftTop(graph, rect, border, bgColor, colors, false, false);
 			else
 				drawRoundedCornerBorderLeftTop(graph, rect, border, radius, bgColor, colors, false, false);
+
 			if (radius == null || radius[Corner.RightTop] == 0)
 				drawNormalCornerBorderLeftTop(graph, rect, border, bgColor, colors, true, false);
 			else
 				drawRoundedCornerBorderLeftTop(graph, rect, border, radius, bgColor, colors, true, false);
+
 			if (radius == null || radius[Corner.LeftBottom] == 0)
 				drawNormalCornerBorderLeftTop(graph, rect, border, bgColor, colors, false, true);
 			else
 				drawRoundedCornerBorderLeftTop(graph, rect, border, radius, bgColor, colors, false, true);
+
 			if (radius == null || radius[Corner.RightBottom] == 0)
 				drawNormalCornerBorderLeftTop(graph, rect, border, bgColor, colors, true, true);
 			else
@@ -61,10 +64,13 @@ internal sealed class Shape
 						path.AddPolygon(new Point[] {
 								new(flipX ? rect.X+rect.Width : rect.X,
 									flipY ? rect.Y+rect.Height : rect.Y),
+
 								new(flipX ? rect.X+rect.Width-border[Direction.Right] : rect.X+border[Direction.Left],
 									flipY ? rect.Y+rect.Height-border[Direction.Bottom] : rect.Y+border[Direction.Top]),
+
 								new(flipX ? rect.X+rect.Width-border[Direction.Right] : rect.X+border[Direction.Left],
 									rect.Y+rect.Height/2),
+
 								new(flipX ? rect.X+rect.Width : rect.X,
 									rect.Y+rect.Height/2)
 							});
@@ -84,10 +90,13 @@ internal sealed class Shape
 						path.AddPolygon(new Point[] {
 								new(flipX ? rect.X+rect.Width : rect.X,
 									flipY ? rect.Y+rect.Height : rect.Y),
+
 								new(flipX ? rect.X+rect.Width-border[Direction.Right] : rect.X+border[Direction.Left],
 									flipY ? rect.Y+rect.Height-border[Direction.Bottom] : rect.Y+border[Direction.Top]),
+
 								new(rect.X+rect.Width/2,
 									flipY ? rect.Y+rect.Height-border[Direction.Bottom] : rect.Y+border[Direction.Top]),
+
 								new(rect.X+rect.Width/2,
 									flipY ? rect.Y+rect.Height : rect.Y)
 							});
@@ -175,10 +184,12 @@ internal sealed class Shape
 								path.AddPolygon(new Point[] {
 										new(flipX ? rect.X+rect.Width : rect.X,
 											flipY ? rect.Y+rect.Height : rect.Y),
+
 										new(flipX ? rect.X+rect.Width-cornerRect.Width : rect.X+cornerRect.Width,
 											flipY ? rect.Y+rect.Height-cornerRect.Height : rect.Y+cornerRect.Height),
+
 										new(flipX ? rect.X+rect.Width : rect.X,
-											flipY ? rect.Y+rect.Height-cornerRect.Height : rect.Y+cornerRect.Height)});
+											flipY ? rect.Y+rect.Height-cornerRect.Height : rect.Y+cornerRect.Height),});
 								graph.SetClip(path, CombineMode.Intersect);
 								graph.FillPath(brush, cornerEllipse);
 								graph.SetClip(rect, CombineMode.Replace);
@@ -204,8 +215,11 @@ internal sealed class Shape
 											flipY ? rect.Y+rect.Height : rect.Y),
 										new(flipX ? rect.X+rect.Width-cornerRect.Width : rect.X+cornerRect.Width,
 											flipY ? rect.Y+rect.Height-cornerRect.Height : rect.Y+cornerRect.Height),
+
+
 										new(flipX ? rect.X+rect.Width-cornerRect.Width : rect.X+cornerRect.Width,
 											flipY ? rect.Y+rect.Height : rect.Y)});
+
 								graph.SetClip(path, CombineMode.Intersect);
 								graph.FillPath(brush, cornerEllipse);
 								graph.SetClip(rect, CombineMode.Replace);
@@ -213,8 +227,8 @@ internal sealed class Shape
 								graph.FillRectangle(brush, new Rectangle(
 									flipX ? rect.X + rect.Width / 2 : rect.X + radius[corner],
 									flipY ? rect.Y + rect.Height - border[Direction.Bottom] : rect.Y,
-									rect.Width / 2 - radius[corner],
-									border[flipX ? Direction.Bottom : Direction.Top]));
+									rect.Width / 2 - (flipX ? radius[corner] : 0),
+									border[flipY ? Direction.Bottom : Direction.Top]));
 								graph.SmoothingMode = SmoothingMode.AntiAlias;
 							}
 					}
