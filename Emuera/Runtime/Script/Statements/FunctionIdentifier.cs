@@ -428,6 +428,7 @@ internal sealed partial class FunctionIdentifier
 		addFunction(FunctionCode.BINPUTS, new BINPUTS_Instruction());
 		addFunction(FunctionCode.ONEBINPUT, new ONEBINPUT_Instruction());
 		addFunction(FunctionCode.ONEBINPUTS, new ONEBINPUTS_Instruction());
+		addFunction(FunctionCode.BREAKBUTTON, new BREAKBUTTON_Instruction());
 		#endregion
 		#region EM
 		addFunction(FunctionCode.DT_COLUMN_OPTIONS, new DT_COLUMN_OPTIONS_Instruction());

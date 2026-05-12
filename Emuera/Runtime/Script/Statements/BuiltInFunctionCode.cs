@@ -382,6 +382,7 @@ enum FunctionCode
 	BINPUTS,
 	ONEBINPUT,
 	ONEBINPUTS,
+	BREAKBUTTON,
 	#endregion
 
 	#region EM

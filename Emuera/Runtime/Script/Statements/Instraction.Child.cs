@@ -1,4 +1,5 @@
 ﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
@@ -3010,6 +3011,21 @@ internal sealed partial class FunctionIdentifier
 		{
 			ExpressionArgument i = (ExpressionArgument)func.Argument;
 			exm.Console.SetToolTipImg(i.Term.GetIntValue(exm) != 0);
+		}
+	}
+	#endregion
+	#region BREAKBUTTON
+	private sealed class BREAKBUTTON_Instruction : AInstruction
+	{
+		public BREAKBUTTON_Instruction()
+		{
+			ArgBuilder = ArgumentParser.GetArgumentBuilder(FunctionArgType.EXPRESSION_NULLABLE);
+			flag = METHOD_SAFE | EXTENDED;
+		}
+
+		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
+		{
+			exm.Console.forceUpdateGeneration();
 		}
 	}
 	#endregion
