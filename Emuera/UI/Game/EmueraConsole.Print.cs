@@ -647,6 +647,15 @@ internal sealed partial class EmueraConsole : IDisposable
 		window.clear_richText();
 	}
 
+	public void PrintPlainWithSingleLineFix(string str)
+	{
+		ConsoleDisplayLine dispLine = PrintPlainwithSingleLine(str);
+		if (dispLine == null)
+			return;
+		addDisplayLine(dispLine, false);
+		RefreshStrings(false);
+	}
+
 	internal ConsoleDisplayLine PrintPlainwithSingleLine(string str)
 	{
 		if (!Enabled)

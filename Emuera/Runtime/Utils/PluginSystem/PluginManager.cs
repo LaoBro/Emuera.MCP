@@ -66,7 +66,7 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 		}
 		public void PrintPlainWithSingleLine(string text)
 		{
-			expressionMediator.Console.PrintPlainwithSingleLine(text);
+			expressionMediator.Console.PrintPlainWithSingleLineFix(text);
 		}
 		public void PrintSingleLine(string text)
 		{
