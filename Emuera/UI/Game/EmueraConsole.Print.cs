@@ -223,6 +223,10 @@ internal sealed partial class EmueraConsole : IDisposable
 			line.ChangeStr([.. lastline.Buttons, .. line.Buttons]);
 		}
 		displayLineList.Add(line);
+
+		// 输出到终端
+		WriteAlignedLine(line);
+
 		lineNo++;
 		if (line.IsLogicalLine && displayLineList[^1].IsLineEnd)
 			logicalLineCount++;

@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <OutputType>WinExe</OutputType>
         <TargetFramework>net10.0-windows</TargetFramework>
         <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
         <Platforms>x64;x86</Platforms>
@@ -45,11 +44,13 @@
             <PropertyGroup>
                 <DefineConstants>DEBUG</DefineConstants>
                 <Optimize>false</Optimize>
+                <OutputType>Exe</OutputType>
             </PropertyGroup>
         </When>
         <When Condition="$(Configuration.Contains('Release'))">
             <PropertyGroup>
                 <Optimize>true</Optimize>
+                <OutputType>WinExe</OutputType>
             </PropertyGroup>
         </When>
     </Choose>
