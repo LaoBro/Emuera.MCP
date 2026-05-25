@@ -1,5 +1,7 @@
 using System;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using MinorShift.Emuera.Forms;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.Runtime;
@@ -7,14 +9,14 @@ using MinorShift.Emuera.Runtime;
 namespace MinorShift.Emuera.GameView
 {
     /// <summary>
-    /// 终端输入桥接器：后台线程仅轮询输入可用性，所有 Console 读写委托给 UI 线程，避免竞争
+    /// 终端输入桥接器：异步等待按键，所有 Console 写操作委托给 UI 线程，避免竞争
     /// </summary>
     internal sealed class TerminalInputBridge
     {
         private readonly EmueraConsole console;
         private readonly MainWindow window;
-        private volatile bool _running;
-        private readonly System.Text.StringBuilder _buf = new();
+        private CancellationTokenSource _cts;
+        private readonly StringBuilder _buf = new();
 
         private TerminalInputBridge(EmueraConsole console, MainWindow window)
         {
@@ -25,45 +27,40 @@ namespace MinorShift.Emuera.GameView
         public static TerminalInputBridge Start(EmueraConsole console, MainWindow window)
         {
             var bridge = new TerminalInputBridge(console, window);
-            bridge._running = true;
-            var thread = new Thread(bridge.InputLoop)
-            {
-                IsBackground = true,
-                Name = "TerminalInput"
-            };
-            thread.Start();
+            bridge._cts = new CancellationTokenSource();
+            _ = bridge.RunAsync(bridge._cts.Token);
             return bridge;
         }
 
-        public void Stop() => _running = false;
+        public void Stop() => _cts?.Cancel();
 
-        private void InputLoop()
+        private async Task RunAsync(CancellationToken ct)
         {
-            while (_running)
+            while (!ct.IsCancellationRequested)
             {
+                ConsoleKeyInfo key;
                 try
                 {
-                    if (Console.KeyAvailable)
-                        window.BeginInvoke(new Action(ProcessKey));
+                    key = await Task.Run(() => Console.ReadKey(true), ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
                 }
                 catch (System.IO.IOException)
                 {
-                    _running = false;
-                    return;
+                    break;
                 }
-                Thread.Sleep(10);
+
+                window.BeginInvoke(new Action(() => ProcessKey(key)));
             }
         }
 
         /// <summary>
-        /// 运行在 UI 线程——读取一个按键并手动回显，输入完成后 Dispatch
+        /// 运行在 UI 线程——处理按键并手动回显，输入完成后 Dispatch
         /// </summary>
-        private void ProcessKey()
+        private void ProcessKey(ConsoleKeyInfo key)
         {
-            if (!Console.KeyAvailable) return;
-
-            var key = Console.ReadKey(true);
-
             if (key.Key == ConsoleKey.Enter)
             {
                 Console.Write("\r" + new string(' ', _buf.Length) + "\r");
