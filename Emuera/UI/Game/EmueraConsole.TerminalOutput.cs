@@ -11,33 +11,40 @@ namespace MinorShift.Emuera.GameView
  
         private void WriteAlignedLine(ConsoleDisplayLine line)
         {
-            string text = line.ToString();
-            if (string.IsNullOrEmpty(text))
+            try
             {
-                Console.WriteLine();
-                return;
+                string text = line.ToString();
+                if (string.IsNullOrEmpty(text))
+                {
+                    Console.WriteLine();
+                    return;
+                }
+
+                int textWidth = GetDisplayWidth(text);
+                int consoleWidth = Console.WindowWidth;
+
+                switch (line.Align)
+                {
+                    case DisplayLineAlignment.CENTER:
+                        {
+                            int pad = Math.Max((consoleWidth - textWidth) / 2, 0);
+                            Console.WriteLine(new string(' ', pad) + text);
+                            break;
+                        }
+                    case DisplayLineAlignment.RIGHT:
+                        {
+                            int pad = Math.Max(consoleWidth - textWidth, 0);
+                            Console.WriteLine(new string(' ', pad) + text);
+                            break;
+                        }
+                    default:
+                        Console.WriteLine(text);
+                        break;
+                }
             }
- 
-            int textWidth = GetDisplayWidth(text);
-            int consoleWidth = Console.WindowWidth;
- 
-            switch (line.Align)
+            catch (System.IO.IOException)
             {
-                case DisplayLineAlignment.CENTER:
-                    {
-                        int pad = Math.Max((consoleWidth - textWidth) / 2, 0);
-                        Console.WriteLine(new string(' ', pad) + text);
-                        break;
-                    }
-                case DisplayLineAlignment.RIGHT:
-                    {
-                        int pad = Math.Max(consoleWidth - textWidth, 0);
-                        Console.WriteLine(new string(' ', pad) + text);
-                        break;
-                    }
-                default:
-                    Console.WriteLine(text);
-                    break;
+                // 无控制台时静默降级
             }
         }
  

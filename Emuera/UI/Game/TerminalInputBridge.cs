@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using MinorShift.Emuera.Forms;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.Runtime;
@@ -6,12 +7,14 @@ using MinorShift.Emuera.Runtime;
 namespace MinorShift.Emuera.GameView
 {
     /// <summary>
-    /// 终端输入桥接器：后台线程读取终端输入，通过 BeginInvoke 回到 UI 线程
+    /// 终端输入桥接器：后台线程仅轮询输入可用性，所有 Console 读写委托给 UI 线程，避免竞争
     /// </summary>
     internal sealed class TerminalInputBridge
     {
         private readonly EmueraConsole console;
         private readonly MainWindow window;
+        private volatile bool _running;
+        private readonly System.Text.StringBuilder _buf = new();
 
         private TerminalInputBridge(EmueraConsole console, MainWindow window)
         {
@@ -22,7 +25,8 @@ namespace MinorShift.Emuera.GameView
         public static TerminalInputBridge Start(EmueraConsole console, MainWindow window)
         {
             var bridge = new TerminalInputBridge(console, window);
-            var thread = new System.Threading.Thread(bridge.InputLoop)
+            bridge._running = true;
+            var thread = new Thread(bridge.InputLoop)
             {
                 IsBackground = true,
                 Name = "TerminalInput"
@@ -31,52 +35,59 @@ namespace MinorShift.Emuera.GameView
             return bridge;
         }
 
+        public void Stop() => _running = false;
+
         private void InputLoop()
         {
-            while (true)
+            while (_running)
             {
-                string input = ReadLineSilent();
-                if (input == null)
-                    continue;
-
-                window.BeginInvoke(new Action(() => DispatchInput(input)));
+                try
+                {
+                    if (Console.KeyAvailable)
+                        window.BeginInvoke(new Action(ProcessKey));
+                }
+                catch (System.IO.IOException)
+                {
+                    _running = false;
+                    return;
+                }
+                Thread.Sleep(10);
             }
         }
 
         /// <summary>
-        /// 无回显地从终端读取一行输入，仅靠 Emuera 的显示输出来回显
+        /// 运行在 UI 线程——读取一个按键并手动回显，输入完成后 Dispatch
         /// </summary>
-        private static string ReadLineSilent()
+        private void ProcessKey()
         {
-            var buf = new System.Text.StringBuilder();
-            while (true)
-            {
-                var key = Console.ReadKey(true);
+            if (!Console.KeyAvailable) return;
 
-                if (key.Key == ConsoleKey.Enter)
+            var key = Console.ReadKey(true);
+
+            if (key.Key == ConsoleKey.Enter)
+            {
+                Console.Write("\r" + new string(' ', _buf.Length) + "\r");
+                string input = _buf.ToString();
+                _buf.Clear();
+                DispatchInput(input);
+            }
+            else if (key.Key == ConsoleKey.Backspace)
+            {
+                if (_buf.Length > 0)
                 {
-                    // 用空格覆盖整行，擦掉手动回显的输入字符
-                    Console.Write("\r" + new string(' ', buf.Length) + "\r");
-                    return buf.ToString();
+                    _buf.Remove(_buf.Length - 1, 1);
+                    Console.Write("\b \b");
                 }
-                else if (key.Key == ConsoleKey.Backspace)
-                {
-                    if (buf.Length > 0)
-                    {
-                        buf.Remove(buf.Length - 1, 1);
-                        Console.Write("\b \b"); // 退格+空格+退格，擦掉终端上的字符
-                    }
-                }
-                else if (key.Key == ConsoleKey.Escape)
-                {
-                    buf.Clear();
-                    Console.Write("\r" + new string(' ', Console.BufferWidth) + "\r");
-                }
-                else if (!char.IsControl(key.KeyChar))
-                {
-                    buf.Append(key.KeyChar);
-                    Console.Write(key.KeyChar); // 手动回显：输入时可见
-                }
+            }
+            else if (key.Key == ConsoleKey.Escape)
+            {
+                Console.Write("\r" + new string(' ', _buf.Length) + "\r");
+                _buf.Clear();
+            }
+            else if (!char.IsControl(key.KeyChar))
+            {
+                _buf.Append(key.KeyChar);
+                Console.Write(key.KeyChar);
             }
         }
 
@@ -89,25 +100,24 @@ namespace MinorShift.Emuera.GameView
             }
 
             var req = console.CurrentRequest;
-            if (req == null)
-                return;
+            if (req == null) return;
 
             switch (req.InputType)
             {
                 case InputType.EnterKey:
                 case InputType.AnyKey:
+                case InputType.StrValue:
+                case InputType.IntButton:
+                case InputType.StrButton:
                     console.PressEnterKey(false, input, false);
                     break;
 
                 case InputType.IntValue:
+                case InputType.AnyValue:
                     if (long.TryParse(input, out _))
                         console.PressEnterKey(false, input, false);
                     else
                         Console.WriteLine("[终端] 当前需要整数输入，请重试");
-                    break;
-
-                case InputType.StrValue:
-                    console.PressEnterKey(false, input, false);
                     break;
 
                 case InputType.PrimitiveMouseKey:

@@ -2834,6 +2834,7 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	public void Dispose()
 	{
+		_terminalBridge?.Stop();
 		if (genericTimer != null)
 			genericTimer.Dispose();
 		//timer = null;
