@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.UI.Game;
 
@@ -16,31 +16,36 @@ namespace MinorShift.Emuera.GameView
                 string text = line.ToString();
                 if (string.IsNullOrEmpty(text))
                 {
-                    Console.WriteLine();
+                    _terminalBridge.WriteOutput("");
                     return;
                 }
 
                 int textWidth = GetDisplayWidth(text);
-                int consoleWidth = Console.WindowWidth;
+                int consoleWidth;
+                try { consoleWidth = Console.WindowWidth; }
+                catch { consoleWidth = 80; }
 
+                string output;
                 switch (line.Align)
                 {
                     case DisplayLineAlignment.CENTER:
                         {
                             int pad = Math.Max((consoleWidth - textWidth) / 2, 0);
-                            Console.WriteLine(new string(' ', pad) + text);
+                            output = new string(' ', pad) + text;
                             break;
                         }
                     case DisplayLineAlignment.RIGHT:
                         {
                             int pad = Math.Max(consoleWidth - textWidth, 0);
-                            Console.WriteLine(new string(' ', pad) + text);
+                            output = new string(' ', pad) + text;
                             break;
                         }
                     default:
-                        Console.WriteLine(text);
+                        output = text;
                         break;
                 }
+
+                _terminalBridge.WriteOutput(output);
             }
             catch (System.IO.IOException)
             {

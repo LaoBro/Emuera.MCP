@@ -1,7 +1,8 @@
 using System;
+using System.Collections.Concurrent;
+using System.IO;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using MinorShift.Emuera.Forms;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.Runtime;
@@ -9,14 +10,17 @@ using MinorShift.Emuera.Runtime;
 namespace MinorShift.Emuera.GameView
 {
     /// <summary>
-    /// 终端输入桥接器：异步等待按键，所有 Console 写操作委托给 UI 线程，避免竞争
+    /// 终端输入输出桥接器：异步等待按键，所有 Console 写操作委托给专用输出线程，避免 UI 线程阻塞
     /// </summary>
     internal sealed class TerminalInputBridge
     {
         private readonly EmueraConsole console;
         private readonly MainWindow window;
-        private CancellationTokenSource _cts;
+        private volatile bool _stopped;
+        private Thread _readThread;
+        private Thread _writeThread;
         private readonly StringBuilder _buf = new();
+        private readonly BlockingCollection<(string text, bool newLine)> _outputQueue = new(8192);
 
         private TerminalInputBridge(EmueraConsole console, MainWindow window)
         {
@@ -27,27 +31,60 @@ namespace MinorShift.Emuera.GameView
         public static TerminalInputBridge Start(EmueraConsole console, MainWindow window)
         {
             var bridge = new TerminalInputBridge(console, window);
-            bridge._cts = new CancellationTokenSource();
-            _ = bridge.RunAsync(bridge._cts.Token);
+
+            // 检查终端可用性，无控制台时不启动读写线程
+            try
+            {
+                if (Console.OpenStandardOutput() == Stream.Null)
+                    return bridge;
+            }
+            catch
+            {
+                return bridge;
+            }
+
+            bridge._readThread = new Thread(bridge.ReadLoop)
+            {
+                IsBackground = true,
+                Name = "TerminalInput"
+            };
+            bridge._writeThread = new Thread(bridge.WriteLoop)
+            {
+                IsBackground = true,
+                Name = "TerminalOutput"
+            };
+            bridge._readThread.Start();
+            bridge._writeThread.Start();
             return bridge;
         }
 
-        public void Stop() => _cts?.Cancel();
-
-        private async Task RunAsync(CancellationToken ct)
+        public void Stop()
         {
-            while (!ct.IsCancellationRequested)
+            _stopped = true;
+            _outputQueue.CompleteAdding();
+            _readThread?.Interrupt();
+            _readThread?.Join(TimeSpan.FromSeconds(2));
+            _writeThread?.Join(TimeSpan.FromSeconds(2));
+        }
+
+        /// <summary>
+        /// 将文本写入终端输出队列，由专用输出线程异步写入控制台，不会阻塞 UI 线程
+        /// </summary>
+        public void WriteOutput(string text, bool newLine = true)
+        {
+            _outputQueue.TryAdd((text, newLine));
+        }
+
+        private void ReadLoop()
+        {
+            while (!_stopped)
             {
                 ConsoleKeyInfo key;
                 try
                 {
-                    key = await Task.Run(() => Console.ReadKey(true), ct);
+                    key = Console.ReadKey(true);
                 }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (System.IO.IOException)
+                catch (ThreadInterruptedException)
                 {
                     break;
                 }
@@ -56,14 +93,25 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
+        private void WriteLoop()
+        {
+            foreach (var (text, newLine) in _outputQueue.GetConsumingEnumerable())
+            {
+                if (newLine)
+                    Console.WriteLine(text);
+                else
+                    Console.Write(text);
+            }
+        }
+
         /// <summary>
-        /// 运行在 UI 线程——处理按键并手动回显，输入完成后 Dispatch
+        /// 运行在 UI 线程——处理按键并手动回显(避免游戏再次回显输入)，输入完成后 Dispatch
         /// </summary>
         private void ProcessKey(ConsoleKeyInfo key)
         {
             if (key.Key == ConsoleKey.Enter)
             {
-                Console.Write("\r" + new string(' ', _buf.Length) + "\r");
+                WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
                 string input = _buf.ToString();
                 _buf.Clear();
                 DispatchInput(input);
@@ -73,18 +121,18 @@ namespace MinorShift.Emuera.GameView
                 if (_buf.Length > 0)
                 {
                     _buf.Remove(_buf.Length - 1, 1);
-                    Console.Write("\b \b");
+                    WriteOutput("\b \b", false);
                 }
             }
             else if (key.Key == ConsoleKey.Escape)
             {
-                Console.Write("\r" + new string(' ', _buf.Length) + "\r");
+                WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
                 _buf.Clear();
             }
             else if (!char.IsControl(key.KeyChar))
             {
                 _buf.Append(key.KeyChar);
-                Console.Write(key.KeyChar);
+                WriteOutput(key.KeyChar.ToString(), false);
             }
         }
 
@@ -92,7 +140,7 @@ namespace MinorShift.Emuera.GameView
         {
             if (console.State != ConsoleState.WaitInput)
             {
-                Console.WriteLine("[终端] 当前不在等待输入状态，输入已忽略");
+                WriteOutput("[终端] 当前不在等待输入状态，输入已忽略");
                 return;
             }
 
@@ -114,15 +162,15 @@ namespace MinorShift.Emuera.GameView
                     if (long.TryParse(input, out _))
                         console.PressEnterKey(false, input, false);
                     else
-                        Console.WriteLine("[终端] 当前需要整数输入，请重试");
+                        WriteOutput("[终端] 当前需要整数输入，请重试");
                     break;
 
                 case InputType.PrimitiveMouseKey:
-                    Console.WriteLine("[终端] 当前等待原始鼠标/键盘事件，终端无法模拟，请在窗口中操作");
+                    WriteOutput("[终端] 当前等待原始鼠标/键盘事件，终端无法模拟，请在窗口中操作");
                     break;
 
                 default:
-                    Console.WriteLine($"[终端] 未处理的输入类型: {req.InputType}");
+                    WriteOutput($"[终端] 未处理的输入类型: {req.InputType}");
                     break;
             }
         }
