@@ -1,79 +1,19 @@
 using System;
-using System.Diagnostics;
 using System.Text.Json;
-using System.Threading;
 using MinorShift.Emuera.Forms;
 using MinorShift.Emuera.Runtime;
 
 namespace MinorShift.Emuera.GameView
 {
-    internal sealed class AgentMcpProtocol : IAgentProtocol
+    internal sealed class AgentMcpProtocol : AgentProtocolBase
     {
-        private readonly EmueraConsole console;
-        private readonly MainWindow window;
-        private readonly Func<bool> isStopped;
-        private const int TurnTimeoutMs = 30000;
-        private const int PollIntervalMs = 50;
-
         public AgentMcpProtocol(EmueraConsole console, MainWindow window, Func<bool> isStopped)
-        {
-            this.console = console;
-            this.window = window;
-            this.isStopped = isStopped;
-        }
+            : base(console, window, isStopped) { }
 
-        public void Run(string firstLine)
+        public override void Run(string firstLine)
         {
             HandleMessage(firstLine);
-
-            while (!isStopped())
-            {
-                string line;
-                try { line = Console.ReadLine(); }
-                catch (ThreadInterruptedException) { break; }
-                if (line == null) break;
-                HandleMessage(line);
-            }
-        }
-
-        private bool WaitForTurn(out string turnJson)
-        {
-            var sw = Stopwatch.StartNew();
-            while (!isStopped())
-            {
-                var state = console.State;
-                if (state == ConsoleState.WaitInput || state == ConsoleState.Quit || state == ConsoleState.Error)
-                {
-                    var text = console.ReadAgentBuffer();
-                    var req = console.CurrentRequest;
-                    turnJson = JsonSerializer.Serialize(new
-                    {
-                        text,
-                        state = state.ToString(),
-                        inputType = req?.InputType.ToString(),
-                        needValue = req?.NeedValue ?? false
-                    });
-                    return true;
-                }
-                if (sw.ElapsedMilliseconds > TurnTimeoutMs)
-                    break;
-                Thread.Sleep(PollIntervalMs);
-            }
-            turnJson = null;
-            return false;
-        }
-
-        private string BuildTurn()
-        {
-            var text = console.ReadAgentBuffer();
-            var req = console.CurrentRequest;
-            return JsonSerializer.Serialize(new
-            {
-                text,
-                state = console.State.ToString(),
-                inputType = req?.InputType.ToString(),
-                needValue = req?.NeedValue ?? false
-            });
+            ReadStdinLoop(HandleMessage);
         }
 
         private void HandleMessage(string line)
@@ -172,16 +112,14 @@ namespace MinorShift.Emuera.GameView
                         return;
                     }
 
-                    console.TakeAgentBuffer(); // discard previous turn output
+                    console.TakeAgentBuffer();
 
-                    // Synchronous Invoke — blocks agent thread until UI processes input
                     window.Invoke(new Action(() =>
                     {
                         if (console.State == ConsoleState.WaitInput)
                             console.PressEnterKey(false, value, false);
                     }));
 
-                    // After Invoke returns, game is at WaitInput/Quit/Error
                     Respond(id, new
                     {
                         content = new[] { new { type = "text", text = BuildTurn() } }
