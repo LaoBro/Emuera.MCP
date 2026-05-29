@@ -1,6 +1,4 @@
 using System;
-using System.Diagnostics;
-using System.Text.Json;
 using System.Threading;
 using MinorShift.Emuera.Forms;
 using MinorShift.Emuera.Runtime;
@@ -9,18 +7,21 @@ namespace MinorShift.Emuera.GameView
 {
     internal class AgentProtocolBase
     {
+        private volatile bool _stopped;
+        protected AgentProtocolBase _innerProtocol;
+        protected Thread _thread;
         protected readonly EmueraConsole console;
         protected readonly MainWindow window;
-        protected readonly Func<bool> isStopped;
         protected const int TurnTimeoutMs = 30000;
         protected const int PollIntervalMs = 50;
 
-        internal AgentProtocolBase(EmueraConsole console, MainWindow window, Func<bool> isStopped)
+        internal AgentProtocolBase(EmueraConsole console, MainWindow window)
         {
             this.console = console;
             this.window = window;
-            this.isStopped = isStopped;
         }
+
+        protected bool IsStopped() => _stopped;
 
         public virtual void Run(string firstLine) { }
 
@@ -34,38 +35,11 @@ namespace MinorShift.Emuera.GameView
                     console._agentBuffer.Append(text);
             }
         }
-        public virtual void Stop() { }
-
-        protected string BuildTurn()
+        public virtual void Stop()
         {
-            var text = console.ReadAgentBuffer();
-            var req = console.CurrentRequest;
-            return JsonSerializer.Serialize(new
-            {
-                text,
-                state = console.State.ToString(),
-                inputType = req?.InputType.ToString(),
-                needValue = req?.NeedValue ?? false
-            });
-        }
-
-        protected bool WaitForTurn(out string turnJson)
-        {
-            var sw = Stopwatch.StartNew();
-            while (!isStopped())
-            {
-                var state = console.State;
-                if (state == ConsoleState.WaitInput || state == ConsoleState.Quit || state == ConsoleState.Error)
-                {
-                    turnJson = BuildTurn();
-                    return true;
-                }
-                if (sw.ElapsedMilliseconds > TurnTimeoutMs)
-                    break;
-                Thread.Sleep(PollIntervalMs);
-            }
-            turnJson = null;
-            return false;
+            _stopped = true;
+            _innerProtocol?.Stop();
+            _thread?.Join(TimeSpan.FromSeconds(2));
         }
 
         protected virtual void DispatchInput(string input)
@@ -96,16 +70,5 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
-        protected void ReadStdinLoop(Action<string> onLine)
-        {
-            while (!isStopped())
-            {
-                string line;
-                try { line = Console.ReadLine(); }
-                catch (ThreadInterruptedException) { break; }
-                if (line == null) break;
-                onLine(line);
-            }
-        }
     }
 }

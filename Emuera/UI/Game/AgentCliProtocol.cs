@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Text;
 using System.Threading;
 using MinorShift.Emuera.Forms;
@@ -9,63 +8,40 @@ namespace MinorShift.Emuera.GameView
 {
     internal sealed class AgentCliProtocol : AgentProtocolBase
     {
-        private readonly BlockingCollection<(string text, bool newLine)> _outputQueue = new(8192);
         private readonly StringBuilder _buf = new();
-        private Thread _readThread;
-        private Thread _writeThread;
 
-        public AgentCliProtocol(EmueraConsole console, MainWindow window, Func<bool> isStopped)
-            : base(console, window, isStopped) { }
+        public AgentCliProtocol(EmueraConsole console, MainWindow window)
+            : base(console, window) { }
 
         public override void Run(string firstLine)
         {
-            _readThread = new Thread(ReadLoop)
+            _thread = new Thread(RunLoop)
             {
                 IsBackground = true,
-                Name = "TerminalInput"
+                Name = "TerminalAgent"
             };
-            _writeThread = new Thread(WriteLoop)
+            _thread.Start();
+        }
+
+        private void RunLoop()
+        {
+            while (!IsStopped())
             {
-                IsBackground = true,
-                Name = "TerminalOutput"
-            };
-            _readThread.Start();
-            _writeThread.Start();
-        }
-
-        public override void WriteOutput(string text, bool newLine = true)
-        {
-            _outputQueue.TryAdd((text, newLine));
-        }
-
-        public override void Stop()
-        {
-            _outputQueue.CompleteAdding();
-            _readThread?.Interrupt();
-            _readThread?.Join(TimeSpan.FromSeconds(2));
-            _writeThread?.Join(TimeSpan.FromSeconds(2));
-        }
-
-        private void ReadLoop()
-        {
-            while (!isStopped())
-            {
-                ConsoleKeyInfo key;
-                try { key = Console.ReadKey(true); }
-                catch (ThreadInterruptedException) { break; }
-                window.BeginInvoke(new Action(() => ProcessKey(key)));
+                if (Console.KeyAvailable)
+                {
+                    var key = Console.ReadKey(true);
+                    window.BeginInvoke(new Action(() => ProcessKey(key)));
+                }
+                FlushBuffer();
+                Thread.Sleep(PollIntervalMs);
             }
         }
 
-        private void WriteLoop()
+        private void FlushBuffer()
         {
-            foreach (var (text, newLine) in _outputQueue.GetConsumingEnumerable())
-            {
-                if (newLine)
-                    Console.WriteLine(text);
-                else
-                    Console.Write(text);
-            }
+            string text = console.TakeAgentBuffer();
+            if (text.Length > 0)
+                Console.Write(text);
         }
 
         private void ProcessKey(ConsoleKeyInfo key)

@@ -112,7 +112,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		redrawTimer.Interval = 10;
 
 		// 启动终端输入线程
-		_terminalBridge = TerminalInputBridge.Start(this, window);
+		_terminalBridge = new AgentDetectingProtocol(this, window);
+		_terminalBridge.Run(null);
 	}
 	#region 1823 cbg関連
 	private readonly List<ClientBackGroundImage> cbgList = [];
@@ -260,7 +261,7 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	const string ErrorButtonsText = "__openFileWithDebug__";
 	private readonly MainWindow window;
-	private TerminalInputBridge _terminalBridge;
+	private AgentProtocolBase _terminalBridge;
 	#region EE_MOUSEB
 	public MainWindow Window { get { return window; } }
 	#endregion

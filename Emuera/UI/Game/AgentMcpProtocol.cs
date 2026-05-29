@@ -5,18 +5,12 @@ using MinorShift.Emuera.Runtime;
 
 namespace MinorShift.Emuera.GameView
 {
-    internal sealed class AgentMcpProtocol : AgentProtocolBase
+    internal sealed class AgentMcpProtocol : AgentStdinProtocol
     {
-        public AgentMcpProtocol(EmueraConsole console, MainWindow window, Func<bool> isStopped)
-            : base(console, window, isStopped) { }
+        public AgentMcpProtocol(EmueraConsole console, MainWindow window)
+            : base(console, window) { }
 
-        public override void Run(string firstLine)
-        {
-            HandleMessage(firstLine);
-            ReadStdinLoop(HandleMessage);
-        }
-
-        private void HandleMessage(string line)
+        protected override void HandleMessage(string line)
         {
             using var doc = JsonDocument.Parse(line);
             var root = doc.RootElement;
@@ -80,72 +74,75 @@ namespace MinorShift.Emuera.GameView
 
         private void HandleToolCall(long id, string toolName, JsonElement params_)
         {
-            if (toolName == "emuera_get_state")
+            switch (toolName)
             {
-                if (!WaitForTurn(out var turnJson))
+                case "emuera_get_state": GetState(id); break;
+                case "emuera_step":     Step(id, params_); break;
+                case "emuera_kill":     Kill(id); break;
+            }
+        }
+
+        private void GetState(long id)
+        {
+            if (!WaitForInput())
+            {
+                RespondError(id, $"Timed out waiting for game to be ready (current state: {console.State})");
+                return;
+            }
+            Respond(id, new
+            {
+                content = new[] { new { type = "text", text = BuildTurn() } }
+            });
+        }
+
+        private void Step(long id, JsonElement params_)
+        {
+            string value = null;
+            if (params_.TryGetProperty("arguments", out var args)
+                && args.TryGetProperty("value", out var valEl)
+                && valEl.ValueKind == JsonValueKind.String)
+            {
+                string s = valEl.GetString();
+                if (!string.IsNullOrEmpty(s))
+                    value = s;
+            }
+
+            if (!WaitForInput())
+            {
+                RespondError(id, $"Timed out waiting for game turn (current state: {console.State})");
+                return;
+            }
+
+            if (value != null)
+            {
+                if (console.State != ConsoleState.WaitInput)
                 {
-                    RespondError(id, $"Timed out waiting for game to be ready (current state: {console.State})");
+                    RespondError(id, $"Game is not waiting for input (current state: {console.State})");
                     return;
                 }
-                Respond(id, new
+
+                console.TakeAgentBuffer();
+
+                window.Invoke(new Action(() =>
                 {
-                    content = new[] { new { type = "text", text = turnJson } }
-                });
+                    if (console.State == ConsoleState.WaitInput)
+                        console.PressEnterKey(false, value, false);
+                }));
             }
-            else if (toolName == "emuera_step")
+
+            Respond(id, new
             {
-                string value = null;
-                if (params_.TryGetProperty("arguments", out var args)
-                    && args.TryGetProperty("value", out var valEl)
-                    && valEl.ValueKind == JsonValueKind.String)
-                {
-                    string s = valEl.GetString();
-                    if (!string.IsNullOrEmpty(s))
-                        value = s;
-                }
+                content = new[] { new { type = "text", text = BuildTurn() } }
+            });
+        }
 
-                if (value != null)
-                {
-                    if (console.State != ConsoleState.WaitInput)
-                    {
-                        RespondError(id, $"Game is not waiting for input (current state: {console.State})");
-                        return;
-                    }
-
-                    console.TakeAgentBuffer();
-
-                    window.Invoke(new Action(() =>
-                    {
-                        if (console.State == ConsoleState.WaitInput)
-                            console.PressEnterKey(false, value, false);
-                    }));
-
-                    Respond(id, new
-                    {
-                        content = new[] { new { type = "text", text = BuildTurn() } }
-                    });
-                }
-                else
-                {
-                    if (!WaitForTurn(out var turnJson))
-                    {
-                        RespondError(id, $"Timed out waiting for game turn (current state: {console.State})");
-                        return;
-                    }
-                    Respond(id, new
-                    {
-                        content = new[] { new { type = "text", text = turnJson } }
-                    });
-                }
-            }
-            else if (toolName == "emuera_kill")
+        private void Kill(long id)
+        {
+            window.BeginInvoke(new Action(() => window.Close()));
+            Respond(id, new
             {
-                window.BeginInvoke(new Action(() => window.Close()));
-                Respond(id, new
-                {
-                    content = new[] { new { type = "text", text = "{\"killed\":true,\"message\":\"Game process terminated\"}" } }
-                });
-            }
+                content = new[] { new { type = "text", text = "{\"killed\":true,\"message\":\"Game process terminated\"}" } }
+            });
         }
 
         private static void Respond(long id, object result)
