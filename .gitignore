@@ -9,5 +9,10 @@ Emuera/Properties/launchSettings.json
 Emuera/bin/*
 Emuera/obj/*
 
+test_game/
+tests/
+Emuera.CLI/artifacts/
+
 *.diff
 *.patch
+.mcp.json

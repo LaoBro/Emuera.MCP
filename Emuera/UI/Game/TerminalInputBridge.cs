@@ -21,6 +21,7 @@ namespace MinorShift.Emuera.GameView
         private Thread _writeThread;
         private readonly StringBuilder _buf = new();
         private readonly BlockingCollection<(string text, bool newLine)> _outputQueue = new(8192);
+        private IAgentProtocol _agentProtocol;
 
         private TerminalInputBridge(EmueraConsole console, MainWindow window)
         {
@@ -28,9 +29,20 @@ namespace MinorShift.Emuera.GameView
             this.window = window;
         }
 
-        public static TerminalInputBridge Start(EmueraConsole console, MainWindow window)
+        public static TerminalInputBridge Start(EmueraConsole console, MainWindow window, bool agentMode)
         {
             var bridge = new TerminalInputBridge(console, window);
+
+            if (agentMode)
+            {
+                bridge._readThread = new Thread(bridge.AgentReadLoop)
+                {
+                    IsBackground = true,
+                    Name = "AgentInput"
+                };
+                bridge._readThread.Start();
+                return bridge;
+            }
 
             // 检查终端可用性，无控制台时不启动读写线程
             try
@@ -73,6 +85,26 @@ namespace MinorShift.Emuera.GameView
         public void WriteOutput(string text, bool newLine = true)
         {
             _outputQueue.TryAdd((text, newLine));
+        }
+
+        /// <summary>
+        /// Agent 模式：首条消息检测协议，然后委托给 IAgentProtocol
+        /// </summary>
+        private void AgentReadLoop()
+        {
+            string firstLine = Console.ReadLine();
+            if (firstLine == null) return;
+
+            bool isMcp = firstLine.Contains("\"jsonrpc\"");
+            _agentProtocol = isMcp
+                ? new AgentMcpProtocol(console, window, () => _stopped)
+                : new AgentJsonlProtocol(console, window, () => _stopped);
+
+            _agentProtocol.Run(firstLine);
+
+            // stdin closed or protocol exited — close game window to terminate process
+            if (!_stopped)
+                window.BeginInvoke(new Action(() => window.Close()));
         }
 
         private void ReadLoop()

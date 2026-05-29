@@ -45,7 +45,10 @@ namespace MinorShift.Emuera.GameView
                         break;
                 }
 
-                _terminalBridge.WriteOutput(output);
+                if (Program.AgentMode)
+                    lock (_agentBufferLock) { _agentBuffer.AppendLine(output); }
+                else
+                    _terminalBridge.WriteOutput(output);
             }
             catch (System.IO.IOException)
             {
