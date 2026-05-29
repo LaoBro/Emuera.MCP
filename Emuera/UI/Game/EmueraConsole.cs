@@ -1,4 +1,4 @@
-﻿//using System.Drawing.Imaging;
+//using System.Drawing.Imaging;
 using MinorShift.Emuera.Forms;
 //using MinorShift.Emuera.GameData;
 using MinorShift.Emuera.GameProc.Function;
@@ -112,7 +112,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		redrawTimer.Interval = 10;
 
 		// 启动终端输入线程
-		_terminalBridge = TerminalInputBridge.Start(this, window, Program.AgentMode);
+		_terminalBridge = TerminalInputBridge.Start(this, window);
 	}
 	#region 1823 cbg関連
 	private readonly List<ClientBackGroundImage> cbgList = [];

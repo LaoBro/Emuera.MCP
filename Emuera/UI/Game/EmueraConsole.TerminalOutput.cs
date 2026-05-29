@@ -11,49 +11,39 @@ namespace MinorShift.Emuera.GameView
  
         private void WriteAlignedLine(ConsoleDisplayLine line)
         {
-            try
+            string text = line.ToString();
+            if (string.IsNullOrEmpty(text))
             {
-                string text = line.ToString();
-                if (string.IsNullOrEmpty(text))
-                {
-                    _terminalBridge.WriteOutput("");
-                    return;
-                }
+                _terminalBridge.WriteOutput("");
+                return;
+            }
 
-                int textWidth = GetDisplayWidth(text);
-                int consoleWidth;
-                try { consoleWidth = Console.WindowWidth; }
-                catch { consoleWidth = 80; }
+            int textWidth = GetDisplayWidth(text);
+            int consoleWidth;
+            try { consoleWidth = Console.WindowWidth; }
+            catch { consoleWidth = 80; }
 
-                string output;
-                switch (line.Align)
-                {
-                    case DisplayLineAlignment.CENTER:
-                        {
-                            int pad = Math.Max((consoleWidth - textWidth) / 2, 0);
-                            output = new string(' ', pad) + text;
-                            break;
-                        }
-                    case DisplayLineAlignment.RIGHT:
-                        {
-                            int pad = Math.Max(consoleWidth - textWidth, 0);
-                            output = new string(' ', pad) + text;
-                            break;
-                        }
-                    default:
-                        output = text;
+            string output;
+            switch (line.Align)
+            {
+                case DisplayLineAlignment.CENTER:
+                    {
+                        int pad = Math.Max((consoleWidth - textWidth) / 2, 0);
+                        output = new string(' ', pad) + text;
                         break;
-                }
+                    }
+                case DisplayLineAlignment.RIGHT:
+                    {
+                        int pad = Math.Max(consoleWidth - textWidth, 0);
+                        output = new string(' ', pad) + text;
+                        break;
+                    }
+                default:
+                    output = text;
+                    break;
+            }
 
-                if (Program.AgentMode)
-                    lock (_agentBufferLock) { _agentBuffer.AppendLine(output); }
-                else
-                    _terminalBridge.WriteOutput(output);
-            }
-            catch (System.IO.IOException)
-            {
-                // 无控制台时静默降级
-            }
+            _terminalBridge.WriteOutput(output);
         }
  
         /// <summary>

@@ -7,7 +7,7 @@ using MinorShift.Emuera.Runtime;
 
 namespace MinorShift.Emuera.GameView
 {
-    internal abstract class AgentProtocolBase
+    internal class AgentProtocolBase
     {
         protected readonly EmueraConsole console;
         protected readonly MainWindow window;
@@ -15,16 +15,25 @@ namespace MinorShift.Emuera.GameView
         protected const int TurnTimeoutMs = 30000;
         protected const int PollIntervalMs = 50;
 
-        protected AgentProtocolBase(EmueraConsole console, MainWindow window, Func<bool> isStopped)
+        internal AgentProtocolBase(EmueraConsole console, MainWindow window, Func<bool> isStopped)
         {
             this.console = console;
             this.window = window;
             this.isStopped = isStopped;
         }
 
-        public abstract void Run(string firstLine);
+        public virtual void Run(string firstLine) { }
 
-        public virtual void WriteOutput(string text, bool newLine = true) { }
+        public virtual void WriteOutput(string text, bool newLine = true)
+        {
+            lock (console._agentBufferLock)
+            {
+                if (newLine)
+                    console._agentBuffer.AppendLine(text);
+                else
+                    console._agentBuffer.Append(text);
+            }
+        }
         public virtual void Stop() { }
 
         protected string BuildTurn()

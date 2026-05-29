@@ -4,7 +4,7 @@ namespace MinorShift.Emuera.GameView;
 
 internal sealed partial class EmueraConsole
 {
-    private readonly StringBuilder _agentBuffer = new();
+    internal readonly StringBuilder _agentBuffer = new();
     internal readonly object _agentBufferLock = new();
 
     internal string ReadAgentBuffer()

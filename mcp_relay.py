@@ -56,7 +56,7 @@ def _start_game():
 
     try:
         _game_proc = subprocess.Popen(
-            ["dotnet", "exec", EMUERA_DLL, "--agent", "--ExeDir", TEST_GAME],
+            ["dotnet", "exec", EMUERA_DLL, "--ExeDir", TEST_GAME],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameProc.Function;
+using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
 using MinorShift.Emuera.Runtime.Utils;
@@ -79,11 +79,6 @@ static partial class Program
 		genLangOption.AddAlias("-GENLANG");
 		rootCommand.AddOption(genLangOption);
 
-		var agentOption = new Option<bool>(
-			name: "--agent",
-			description: "Enable agent control mode (MCP/JSONL auto-detect via stdio)"
-		);
-		rootCommand.AddOption(agentOption);
 
 		var filesArg = new Argument<string[]>(
 					"解析するファイル"
@@ -113,8 +108,6 @@ static partial class Program
 		var debugMode = result.GetValueForOption(debugModeOption);
 		DebugMode = debugMode;
 
-		var agentMode = result.GetValueForOption(agentOption);
-		AgentMode = agentMode;
 
 		var genLang = result.GetValueForOption(genLangOption);
 		if (genLang)
@@ -401,7 +394,7 @@ static partial class Program
 	//public static bool DebugMode { get { return debugMode; } }
 	public static bool DebugMode { get; private set; }
 
-	public static bool AgentMode { get; private set; }
+
 
 	static Program()
 	{
