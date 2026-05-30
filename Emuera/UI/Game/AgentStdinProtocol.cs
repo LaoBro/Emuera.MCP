@@ -58,6 +58,33 @@ namespace MinorShift.Emuera.GameView
             });
         }
 
+        /// <summary>
+        /// Submit input and advance one game turn. Returns next-turn JSON, or null on timeout.
+        /// </summary>
+        protected string SubmitAndGetTurn(string value)
+        {
+            if (!WaitForInput()) return null;
+            if (console.State != ConsoleState.WaitInput) return null;
+
+            console.TakeAgentBuffer();
+            window.Invoke(new Action(() =>
+            {
+                if (console.State == ConsoleState.WaitInput)
+                    console.PressEnterKey(false, value, false);
+            }));
+
+            return BuildTurn();
+        }
+
+        /// <summary>
+        /// Wait for game to be ready and return current turn JSON, or null on timeout.
+        /// </summary>
+        protected string GetTurn()
+        {
+            if (!WaitForInput()) return null;
+            return BuildTurn();
+        }
+
         private void ReadStdinLoop(Action<string> onLine)
         {
             while (!IsStopped())

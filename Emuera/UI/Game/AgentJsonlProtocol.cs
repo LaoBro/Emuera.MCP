@@ -27,13 +27,9 @@ namespace MinorShift.Emuera.GameView
 
             if (cmd?.type == "input")
             {
-                if (!WaitForInput()) return;
-                if (console.State != ConsoleState.WaitInput) return;
-
-                string value = cmd.value ?? "";
-                console.TakeAgentBuffer();
-                window.Invoke(new Action(() => DispatchInput(value)));
-                Console.WriteLine(BuildTurn());
+                string turn = SubmitAndGetTurn(cmd.value ?? "");
+                if (turn != null)
+                    Console.WriteLine(turn);
             }
         }
 

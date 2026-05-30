@@ -112,8 +112,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		redrawTimer.Interval = 10;
 
 		// 启动终端输入线程
-		_terminalBridge = new AgentDetectingProtocol(this, window);
-		_terminalBridge.Run(null);
+		_terminalBridge = AgentProtocolBase.DetectAndRun(this, window, null);
 	}
 	#region 1823 cbg関連
 	private readonly List<ClientBackGroundImage> cbgList = [];

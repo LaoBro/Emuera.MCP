@@ -70,5 +70,36 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
+        /// <summary>
+        /// 检测运行环境并创建/运行对应的协议实例
+        /// </summary>
+        public static AgentProtocolBase DetectAndRun(EmueraConsole console, MainWindow window, string firstLine)
+        {
+            bool isAgentMode;
+            try { isAgentMode = Console.IsInputRedirected; }
+            catch { isAgentMode = false; }
+
+            AgentProtocolBase protocol;
+            string line;
+            if (isAgentMode)
+            {
+                line = firstLine ?? Console.ReadLine();
+                if (line == null) return null;
+
+                protocol = line.Contains("\"jsonrpc\"")
+                    ? new AgentMcpProtocol(console, window)
+                    : new AgentJsonlProtocol(console, window);
+            }
+            else
+            {
+                if (!Environment.UserInteractive) return null;
+                line = null;
+                protocol = new AgentCliProtocol(console, window);
+            }
+
+            protocol.Run(line);
+            return protocol;
+        }
+
     }
 }

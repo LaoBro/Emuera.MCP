@@ -84,14 +84,15 @@ namespace MinorShift.Emuera.GameView
 
         private void GetState(long id)
         {
-            if (!WaitForInput())
+            string turn = GetTurn();
+            if (turn == null)
             {
                 RespondError(id, $"Timed out waiting for game to be ready (current state: {console.State})");
                 return;
             }
             Respond(id, new
             {
-                content = new[] { new { type = "text", text = BuildTurn() } }
+                content = new[] { new { type = "text", text = turn } }
             });
         }
 
@@ -107,32 +108,16 @@ namespace MinorShift.Emuera.GameView
                     value = s;
             }
 
-            if (!WaitForInput())
+            string turn = value != null ? SubmitAndGetTurn(value) : GetTurn();
+            if (turn == null)
             {
                 RespondError(id, $"Timed out waiting for game turn (current state: {console.State})");
                 return;
             }
 
-            if (value != null)
-            {
-                if (console.State != ConsoleState.WaitInput)
-                {
-                    RespondError(id, $"Game is not waiting for input (current state: {console.State})");
-                    return;
-                }
-
-                console.TakeAgentBuffer();
-
-                window.Invoke(new Action(() =>
-                {
-                    if (console.State == ConsoleState.WaitInput)
-                        console.PressEnterKey(false, value, false);
-                }));
-            }
-
             Respond(id, new
             {
-                content = new[] { new { type = "text", text = BuildTurn() } }
+                content = new[] { new { type = "text", text = turn } }
             });
         }
 
