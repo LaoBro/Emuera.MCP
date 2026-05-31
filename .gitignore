@@ -13,7 +13,9 @@ Emuera/obj/*
 test_game/
 tests/
 Emuera.CLI/artifacts/
+docs/
 
 *.diff
 *.patch
 .mcp.json
+.emuera-mcp.json

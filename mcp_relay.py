@@ -10,16 +10,37 @@ import signal
 import time
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-EMUERA_DLL = os.path.join(
-    PROJECT_DIR, "Emuera", "artifacts", "bin", "Emuera",
-    "debug-naudio", "Emuera.dll")
-TEST_GAME = os.path.join(PROJECT_DIR, "test_game")
+CONFIG_FILE = os.path.join(PROJECT_DIR, ".emuera-mcp.json")
 
 STARTUP_TIMEOUT = 30  # seconds for MCP handshake with game
 TURN_TIMEOUT = 30     # seconds for game to respond to a tool call
 
 _game_proc = None     # subprocess.Popen or None
 _game_ready = False   # True after MCP handshake completed
+
+
+def _load_config():
+    """Load config from .emuera-mcp.json. Returns dict or None if missing/unreadable."""
+    if not os.path.isfile(CONFIG_FILE):
+        return None
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _resolve_path(path):
+    """Resolve a relative path against PROJECT_DIR; absolute paths pass through."""
+    if os.path.isabs(path):
+        return path
+    return os.path.join(PROJECT_DIR, path)
+
+
+def _save_config(config):
+    """Save config dict to .emuera-mcp.json."""
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
 
 
 def _kill_game():
@@ -54,16 +75,38 @@ def _start_game():
         else:
             return None  # Already running
 
+    config = _load_config()
+    if config is None:
+        return ("DLL path not configured. "
+                "Use emuera_set_config to set dllPath and gameDir first.")
+    dll_path = config.get("dllPath")
+    game_dir = config.get("gameDir")
+    if not dll_path:
+        return "dllPath is not set in .emuera-mcp.json"
+    if not game_dir:
+        return "gameDir is not set in .emuera-mcp.json"
+
+    dll_path = _resolve_path(dll_path)
+    game_dir = _resolve_path(game_dir)
+
+    if not os.path.isfile(dll_path):
+        return (f"DLL file not found: {dll_path}. "
+                "Rebuild or update dllPath via emuera_set_config.")
+    if not os.path.isdir(game_dir):
+        return (f"Game directory not found: {game_dir}. "
+                "Update gameDir via emuera_set_config.")
+
     try:
         _game_proc = subprocess.Popen(
-            ["dotnet", "exec", EMUERA_DLL, "--ExeDir", TEST_GAME],
+            ["dotnet", "exec", dll_path, "--ExeDir", game_dir],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True, encoding="utf-8"
         )
     except FileNotFoundError:
-        return f"Emuera DLL not found: {EMUERA_DLL}"
+        return (f"DLL file not found: {dll_path}. "
+                "Rebuild or update dllPath via emuera_set_config.")
 
     # MCP handshake with game
     try:
@@ -183,12 +226,83 @@ def _handle_request(req_id, method, params):
                     "name": "emuera_kill",
                     "description": "Force kill the Emuera game process and close its window",
                     "inputSchema": {"type": "object", "properties": {}}
+                },
+                {
+                    "name": "emuera_set_config",
+                    "description": "Set DLL path and/or game directory for Emuera. Validates paths before saving. Both parameters are optional — omit to keep current value.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "dllPath": {
+                                "type": "string",
+                                "description": "Path to Emuera.dll (relative to project root or absolute)"
+                            },
+                            "gameDir": {
+                                "type": "string",
+                                "description": "Game data directory path (relative to project root or absolute)"
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "emuera_get_config",
+                    "description": "Show current DLL path and game directory configuration from .emuera-mcp.json.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {}
+                    }
                 }
             ]
         }}, False
 
     elif method == "tools/call":
         tool_name = params.get("name", "")
+
+        # emuera_get_config: return current config (no game needed)
+        if tool_name == "emuera_get_config":
+            config = _load_config()
+            if config is None:
+                config = {"dllPath": None, "gameDir": None, "configured": False}
+            else:
+                config["configured"] = True
+            return {"jsonrpc": "2.0", "id": req_id, "result": {
+                "content": [{"type": "text", "text": json.dumps(config)}]
+            }}, False
+
+        # emuera_set_config: validate and save paths (no game needed)
+        if tool_name == "emuera_set_config":
+            args = params.get("arguments", {})
+            new_dll = args.get("dllPath")
+            new_game_dir = args.get("gameDir")
+
+            if new_dll is not None:
+                resolved = _resolve_path(new_dll)
+                if not os.path.isfile(resolved):
+                    return {"jsonrpc": "2.0", "id": req_id, "error": {
+                        "code": -32000,
+                        "message": f"DLL file not found: {resolved}"
+                    }}, False
+            if new_game_dir is not None:
+                resolved = _resolve_path(new_game_dir)
+                if not os.path.isdir(resolved):
+                    return {"jsonrpc": "2.0", "id": req_id, "error": {
+                        "code": -32000,
+                        "message": f"Game directory not found: {resolved}"
+                    }}, False
+
+            config = _load_config() or {}
+            if new_dll is not None:
+                config["dllPath"] = new_dll
+            if new_game_dir is not None:
+                config["gameDir"] = new_game_dir
+            _save_config(config)
+
+            return {"jsonrpc": "2.0", "id": req_id, "result": {
+                "content": [{"type": "text", "text": json.dumps({
+                    "saved": True, "dllPath": config.get("dllPath"),
+                    "gameDir": config.get("gameDir")
+                })}]
+            }}, False
 
         # emuera_kill: force kill without starting game
         if tool_name == "emuera_kill":

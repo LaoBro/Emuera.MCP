@@ -54,6 +54,25 @@ Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、V
 
 4. 重启 Claude Code。MCP 工具立即可用——在调用工具之前不会出现游戏窗口。
 
+### 路径配置
+
+首次使用前，需要通过 `emuera_set_config` 工具配置 Emuera.dll 路径和游戏目录：
+
+> 调用 `emuera_set_config`，传入 `dllPath`（编译后的 DLL 路径）和 `gameDir`（游戏数据目录）。
+>
+> 路径可以是相对于项目根目录的相对路径，也可以是绝对路径。配置会自动保存到 `.emuera-mcp.json`。
+
+也可以在项目根目录手动创建 `.emuera-mcp.json`：
+
+```json
+{
+  "dllPath": "Emuera/artifacts/bin/Emuera/debug-naudio/Emuera.dll",
+  "gameDir": "test_game"
+}
+```
+
+该文件**不应提交到仓库**——每个开发者有自己的路径和构建配置。
+
 ### 工具
 
 | 工具 | 说明 |
@@ -61,6 +80,8 @@ Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、V
 | `emuera_step` | 提交输入并等待下一回合。传 `{"value": "0"}` 发送输入，传 `{}` 读取当前状态。 |
 | `emuera_get_state` | 阻塞等待游戏进入 `WaitInput` 状态，然后返回当前状态和输出文本。 |
 | `emuera_kill` | 强制关闭游戏进程和窗口。 |
+| `emuera_set_config` | 设置 DLL 路径和/或游戏目录。传 `{"dllPath": "...", "gameDir": "..."}`（参数可选），保存前验证路径有效性。 |
+| `emuera_get_config` | 返回当前配置的 DLL 路径和游戏目录。 |
 
 ### 响应格式
 
