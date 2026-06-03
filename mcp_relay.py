@@ -102,36 +102,46 @@ def _start_game():
 
     config = _load_config()
     if config is None:
-        return ("DLL path not configured. "
-                "Use emuera_set_config to set dllPath and gameDir first.")
-    dll_path = config.get("dllPath")
+        return ("Binary path not configured. "
+                "Use emuera_set_config to set binaryPath and gameDir first.")
+    binary_path = config.get("binaryPath") or config.get("dllPath")
     game_dir = config.get("gameDir")
-    if not dll_path:
-        return "dllPath is not set in .emuera-mcp.json"
+    if not binary_path:
+        return "binaryPath is not set in .emuera-mcp.json"
     if not game_dir:
         return "gameDir is not set in .emuera-mcp.json"
 
-    dll_path = _resolve_path(dll_path)
+    binary_path = _resolve_path(binary_path)
     game_dir = _resolve_path(game_dir)
 
-    if not os.path.isfile(dll_path):
-        return (f"DLL file not found: {dll_path}. "
-                "Rebuild or update dllPath via emuera_set_config.")
+    if not os.path.isfile(binary_path):
+        return (f"Binary file not found: {binary_path}. "
+                "Rebuild or update binaryPath via emuera_set_config.")
     if not os.path.isdir(game_dir):
         return (f"Game directory not found: {game_dir}. "
                 "Update gameDir via emuera_set_config.")
 
+    is_exe = binary_path.lower().endswith(".exe")
+    if is_exe:
+        cmd = [binary_path, "--ExeDir", game_dir]
+    else:
+        cmd = ["dotnet", "exec", binary_path, "--ExeDir", game_dir]
+
     try:
         _game_proc = subprocess.Popen(
-            ["dotnet", "exec", dll_path, "--ExeDir", game_dir],
+            cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True, encoding="utf-8"
         )
     except FileNotFoundError:
-        return (f"DLL file not found: {dll_path}. "
-                "Rebuild or update dllPath via emuera_set_config.")
+        if is_exe:
+            return (f"Binary not found: {binary_path}. "
+                    "Update binaryPath via emuera_set_config.")
+        else:
+            return ("dotnet executable not found. "
+                    "Ensure the .NET SDK or runtime is installed and on PATH.")
 
     # JSONL: game outputs the initial turn automatically via OnStart
     line = _read_game_line(STARTUP_TIMEOUT)
@@ -227,13 +237,17 @@ def _handle_request(req_id, method, params):
                 },
                 {
                     "name": "emuera_set_config",
-                    "description": "Set DLL path and/or game directory for Emuera. Validates paths before saving. Both parameters are optional — omit to keep current value.",
+                    "description": "Set binary path and/or game directory for Emuera. Validates paths before saving. Both parameters are optional — omit to keep current value.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
+                            "binaryPath": {
+                                "type": "string",
+                                "description": "Path to Emuera binary (.dll or .exe, relative to project root or absolute)"
+                            },
                             "dllPath": {
                                 "type": "string",
-                                "description": "Path to Emuera.dll (relative to project root or absolute)"
+                                "description": "(Legacy) Path to Emuera.dll — use binaryPath instead"
                             },
                             "gameDir": {
                                 "type": "string",
@@ -244,7 +258,7 @@ def _handle_request(req_id, method, params):
                 },
                 {
                     "name": "emuera_get_config",
-                    "description": "Show current DLL path and game directory configuration from .emuera-mcp.json.",
+                    "description": "Show current binary path and game directory configuration from .emuera-mcp.json.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {}
@@ -261,24 +275,28 @@ def _handle_request(req_id, method, params):
         if tool_name == "emuera_get_config":
             config = _load_config()
             if config is None:
-                config = {"dllPath": None, "gameDir": None, "configured": False}
+                config = {"binaryPath": None, "gameDir": None, "configured": False}
             else:
                 config["configured"] = True
+                if "dllPath" in config and "binaryPath" not in config:
+                    config["binaryPath"] = config.pop("dllPath")
+                elif "dllPath" in config:
+                    del config["dllPath"]
             return {"jsonrpc": "2.0", "id": req_id, "result": {
                 "content": [{"type": "text", "text": json.dumps(config)}]
             }}, False
 
         # emuera_set_config: validate and save paths (no game needed)
         if tool_name == "emuera_set_config":
-            new_dll = args.get("dllPath")
+            new_binary = args.get("binaryPath") or args.get("dllPath")
             new_game_dir = args.get("gameDir")
 
-            if new_dll is not None:
-                resolved = _resolve_path(new_dll)
+            if new_binary is not None:
+                resolved = _resolve_path(new_binary)
                 if not os.path.isfile(resolved):
                     return {"jsonrpc": "2.0", "id": req_id, "error": {
                         "code": -32000,
-                        "message": f"DLL file not found: {resolved}"
+                        "message": f"Binary file not found: {resolved}"
                     }}, False
             if new_game_dir is not None:
                 resolved = _resolve_path(new_game_dir)
@@ -289,15 +307,19 @@ def _handle_request(req_id, method, params):
                     }}, False
 
             config = _load_config() or {}
-            if new_dll is not None:
-                config["dllPath"] = new_dll
+            if new_binary is not None:
+                config["binaryPath"] = new_binary
+            elif "dllPath" in config and "binaryPath" not in config:
+                config["binaryPath"] = config.pop("dllPath")
+            if "binaryPath" in config:
+                config.pop("dllPath", None)
             if new_game_dir is not None:
                 config["gameDir"] = new_game_dir
             _save_config(config)
 
             return {"jsonrpc": "2.0", "id": req_id, "result": {
                 "content": [{"type": "text", "text": json.dumps({
-                    "saved": True, "dllPath": config.get("dllPath"),
+                    "saved": True, "binaryPath": config.get("binaryPath"),
                     "gameDir": config.get("gameDir")
                 })}]
             }}, False

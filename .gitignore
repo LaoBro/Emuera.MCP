@@ -2,6 +2,7 @@
 .vscode/*
 .idea/*
 .reasonix/*
+.kilo/*
 
 Emuera/artifacts/*
 Emuera/Emuera.csproj.user
