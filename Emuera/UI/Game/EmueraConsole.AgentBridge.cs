@@ -14,7 +14,7 @@ namespace MinorShift.Emuera.GameView
             string text = line.ToString();
             if (string.IsNullOrEmpty(text))
             {
-                _terminalBridge.WriteOutput("");
+                _agentBridge.WriteOutput("");
                 return;
             }
 
@@ -43,7 +43,7 @@ namespace MinorShift.Emuera.GameView
                     break;
             }
 
-            _terminalBridge.WriteOutput(output);
+            _agentBridge.WriteOutput(output);
         }
  
         /// <summary>
