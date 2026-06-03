@@ -23,7 +23,7 @@ namespace MinorShift.Emuera.GameView
 
         protected bool IsStopped() => _stopped;
 
-        public virtual void Run(string firstLine) { }
+        public virtual void Run() { }
 
         public virtual void WriteOutput(string text, bool newLine = true)
         {
@@ -71,33 +71,27 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>
-        /// 检测运行环境并创建/运行对应的协议实例
+        /// 检测运行环境并创建/运行对应的协议实例。
+        /// stdin 重定向时使用 JSONL 协议，否则使用 CLI 交互模式。
         /// </summary>
-        public static AgentProtocolBase DetectAndRun(EmueraConsole console, MainWindow window, string firstLine)
+        public static AgentProtocolBase DetectAndRun(EmueraConsole console, MainWindow window)
         {
             bool isAgentMode;
             try { isAgentMode = Console.IsInputRedirected; }
             catch { isAgentMode = false; }
 
             AgentProtocolBase protocol;
-            string line;
             if (isAgentMode)
             {
-                line = firstLine ?? Console.ReadLine();
-                if (line == null) return null;
-
-                protocol = line.Contains("\"jsonrpc\"")
-                    ? new AgentMcpProtocol(console, window)
-                    : new AgentJsonlProtocol(console, window);
+                protocol = new AgentJsonlProtocol(console, window);
             }
             else
             {
                 if (!Environment.UserInteractive) return null;
-                line = null;
                 protocol = new AgentCliProtocol(console, window);
             }
 
-            protocol.Run(line);
+            protocol.Run();
             return protocol;
         }
 

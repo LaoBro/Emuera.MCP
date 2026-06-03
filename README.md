@@ -1,6 +1,6 @@
 # Emuera
 
-Eramaker 引擎的 C# 移植版，基于 .NET + WinForms 运行。完整支持 ERB 脚本语言，并内置 MCP 协议支持 AI 代理控制。
+Eramaker 引擎的 C# 移植版，基于 .NET + WinForms 运行。完整支持 ERB 脚本语言，并通过 MCP 中继支持 AI 代理控制。
 
 ## 环境要求
 
@@ -21,7 +21,7 @@ dotnet build -c Debug-NAudio Emuera/Emuera.csproj
 dotnet exec Emuera/artifacts/bin/Emuera/debug-naudio/Emuera.dll --ExeDir <游戏目录>
 ```
 
-加上 `--agent` 参数会启动代理模式（通过 stdio 使用 MCP/JSONL 协议），而非直接打开交互窗口。
+stdin 被重定向时自动进入 JSONL 代理模式（无需额外参数），否则打开交互窗口。
 
 ## MCP 集成
 
@@ -38,7 +38,7 @@ Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、V
   "mcpServers": {
     "emuera": {
       "command": "python",
-      "args": ["path/to/mcp_relay.py"]
+      "args": ["mcp_relay.py"]
     }
   }
 }
@@ -92,7 +92,8 @@ Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、V
   "text": "=== 游戏输出 ===\n[0] Hello\n[1] Quit\n",
   "state": "WaitInput",
   "inputType": "IntValue",
-  "needValue": true
+  "needValue": true,
+  "buttons": [{"label": "[0] Hello", "value": 0}]
 }
 ```
 
@@ -102,37 +103,18 @@ Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、V
 | `state` | `WaitInput` / `Running` / `Quit` / `Error` |
 | `inputType` | `IntValue` / `StrValue` / `EnterKey` / `AnyKey` / `AnyValue` / `IntButton` / `StrButton` |
 | `needValue` | 为 true 时表示需要非空输入 |
+| `buttons` | 可见区域内的按钮列表，每项含 `label`（显示文本）和 `value`（输入值） |
 
 ### 中继原理
 
 ```
-Claude Code <-- MCP over stdio --> mcp_relay.py <-- MCP over stdio --> Emuera
+Claude Code <-- MCP over stdio --> mcp_relay.py <-- JSONL over stdio --> Emuera
 ```
 
-- `mcp_relay.py` 常驻运行（无窗口、极低资源占用）。直接处理 `initialize`、`tools/list`、`emuera_kill` 请求。
-- 当 `emuera_step` 或 `emuera_get_state` 被调用时，中继通过 `dotnet exec` 启动 Emuera，完成 MCP 握手，然后转发请求。
-- 游戏进入 `Quit` 或 `Error` 状态时，中继自动杀掉进程并清理。
-- 下次工具调用会启动全新的游戏进程。
-
-### 直接连接（不使用中继）
-
-如果希望 Emuera 直接作为 MCP 服务器运行，可将 `.mcp.json` 配置为指向 DLL：
-
-```json
-{
-  "mcpServers": {
-    "emuera": {
-      "command": "dotnet",
-      "args": [
-        "exec", "path/to/Emuera.dll",
-        "--agent", "--ExeDir", "path/to/game"
-      ]
-    }
-  }
-}
-```
-
-注意：这种方式下 MCP 连接建立时会立即弹出游戏窗口。
+- `mcp_relay.py` 常驻运行（无窗口、极低资源占用）。对外提供 MCP 协议，对内使用 JSONL 与 Emuera 通信。
+- 直接处理 `initialize`、`tools/list`、`emuera_kill`、`emuera_set_config`、`emuera_get_config` 请求（无需启动游戏）。
+- 当 `emuera_step` 或 `emuera_get_state` 被调用时，中继通过 `dotnet exec` 启动 Emuera。游戏启动后自动输出初始状态（无需额外握手）。
+- 游戏进入 `Quit` 或 `Error` 状态时，中继自动杀掉进程并清理。下次工具调用会启动全新的游戏进程。
 
 ### 其他 AI 工具
 
@@ -144,14 +126,17 @@ Claude Code <-- MCP over stdio --> mcp_relay.py <-- MCP over stdio --> Emuera
 
 ## JSONL 协议
 
-Emuera 同时支持更简单的 JSON-Lines 协议（通过首行输入自动检测），适合脚本和自动化。
+Emuera 在 stdin 重定向时自动进入 JSONL 代理模式，适合脚本和自动化。游戏启动后会自动输出初始 turn，之后每发送一条输入命令返回一个 turn。
 
 ```python
-# 客户端发送：
+# 游戏自动输出初始 turn（无需发送任何命令）：
+{"text": "标题画面...", "state": "WaitInput", "inputType": "IntValue", "needValue": true, "buttons": [...]}
+
+# 客户端发送输入：
 {"type": "input", "value": "0"}
 
-# 服务器响应：
-{"text": "输出文本...", "state": "WaitInput", "inputType": "IntValue", "needValue": true}
+# 服务器响应下一 turn：
+{"text": "输出文本...", "state": "WaitInput", "inputType": "IntValue", "needValue": true, "buttons": [...]}
 ```
 
 参考 `tests/emuera_agent.py`（Python 封装库）和 `tests/test_jsonl.py`（示例）。
@@ -162,7 +147,7 @@ Emuera 同时支持更简单的 JSON-Lines 协议（通过首行输入自动检�
 Emuera/          -- 主程序（C# / WinForms）
 tests/           -- Python 测试脚本和代理库
 test_game/       -- 开发用最小 ERB 测试游戏
-mcp_relay.py     -- MCP 中继服务器（Python）
+mcp_relay.py     -- MCP 中继服务器（Python，对外 MCP，对内 JSONL）
 ```
 
 ## 许可证

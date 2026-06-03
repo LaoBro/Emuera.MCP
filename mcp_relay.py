@@ -1,22 +1,24 @@
 """MCP Relay: lightweight MCP server that starts Emuera on demand.
 
+Talks MCP (JSON-RPC 2.0) to Claude Code on stdin/stdout.
+Talks JSONL to Emuera internally (simple {"type":"input","value":"..."} protocol).
+
 Always runs (no window). Launches the game process only when a tool is called.
 """
 import subprocess
 import json
 import os
 import sys
-import signal
-import time
+import threading
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(PROJECT_DIR, ".emuera-mcp.json")
 
-STARTUP_TIMEOUT = 30  # seconds for MCP handshake with game
-TURN_TIMEOUT = 30     # seconds for game to respond to a tool call
+STARTUP_TIMEOUT = 30  # seconds for game to reach first WaitInput
+TURN_TIMEOUT = 30     # seconds for game to respond to a step
 
 _game_proc = None     # subprocess.Popen or None
-_game_ready = False   # True after MCP handshake completed
+_last_turn = None     # cached last turn JSON from game
 
 
 def _load_config():
@@ -45,7 +47,7 @@ def _save_config(config):
 
 def _kill_game():
     """Kill the game process and clean up state."""
-    global _game_proc, _game_ready
+    global _game_proc, _last_turn
     if _game_proc is None:
         return
     try:
@@ -61,19 +63,42 @@ def _kill_game():
     except Exception:
         pass
     _game_proc = None
-    _game_ready = False
+    _last_turn = None
+
+
+def _read_game_line(timeout):
+    """Read a single line from game stdout with timeout. Returns None on timeout/EOF."""
+    result = [None]
+
+    def _read():
+        try:
+            result[0] = _game_proc.stdout.readline()
+        except Exception:
+            result[0] = None
+
+    t = threading.Thread(target=_read, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        return None
+    line = result[0]
+    if not line:
+        return None
+    return line.strip()
 
 
 def _start_game():
-    """Launch Emuera in agent mode and complete MCP handshake. Returns None on success, error string on failure."""
-    global _game_proc, _game_ready
+    """Launch Emuera in JSONL mode and read the initial turn.
+    Returns None on success, error string on failure."""
+    global _game_proc, _last_turn
 
     if _game_proc is not None:
-        # Check if existing process is still alive AND ready
-        if _game_proc.poll() is not None or not _game_ready:
+        if _game_proc.poll() is not None:
             _kill_game()
+        elif _last_turn is not None:
+            return None  # Already running and ready
         else:
-            return None  # Already running
+            _kill_game()
 
     config = _load_config()
     if config is None:
@@ -108,88 +133,61 @@ def _start_game():
         return (f"DLL file not found: {dll_path}. "
                 "Rebuild or update dllPath via emuera_set_config.")
 
-    # MCP handshake with game
-    try:
-        handshake = json.dumps({
-            "jsonrpc": "2.0", "id": 0, "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "relay", "version": "1.0"}
-            }
-        }) + "\n"
-        _game_proc.stdin.write(handshake)
-        _game_proc.stdin.flush()
-
-        _game_proc.stdin.write(json.dumps({
-            "jsonrpc": "2.0", "method": "notifications/initialized"
-        }) + "\n")
-        _game_proc.stdin.flush()
-
-        # Read initialize response (with timeout)
-        line = _read_game_line(STARTUP_TIMEOUT)
-        if line is None:
-            _kill_game()
-            return "Game did not respond to initialize handshake within timeout"
-        resp = json.loads(line)
-        if "error" in resp:
-            _kill_game()
-            return f"Game rejected handshake: {resp['error'].get('message', 'unknown')}"
-    except Exception as e:
+    # JSONL: game outputs the initial turn automatically via OnStart
+    line = _read_game_line(STARTUP_TIMEOUT)
+    if line is None:
+        rc = _game_proc.poll()
         _kill_game()
-        return f"Handshake failed: {e}"
+        if rc is not None:
+            return f"Game process exited with code {rc}"
+        return "Game did not produce initial output within timeout"
 
-    _game_ready = True
+    try:
+        _last_turn = json.loads(line)
+    except json.JSONDecodeError:
+        _kill_game()
+        return f"Invalid JSON from game: {line[:100]}"
+
     return None
 
 
-def _read_game_line(timeout):
-    """Read a single line from game stdout with timeout. Returns None on timeout/EOF."""
-    import threading
-    result = [None]
+def _step_game(value=None):
+    """Send input to game via JSONL and read the next turn.
+    Returns turn dict on success, or error string on failure."""
+    global _last_turn
 
-    def _read():
-        try:
-            result[0] = _game_proc.stdout.readline()
-        except Exception:
-            result[0] = None
-
-    t = threading.Thread(target=_read, daemon=True)
-    t.start()
-    t.join(timeout)
-    if t.is_alive():
-        return None
-    line = result[0]
-    if not line:
-        return None
-    return line.strip()
-
-
-def _send_game(method, params=None, id_val=1):
-    """Send a JSON-RPC request to the game and return the response dict, or error dict."""
-    req = {"jsonrpc": "2.0", "id": id_val, "method": method, "params": params or {}}
+    cmd = {"type": "input", "value": value if value is not None else ""}
     try:
-        _game_proc.stdin.write(json.dumps(req) + "\n")
+        _game_proc.stdin.write(json.dumps(cmd) + "\n")
         _game_proc.stdin.flush()
     except (BrokenPipeError, OSError) as e:
         _kill_game()
-        return {"error": {"code": -32000, "message": f"Game process pipe broken: {e}"}}
+        return f"Game process pipe broken: {e}"
 
     line = _read_game_line(TURN_TIMEOUT)
     if line is None:
-        # Check if process died
         if _game_proc is not None and _game_proc.poll() is not None:
             rc = _game_proc.returncode
-            _game_ready = False
-            return {"error": {"code": -32000, "message": f"Game process exited with code {rc}"}}
+            _kill_game()
+            return f"Game process exited with code {rc}"
         _kill_game()
-        return {"error": {"code": -32000, "message": "Game did not respond within timeout"}}
+        return "Game did not respond within timeout"
 
     try:
-        return json.loads(line)
+        turn = json.loads(line)
     except json.JSONDecodeError:
-        return {"error": {"code": -32000, "message": f"Invalid JSON from game: {line[:100]}"}}
+        return f"Invalid JSON from game: {line[:100]}"
 
+    _last_turn = turn
+
+    # Auto-cleanup if game has ended
+    if turn.get("state") in ("Quit", "Error"):
+        _kill_game()
+
+    return turn
+
+
+# ─── MCP protocol handlers ────────────────────────────────────────────────────
 
 def _handle_request(req_id, method, params):
     """Handle a single JSON-RPC request. Returns (response_dict, is_notification)."""
@@ -257,6 +255,7 @@ def _handle_request(req_id, method, params):
 
     elif method == "tools/call":
         tool_name = params.get("name", "")
+        args = params.get("arguments", {})
 
         # emuera_get_config: return current config (no game needed)
         if tool_name == "emuera_get_config":
@@ -271,7 +270,6 @@ def _handle_request(req_id, method, params):
 
         # emuera_set_config: validate and save paths (no game needed)
         if tool_name == "emuera_set_config":
-            args = params.get("arguments", {})
             new_dll = args.get("dllPath")
             new_game_dir = args.get("gameDir")
 
@@ -315,29 +313,39 @@ def _handle_request(req_id, method, params):
                 })}]
             }}, False
 
-        # Ensure game is running
-        err = _start_game()
-        if err:
-            return {"jsonrpc": "2.0", "id": req_id, "error": {
-                "code": -32000, "message": f"Failed to start game: {err}"
+        # emuera_get_state: return cached turn (start game if needed)
+        if tool_name == "emuera_get_state":
+            err = _start_game()
+            if err:
+                return {"jsonrpc": "2.0", "id": req_id, "error": {
+                    "code": -32000, "message": f"Failed to start game: {err}"
+                }}, False
+            return {"jsonrpc": "2.0", "id": req_id, "result": {
+                "content": [{"type": "text", "text": json.dumps(_last_turn)}]
             }}, False
 
-        # Forward tool call to game
-        resp = _send_game("tools/call", params, req_id)
-        if "error" in resp:
-            return {"jsonrpc": "2.0", "id": req_id, "error": resp["error"]}, False
+        # emuera_step: submit input to game
+        if tool_name == "emuera_step":
+            err = _start_game()
+            if err:
+                return {"jsonrpc": "2.0", "id": req_id, "error": {
+                    "code": -32000, "message": f"Failed to start game: {err}"
+                }}, False
 
-        # Check if game has quit and clean up
-        try:
-            content = resp.get("result", {}).get("content", [])
-            if content:
-                inner = json.loads(content[0]["text"])
-                if inner.get("state") in ("Quit", "Error"):
-                    _kill_game()
-        except (json.JSONDecodeError, KeyError, IndexError):
-            pass
+            value = args.get("value")
+            result = _step_game(value)
+            if isinstance(result, str):
+                return {"jsonrpc": "2.0", "id": req_id, "error": {
+                    "code": -32000, "message": result
+                }}, False
 
-        return {"jsonrpc": "2.0", "id": req_id, "result": resp.get("result", {})}, False
+            return {"jsonrpc": "2.0", "id": req_id, "result": {
+                "content": [{"type": "text", "text": json.dumps(result)}]
+            }}, False
+
+        return {"jsonrpc": "2.0", "id": req_id, "error": {
+            "code": -32601, "message": f"Unknown tool: {tool_name}"
+        }}, False
 
     else:
         return {"jsonrpc": "2.0", "id": req_id, "error": {

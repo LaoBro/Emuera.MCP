@@ -13,7 +13,7 @@ namespace MinorShift.Emuera.GameView
         public AgentCliProtocol(EmueraConsole console, MainWindow window)
             : base(console, window) { }
 
-        public override void Run(string firstLine)
+        public override void Run()
         {
             _thread = new Thread(RunLoop)
             {
