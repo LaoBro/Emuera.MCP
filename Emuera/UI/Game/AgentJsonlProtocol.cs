@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Threading;
-using MinorShift.Emuera.Forms;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
@@ -15,11 +14,11 @@ namespace MinorShift.Emuera.GameView
         /// <summary>默认窗口高度内可显示的行数。用于采集可见按钮。</summary>
         private readonly int _visibleLineCount;
 
-        public AgentJsonlProtocol(EmueraConsole console, MainWindow window)
-            : base(console, window)
+        public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui)
+            : base(console, ui)
         {
-            // 在 UI 线程中缓存可见行数（构造时安全访问 window）
-            int clientHeight = window.MainPicBox?.Height ?? Config.WindowY;
+            // 在 UI 线程中缓存可见行数（构造时安全访问 ui）
+            int clientHeight = ui.ClientHeight;
             _visibleLineCount = Math.Max(1, clientHeight / Config.LineHeight);
         }
 
@@ -131,11 +130,11 @@ namespace MinorShift.Emuera.GameView
             if (!WaitForInput()) return null;
             if (console.State != ConsoleState.WaitInput) return null;
 
-            window.Invoke(new Action(() =>
+            ui.Invoke(() =>
             {
                 if (console.State == ConsoleState.WaitInput)
                     console.PressEnterKey(false, value, false);
-            }));
+            });
 
             return BuildTurn();
         }
@@ -151,7 +150,7 @@ namespace MinorShift.Emuera.GameView
                 onLine(line);
             }
             if (!IsStopped())
-                window.BeginInvoke(new Action(() => window.Close()));
+                ui.Invoke(() => ui.Close());
         }
 
         private record JsonlCommand(string type, string value);

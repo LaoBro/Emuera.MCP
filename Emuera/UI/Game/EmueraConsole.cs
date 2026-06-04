@@ -86,6 +86,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	public EmueraConsole(MainWindow parent)
 	{
 		window = parent;
+		_uiAdapter = new WinFormsConsole(parent);
 		#region EE_AnchorのCB機能移植
 		CBProc = new ClipboardProcessor(parent);
 		#endregion
@@ -112,7 +113,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		redrawTimer.Interval = 10;
 
 		// 启动终端输入线程
-		_agentBridge = AgentProtocolBase.DetectAndRun(this, window);
+		_agentBridge = AgentProtocolBase.DetectAndRun(this, _uiAdapter);
 	}
 	#region 1823 cbg関連
 	private readonly List<ClientBackGroundImage> cbgList = [];
@@ -260,10 +261,12 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	const string ErrorButtonsText = "__openFileWithDebug__";
 	private readonly MainWindow window;
+	private readonly IConsoleUI _uiAdapter;
 	private AgentProtocolBase _agentBridge;
 	#region EE_MOUSEB
 	public MainWindow Window { get { return window; } }
 	#endregion
+	public IConsoleUI UIAdapter => _uiAdapter;
 	#region EE_BINPUT
 	public List<ConsoleDisplayLine> DisplayLineList { get { return displayLineList; } }
 	#endregion

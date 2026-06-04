@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
-using MinorShift.Emuera.Forms;
 using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
 {
@@ -11,14 +11,14 @@ namespace MinorShift.Emuera.GameView
         protected AgentProtocolBase _innerProtocol;
         protected Thread _thread;
         protected readonly EmueraConsole console;
-        protected readonly MainWindow window;
+        protected readonly IConsoleUI ui;
         protected const int TurnTimeoutMs = 30000;
         protected const int PollIntervalMs = 50;
 
-        internal AgentProtocolBase(EmueraConsole console, MainWindow window)
+        internal AgentProtocolBase(EmueraConsole console, IConsoleUI ui)
         {
             this.console = console;
-            this.window = window;
+            this.ui = ui;
         }
 
         protected bool IsStopped() => _stopped;
@@ -75,7 +75,7 @@ namespace MinorShift.Emuera.GameView
         /// stdin 通过管道重定向时使用 JSONL 协议，有终端时使用 CLI 交互模式。
         /// 双击 WinExe（无 console、无 pipe）时返回 null，由 WinForms 正常处理。
         /// </summary>
-        public static AgentProtocolBase DetectAndRun(EmueraConsole console, MainWindow window)
+        public static AgentProtocolBase DetectAndRun(EmueraConsole console, IConsoleUI ui)
         {
             AgentProtocolBase protocol;
             if (Console.IsInputRedirected)
@@ -87,13 +87,13 @@ namespace MinorShift.Emuera.GameView
                 var stdin = Console.OpenStandardInput();
                 if (stdin.CanSeek)
                     return null; // 无 console 且无 pipe，普通 WinForms 模式
-                protocol = new AgentJsonlProtocol(console, window);
+                protocol = new AgentJsonlProtocol(console, ui);
             }
             else
             {
                 try { _ = Console.KeyAvailable; }
                 catch { return null; }
-                protocol = new AgentCliProtocol(console, window);
+                protocol = new AgentCliProtocol(console, ui);
             }
 
             protocol.Run();

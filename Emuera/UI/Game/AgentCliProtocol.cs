@@ -1,8 +1,8 @@
 using System;
 using System.Text;
 using System.Threading;
-using MinorShift.Emuera.Forms;
 using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
 {
@@ -10,8 +10,8 @@ namespace MinorShift.Emuera.GameView
     {
         private readonly StringBuilder _buf = new();
 
-        public AgentCliProtocol(EmueraConsole console, MainWindow window)
-            : base(console, window) { }
+        public AgentCliProtocol(EmueraConsole console, IConsoleUI ui)
+            : base(console, ui) { }
 
         public override void Run()
         {
@@ -30,7 +30,7 @@ namespace MinorShift.Emuera.GameView
                 if (Console.KeyAvailable)
                 {
                     var key = Console.ReadKey(true);
-                    window.BeginInvoke(new Action(() => ProcessKey(key)));
+                    ui.Invoke(() => ProcessKey(key));
                 }
                 FlushBuffer();
                 Thread.Sleep(PollIntervalMs);
