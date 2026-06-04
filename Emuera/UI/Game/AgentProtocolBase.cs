@@ -72,22 +72,27 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>
         /// 检测运行环境并创建/运行对应的协议实例。
-        /// stdin 重定向时使用 JSONL 协议，否则使用 CLI 交互模式。
+        /// stdin 通过管道重定向时使用 JSONL 协议，有终端时使用 CLI 交互模式。
+        /// 双击 WinExe（无 console、无 pipe）时返回 null，由 WinForms 正常处理。
         /// </summary>
         public static AgentProtocolBase DetectAndRun(EmueraConsole console, MainWindow window)
         {
-            bool isAgentMode;
-            try { isAgentMode = Console.IsInputRedirected; }
-            catch { isAgentMode = false; }
-
             AgentProtocolBase protocol;
-            if (isAgentMode)
+            if (Console.IsInputRedirected)
             {
+                // IsInputRedirected=true 有两种情况：
+                // 1) stdin 被管道重定向（JSONL agent 模式）→ stdin 是真实管道流，不可 Seek
+                // 2) 双击 WinExe（无 console）→ stdin 是 NullStream，可 Seek
+                // 用 CanSeek 区分：管道不可 Seek，NullStream 可以
+                var stdin = Console.OpenStandardInput();
+                if (stdin.CanSeek)
+                    return null; // 无 console 且无 pipe，普通 WinForms 模式
                 protocol = new AgentJsonlProtocol(console, window);
             }
             else
             {
-                if (!Environment.UserInteractive) return null;
+                try { _ = Console.KeyAvailable; }
+                catch { return null; }
                 protocol = new AgentCliProtocol(console, window);
             }
 

@@ -11,6 +11,7 @@ namespace MinorShift.Emuera.GameView
  
         private void WriteAlignedLine(ConsoleDisplayLine line)
         {
+            if (_agentBridge is null) return;
             string text = line.ToString();
             if (string.IsNullOrEmpty(text))
             {
