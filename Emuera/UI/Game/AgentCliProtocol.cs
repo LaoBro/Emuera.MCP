@@ -25,7 +25,7 @@ namespace MinorShift.Emuera.GameView
 
         private void RunLoop()
         {
-            while (!IsStopped())
+            while (!IsStopped)
             {
                 if (Console.KeyAvailable)
                 {

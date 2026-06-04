@@ -64,7 +64,7 @@ namespace MinorShift.Emuera.GameView
         private bool WaitForInput()
         {
             var sw = Stopwatch.StartNew();
-            while (!IsStopped())
+            while (!IsStopped)
             {
                 var state = console.State;
                 if (state == ConsoleState.WaitInput || state == ConsoleState.Quit || state == ConsoleState.Error)
@@ -141,7 +141,7 @@ namespace MinorShift.Emuera.GameView
 
         private void ReadStdinLoop(Action<string> onLine)
         {
-            while (!IsStopped())
+            while (!IsStopped)
             {
                 string line;
                 try { line = Console.ReadLine(); }
@@ -149,7 +149,7 @@ namespace MinorShift.Emuera.GameView
                 if (line == null) break;
                 onLine(line);
             }
-            if (!IsStopped())
+            if (!IsStopped)
                 ui.Invoke(() => ui.Close());
         }
 

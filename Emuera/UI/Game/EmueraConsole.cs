@@ -115,6 +115,37 @@ internal sealed partial class EmueraConsole : IDisposable
 		// 启动终端输入线程
 		_agentBridge = AgentProtocolBase.DetectAndRun(this, _uiAdapter);
 	}
+
+	public EmueraConsole(IConsoleUI ui)
+	{
+		window = null;
+		_uiAdapter = ui;
+		#region EE_AnchorのCB機能移植
+		CBProc = null;
+		#endregion
+
+		state = ConsoleState.Initializing;
+		if (Config.FPS > 0)
+			msPerFrame = 1000 / (uint)Config.FPS;
+		displayLineList = [];
+		printBuffer = new PrintStringBuffer(this);
+
+		genericTimer = new();
+		genericTimer.Elapsed += tickTimer;
+		genericTimer.Interval = 10;
+		genericTimer.Enabled = false;
+		CBG_Clear();//文字列描画用ダミー追加
+
+		redrawTimer = new Timer
+		{
+			Enabled = false//TODO:1824アニメ用再描画タイマー有効化関数の追加
+		};
+		redrawTimer.Tick += new EventHandler(tickRedrawTimer);
+		redrawTimer.Interval = 10;
+
+		// 启动终端输入线程
+		_agentBridge = AgentProtocolBase.DetectAndRun(this, _uiAdapter);
+	}
 	#region 1823 cbg関連
 	private readonly List<ClientBackGroundImage> cbgList = [];
 	private GraphicsImage cbgButtonMap;
@@ -267,6 +298,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	public MainWindow Window { get { return window; } }
 	#endregion
 	public IConsoleUI UIAdapter => _uiAdapter;
+	public AgentProtocolBase AgentBridge => _agentBridge;
 	#region EE_BINPUT
 	public List<ConsoleDisplayLine> DisplayLineList { get { return displayLineList; } }
 	#endregion

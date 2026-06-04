@@ -21,7 +21,7 @@ namespace MinorShift.Emuera.GameView
             this.ui = ui;
         }
 
-        protected bool IsStopped() => _stopped;
+        internal bool IsStopped => _stopped;
 
         public virtual void Run() { }
 

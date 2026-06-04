@@ -12,6 +12,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Runtime;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace MinorShift.Emuera;
@@ -40,6 +41,28 @@ static partial class Program
 	TODO: 1819 MainWindow & Consoleの入力・表示組とProcess&Dataのデータ処理組だけでも分離したい
 
 	*/
+
+	static readonly Option<string> exeDirOption = new(
+		name: "--ExeDir",
+		description: "与えられたフォルダのEraを起動します"
+	);
+	static readonly Option<bool> debugModeOption = new(
+		name: "-Debug",
+		description: "デバッグモード"
+	);
+	static readonly Option<bool> genLangOption = new(
+		name: "-GenLang",
+		description: "言語ファイルテンプレ生成"
+	);
+	static readonly Option<bool> headlessOption = new(
+		name: "--headless",
+		description: "无头模式：不创建 GUI 窗口，通过 stdin/stdout 进行 JSONL 交互"
+	);
+	static readonly Argument<string[]> filesArg = new("解析するファイル")
+	{
+		Arity = ArgumentArity.ZeroOrMore
+	};
+
 	/// <summary>
 	/// アプリケーションのメイン エントリ ポイントです。
 	/// </summary>
@@ -55,38 +78,43 @@ static partial class Program
 		var rootCommand = new RootCommand("Emuera");
 
 		#region eee_カレントディレクトリー
-		var exeDirOption = new Option<string>(
-			name: "--ExeDir",
-			description: "与えられたフォルダのEraを起動します"
-		);
 		exeDirOption.AddAlias("-exedir");
 		exeDirOption.AddAlias("-EXEDIR");
 		rootCommand.AddOption(exeDirOption);
 
-		var debugModeOption = new Option<bool>(
-			name: "-Debug",
-			description: "デバッグモード"
-		);
 		debugModeOption.AddAlias("-debug");
 		debugModeOption.AddAlias("-DEBUG");
 		rootCommand.AddOption(debugModeOption);
 
-		var genLangOption = new Option<bool>(
-			name: "-GenLang",
-			description: "言語ファイルテンプレ生成"
-		);
 		genLangOption.AddAlias("-genlang");
 		genLangOption.AddAlias("-GENLANG");
 		rootCommand.AddOption(genLangOption);
 
+		headlessOption.AddAlias("-headless");
+		headlessOption.AddAlias("-HEADLESS");
+		rootCommand.AddOption(headlessOption);
 
-		var filesArg = new Argument<string[]>(
-					"解析するファイル"
-				)
-		{ Arity = ArgumentArity.ZeroOrMore };
 		rootCommand.AddArgument(filesArg);
 
 		var result = rootCommand.Parse(args);
+		var headless = result.GetValueForOption(headlessOption);
+
+		if (!InitializeCore(args, result, out var icon))
+			return;
+
+		if (headless)
+		{
+			RunHeadless(args);
+		}
+		else
+		{
+			RunWinForms(args, icon);
+		}
+	}
+
+	private static bool InitializeCore(string[] args, ParseResult result, out Icon? icon)
+	{
+		icon = null;
 
 		//実行ディレクトリが引数で与えられた場合t
 		var exeDir = result.GetValueForOption(exeDirOption);
@@ -147,8 +175,6 @@ static partial class Program
 		}
 		#endregion
 
-		Application.SetCompatibleTextRenderingDefault(false);
-
 		ProfileOptimization.SetProfileRoot(exeDir ?? ExeDir);
 		ProfileOptimization.StartProfile("profile");
 
@@ -169,7 +195,6 @@ static partial class Program
 		Lang.SetLanguage();
 		#endregion
 		#region EM_私家版_Icon指定機能
-		Icon icon = null;
 		{
 			var bmp = Utils.LoadImage(Utils.GetValidPath(Config.EmueraIcon));
 			if (bmp != null)
@@ -184,20 +209,23 @@ static partial class Program
 		if ((!Config.AllowMultipleInstances) && AssemblyData.PrevInstance())
 		{
 			//Dialog.Show("既に起動しています", "多重起動を許可する場合、emuera.configを書き換えて下さい");
-			Dialog.Show(Lang.UI.MainWindow.MsgBox.InstaceExists.Text, Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text);
-			return;
+			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.InstaceExists.Text);
+			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text);
+			return false;
 		}
 		if (!Directory.Exists(CsvDir))
 		{
 			//Dialog.Show("フォルダなし", "csvフォルダが見つかりません");
-			Dialog.Show(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text, Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text);
-			return;
+			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
+			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text);
+			return false;
 		}
 		if (!Directory.Exists(ErbDir))
 		{
 			//Dialog.Show("フォルダなし", "erbフォルダが見つかりません");
-			Dialog.Show(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text, Lang.UI.MainWindow.MsgBox.NoErbFolder.Text);
-			return;
+			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
+			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.NoErbFolder.Text);
+			return false;
 		}
 		#region EE_フォントファイル対応
 		//フォントファイルを読み込む
@@ -222,8 +250,9 @@ static partial class Program
 				}
 				catch
 				{
-					Dialog.Show(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text, Lang.UI.MainWindow.MsgBox.FailedCreateDebugFolder.Text);
-					return;
+					Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
+					Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.FailedCreateDebugFolder.Text);
+					return false;
 				}
 			}
 		}
@@ -238,8 +267,8 @@ static partial class Program
 				//if (!File.Exists(args[i]) && !Directory.Exists(args[i]))
 				if (!File.Exists(path) && !Directory.Exists(path))
 				{
-					MessageBox.Show(Lang.UI.MainWindow.MsgBox.ArgPathNotExists.Text);
-					return;
+					Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.ArgPathNotExists.Text);
+					return false;
 				}
 				//if ((File.GetAttributes(args[i]) & FileAttributes.Directory) == FileAttributes.Directory)
 				if ((File.GetAttributes(path) & FileAttributes.Directory) == FileAttributes.Directory)
@@ -256,8 +285,8 @@ static partial class Program
 					//if (Path.GetExtension(args[i]).ToUpper() != ".ERB")
 					if (!Path.GetExtension(path).Equals(".ERB", StringComparison.OrdinalIgnoreCase))
 					{
-						MessageBox.Show(Lang.UI.MainWindow.MsgBox.InvalidArg.Text);
-						return;
+						Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.InvalidArg.Text);
+						return false;
 					}
 					//AnalysisFiles.Add(args[i]);
 					AnalysisFiles.Add(path);
@@ -266,6 +295,12 @@ static partial class Program
 			#endregion
 		}
 
+		return true;
+	}
+
+	private static void RunWinForms(string[] args, Icon? icon)
+	{
+		Application.SetCompatibleTextRenderingDefault(false);
 		ApplicationConfiguration.Initialize();
 
 		using var win = new Forms.MainWindow(args);
@@ -323,6 +358,27 @@ static partial class Program
 			Application.Restart();
 		#endregion
 		*/
+	}
+
+	private static void RunHeadless(string[] args)
+	{
+		var ui = new UI.Game.HeadlessConsole();
+		var console = new GameView.EmueraConsole(ui);
+
+		// EmueraConsole 内部已经通过 DetectAndRun 启动了协议线程
+		// 主线程保持运行，等待协议线程结束
+		var protocol = console.AgentBridge;
+		if (protocol != null)
+		{
+			while (!protocol.IsStopped)
+			{
+				Thread.Sleep(100);
+			}
+		}
+		else
+		{
+			Console.Error.WriteLine("[headless] 未检测到输入管道，游戏逻辑需要手动驱动");
+		}
 	}
 
 	[MemberNotNull(nameof(ExeDir))]
