@@ -43,10 +43,7 @@ namespace MinorShift.Emuera.GameView
         private void OnStart()
         {
             if (WaitForInput())
-            {
                 Console.WriteLine(BuildTurn());
-                console.TakeAgentBuffer();
-            }
         }
 
         private void HandleMessage(string line)
@@ -82,7 +79,7 @@ namespace MinorShift.Emuera.GameView
 
         private string BuildTurn()
         {
-            var text = console.ReadAgentBuffer();
+            var text = console.TakeAgentBuffer();
             var req = console.CurrentRequest;
             return JsonSerializer.Serialize(new
             {
@@ -134,7 +131,6 @@ namespace MinorShift.Emuera.GameView
             if (!WaitForInput()) return null;
             if (console.State != ConsoleState.WaitInput) return null;
 
-            console.TakeAgentBuffer();
             window.Invoke(new Action(() =>
             {
                 if (console.State == ConsoleState.WaitInput)

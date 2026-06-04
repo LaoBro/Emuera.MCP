@@ -7,14 +7,6 @@ internal sealed partial class EmueraConsole
     internal readonly StringBuilder _agentBuffer = new();
     internal readonly object _agentBufferLock = new();
 
-    internal string ReadAgentBuffer()
-    {
-        lock (_agentBufferLock)
-        {
-            return _agentBuffer.ToString();
-        }
-    }
-
     internal string TakeAgentBuffer()
     {
         lock (_agentBufferLock)
