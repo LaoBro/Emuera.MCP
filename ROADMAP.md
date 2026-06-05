@@ -239,45 +239,134 @@ python mcp_relay.py --mode jsonl
 
 ## Phase 6: 服务器模式 — 添加 TCP/HTTP 接口
 
-**目标**：支持外部进程通过网络连接，而非仅 stdin/stdout。
+**目标**：支持外部进程通过网络连接，而非仅 stdin/stdout。复用 `AgentJsonlProtocol` 的序列化逻辑，每个会话对应独立的 `EmueraConsole` 实例。
 
-### 新增文件
+> 详细子计划见 [`PHASE6_PLAN.md`](./PHASE6_PLAN.md)。
+
+### 6.1 架构设计
+
+```
+Program.Main(args)
+  → 若 --server:
+      → new GameServer(port)
+      → server.Start()
+      → 主线程阻塞等待退出信号
+
+GameServer (HttpListener)
+  ├── 监听端口
+  ├── 收到 HTTP 请求
+  │     → SessionManager.CreateSession() → new Session()
+  │     → Session 内部: new HeadlessConsole() + new EmueraConsole(ui)
+  │     → Session.Initialize() + AgentJsonlProtocol.Run()
+  │     → 返回 sessionId
+  ├── HTTP API:
+  │     POST   /sessions              → 创建会话
+  │     GET    /sessions/{id}         → 查询会话状态
+  │     POST   /sessions/{id}/input   → 提交输入（投递到会话输入队列）
+  │     GET    /sessions/{id}/turn    → 长轮询获取下一回合 JSON
+  │     DELETE /sessions/{id}         → 销毁会话
+  └── 会话管理:
+        → SessionManager 维护 ConcurrentDictionary<string, Session>
+        → 空闲超时自动清理（默认 30 分钟）
+```
+
+### 6.2 新增文件
 
 | 文件 | 说明 |
 |------|------|
-| `Emuera/Server/GameServer.cs` | TCP/HTTP 服务器（轻量实现，`HttpListener` 或裸 TCP） |
-| `Emuera/Server/Session.cs` | 会话管理 |
-| `Emuera/Server/GameProtocol.cs` | 基于 JSONL 的网络协议封装 |
+| `Emuera/Server/SessionIO.cs` | IO 抽象：替换 `Console.ReadLine` / `Console.WriteLine` |
+| `Emuera/Server/ConsoleOutIO.cs` | `SessionIO` 的 stdin/stdout 实现（兼容现有 `--headless`） |
+| `Emuera/Server/HttpSessionIO.cs` | `SessionIO` 的内存队列实现（用于 HTTP 会话） |
+| `Emuera/Server/Session.cs` | 单个会话：独立 `EmueraConsole` + `AgentJsonlProtocol` + 游戏线程 |
+| `Emuera/Server/SessionManager.cs` | 多会话管理、空闲超时清理 |
+| `Emuera/Server/HttpGameServer.cs` | `HttpListener` 封装、HTTP 路由、长轮询 |
 
-### 接口设计（最小集）
+### 6.3 关键接口契约
 
+#### `SessionIO`（抽象）
 ```csharp
-// POST /input  → 提交输入
-// GET  /state  → 获取当前回合状态
-// WebSocket /stream → 实时推送
+internal abstract class SessionIO
+{
+    public abstract string? ReadLine();
+    public abstract void WriteLine(string text);
+    public abstract void Close();
+    public abstract bool IsConnected { get; }
+}
 ```
 
-### 与现有代码集成
+#### `AgentJsonlProtocol` 改造
+- 新增构造函数：`AgentJsonlProtocol(EmueraConsole, IConsoleUI, SessionIO io)`
+- 内部读写从 `Console.ReadLine/WriteLine` 改为注入的 `SessionIO`
+- 原有构造函数保留，内部使用 `ConsoleOutIO.Instance`，不影响 `--headless` 管道模式
 
-- 复用 `AgentJsonlProtocol` 的轮询/序列化逻辑
-- 每个连接对应一个 `EmueraConsole` 实例（或共享，视需求）
+#### `Session` 生命周期
+```csharp
+internal sealed class Session : IDisposable
+{
+    public string Id { get; }
+    public bool IsRunning { get; }
+    public DateTimeOffset LastActivityAt { get; }
+    public void Start();      // 启动游戏线程 + 协议线程
+    public void Dispose();    // 停止协议、释放资源
+}
+```
 
-### 验收标准
+#### `HttpGameServer` 路由
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/sessions` | 创建新会话，返回 `{sessionId, createdAt}` |
+| GET | `/sessions/{id}` | 查询会话状态，返回 `{sessionId, isRunning, lastActivity}` |
+| POST | `/sessions/{id}/input` | 提交输入 JSON，投递到会话输入队列 |
+| GET | `/sessions/{id}/turn` | 长轮询（最多 25s），返回回合 JSON 或 204 |
+| DELETE | `/sessions/{id}` | 销毁会话，返回 `{removed}` |
+
+### 6.4 修改文件
+
+| 文件 | 改动内容 |
+|------|---------|
+| `Emuera/UI/Game/AgentJsonlProtocol.cs` | 支持注入 `SessionIO`，替换 `Console.ReadLine/WriteLine` |
+| `Emuera/Program.cs` | 添加 `--server`、`--port` 参数；新增 `RunServer()` 入口 |
+
+### 6.5 验收标准
 
 ```bash
-# 1. 启动服务器
+# 1. 编译通过
+dotnet build -c Debug-NAudio
+
+# 2. 启动服务器
 Emuera.exe --server --port 8080
+# → stderr 输出 [server] 监听日志
 
-# 2. HTTP 交互
-curl http://localhost:8080/state
-# → 返回 JSON 回合状态
+# 3. 创建会话
+SESSION=$(curl -s -X POST http://localhost:8080/sessions | jq -r .sessionId)
 
-curl -X POST -d '{"value":"1"}' http://localhost:8080/input
-# → 推进游戏，返回新状态
+# 4. 提交输入
+curl -X POST -d '{"type":"input","value":""}' http://localhost:8080/sessions/$SESSION/input
 
-# 3. 多客户端隔离（如已实现多会话）
-# 每个客户端有独立游戏状态
+# 5. 获取回合（长轮询）
+curl http://localhost:8080/sessions/$SESSION/turn
+# → {"text":"...","state":"WaitInput","inputType":"...","needValue":false,"buttons":[...]}
+
+# 6. 多会话隔离
+SESSION2=$(curl -s -X POST http://localhost:8080/sessions | jq -r .sessionId)
+# 向 SESSION 和 SESSION2 发送不同输入，确认输出互不影响
+
+# 7. 回归测试
+Emuera.exe
+# → WinForms 模式正常
+
+echo '{"type":"input","value":""}' | Emuera.exe --headless
+# → 管道模式正常
 ```
+
+### 6.6 风险与缓解
+
+| 风险 | 影响 | 缓解 |
+|------|------|------|
+| `HttpListener` 需要管理员权限 | 中 | 开发用 `localhost` 前缀；生产环境改用裸 TCP |
+| 多线程 `EmueraConsole` 并发 | 高 | 每个 Session 独立实例；`Config`/`GlobalStatic` 全局状态需审查 |
+| 内存泄漏 | 中 | SessionManager 空闲超时清理 + 客户端 DELETE |
+| 长轮询性能 | 低 | 每个 turn 一个 HTTP 请求，可接受；未来升级 WebSocket |
 
 ---
 

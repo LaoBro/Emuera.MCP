@@ -58,6 +58,15 @@ static partial class Program
 		name: "--headless",
 		description: "无头模式：不创建 GUI 窗口，通过 stdin/stdout 进行 JSONL 交互"
 	);
+	static readonly Option<bool> serverOption = new(
+		name: "--server",
+		description: "服务器模式：通过 HTTP 接口提供多会话服务"
+	);
+	static readonly Option<int> portOption = new(
+		name: "--port",
+		description: "服务器监听端口",
+		getDefaultValue: () => 8080
+	);
 	static readonly Argument<string[]> filesArg = new("解析するファイル")
 	{
 		Arity = ArgumentArity.ZeroOrMore
@@ -94,15 +103,29 @@ static partial class Program
 		headlessOption.AddAlias("-HEADLESS");
 		rootCommand.AddOption(headlessOption);
 
+		serverOption.AddAlias("-server");
+		serverOption.AddAlias("-SERVER");
+		rootCommand.AddOption(serverOption);
+
+		portOption.AddAlias("-port");
+		portOption.AddAlias("-PORT");
+		rootCommand.AddOption(portOption);
+
 		rootCommand.AddArgument(filesArg);
 
 		var result = rootCommand.Parse(args);
 		var headless = result.GetValueForOption(headlessOption);
+		var server = result.GetValueForOption(serverOption);
+		var port = result.GetValueForOption(portOption);
 
 		if (!InitializeCore(args, result, out var icon))
 			return;
 
-		if (headless)
+		if (server)
+		{
+			RunServer(port);
+		}
+		else if (headless)
 		{
 			RunHeadless(args);
 		}
@@ -390,6 +413,19 @@ static partial class Program
 			Console.Error.WriteLine("[headless] 未检测到输入管道，游戏逻辑需要手动驱动");
 			Environment.Exit(1);
 		}
+	}
+
+	private static void RunServer(int port)
+	{
+		AnalysisMode = false;
+		Console.Error.WriteLine($"[server] Emuera {AssemblyData.EmueraVersionText} 服务器模式启动");
+		Console.Error.WriteLine($"[server] 监听端口: {port}");
+
+		using var server = new Server.HttpGameServer(port);
+		server.Start();
+
+		Console.Error.WriteLine("[server] 按 Enter 键停止服务器...");
+		Console.ReadLine();
 	}
 
 	[MemberNotNull(nameof(ExeDir))]

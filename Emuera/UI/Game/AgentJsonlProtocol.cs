@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Server;
 using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
@@ -13,10 +14,15 @@ namespace MinorShift.Emuera.GameView
     {
         /// <summary>默认窗口高度内可显示的行数。用于采集可见按钮。</summary>
         private readonly int _visibleLineCount;
+        private readonly SessionIO _io;
 
         public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui)
+            : this(console, ui, ConsoleOutIO.Instance) { }
+
+        public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui, SessionIO io)
             : base(console, ui)
         {
+            _io = io;
             // 在 UI 线程中缓存可见行数（构造时安全访问 ui）
             int clientHeight = ui.ClientHeight;
             _visibleLineCount = Math.Max(1, clientHeight / Config.LineHeight);
@@ -42,7 +48,7 @@ namespace MinorShift.Emuera.GameView
         private void OnStart()
         {
             if (WaitForInput())
-                Console.WriteLine(BuildTurn());
+                _io.WriteLine(BuildTurn());
         }
 
         private void HandleMessage(string line)
@@ -57,12 +63,12 @@ namespace MinorShift.Emuera.GameView
                 {
                     string turn = SubmitAndGetTurn(cmd.value ?? "");
                     if (turn != null)
-                        Console.WriteLine(turn);
+                        _io.WriteLine(turn);
                 }
                 catch (Exception ex)
                 {
                     Console.Error.WriteLine($"[jsonl] 输入处理异常: {ex.Message}");
-                    Console.WriteLine(JsonSerializer.Serialize(new { error = ex.Message, state = console.State.ToString() }));
+                    _io.WriteLine(JsonSerializer.Serialize(new { error = ex.Message, state = console.State.ToString() }));
                 }
             }
         }
@@ -149,10 +155,10 @@ namespace MinorShift.Emuera.GameView
 
         private void ReadStdinLoop(Action<string> onLine)
         {
-            while (!IsStopped)
+            while (!IsStopped && _io.IsConnected)
             {
-                string line;
-                try { line = Console.ReadLine(); }
+                string? line;
+                try { line = _io.ReadLine(); }
                 catch (ThreadInterruptedException) { break; }
                 if (line == null) break;
                 onLine(line);
