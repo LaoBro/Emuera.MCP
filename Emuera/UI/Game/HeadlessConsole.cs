@@ -23,18 +23,25 @@ namespace MinorShift.Emuera.UI.Game
 		public void Refresh() { }
 		public void Invoke(Action action) => action?.Invoke();
 		public void Focus() { }
-		public void Close() { }
+		public void Close() => Environment.Exit(0);
 		public void Reboot() { }
 		public void ShowConfigDialog() { }
 		public void UpdateLastInput() { }
 		public void ResetTextBoxPos() { }
 		public void ClearRichText() { }
+		public void ApplyTextBoxChanges() { }
+		public void SetTextBoxPos(int xOffset, int yOffset, int width) { }
+		public void ChangeTextBox(string str) { }
 
 		public bool TextBoxPosChanged => false;
 		public bool TextBoxIgnoreScrollBarChanges { get; set; } = false;
 
 		public Point GetMousePosition() => Point.Empty;
+		public Point GetCursorPosition() => Point.Empty;
+		public int GetCursorHeight() => 0;
+		public int GetScreenWorkingAreaHeight(Point point) => 1080;
 		public void ExitApplication() => Environment.Exit(0);
+		public void ProcessEvents() { }
 
 		public IScrollBar ScrollBar => _scrollBar;
 		public ITextBox TextBox => _textBox;
@@ -69,6 +76,7 @@ namespace MinorShift.Emuera.UI.Game
 		public void RemoveAll() { }
 		public void Show(string text, Point point) { }
 		public void Show(string text, Point point, int duration) { }
+		public string GetToolTip() => string.Empty;
 	}
 
 	internal sealed class HeadlessPictureBox : IPictureBox

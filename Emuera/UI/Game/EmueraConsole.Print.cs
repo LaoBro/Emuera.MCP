@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Utils;
@@ -45,7 +45,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	public void ClearDisplay()
 	{
 		#region EE_AnchorのCB機能移植
-		CBProc.ClearScreen();
+		CBProc?.ClearScreen();
 		#endregion
 		displayLineList.Clear();
 		_htmlElementList.Clear();
@@ -60,7 +60,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		lineNo = 0;
 		lastDrawnLineNo = -1;
 		verticalScrollBarUpdate();
-		window.Refresh();//OnPaint発行
+		_uiAdapter.Refresh();//OnPaint発行
 	}
 
 
@@ -114,7 +114,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		forceTextBoxColor = true;
 		//REDRAWされない場合はTextBoxの色は変えずにフラグだけ立てる
 		//最初の再描画時に現在の背景色に合わせる
-		if (redraw == ConsoleRedraw.None && window.ScrollBar.Value == window.ScrollBar.Maximum)
+		if (redraw == ConsoleRedraw.None && _uiAdapter.ScrollBar.Value == _uiAdapter.ScrollBar.Maximum)
 			return;
 		//色変化が速くなりすぎないように一定時間以内の再呼び出しは強制待ちにする
 		if (_drawStopwatch == null)
@@ -125,7 +125,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		{
 			while (_drawStopwatch.ElapsedMilliseconds < msPerFrame)
 			{
-				Application.DoEvents();
+				_uiAdapter.ProcessEvents();
 			}
 		}
 		RefreshStrings(true);
@@ -648,7 +648,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	}
 	public void ClearText()
 	{
-		window.clear_richText();
+		_uiAdapter.ClearRichText();
 	}
 
 	public void PrintPlainWithSingleLineFix(string str)
@@ -790,7 +790,7 @@ internal sealed partial class EmueraConsole : IDisposable
 
 		if (outputLog(filename, hideInfo))
 		{
-			if (window.Created)
+			if (_uiAdapter.Created)
 			{
 				PrintSystemLine(string.Format(trsl.LogFileHasBeenCreated.Text, filename.Replace(Program.ExeDir, "")));
 				RefreshStrings(true);
@@ -814,7 +814,7 @@ internal sealed partial class EmueraConsole : IDisposable
 
 		if (outputLog(filename, false))
 		{
-			if (window.Created)
+			if (_uiAdapter.Created)
 			{
 				PrintSystemLine(string.Format(trsl.LogFileHasBeenCreated.Text, filename.Replace(Program.ExeDir, "")));
 				RefreshStrings(true);

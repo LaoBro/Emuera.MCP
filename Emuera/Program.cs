@@ -365,6 +365,9 @@ static partial class Program
 		var ui = new UI.Game.HeadlessConsole();
 		var console = new GameView.EmueraConsole(ui);
 
+		// 初始化并启动游戏逻辑（相当于 WinForms 模式下 MainWindow 的 Initialize 调用）
+		console.Initialize().Wait();
+
 		// EmueraConsole 内部已经通过 DetectAndRun 启动了协议线程
 		// 主线程保持运行，等待协议线程结束
 		var protocol = console.AgentBridge;

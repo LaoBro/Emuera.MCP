@@ -50,6 +50,9 @@ namespace MinorShift.Emuera.UI.Game
 		public void UpdateLastInput() => _window.update_lastinput();
 		public void ResetTextBoxPos() => _window.ResetTextBoxPos();
 		public void ClearRichText() => _window.clear_richText();
+		public void ApplyTextBoxChanges() => _window.ApplyTextBoxChanges();
+		public void SetTextBoxPos(int xOffset, int yOffset, int width) => _window.SetTextBoxPos(xOffset, yOffset, width);
+		public void ChangeTextBox(string str) => _window.ChangeTextBox(str);
 
 		public bool TextBoxPosChanged => _window.TextBoxPosChanged;
 		public bool TextBoxIgnoreScrollBarChanges
@@ -67,12 +70,19 @@ namespace MinorShift.Emuera.UI.Game
 			return pos;
 		}
 
+		public Point GetCursorPosition() => Cursor.Position;
+		public int GetCursorHeight() => Cursor.Current?.Size.Height ?? 0;
+		public int GetScreenWorkingAreaHeight(Point point) => Screen.FromPoint(point).WorkingArea.Height;
+
 		public void ExitApplication() => Application.Exit();
+		public void ProcessEvents() => Application.DoEvents();
 
 		public IScrollBar ScrollBar => _scrollBar;
 		public ITextBox TextBox => _textBox;
 		public IToolTip ToolTip => _toolTip;
 		public IPictureBox MainPicBox => _pictureBox;
+
+		public MainWindow GetMainWindow() => _window;
 	}
 
 	internal sealed class WinFormsScrollBar : IScrollBar
@@ -163,6 +173,7 @@ namespace MinorShift.Emuera.UI.Game
 		public void RemoveAll() => _toolTip.RemoveAll();
 		public void Show(string text, Point point) => _toolTip.Show(text, _parent, point);
 		public void Show(string text, Point point, int duration) => _toolTip.Show(text, _parent, point, duration);
+		public string GetToolTip() => _toolTip.GetToolTip(_parent);
 
 		private void OnDraw(object sender, DrawToolTipEventArgs e)
 		{

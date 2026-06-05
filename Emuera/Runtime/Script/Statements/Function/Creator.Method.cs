@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -1978,8 +1978,8 @@ internal static partial class FunctionMethodCreator
 		bool resume;
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (resume) exm.Console.Window.ResetTextBoxPos();
-			else exm.Console.Window.SetTextBoxPos(
+			if (resume) exm.Console.UIAdapter.ResetTextBoxPos();
+			else exm.Console.UIAdapter.SetTextBoxPos(
 				(int)arguments[0].GetIntValue(exm),
 				(int)arguments[1].GetIntValue(exm),
 				(int)arguments[2].GetIntValue(exm));
@@ -6839,9 +6839,9 @@ internal static partial class FunctionMethodCreator
 			//if (exm.Console.SelectingButton != null)
 			//	return exm.Console.SelectingButton.ToString();
 			bool b = exm.Console.AlwaysRefresh;
-			Point point = exm.Console.Window.MainPicBox.PointToClient(Control.MousePosition);
+			Point point = exm.Console.UIAdapter.MainPicBox.PointToClient(exm.Console.UIAdapter.GetCursorPosition());
 			exm.Console.AlwaysRefresh = true;
-			if (exm.Console.Window.MainPicBox.ClientRectangle.Contains(point))
+			if (exm.Console.UIAdapter.MainPicBox.ClientRectangle.Contains(point))
 				exm.Console.MoveMouse(point);
 			exm.Console.AlwaysRefresh = b;
 			if (exm.Console.PointingSring != null)
@@ -7324,7 +7324,7 @@ internal static partial class FunctionMethodCreator
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			return exm.Console.Window.TextBox.Text;
+			return exm.Console.UIAdapter.TextBox.Text;
 		}
 	}
 	private sealed class ChangeTextBoxMethod : FunctionMethod
@@ -7337,7 +7337,7 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			exm.Console.Window.ChangeTextBox(arguments[0].GetStrValue(exm));
+			exm.Console.UIAdapter.ChangeTextBox(arguments[0].GetStrValue(exm));
 			return 1;
 		}
 	}

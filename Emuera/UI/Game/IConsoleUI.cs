@@ -23,12 +23,19 @@ namespace MinorShift.Emuera.UI.Game
 		void UpdateLastInput();
 		void ResetTextBoxPos();
 		void ClearRichText();
+		void ApplyTextBoxChanges();
+		void SetTextBoxPos(int xOffset, int yOffset, int width);
+		void ChangeTextBox(string str);
 
 		bool TextBoxPosChanged { get; }
 		bool TextBoxIgnoreScrollBarChanges { get; set; }
 
 		Point GetMousePosition();
+		Point GetCursorPosition();
+		int GetCursorHeight();
+		int GetScreenWorkingAreaHeight(Point point);
 		void ExitApplication();
+		void ProcessEvents();
 
 		IScrollBar ScrollBar { get; }
 		ITextBox TextBox { get; }
@@ -59,6 +66,7 @@ namespace MinorShift.Emuera.UI.Game
 		bool OwnerDraw { get; set; }
 		Color ForeColor { get; set; }
 		Color BackColor { get; set; }
+		string GetToolTip();
 
 		event EventHandler<ToolTipDrawEventArgs> Draw;
 		event EventHandler<ToolTipPopupEventArgs> Popup;
