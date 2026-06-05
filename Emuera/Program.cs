@@ -362,6 +362,13 @@ static partial class Program
 
 	private static void RunHeadless(string[] args)
 	{
+		// 无头模式下禁用分析模式（分析模式需要 GUI 文件选择对话框）
+		AnalysisMode = false;
+
+		Console.Error.WriteLine($"[headless] Emuera {AssemblyData.EmueraVersionText} 无头模式启动");
+		Console.Error.WriteLine($"[headless] 工作目录: {ExeDir}");
+		Console.Error.WriteLine($"[headless] 协议类型: {(Console.IsInputRedirected ? "JSONL (管道)" : "CLI (终端)")}");
+
 		var ui = new UI.Game.HeadlessConsole();
 		var console = new GameView.EmueraConsole(ui);
 
@@ -381,6 +388,7 @@ static partial class Program
 		else
 		{
 			Console.Error.WriteLine("[headless] 未检测到输入管道，游戏逻辑需要手动驱动");
+			Environment.Exit(1);
 		}
 	}
 

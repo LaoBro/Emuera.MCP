@@ -53,9 +53,17 @@ namespace MinorShift.Emuera.GameView
 
             if (cmd?.type == "input")
             {
-                string turn = SubmitAndGetTurn(cmd.value ?? "");
-                if (turn != null)
-                    Console.WriteLine(turn);
+                try
+                {
+                    string turn = SubmitAndGetTurn(cmd.value ?? "");
+                    if (turn != null)
+                        Console.WriteLine(turn);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[jsonl] 输入处理异常: {ex.Message}");
+                    Console.WriteLine(JsonSerializer.Serialize(new { error = ex.Message, state = console.State.ToString() }));
+                }
             }
         }
 
