@@ -374,14 +374,9 @@ echo '{"type":"input","value":""}' | Emuera.exe --headless
 
 **目标**：Python 层承担协议转换、会话管理、复杂逻辑。
 
-### 新增/修改文件
+### 详细子计划
 
-| 文件 | 说明 |
-|------|------|
-| `emuera_gateway/__init__.py` | 包入口 |
-| `emuera_gateway/server.py` | HTTP/WebSocket 服务 |
-| `emuera_gateway/mcp.py` | MCP 协议实现 |
-| `emuera_gateway/session.py` | Emuera 进程池管理 |
+详见 [`PHASE7_PLAN.md`](./PHASE7_PLAN.md)。
 
 ### 职责划分
 
@@ -398,17 +393,17 @@ echo '{"type":"input","value":""}' | Emuera.exe --headless
 ### 验收标准
 
 ```bash
-# 1. Python 网关启动
-python -m emuera_gateway --emuera-path ./Emuera.exe
+# 1. Python 网关启动（Embedded 模式，自动管理 C# 服务器）
+python -m emuera_gateway --embedded --emuera-path ./Emuera.exe --game-dir ./test_game
 
 # 2. MCP 客户端连接
 # Claude Desktop / Cursor 等能识别并调用工具
 
-# 3. HTTP API 可用
-curl http://localhost:8000/api/sessions
+# 3. Standalone 模式连接外部 C# 服务器
+python -m emuera_gateway --standalone --server-url http://localhost:8080
 
 # 4. 复杂逻辑扩展点验证
-# 能无缝接入新 Python 模块而不修改 C# 代码
+# 能无缝接入新 Python 插件而不修改 C# 代码
 ```
 
 ---

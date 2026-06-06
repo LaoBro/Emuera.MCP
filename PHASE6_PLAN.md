@@ -598,7 +598,7 @@ private static void RunServer(int port)
 ```
 
 **验收：**
-- `Emuera.exe --server --port 8080` 启动后输出监听日志
+- `Emuera.exe --server --port 8080 --ExeDir ./test_game` 启动后输出监听日志
 - `curl http://localhost:8080/sessions -X POST` 返回 sessionId
 
 ---
@@ -693,7 +693,7 @@ if (method == "GET" && path.StartsWith("/sessions/") && path.EndsWith("/turn"))
 ### Phase 6f: `Program.cs` 入口改造
 - [ ] **Step 6f.1** 添加 `--server`、`--port` 参数
 - [ ] **Step 6f.2** 主分支添加 `RunServer`
-- [ ] **Step 6f.3** `Emuera.exe --server --port 8080` 能启动并监听
+- [ ] **Step 6f.3** `Emuera.exe --server --port 8080 --ExeDir ./test_game` 能启动并监听
 
 ### Phase 6g: HTTP 路由完善与输入投递
 - [ ] **Step 6g.1** 完善 POST /sessions/{id}/input
@@ -720,7 +720,7 @@ dotnet build -c Debug-NAudio
 ### Phase 6d-6g 验收
 ```bash
 # 1. 启动服务器
-Emuera.exe --server --port 8080
+Emuera.exe --server --port 8080 --ExeDir ./test_game
 # → stderr 输出 [server] 监听日志
 
 # 2. 创建会话
@@ -752,10 +752,10 @@ id2=$(curl -s -X POST http://localhost:8080/sessions | jq -r .sessionId)
 # curl http://localhost:8080/sessions/OLD_ID → 404
 
 # 3. 回归测试
-Emuera.exe
+Emuera.exe --ExeDir ./test_game
 # → WinForms 模式正常
 
-echo '{"type":"input","value":""}' | Emuera.exe --headless
+echo '{"type":"input","value":""}' | Emuera.exe --headless --ExeDir ./test_game
 # → 管道模式正常
 ```
 

@@ -18,6 +18,7 @@ docs/
 
 *.diff
 *.patch
+*.pyc
 .mcp.json
 .emuera-mcp.json
 CLAUDE.md
