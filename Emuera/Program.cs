@@ -118,6 +118,8 @@ static partial class Program
 		var server = result.GetValueForOption(serverOption);
 		var port = result.GetValueForOption(portOption);
 
+		IsHeadlessMode = server || headless;
+
 		if (!InitializeCore(args, result, out var icon))
 			return;
 
@@ -231,23 +233,17 @@ static partial class Program
 		//二重起動の禁止かつ二重起動
 		if ((!Config.AllowMultipleInstances) && AssemblyData.PrevInstance())
 		{
-			//Dialog.Show("既に起動しています", "多重起動を許可する場合、emuera.configを書き換えて下さい");
-			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.InstaceExists.Text);
-			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text);
+			Dialog.Show(Lang.UI.MainWindow.MsgBox.InstaceExists.Text, Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text);
 			return false;
 		}
 		if (!Directory.Exists(CsvDir))
 		{
-			//Dialog.Show("フォルダなし", "csvフォルダが見つかりません");
-			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
-			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text);
+			Dialog.Show(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text, Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text);
 			return false;
 		}
 		if (!Directory.Exists(ErbDir))
 		{
-			//Dialog.Show("フォルダなし", "erbフォルダが見つかりません");
-			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
-			Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.NoErbFolder.Text);
+			Dialog.Show(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text, Lang.UI.MainWindow.MsgBox.NoErbFolder.Text);
 			return false;
 		}
 		#region EE_フォントファイル対応
@@ -273,8 +269,7 @@ static partial class Program
 				}
 				catch
 				{
-					Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
-					Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.FailedCreateDebugFolder.Text);
+					Dialog.Show(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text, Lang.UI.MainWindow.MsgBox.FailedCreateDebugFolder.Text);
 					return false;
 				}
 			}
@@ -290,7 +285,7 @@ static partial class Program
 				//if (!File.Exists(args[i]) && !Directory.Exists(args[i]))
 				if (!File.Exists(path) && !Directory.Exists(path))
 				{
-					Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.ArgPathNotExists.Text);
+					Dialog.Show(Lang.UI.MainWindow.MsgBox.ArgPathNotExists.Text);
 					return false;
 				}
 				//if ((File.GetAttributes(args[i]) & FileAttributes.Directory) == FileAttributes.Directory)
@@ -308,7 +303,7 @@ static partial class Program
 					//if (Path.GetExtension(args[i]).ToUpper() != ".ERB")
 					if (!Path.GetExtension(path).Equals(".ERB", StringComparison.OrdinalIgnoreCase))
 					{
-						Console.Error.WriteLine(Lang.UI.MainWindow.MsgBox.InvalidArg.Text);
+						Dialog.Show(Lang.UI.MainWindow.MsgBox.InvalidArg.Text);
 						return false;
 					}
 					//AnalysisFiles.Add(args[i]);
@@ -496,6 +491,7 @@ static partial class Program
 	//public static bool debugMode = false;
 	//public static bool DebugMode { get { return debugMode; } }
 	public static bool DebugMode { get; private set; }
+	public static bool IsHeadlessMode { get; private set; }
 
 
 

@@ -1,4 +1,4 @@
-﻿//新設したコンフィグ設定のロード、セーブ、公開を担当する。
+//新設したコンフィグ設定のロード、セーブ、公開を担当する。
 using System.IO;
 using System.Text.Json;
 
@@ -13,16 +13,30 @@ static class JSONConfig
 
 	public static void Load()
 	{
+		var dir = Path.GetDirectoryName(_configFilePath);
+		if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+		{
+			try { Directory.CreateDirectory(dir); }
+			catch { /* ignore directory creation failure in headless mode */ }
+		}
+
 		if (!File.Exists(_configFilePath))
 		{
 			var defaultData = new JSONConfigData();
 			var defaultJson = JsonSerializer.Serialize(defaultData);
-			File.WriteAllText(_configFilePath, defaultJson);
+			try { File.WriteAllText(_configFilePath, defaultJson); }
+			catch { /* ignore write failure in headless mode */ }
 		}
 
-		var json = File.ReadAllText(_configFilePath);
-
-		Data = JsonSerializer.Deserialize<JSONConfigData>(json);
+		if (File.Exists(_configFilePath))
+		{
+			var json = File.ReadAllText(_configFilePath);
+			Data = JsonSerializer.Deserialize<JSONConfigData>(json);
+		}
+		else
+		{
+			Data = new JSONConfigData();
+		}
 	}
 
 	public static void Save()
