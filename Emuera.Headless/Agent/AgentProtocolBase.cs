@@ -82,9 +82,10 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>
-        /// 检测运行环境并创建对应的协议实例，不自动启动线程。
-        /// stdin 通过管道重定向时使用 JSONL 协议，有终端时使用 CLI 交互模式。
-        /// 双击 WinExe（无 console、无 pipe）时返回 null，由 WinForms 正常处理。
+        /// 根据运行环境自动检测并创建对应的协议实例。
+        /// 此方法为可选辅助方法，仅用于 --protocol auto 模式。
+        /// 推荐由入口点（Program.cs）根据命令行参数显式创建协议，
+        /// 并通过 EmueraConsole.SetAgentBridge() 注入。
         /// </summary>
         public static AgentProtocolBase? Detect(EmueraConsole console, IConsoleUI ui)
         {

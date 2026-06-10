@@ -28,6 +28,7 @@ internal sealed class Session : IDisposable
         _ui = new HeadlessConsole();
         _console = new EmueraConsole(_ui);
         _protocol = new AgentJsonlProtocol(_console, _ui, io);
+        _console.SetAgentBridge(_protocol);
     }
 
     public void Start()

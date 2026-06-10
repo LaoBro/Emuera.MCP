@@ -95,9 +95,9 @@ class EmueraAgent:
             binary_path, self._use_dotnet = find_binary(self.project_dir)
 
         if self._use_dotnet:
-            cmd = ["dotnet", "exec", binary_path, "--ExeDir", self.game_dir]
+            cmd = ["dotnet", "exec", binary_path, "--ExeDir", self.game_dir, "--protocol", "jsonl"]
         else:
-            cmd = [binary_path, "--ExeDir", self.game_dir]
+            cmd = [binary_path, "--ExeDir", self.game_dir, "--protocol", "jsonl"]
 
         print(f"[EmueraAgent] Starting: {' '.join(cmd)}")
         self._proc = subprocess.Popen(

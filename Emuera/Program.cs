@@ -54,19 +54,6 @@ static partial class Program
 		name: "-GenLang",
 		description: "言語ファイルテンプレ生成"
 	);
-	static readonly Option<bool> headlessOption = new(
-		name: "--headless",
-		description: "无头模式：不创建 GUI 窗口，通过 stdin/stdout 进行 JSONL 交互"
-	);
-	static readonly Option<bool> serverOption = new(
-		name: "--server",
-		description: "服务器模式：通过 HTTP 接口提供多会话服务"
-	);
-	static readonly Option<int> portOption = new(
-		name: "--port",
-		description: "服务器监听端口",
-		getDefaultValue: () => 8080
-	);
 	static readonly Argument<string[]> filesArg = new("解析するファイル")
 	{
 		Arity = ArgumentArity.ZeroOrMore
@@ -99,42 +86,14 @@ static partial class Program
 		genLangOption.AddAlias("-GENLANG");
 		rootCommand.AddOption(genLangOption);
 
-		headlessOption.AddAlias("-headless");
-		headlessOption.AddAlias("-HEADLESS");
-		rootCommand.AddOption(headlessOption);
-
-		serverOption.AddAlias("-server");
-		serverOption.AddAlias("-SERVER");
-		rootCommand.AddOption(serverOption);
-
-		portOption.AddAlias("-port");
-		portOption.AddAlias("-PORT");
-		rootCommand.AddOption(portOption);
-
 		rootCommand.AddArgument(filesArg);
 
 		var result = rootCommand.Parse(args);
-		var headless = result.GetValueForOption(headlessOption);
-		var server = result.GetValueForOption(serverOption);
-		var port = result.GetValueForOption(portOption);
-
-		IsHeadlessMode = server || headless;
 
 		if (!InitializeCore(args, result, out var icon))
 			return;
 
-		if (server)
-		{
-			RunServer(port);
-		}
-		else if (headless)
-		{
-			RunHeadless(args);
-		}
-		else
-		{
-			RunWinForms(args, icon);
-		}
+		RunWinForms(args, icon);
 	}
 
 	private static bool InitializeCore(string[] args, ParseResult result, out Icon? icon)
@@ -378,51 +337,6 @@ static partial class Program
 		*/
 	}
 
-	private static void RunHeadless(string[] args)
-	{
-		// 无头模式下禁用分析模式（分析模式需要 GUI 文件选择对话框）
-		AnalysisMode = false;
-
-		Console.Error.WriteLine($"[headless] Emuera {AssemblyData.EmueraVersionText} 无头模式启动");
-		Console.Error.WriteLine($"[headless] 工作目录: {ExeDir}");
-		Console.Error.WriteLine($"[headless] 协议类型: {(Console.IsInputRedirected ? "JSONL (管道)" : "CLI (终端)")}");
-
-		var ui = new UI.Game.HeadlessConsole();
-		var console = new GameView.EmueraConsole(ui);
-
-		// 初始化并启动游戏逻辑（相当于 WinForms 模式下 MainWindow 的 Initialize 调用）
-		console.Initialize().Wait();
-
-		// EmueraConsole 内部已经通过 DetectAndRun 启动了协议线程
-		// 主线程保持运行，等待协议线程结束
-		var protocol = console.AgentBridge;
-		if (protocol != null)
-		{
-			while (!protocol.IsStopped)
-			{
-				Thread.Sleep(100);
-			}
-		}
-		else
-		{
-			Console.Error.WriteLine("[headless] 未检测到输入管道，游戏逻辑需要手动驱动");
-			Environment.Exit(1);
-		}
-	}
-
-	private static void RunServer(int port)
-	{
-		AnalysisMode = false;
-		Console.Error.WriteLine($"[server] Emuera {AssemblyData.EmueraVersionText} 服务器模式启动");
-		Console.Error.WriteLine($"[server] 监听端口: {port}");
-
-		using var server = new Server.HttpGameServer(port);
-		server.Start();
-
-		Console.Error.WriteLine("[server] 按 Enter 键停止服务器...");
-		Console.ReadLine();
-	}
-
 	[MemberNotNull(nameof(ExeDir))]
 	[MemberNotNull(nameof(CsvDir))]
 	[MemberNotNull(nameof(ErbDir))]
@@ -491,7 +405,6 @@ static partial class Program
 	//public static bool debugMode = false;
 	//public static bool DebugMode { get { return debugMode; } }
 	public static bool DebugMode { get; private set; }
-	public static bool IsHeadlessMode { get; private set; }
 
 
 

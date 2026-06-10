@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Text;
 using System.Threading;
 using MinorShift.Emuera.Runtime;
@@ -24,6 +25,16 @@ namespace MinorShift.Emuera.GameView
         {
             FlushBuffer();
 
+            if (Console.IsInputRedirected)
+                RunPipeCliLoop(Console.In);
+            else
+                RunConsoleKeyLoop();
+
+            FlushBuffer();
+        }
+
+        private void RunConsoleKeyLoop()
+        {
             while (!IsStopped)
             {
                 if (Console.KeyAvailable)
@@ -35,8 +46,22 @@ namespace MinorShift.Emuera.GameView
                 FlushBuffer();
                 Thread.Sleep(PollIntervalMs);
             }
+        }
 
-            FlushBuffer();
+        private void RunPipeCliLoop(TextReader input)
+        {
+            while (!IsStopped)
+            {
+                string? line = input.ReadLine();
+                if (line == null)
+                    break;
+
+                foreach (char ch in line)
+                    ProcessChar(ch);
+
+                ProcessChar('\r');
+                FlushBuffer();
+            }
         }
 
         private void FlushBuffer()
@@ -46,16 +71,16 @@ namespace MinorShift.Emuera.GameView
                 Console.Write(text);
         }
 
-        private void ProcessKey(ConsoleKeyInfo key)
+        private void ProcessChar(char ch)
         {
-            if (key.Key == ConsoleKey.Enter)
+            if (ch == '\r' || ch == '\n')
             {
                 WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
                 string input = _buf.ToString();
                 _buf.Clear();
                 DispatchInput(input);
             }
-            else if (key.Key == ConsoleKey.Backspace)
+            else if (ch == '\b')
             {
                 if (_buf.Length > 0)
                 {
@@ -63,16 +88,28 @@ namespace MinorShift.Emuera.GameView
                     WriteOutput("\b \b", false);
                 }
             }
-            else if (key.Key == ConsoleKey.Escape)
+            else if (ch == 27)
             {
                 WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
                 _buf.Clear();
             }
-            else if (!char.IsControl(key.KeyChar))
+            else if (!char.IsControl(ch))
             {
-                _buf.Append(key.KeyChar);
-                WriteOutput(key.KeyChar.ToString(), false);
+                _buf.Append(ch);
+                WriteOutput(ch.ToString(), false);
             }
+        }
+
+        private void ProcessKey(ConsoleKeyInfo key)
+        {
+            if (key.Key == ConsoleKey.Enter)
+                ProcessChar('\r');
+            else if (key.Key == ConsoleKey.Backspace)
+                ProcessChar('\b');
+            else if (key.Key == ConsoleKey.Escape)
+                ProcessChar((char)27);
+            else if (!char.IsControl(key.KeyChar))
+                ProcessChar(key.KeyChar);
         }
 
         protected override void DispatchInput(string input)

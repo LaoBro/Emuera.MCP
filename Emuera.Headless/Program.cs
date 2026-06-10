@@ -24,9 +24,10 @@ static partial class Program
         name: "--ExeDir",
         description: "游戏目录"
     );
-    static readonly Option<bool> headlessOption = new(
-        name: "--headless",
-        description: "无头模式：不创建 GUI 窗口，通过 stdin/stdout 进行 JSONL 交互"
+    static readonly Option<string> protocolOption = new(
+        name: "--protocol",
+        description: "协议模式：auto(默认), jsonl, cli",
+        getDefaultValue: () => "auto"
     );
     static readonly Option<bool> serverOption = new(
         name: "--server",
@@ -51,9 +52,9 @@ static partial class Program
         exeDirOption.AddAlias("-EXEDIR");
         rootCommand.AddOption(exeDirOption);
 
-        headlessOption.AddAlias("-headless");
-        headlessOption.AddAlias("-HEADLESS");
-        rootCommand.AddOption(headlessOption);
+        protocolOption.AddAlias("-protocol");
+        protocolOption.AddAlias("-PROTOCOL");
+        rootCommand.AddOption(protocolOption);
 
         serverOption.AddAlias("-server");
         serverOption.AddAlias("-SERVER");
@@ -65,11 +66,16 @@ static partial class Program
 
         var result = rootCommand.Parse(args);
         var exeDir = result.GetValueForOption(exeDirOption);
-        var headless = result.GetValueForOption(headlessOption);
+        var protocolArg = result.GetValueForOption(protocolOption);
         var server = result.GetValueForOption(serverOption);
         var port = result.GetValueForOption(portOption);
 
-        IsHeadlessMode = true;
+        if (server && ArgsContainProtocol(args))
+        {
+            Console.Error.WriteLine("[server] server 模式不支持 --protocol 参数");
+            Environment.Exit(1);
+            return;
+        }
 
         if (exeDir != null)
             SetDirPaths(exeDir);
@@ -108,31 +114,78 @@ static partial class Program
         if (server)
             RunServer(port);
         else
-            RunHeadless();
+            RunHeadless(protocolArg);
     }
 
-    private static void RunHeadless()
+    private static void RunHeadless(string protocolArg)
     {
         Console.Error.WriteLine($"[headless] Emuera {AssemblyData.EmueraVersionText} 无头模式启动");
         Console.Error.WriteLine($"[headless] 工作目录: {ExeDir}");
-        Console.Error.WriteLine($"[headless] 协议类型: {(Console.IsInputRedirected ? "JSONL (管道)" : "CLI (终端)")}");
+        Console.Error.WriteLine($"[headless] 协议模式: {protocolArg}");
 
         var ui = new HeadlessConsole();
         var console = new EmueraConsole(ui);
-        console.Initialize().Wait();
 
-        var protocol = console.AgentBridge;
-        if (protocol == null)
+        AgentProtocolBase? protocol;
+        try
         {
-            Console.Error.WriteLine("[headless] 未检测到输入管道");
+            protocol = SelectProtocol(protocolArg, console, ui);
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"[headless] {ex.Message}");
             Environment.Exit(1);
             return;
         }
 
-        if (Console.IsInputRedirected)
+        if (protocol == null)
+        {
+            Console.Error.WriteLine("[headless] 无法确定协议模式；请使用 --protocol jsonl 或 --protocol cli");
+            Environment.Exit(1);
+            return;
+        }
+
+        console.SetAgentBridge(protocol);
+        console.Initialize().Wait();
+
+        if (protocol is AgentJsonlProtocol)
             RunJsonlLoop(protocol);
-        else
+        else if (protocol is AgentCliProtocol)
             RunCliLoop(protocol);
+    }
+
+    private static AgentProtocolBase? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui)
+    {
+        return protocolArg.Trim().ToLowerInvariant() switch
+        {
+            "auto" => DetectProtocol(console, ui),
+            "jsonl" => new AgentJsonlProtocol(console, ui),
+            "cli" => new AgentCliProtocol(console, ui),
+            _ => throw new ArgumentException($"未知协议模式: {protocolArg}", nameof(protocolArg))
+        };
+    }
+
+    private static AgentProtocolBase? DetectProtocol(EmueraConsole console, IConsoleUI ui)
+    {
+        if (Console.IsInputRedirected)
+        {
+            using var stdin = Console.OpenStandardInput();
+            if (stdin.CanSeek)
+                return null;
+
+            return new AgentJsonlProtocol(console, ui);
+        }
+
+        try
+        {
+            _ = Console.KeyAvailable;
+        }
+        catch
+        {
+            return null;
+        }
+
+        return new AgentCliProtocol(console, ui);
     }
 
     private static void RunJsonlLoop(AgentProtocolBase protocol)
@@ -184,6 +237,18 @@ static partial class Program
         Console.ReadLine();
     }
 
+    private static bool ArgsContainProtocol(string[] args)
+    {
+        foreach (var arg in args)
+        {
+            if (arg.Equals("--protocol", StringComparison.OrdinalIgnoreCase) ||
+                arg.Equals("-protocol", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
     [MemberNotNull(nameof(ExeDir), nameof(CsvDir), nameof(ErbDir), nameof(DebugDir), nameof(DatDir), nameof(ContentDir), nameof(SoundDir), nameof(FontDir))]
     private static void SetDirPaths(string exeDir)
     {
@@ -211,7 +276,6 @@ static partial class Program
     public static bool AnalysisMode;
     public static List<string> AnalysisFiles;
     public static bool DebugMode { get; private set; }
-    public static bool IsHeadlessMode { get; private set; }
 
     static Program()
     {

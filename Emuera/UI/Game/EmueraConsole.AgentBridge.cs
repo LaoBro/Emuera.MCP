@@ -9,13 +9,13 @@ namespace MinorShift.Emuera.GameView
         internal ConsoleState State => state;
         internal InputRequest CurrentRequest => inputReq;
  
+#if HEADLESS
         private void WriteAlignedLine(ConsoleDisplayLine line)
         {
-            if (_agentBridge is null) return;
             string text = line.ToString();
             if (string.IsNullOrEmpty(text))
             {
-                _agentBridge.WriteOutput("");
+                WriteToAgentBuffer("");
                 return;
             }
 
@@ -44,8 +44,22 @@ namespace MinorShift.Emuera.GameView
                     break;
             }
 
-            _agentBridge.WriteOutput(output);
+            WriteToAgentBuffer(output);
         }
+
+        private void WriteToAgentBuffer(string text)
+        {
+            lock (_agentBufferLock)
+            {
+                _agentBuffer.AppendLine(text);
+            }
+        }
+#else
+        private void WriteAlignedLine(ConsoleDisplayLine line)
+        {
+            // WinForms 模式不采集 agent buffer。
+        }
+#endif
  
         /// <summary>
         /// 计算字符串在终端中的显示宽度（中日韩字符占2列，其余占1列）

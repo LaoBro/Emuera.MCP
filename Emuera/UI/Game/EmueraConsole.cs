@@ -123,9 +123,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		};
 		redrawTimer.Elapsed += tickRedrawTimer;
 		redrawTimer.Interval = 10;
-
-		// 检测终端输入协议（不自动启动线程）
-		_agentBridge = AgentProtocolBase.Detect(this, _uiAdapter);
 	}
 #endif
 
@@ -156,9 +153,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		};
 		redrawTimer.Elapsed += tickRedrawTimer;
 		redrawTimer.Interval = 10;
-
-		// 检测终端输入协议（不自动启动线程）
-		_agentBridge = AgentProtocolBase.Detect(this, _uiAdapter);
 	}
 	#region 1823 cbg関連
 #if !HEADLESS
@@ -323,14 +317,20 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	const string ErrorButtonsText = "__openFileWithDebug__";
 	private readonly IConsoleUI _uiAdapter;
-	private AgentProtocolBase _agentBridge;
+#if HEADLESS
+	private AgentProtocolBase? _agentBridge;
+#endif
 #if !HEADLESS
 	#region EE_MOUSEB
 	public MainWindow Window { get { return (_uiAdapter as WinFormsConsole)?.GetMainWindow(); } }
 	#endregion
 #endif
 	public IConsoleUI UIAdapter => _uiAdapter;
-	public AgentProtocolBase AgentBridge => _agentBridge;
+#if HEADLESS
+	public AgentProtocolBase? AgentBridge => _agentBridge;
+
+	internal void SetAgentBridge(AgentProtocolBase protocol) => _agentBridge = protocol;
+#endif
 	#region EE_BINPUT
 	public List<ConsoleDisplayLine> DisplayLineList { get { return displayLineList; } }
 	#endregion
@@ -3037,7 +3037,9 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	public void Dispose()
 	{
+#if HEADLESS
 		_agentBridge?.Stop();
+#endif
 		if (genericTimer != null)
 			genericTimer.Dispose();
 		//timer = null;

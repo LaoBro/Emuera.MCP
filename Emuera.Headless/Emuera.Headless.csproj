@@ -16,12 +16,6 @@
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
     <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
   </ItemGroup>
-
-  <!-- ===== 共享源码：Server ===== -->
-  <ItemGroup>
-    <Compile Include="..\Emuera\Server\**\*.cs" LinkBase="Server" />
-  </ItemGroup>
-
   <!-- ===== 共享源码：Runtime ===== -->
   <ItemGroup>
     <Compile Include="..\Emuera\Runtime\**\*.cs" LinkBase="Runtime" />
@@ -41,9 +35,6 @@
     <Compile Include="..\Emuera\UI\Game\EmueraConsole.Print.cs" LinkBase="UI\Game" />
     <Compile Include="..\Emuera\UI\Game\EmueraConsole.AgentBridge.cs" LinkBase="UI\Game" />
     <Compile Include="..\Emuera\UI\Game\EmueraConsole.AgentBuffer.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\AgentProtocolBase.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\AgentJsonlProtocol.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\AgentCliProtocol.cs" LinkBase="UI\Game" />
     <Compile Include="..\Emuera\UI\Game\PrintStringBuffer.cs" LinkBase="UI\Game" />
     <Compile Include="..\Emuera\UI\Game\ConsoleDisplayLine.cs" LinkBase="UI\Game" />
     <Compile Include="..\Emuera\UI\Game\ConsoleButtonString.cs" LinkBase="UI\Game" />

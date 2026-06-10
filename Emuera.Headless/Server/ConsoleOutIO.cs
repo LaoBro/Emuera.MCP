@@ -3,7 +3,7 @@ using System;
 namespace MinorShift.Emuera.Server;
 
 /// <summary>
-/// 包装现有 stdin/stdout 的 SessionIO 实现，用于兼容原有的 --headless 管道模式。
+/// 包装现有 stdin/stdout 的 SessionIO 实现，用于 JSONL 管道交互。
 /// </summary>
 internal sealed class ConsoleOutIO : SessionIO
 {
