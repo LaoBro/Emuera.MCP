@@ -1,6 +1,9 @@
-﻿using System.Windows.Forms;
+#if !HEADLESS
+using System.Windows.Forms;
+#endif
 using System.IO;
 using System;
+using System.Reflection;
 
 namespace MinorShift.Emuera.Runtime.Utils;
 
@@ -16,7 +19,11 @@ public static class AssemblyData
 		ExeName = Path.GetFileName(ExePath);
 		emueraVer = typeof(AssemblyData).Assembly.GetName().Version;
 
+#if HEADLESS
+		EmueraVersionText = "Emuera.NET " + (Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0");
+#else
 		EmueraVersionText = "Emuera.NET " + Application.ProductVersion;
+#endif
 	}
 
 	/// <summary>

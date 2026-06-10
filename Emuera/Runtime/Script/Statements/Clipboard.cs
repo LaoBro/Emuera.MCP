@@ -1,6 +1,8 @@
-﻿using System;
+using System;
 using System.Text.RegularExpressions;
+#if !HEADLESS
 using System.Windows.Forms;
+#endif
 using MinorShift.Emuera.UI.Game;
 using System.Runtime.CompilerServices;
 
@@ -230,7 +232,11 @@ internal partial class ClipboardProcessor
 		if (newText == OldText) return;
 		try
 		{
+#if HEADLESS
+			// 无头模式下无剪贴板，跳过操作
+#else
 			mainWin.Invoke(() => Clipboard.SetDataObject(newText, false, 3, 200));
+#endif
 			if (ScrollPos == 0) OldNewLineCount = NewLineCount;
 			NewLineCount = 0;
 			OldText = newText;

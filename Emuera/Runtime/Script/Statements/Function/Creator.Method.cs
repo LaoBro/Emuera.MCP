@@ -19,7 +19,9 @@ using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Text.RegularExpressions;
+#if !HEADLESS
 using System.Windows.Forms;
+#endif
 using System.Xml;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
@@ -6795,7 +6797,11 @@ internal static partial class FunctionMethodCreator
 			long keycode = arguments[0].GetIntValue(exm);
 			if (keycode < 0 || keycode > 255)
 				return 0;
+#if HEADLESS
+			short s = 0;
+#else
 			short s = WinInput.GetKeyState((int)keycode);
+#endif
 			short toggle = keytoggle[keycode];
 			keytoggle[keycode] = (short)((s & 1) + 1);//初期値0、トグル状態に応じて1か2を代入。
 			switch (Name)
@@ -7600,7 +7606,9 @@ internal static partial class FunctionMethodCreator
 		{
 			Int64 argument0 = arguments[0].GetIntValue(exm);
 			Int64 argument1 = arguments[1].GetIntValue(exm);
+#if !HEADLESS
 			GlobalStatic.Console.Window.hotkeyState.HotkeyStateSet((nint)argument0, (nint)argument1);
+#endif
 			return 0;
 		}
 	}
@@ -7619,7 +7627,9 @@ internal static partial class FunctionMethodCreator
 		public override Int64 GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			Int64 argument0 = arguments[0].GetIntValue(exm);
+#if !HEADLESS
 			GlobalStatic.Console.Window.hotkeyState.HotkeyStateInit((nint)argument0);
+#endif
 			return 0;
 		}
 	}

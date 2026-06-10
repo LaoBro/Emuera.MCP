@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
@@ -241,7 +241,9 @@ internal sealed class ConstantData
 		}
 		catch
 		{
+#if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
+#endif
 			if (position != null)
 				ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
 			else
@@ -1372,7 +1374,9 @@ internal sealed class ConstantData
 			}
 			catch
 			{
-				System.Media.SystemSounds.Hand.Play();
+	#if !HEADLESS
+			System.Media.SystemSounds.Hand.Play();
+#endif
 				if (position != null)
 					ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
 				else
@@ -1460,7 +1464,9 @@ internal sealed class ConstantData
 		}
 		catch
 		{
+#if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
+#endif
 			if (position != null)
 				ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
 			else
@@ -1754,7 +1760,9 @@ internal sealed class ConstantData
 		}
 		catch
 		{
+#if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
+#endif
 			if (position != null)
 				ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
 			else
@@ -1815,7 +1823,9 @@ internal sealed class ConstantData
 		}
 		catch
 		{
+#if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
+#endif
 			if (position != null)
 				ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
 			else

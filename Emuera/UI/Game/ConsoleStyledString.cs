@@ -1,8 +1,10 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
 using System;
 using System.Drawing;
+#if !HEADLESS
 using System.Windows.Forms;
+#endif
 
 namespace MinorShift.Emuera.UI.Game;
 
@@ -127,6 +129,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		{
 			graph.DrawString(Text, Font, new SolidBrush(color), new Point(PointX, pointY));
 		}
+#if !HEADLESS
 		else
 		// TextRenderer.DrawText(graph, Text, Font, new Point(PointX, pointY), color, TextFormatFlags.NoPrefix);
 		{
@@ -150,7 +153,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 				TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(PointX, pointY), color, TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping);
 			}
 		}
-
+#endif
 		#endregion
 	}
 
@@ -168,9 +171,11 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		#region EM_私家版_描画拡張
 		if (mode == TextDrawingMode.GRAPHICS)
 			graph.DrawString(Text, Font, new SolidBrush(color), new Point(xOffset, 0));
+#if !HEADLESS
 		else
 			// TextRenderer.DrawText(graph, Text, Font, new Point(PointX, pointY), color, TextFormatFlags.NoPrefix);
 			TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(xOffset, 0), color, TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping);
+#endif
 		#endregion
 	}
 }

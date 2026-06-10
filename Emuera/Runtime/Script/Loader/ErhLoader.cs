@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Script.Data;
@@ -300,7 +300,11 @@ internal sealed class ErhLoader
 								var info = erdFileNames[key];
 								GlobalStatic.ConstantData.UserDefineLoadData(info, data.Name, data.Lengths[0], Config.Config.DisplayReport, dimline.SC);
 							}
+#if HEADLESS
+							// 无头模式下无需处理 UI 消息队列
+#else
 							System.Windows.Forms.Application.DoEvents();
+#endif
 						}
 						else if (data.Dimension == 2)
 						{
@@ -312,7 +316,11 @@ internal sealed class ErhLoader
 									var info = erdFileNames[key];
 									GlobalStatic.ConstantData.UserDefineLoadData(info, data.Name + "@" + dim, data.Lengths[dim - 1], Config.Config.DisplayReport, dimline.SC);
 								}
+#if HEADLESS
+								// 无头模式下无需处理 UI 消息队列
+#else
 								System.Windows.Forms.Application.DoEvents();
+#endif
 							}
 						}
 						else if (data.Dimension == 3)
@@ -325,7 +333,11 @@ internal sealed class ErhLoader
 									var info = erdFileNames[key];
 									GlobalStatic.ConstantData.UserDefineLoadData(info, data.Name + "@" + dim, data.Lengths[dim - 1], Config.Config.DisplayReport, dimline.SC);
 								}
+#if HEADLESS
+								// 无头模式下无需处理 UI 消息队列
+#else
 								System.Windows.Forms.Application.DoEvents();
+#endif
 							}
 						}
 					}

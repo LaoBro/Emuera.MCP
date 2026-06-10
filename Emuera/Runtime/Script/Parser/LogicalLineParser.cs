@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameProc.Function;
+using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
@@ -368,7 +368,9 @@ internal static class LogicalLineParser
 
 		static LogicalLine err(ScriptPosition? position, bool isFunction, ref string labelName, string errMes)
 		{
+#if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
+#endif
 			if (isFunction)
 			{
 				if (labelName.Length == 0)
@@ -591,7 +593,9 @@ internal static class LogicalLineParser
 		}
 		catch (CodeEE e)
 		{
+#if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
+#endif
 			return new InvalidLine(position, e.Message);
 		}
 	}

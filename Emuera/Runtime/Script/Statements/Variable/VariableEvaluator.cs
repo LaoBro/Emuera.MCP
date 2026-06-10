@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config.JSON;
 using MinorShift.Emuera.Runtime.Script.Data;
@@ -11,7 +11,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+#if !HEADLESS
 using System.Windows.Forms;
+#endif
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.Runtime.Script.Statements.Variable;
@@ -1792,7 +1794,11 @@ internal sealed class VariableEvaluator : IDisposable
 		}
 		catch
 		{
+#if HEADLESS
+			Console.Error.WriteLine(trerror.FailedCreateDataFolder.Text);
+#else
 			MessageBox.Show(trerror.FailedCreateDataFolder.Text);
+#endif
 			throw new CodeEE(trerror.FailedCreateDataFolder.Text);
 		}
 	}

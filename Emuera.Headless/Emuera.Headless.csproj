@@ -1,0 +1,81 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>MinorShift.Emuera</RootNamespace>
+    <AssemblyName>Emuera.Headless</AssemblyName>
+    <DefineConstants>HEADLESS</DefineConstants>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Enums.NET" Version="4.0.2" />
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
+  </ItemGroup>
+
+  <!-- ===== 共享源码：Server ===== -->
+  <ItemGroup>
+    <Compile Include="..\Emuera\Server\**\*.cs" LinkBase="Server" />
+  </ItemGroup>
+
+  <!-- ===== 共享源码：Runtime ===== -->
+  <ItemGroup>
+    <Compile Include="..\Emuera\Runtime\**\*.cs" LinkBase="Runtime" />
+    <!-- 排除 WinForms/音频 专用文件 -->
+    <Compile Remove="..\Emuera\Runtime\Utils\Sound.WMP.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\Sound.NAudio.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\NAudio_LoopStream.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\WinInput.cs" />
+    <Compile Remove="..\Emuera\Runtime\Script\Statements\Clipboard.cs" />
+  </ItemGroup>
+
+  <!-- ===== 共享源码：UI/Game（核心文件） ===== -->
+  <ItemGroup>
+    <Compile Include="..\Emuera\UI\Game\IConsoleUI.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\HeadlessConsole.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\EmueraConsole.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\EmueraConsole.Print.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\EmueraConsole.AgentBridge.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\EmueraConsole.AgentBuffer.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\AgentProtocolBase.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\AgentJsonlProtocol.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\AgentCliProtocol.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\PrintStringBuffer.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\ConsoleDisplayLine.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\ConsoleButtonString.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\ConsoleStyledString.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\AConsoleDisplayNode.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\AConsoleDisplayPart.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\ConsoleShapePart.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\ConsoleImagePart.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\ButtonStringCreator.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\StringStyle.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\HtmlManager.cs" LinkBase="UI\Game" />
+    <Compile Include="..\Emuera\UI\Game\Image\*.cs" LinkBase="UI\Game\Image" />
+    <!-- 排除 WinForms 专用文件 -->
+    <Compile Remove="..\Emuera\UI\Game\WinFormsConsole.cs" />
+    <Compile Remove="..\Emuera\UI\Game\StringMeasure.cs" />
+  </ItemGroup>
+
+  <!-- ===== 共享源码：UI 其他 ===== -->
+  <ItemGroup>
+    <Compile Include="..\Emuera\UI\FontFactory.cs" LinkBase="UI" />
+    <!-- 排除 Dialog.cs（用 HeadlessDialog 替代） -->
+  </ItemGroup>
+
+  <!-- ===== 共享源码：GlobalStatic ===== -->
+  <ItemGroup>
+    <Compile Include="..\Emuera\GlobalStatic.cs" />
+  </ItemGroup>
+
+  <!-- ===== 嵌入资源：语言文件 ===== -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\Emuera\Properties\lang\emuera-eng.xml" LinkBase="Properties\lang" />
+    <EmbeddedResource Include="..\Emuera\Properties\lang\emuera-zhs.xml" LinkBase="Properties\lang" />
+  </ItemGroup>
+
+</Project>

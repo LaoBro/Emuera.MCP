@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Utils;
@@ -186,7 +186,9 @@ internal sealed partial class Process
 			#endregion
 			console.noOutputLog = true;
 			console.PrintSystemLine(trsl.PressEnterOrClick.Text);
+#if !HEADLESS
 			System.Media.SystemSounds.Asterisk.Play();
+#endif
 			console.ThrowTitleError(false);
 			return;
 		}
@@ -201,7 +203,9 @@ internal sealed partial class Process
 			#endregion
 			console.noOutputLog = true;
 			console.PrintSystemLine(trsl.PressEnterOrClick.Text);
+#if !HEADLESS
 			System.Media.SystemSounds.Asterisk.Play();
+#endif
 			console.ThrowTitleError(true);
 			return;
 		}

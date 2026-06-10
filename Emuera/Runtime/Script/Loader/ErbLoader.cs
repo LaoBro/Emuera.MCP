@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameProc;
+using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
@@ -124,7 +124,9 @@ internal sealed class ErbLoader
 		catch (Exception e)
 		{
 			ParserMediator.FlushWarningList();
+#if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
+#endif
 			output.PrintError(string.Format(trerror.UnexpectedErrorFrom.Text, AssemblyData.EmueraVersionText));
 			output.PrintError(e.GetType().ToString() + ":" + e.Message);
 			return false;
@@ -522,7 +524,9 @@ internal sealed class ErbLoader
 			}
 			catch (Exception exc)
 			{
-				System.Media.SystemSounds.Hand.Play();
+	#if !HEADLESS
+			System.Media.SystemSounds.Hand.Play();
+#endif
 				string errmes = exc.Message;
 				if (!(exc is EmueraException))
 					errmes = exc.GetType().ToString() + ":" + errmes;
@@ -888,12 +892,18 @@ internal sealed class ErbLoader
 		}
 		catch (Exception exc)
 		{
+#if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
+#endif
 			//1756beta2+v6.1 修正の効率化のために何かパース関係でハンドリングできてないエラーが出た場合はスタックトレースを投げるようにした
 			string errmes = exc is EmueraException ? exc.Message : exc.GetType().ToString() + ":" + exc.Message;
 			ParserMediator.Warn(string.Format(trerror.FuncAnalysisError.Text, label.LabelName, errmes), label, 2, true, false, exc is not EmueraException ? exc.StackTrace : null);
 			label.ErrMes = trerror.CalledFailedFunc.Text;
+#if HEADLESS
+			// 无头模式下无需处理 UI 消息队列
+#else
 			System.Windows.Forms.Application.DoEvents();
+#endif
 		}
 		finally
 		{

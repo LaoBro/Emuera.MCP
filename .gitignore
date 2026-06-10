@@ -10,6 +10,9 @@ Emuera/Properties/PublishProfiles/*.pubxml.user
 Emuera/Properties/launchSettings.json
 Emuera/bin/*
 Emuera/obj/*
+Emuera.Headless/bin/*
+Emuera.Headless/obj/*
+Emuera.Headless/publish/*
 
 test_game/
 tests/
@@ -22,3 +25,7 @@ docs/
 .mcp.json
 .emuera-mcp.json
 CLAUDE.md
+
+SPEC_HEADLESS.md
+PLAN_HEADLESS.md
+PHASE*_PLAN.md

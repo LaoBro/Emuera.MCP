@@ -1,11 +1,13 @@
-﻿using MinorShift.Emuera.Runtime.Utils;
+﻿﻿using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.UI;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Text;
+#if !HEADLESS
 using System.Windows.Forms;
+#endif
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 
 namespace MinorShift.Emuera.Runtime.Config;
@@ -214,7 +216,11 @@ internal static class Config
 		}
 		if (TextDrawingMode == TextDrawingMode.WINAPI)
 		{
+#if HEADLESS
+			Console.Error.WriteLine(trmb.DoNotSupportWINAPI.Text);
+#else
 			MessageBox.Show(trmb.DoNotSupportWINAPI.Text);
+#endif
 			TextDrawingMode = TextDrawingMode.TEXTRENDERER;
 		}
 

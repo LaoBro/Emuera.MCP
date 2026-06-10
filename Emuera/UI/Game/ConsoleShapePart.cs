@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using System;
 using System.Drawing;
 using System.Text;
@@ -195,8 +195,10 @@ internal sealed class ConsoleErrorShapePart : ConsoleShapePart
 	{
 		if (mode == TextDrawingMode.GRAPHICS)
 			graph.DrawString(Text, Config.DefaultFont, new SolidBrush(Config.ForeColor), new Point(PointX, pointY));
+#if !HEADLESS
 		else
 			System.Windows.Forms.TextRenderer.DrawText(graph, Text.AsSpan(), Config.DefaultFont, new Point(PointX, pointY), Config.ForeColor, System.Windows.Forms.TextFormatFlags.NoPrefix);
+#endif
 	}
 	public override void SetWidth(StringMeasure sm, float subPixel)
 	{

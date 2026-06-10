@@ -1,4 +1,4 @@
-﻿/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Wrapper for WebP format in C#. (MIT) Jose M. Piñeiro
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////// 
 /// Decode Functions:
@@ -27,7 +27,9 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
+#if !HEADLESS
 using System.Windows.Forms;
+#endif
 
 namespace MinorShift.Emuera.Runtime.Utils;
 
@@ -815,6 +817,10 @@ public sealed class WebP : IDisposable
 			if (info)
 			{
 				stats = (WebPAuxStats)Marshal.PtrToStructure(ptrStats, typeof(WebPAuxStats));
+#if HEADLESS
+				Console.Error.WriteLine("Dimension: " + wpic.width + " x " + wpic.height + " pixels\n" +
+								"Output:    " + stats.coded_size + " bytes");
+#else
 				MessageBox.Show("Dimension: " + wpic.width + " x " + wpic.height + " pixels\n" +
 								"Output:    " + stats.coded_size + " bytes\n" +
 								"PSNR Y:    " + stats.PSNRY + " db\n" +
@@ -838,6 +844,7 @@ public sealed class WebP : IDisposable
 								"Filter level 1: " + stats.segment_level_segments1 + " residuals bytes\n" +
 								"Filter level 2: " + stats.segment_level_segments2 + " residuals bytes\n" +
 								"Filter level 3: " + stats.segment_level_segments3 + " residuals bytes\n", "Compression statistics");
+#endif
 			}
 
 			return rawWebP;

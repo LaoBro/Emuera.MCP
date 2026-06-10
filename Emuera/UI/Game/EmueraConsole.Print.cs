@@ -11,7 +11,9 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+#if !HEADLESS
 using System.Windows.Forms;
+#endif
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;

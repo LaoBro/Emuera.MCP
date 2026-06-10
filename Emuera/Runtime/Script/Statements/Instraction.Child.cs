@@ -21,7 +21,9 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+#if !HEADLESS
 using System.Windows.Forms;
+#endif
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
@@ -2878,6 +2880,13 @@ internal sealed partial class FunctionIdentifier
 					}
 					if (version != GlobalStatic.GameBaseData.VersionName)
 					{
+#if HEADLESS
+						Console.Error.WriteLine(string.Format(trmb.NewVersionAvailable.Text, version, link));
+						exm.VEvaluator.RESULT = 1;
+						st.Close();
+						wc.Dispose();
+						return;
+#else
 						DialogResult result = MessageBox.Show(string.Format(trmb.NewVersionAvailable.Text, version, link),
 							trmb.UpdateCheck.Text,
 							MessageBoxButtons.YesNo,
@@ -2904,6 +2913,7 @@ internal sealed partial class FunctionIdentifier
 							wc.Dispose();
 							return;
 						}
+#endif
 					}
 					else
 					{

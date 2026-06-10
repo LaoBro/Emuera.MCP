@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game.Image;
 using System;
 using System.Drawing;
@@ -212,8 +212,10 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 		{
 			if (mode == TextDrawingMode.GRAPHICS)
 				graph.DrawString(AltText, Config.DefaultFont, new SolidBrush(Config.ForeColor), new Point(PointX, pointY));
+#if !HEADLESS
 			else
 				System.Windows.Forms.TextRenderer.DrawText(graph, AltText.AsSpan(), Config.DefaultFont, new Point(PointX, pointY), Config.ForeColor, System.Windows.Forms.TextFormatFlags.NoPrefix);
+#endif
 		}
 	}
 }
