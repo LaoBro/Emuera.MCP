@@ -124,8 +124,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		redrawTimer.Elapsed += tickRedrawTimer;
 		redrawTimer.Interval = 10;
 
-		// 启动终端输入线程
-		_agentBridge = AgentProtocolBase.DetectAndRun(this, _uiAdapter);
+		// 检测终端输入协议（不自动启动线程）
+		_agentBridge = AgentProtocolBase.Detect(this, _uiAdapter);
 	}
 #endif
 
@@ -157,8 +157,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		redrawTimer.Elapsed += tickRedrawTimer;
 		redrawTimer.Interval = 10;
 
-		// 启动终端输入线程
-		_agentBridge = AgentProtocolBase.DetectAndRun(this, _uiAdapter);
+		// 检测终端输入协议（不自动启动线程）
+		_agentBridge = AgentProtocolBase.Detect(this, _uiAdapter);
 	}
 	#region 1823 cbg関連
 #if !HEADLESS
@@ -890,9 +890,12 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		isTimeout = false;
 		timerID = inputReq.ID;
+#if !HEADLESS
 		genericTimer.Enabled = true;
+#endif
 		_genericTimerStopwatch.Restart();
 		timer_endTime = inputReq.Timelimit;
+		need_settimer = false;
 	}
 
 	//汎用
@@ -941,6 +944,14 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// </summary>
 	private void endTimer()
 	{
+		EndTimerCore();
+	}
+
+	/// <summary>
+	/// endTimer() 的核心逻辑，HEADLESS 和 WinForms 共用。
+	/// </summary>
+	private void EndTimerCore()
+	{
 		stopTimer();
 		isTimeout = true;
 		if (IsWaitingPrimitive)
@@ -949,12 +960,14 @@ internal sealed partial class EmueraConsole : IDisposable
 			#region EE_INPUTMOUSEKEY拡張
 			// InputMouseKey(4, 0, 0, 0, 0);
 			InputMouseKey(4, 0, 0, 0, 0, 0);
+#if !HEADLESS
 			if (state == ConsoleState.WaitInput && inputReq.NeedValue)
 			{
 				Point point = _uiAdapter.MainPicBox.PointToClient(_uiAdapter.GetCursorPosition());
 				if (_uiAdapter.MainPicBox.ClientRectangle.Contains(point))
 					MoveMouse(point);
 			}
+#endif
 			RefreshStrings(true);
 			#endregion
 			return;
@@ -963,6 +976,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			changeLastLine(inputReq.TimeUpMes);
 		else if (inputReq.TimeUpMes != null)
 			PrintSingleLine(inputReq.TimeUpMes);
+#if !HEADLESS
 		_uiAdapter.Invoke(() =>
 		{
 			RunEmueraProgram("");//ディフォルト入力の処理はcallEmueraProgram側で
@@ -977,6 +991,16 @@ internal sealed partial class EmueraConsole : IDisposable
 			}
 			RefreshStrings(true);
 		});
+#else
+		RunEmueraProgram("");
+		if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+		{
+			Point point = _uiAdapter.MainPicBox.PointToClient(_uiAdapter.GetCursorPosition());
+			if (_uiAdapter.MainPicBox.ClientRectangle.Contains(point))
+				MoveMouse(point);
+		}
+		RefreshStrings(true);
+#endif
 	}
 
 	public void forceStopTimer()
@@ -986,6 +1010,36 @@ internal sealed partial class EmueraConsole : IDisposable
 			genericTimer.Enabled = false;
 		}
 	}
+
+#if HEADLESS
+	/// <summary>
+	/// HEADLESS 下 TINPUT 超时提交，等价于原 endTimer() 的核心逻辑。
+	/// </summary>
+	internal void SubmitTimeout()
+	{
+		if (state != ConsoleState.WaitInput || inputReq == null || inputReq.Timelimit <= 0)
+			return;
+
+		EndTimerCore();
+	}
+
+	/// <summary>
+	/// HEADLESS 下获取当前 TINPUT 请求的剩余超时毫秒数。
+	/// 非 TINPUT 请求或已超时返回 null。
+	/// 剩余时间 &lt;= 0 时返回 0。
+	/// </summary>
+	internal long? InputTimeoutMs
+	{
+		get
+		{
+			if (state != ConsoleState.WaitInput || inputReq == null || inputReq.Timelimit <= 0)
+				return null;
+
+			var remaining = inputReq.Timelimit - _genericTimerStopwatch.ElapsedMilliseconds;
+			return remaining <= 0 ? 0 : remaining;
+		}
+	}
+#endif
 	#endregion
 
 	#region Call系
@@ -1718,6 +1772,14 @@ internal sealed partial class EmueraConsole : IDisposable
 
 			_drawStopwatch.Restart();
 		}
+#if HEADLESS
+		// HEADLESS 下 OnPaint 不执行，need_settimer 清零逻辑需要在此处执行
+		if (need_settimer)
+		{
+			need_settimer = false;
+			setTimer();
+		}
+#endif
 		_uiAdapter.Invoke(() =>
 		{
 			verticalScrollBarUpdate();
@@ -1964,7 +2026,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			need_settimer = false;
 			setTimer();
 		}
-#endif // !HEADLESS
+#endif // !HEADLESS (OnPaint)
 	}
 
 	private void ToolTip_Draw(object sender, ToolTipDrawEventArgs e)

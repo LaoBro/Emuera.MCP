@@ -27,6 +27,39 @@ internal sealed class HttpSessionIO : SessionIO
         return null;
     }
 
+    /// <summary>
+    /// 带超时的读取行。
+    /// timeoutMs &lt; 0：无限等待，走现有 ReadLine() 逻辑。
+    /// timeoutMs == 0：只尝试 _inputQueue.TryDequeue；无数据返回 null。
+    /// timeoutMs &gt; 0：使用 _inputEvent.WaitOne(timeoutMs) 等待；超时返回 null。
+    /// Close() 后 _connected = false，后续 ReadLine() / ReadLine(timeoutMs) 必须尽快返回 null。
+    /// </summary>
+    public override string? ReadLine(int timeoutMs)
+    {
+        if (timeoutMs == 0)
+        {
+            if (_inputQueue.TryDequeue(out var line))
+                return line;
+            return null;
+        }
+
+        if (timeoutMs > 0)
+        {
+            while (_connected)
+            {
+                if (_inputQueue.TryDequeue(out var line))
+                    return line;
+
+                if (!_inputEvent.WaitOne(timeoutMs))
+                    return null;
+            }
+
+            return null;
+        }
+
+        return ReadLine();
+    }
+
     public override void WriteLine(string text)
     {
         if (_connected)

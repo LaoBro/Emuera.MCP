@@ -13,15 +13,15 @@ namespace MinorShift.Emuera.Server;
 internal sealed class HttpGameServer : IDisposable
 {
     private readonly HttpListener _listener;
-    private readonly SessionManager _sessions;
-    private readonly CancellationTokenSource _cts = new();
+    private Session? _session;
+    private readonly object _sessionLock = new();
     private readonly ConcurrentDictionary<string, HttpSessionIO> _ioMap = new();
+    private readonly CancellationTokenSource _cts = new();
 
     public HttpGameServer(int port)
     {
         _listener = new HttpListener();
         _listener.Prefixes.Add($"http://localhost:{port}/");
-        _sessions = new SessionManager();
     }
 
     public void Start()
@@ -63,12 +63,34 @@ internal sealed class HttpGameServer : IDisposable
             // POST /sessions → 创建会话
             if (method == "POST" && path == "/sessions")
             {
-                var io = new HttpSessionIO();
-                var session = _sessions.Create(io);
-                io.SessionId = session.Id;
-                _ioMap[session.Id] = io;
-                session.Touch();
-                WriteJson(resp, 201, new { sessionId = session.Id, createdAt = session.CreatedAt });
+                string sessionId;
+                DateTimeOffset createdAt;
+
+                lock (_sessionLock)
+                {
+                    if (_session != null && _session.IsRunning)
+                    {
+                        WriteJson(resp, 409, new { error = "A session is already active" });
+                        return;
+                    }
+
+                    if (_session != null)
+                    {
+                        _ioMap.TryRemove(_session.Id, out _);
+                        _session.Dispose();
+                        _session = null;
+                    }
+
+                    var io = new HttpSessionIO();
+                    _session = new Session(io);
+                    io.SessionId = _session.Id;
+                    _ioMap[_session.Id] = io;
+                    _session.Start();
+                    sessionId = _session.Id;
+                    createdAt = _session.CreatedAt;
+                }
+
+                WriteJson(resp, 201, new { sessionId, createdAt });
                 return;
             }
 
@@ -79,13 +101,16 @@ internal sealed class HttpGameServer : IDisposable
                 if (parts.Length >= 3 && parts[0] == "sessions" && parts[2] == "turn")
                 {
                     var id = parts[1];
-                    if (!_ioMap.TryGetValue(id, out var io))
+                    HttpSessionIO? io;
+                    lock (_sessionLock)
                     {
-                        WriteJson(resp, 404, new { error = "Session not found" });
-                        return;
+                        if (!_ioMap.TryGetValue(id, out io))
+                        {
+                            WriteJson(resp, 404, new { error = "Session not found" });
+                            return;
+                        }
+                        _session?.Touch();
                     }
-                    var session = _sessions.Get(id);
-                    session?.Touch();
 
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     while (sw.Elapsed < TimeSpan.FromSeconds(25))
@@ -112,16 +137,20 @@ internal sealed class HttpGameServer : IDisposable
                 if (parts.Length >= 3 && parts[0] == "sessions" && parts[2] == "input")
                 {
                     var id = parts[1];
-                    if (!_ioMap.TryGetValue(id, out var io))
+                    HttpSessionIO? io;
+                    lock (_sessionLock)
                     {
-                        WriteJson(resp, 404, new { error = "Session not found" });
-                        return;
+                        if (!_ioMap.TryGetValue(id, out io))
+                        {
+                            WriteJson(resp, 404, new { error = "Session not found" });
+                            return;
+                        }
+                        _session?.Touch();
                     }
+
                     using var reader = new StreamReader(req.InputStream);
                     var body = reader.ReadToEnd();
                     io.EnqueueInput(body);
-                    var session = _sessions.Get(id);
-                    session?.Touch();
                     WriteJson(resp, 200, new { received = true });
                     return;
                 }
@@ -134,8 +163,13 @@ internal sealed class HttpGameServer : IDisposable
                 if (parts.Length >= 2 && parts[0] == "sessions")
                 {
                     var id = parts[1];
-                    var session = _sessions.Get(id);
-                    if (session == null)
+                    Session? session;
+                    lock (_sessionLock)
+                    {
+                        session = _session;
+                    }
+
+                    if (session == null || session.Id != id)
                     {
                         WriteJson(resp, 404, new { error = "Session not found" });
                         return;
@@ -158,8 +192,23 @@ internal sealed class HttpGameServer : IDisposable
                 if (parts.Length >= 2 && parts[0] == "sessions")
                 {
                     var id = parts[1];
-                    _ioMap.TryRemove(id, out _);
-                    var removed = _sessions.Remove(id);
+                    bool removed;
+
+                    lock (_sessionLock)
+                    {
+                        if (_session != null && _session.Id == id)
+                        {
+                            _ioMap.TryRemove(id, out _);
+                            _session.Dispose();
+                            _session = null;
+                            removed = true;
+                        }
+                        else
+                        {
+                            removed = false;
+                        }
+                    }
+
                     WriteJson(resp, removed ? 200 : 404, new { removed });
                     return;
                 }
@@ -186,6 +235,10 @@ internal sealed class HttpGameServer : IDisposable
     {
         _cts.Cancel();
         _listener.Close();
-        _sessions.Dispose();
+        lock (_sessionLock)
+        {
+            _session?.Dispose();
+            _session = null;
+        }
     }
 }

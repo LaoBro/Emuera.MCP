@@ -5,11 +5,9 @@ using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
 {
-    internal class AgentProtocolBase
+    internal abstract class AgentProtocolBase
     {
         private volatile bool _stopped;
-        protected AgentProtocolBase _innerProtocol;
-        protected Thread _thread;
         protected readonly EmueraConsole console;
         protected readonly IConsoleUI ui;
         protected const int TurnTimeoutMs = 30000;
@@ -23,7 +21,24 @@ namespace MinorShift.Emuera.GameView
 
         internal bool IsStopped => _stopped;
 
-        public virtual void Run() { }
+        /// <summary>
+        /// 获取初始 turn JSON。等待游戏进入 WaitInput/Quit/Error 状态后返回 turn，超时或停止返回 null。
+        /// </summary>
+        internal abstract string? GetInitialTurn();
+
+        /// <summary>
+        /// 提交输入并推进游戏，返回下一 turn JSON。停止或异常返回 null。
+        /// </summary>
+        internal abstract string? Step(string input);
+
+        /// <summary>
+        /// TINPUT 超时专用路径，调用 EmueraConsole 的 timer-timeout 等价逻辑。
+        /// 默认抛出 NotSupportedException，由需要 TINPUT 的子类覆盖。
+        /// </summary>
+        internal virtual string? SubmitTimeout()
+        {
+            throw new NotSupportedException("TINPUT timeout is not supported by this protocol.");
+        }
 
         public virtual void WriteOutput(string text, bool newLine = true)
         {
@@ -35,12 +50,8 @@ namespace MinorShift.Emuera.GameView
                     console._agentBuffer.Append(text);
             }
         }
-        public virtual void Stop()
-        {
-            _stopped = true;
-            _innerProtocol?.Stop();
-            _thread?.Join(TimeSpan.FromSeconds(2));
-        }
+
+        public virtual void Stop() => _stopped = true;
 
         protected virtual void DispatchInput(string input)
         {
@@ -71,22 +82,18 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>
-        /// 检测运行环境并创建/运行对应的协议实例。
+        /// 检测运行环境并创建对应的协议实例，不自动启动线程。
         /// stdin 通过管道重定向时使用 JSONL 协议，有终端时使用 CLI 交互模式。
         /// 双击 WinExe（无 console、无 pipe）时返回 null，由 WinForms 正常处理。
         /// </summary>
-        public static AgentProtocolBase DetectAndRun(EmueraConsole console, IConsoleUI ui)
+        public static AgentProtocolBase? Detect(EmueraConsole console, IConsoleUI ui)
         {
             AgentProtocolBase protocol;
             if (Console.IsInputRedirected)
             {
-                // IsInputRedirected=true 有两种情况：
-                // 1) stdin 被管道重定向（JSONL agent 模式）→ stdin 是真实管道流，不可 Seek
-                // 2) 双击 WinExe（无 console）→ stdin 是 NullStream，可 Seek
-                // 用 CanSeek 区分：管道不可 Seek，NullStream 可以
                 var stdin = Console.OpenStandardInput();
                 if (stdin.CanSeek)
-                    return null; // 无 console 且无 pipe，普通 WinForms 模式
+                    return null;
                 protocol = new AgentJsonlProtocol(console, ui);
             }
             else
@@ -96,9 +103,7 @@ namespace MinorShift.Emuera.GameView
                 protocol = new AgentCliProtocol(console, ui);
             }
 
-            protocol.Run();
             return protocol;
         }
-
     }
 }

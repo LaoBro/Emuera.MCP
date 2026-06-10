@@ -540,12 +540,18 @@ public void Dispose()
 
 ## 11. 兼容性与回归要求
 
-### 11.1 JSONL 兼容
+### 11.1 回归测试游戏目录
 
-现有测试必须继续通过：
+新增或修订回归测试时，应使用仓库根目录下的 `test_game` 文件夹作为测试游戏目录：
 
-- [tests/test_jsonl.py](tests/test_jsonl.py)
-- [tests/test_buttons.py](tests/test_buttons.py)
+- 不依赖开发者本机安装的其他 Emuera 游戏资源。
+- 如 `test_game` 的脚本场景不足以覆盖新增行为，先补充 `test_game` 的 ERB/CSV 资源，再扩展测试。
+
+测试组织、常用命令、统一入口和临时副本规则统一维护在 [tests/README.md](../../tests/README.md)；本规格只定义验收目标。
+
+### 11.2 JSONL 兼容
+
+现有 JSONL 回归必须继续通过；buttons schema 已合并到 JSONL 回归中，不再保留独立 `test_buttons.py` 入口。
 
 要求：
 
@@ -554,7 +560,8 @@ public void Dispose()
 - buttons 的 `label` / `value` 行为不变。
 - 非法 JSON 输入不导致进程崩溃。
 
-### 11.2 WinForms 兼容
+
+### 11.3 WinForms 兼容
 
 非 `HEADLESS` 构建必须保持：
 
@@ -563,7 +570,7 @@ public void Dispose()
 - 鼠标移动、tooltip、重绘、WinForms 事件处理不变。
 - `AgentProtocolBase` 在非 headless 下不引入新行为。
 
-### 11.3 CLI 兼容
+### 11.4 CLI 兼容
 
 CLI 模式必须保持：
 
@@ -588,12 +595,7 @@ dotnet build Emuera/Emuera.csproj -c Debug-NAudio
 
 ### 12.2 JSONL 回归
 
-必须通过：
-
-```bash
-python tests/test_jsonl.py
-python tests/test_buttons.py
-```
+必须通过 11.1 中定义的 JSONL 回归。
 
 ### 12.3 TINPUT timeout
 
@@ -605,30 +607,13 @@ python tests/test_buttons.py
 - 超时后继续输入不会吞行或串轮。
 - `InputTimeoutMs` 在剩余时间 <= 0 时返回 `0`。
 
+必须通过 11.1 中定义的 TINPUT timeout 回归。
+
 ### 12.4 server 单会话
 
-新增测试或手动验证必须覆盖：
+新增测试或手动验证必须覆盖第二个 `POST /sessions` 返回 `409`、输入、turn 拉取、删除会话和删除后重建会话。
 
-```bash
-Emuera.Headless.exe --server --port 8080
-
-curl -X POST http://localhost:8080/sessions
-# → 201
-
-curl -X POST http://localhost:8080/sessions
-# → 409
-
-curl -X POST http://localhost:8080/sessions/{id}/input \
-  -H "Content-Type: application/json" \
-  -d '{"type":"input","value":"0"}'
-# → 200
-
-curl http://localhost:8080/sessions/{id}/turn
-# → 200 或 204，取决于是否已有输出
-
-curl -X DELETE http://localhost:8080/sessions/{id}
-# → 200
-```
+必须通过 11.1 中定义的 server 单会话回归。
 
 ### 12.5 CLI smoke
 
@@ -639,6 +624,8 @@ curl -X DELETE http://localhost:8080/sessions/{id}
 - 游戏能正常推进。
 - 进程可退出。
 
+CLI smoke 的自动化入口、非 TTY 环境跳过规则和强制检查方式按 11.1 的测试说明执行。
+
 ### 12.6 WinForms 回归
 
 至少手动验证：
@@ -647,6 +634,8 @@ curl -X DELETE http://localhost:8080/sessions/{id}
 - TINPUT 倒计时显示正常。
 - 超时后行为与改造前一致。
 - 普通按钮输入正常。
+
+该项不属于自动测试范围；手动验证要求按 11.1 的测试说明执行。
 
 ---
 

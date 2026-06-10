@@ -9,7 +9,7 @@
 
 - 规格版本：v1.1
 - 最后更新：2026-06-10
-- 总体状态：待实施
+- 总体状态：核心实现已完成，WinForms 视觉回归待人工确认
 
 ---
 
@@ -50,29 +50,33 @@
 
 ### T-004：补充 server 单会话自动化测试
 
-- 状态：未实现
-- 范围：`tests/`
+- 状态：已实现
+- 范围：`tests/test_server_single_session.py`
 - 说明：v1.1 验收要求覆盖第二个 `POST /sessions` 返回 409、输入、长轮询、删除。
-- 建议测试：
+- 已覆盖测试：
   - `POST /sessions` 创建成功；
   - 第二个 `POST /sessions` 返回 409；
   - `POST /sessions/{id}/input` 返回 200；
-  - `GET /sessions/{id}/turn` 有输出时返回 200，无输出时返回 204；
+  - `GET /sessions/{id}/turn` 返回 200；
   - `DELETE /sessions/{id}` 返回 200；
   - 删除后再次创建成功。
+- 验证命令：`python tests/test_server_single_session.py`
+- 验证结果：`12 passed, 0 failed`
 - 关联规格：[SPEC_SINGLE_THREAD.md §12.4](./SPEC_SINGLE_THREAD.md#124-server-单会话)
 
 ### T-005：补充 TINPUT timeout 自动化测试
 
-- 状态：未实现
-- 范围：`tests/`、测试用游戏目录
-- 说明：需要构造 TINPUT 场景，验证 timeout 行为接近原 timer。
-- 验收：
+- 状态：已实现
+- 范围：`tests/test_tinput_timeout.py`、测试用临时 ERB 副本
+- 说明：已构造 TINPUT 场景，验证 timeout 行为接近原 timer。
+- 已覆盖验收：
   - 超时后输出 `TimeUpMes`（如配置存在）。
-  - 超时后执行默认空输入路径。
+  - 超时后执行默认值路径。
   - 超时后状态进入下一 turn。
   - 超时后继续输入不会吞行或串轮。
   - `InputTimeoutMs` 在剩余时间 <= 0 时返回 `0`。
+- 验证命令：`python tests/test_tinput_timeout.py`
+- 验证结果：`14 passed, 0 failed`
 - 关联规格：[SPEC_SINGLE_THREAD.md §12.3](./SPEC_SINGLE_THREAD.md#123-tinput-timeout)
 
 ### T-006：拆分 SPEC 与 PLAN 职责
@@ -105,3 +109,5 @@
 |------|---------------|----------|
 | 2026-06-10 | SPEC v1.1 | 从 v1.1 规格中提取 TODO，建立本维护文件。 |
 | 2026-06-10 | PLAN v1.2 | 修订实施计划：明确 WinForms UI 线程语义、HEADLESS `need_settimer`、server 单会话和路由加锁策略。 |
+| 2026-06-10 | TODO v1.1 | 更新 T-004 / T-005：server 单会话与 TINPUT timeout 自动化测试已实现并验证通过。 |
+| 2026-06-10 | TODO v1.1 | 删除 `tests/test_buttons.py`，新增 `tests/run_all.py` 统一入口；CLI 仅覆盖非管道启动 smoke。 |

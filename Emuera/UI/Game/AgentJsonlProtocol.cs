@@ -23,54 +23,60 @@ namespace MinorShift.Emuera.GameView
             : base(console, ui)
         {
             _io = io;
-            // 在 UI 线程中缓存可见行数（构造时安全访问 ui）
             int clientHeight = ui.ClientHeight;
             _visibleLineCount = Math.Max(1, clientHeight / Config.LineHeight);
         }
 
-        public override void Run()
+        internal override string? GetInitialTurn()
         {
-            _thread = new Thread(() =>
+            if (!WaitForInput())
+                return null;
+
+            return BuildTurn();
+        }
+
+        internal override string? Step(string input)
+        {
+            if (IsStopped)
+                return null;
+
+            if (!WaitForInput())
+                return null;
+
+            if (console.State != ConsoleState.WaitInput)
+                return null;
+
+            try
             {
-                OnStart();
-                ReadStdinLoop(HandleMessage);
-            })
+                ui.Invoke(() =>
+                {
+                    if (console.State == ConsoleState.WaitInput)
+                        console.PressEnterKey(false, input, false);
+                });
+
+                return BuildTurn();
+            }
+            catch (Exception ex)
             {
-                IsBackground = true,
-                Name = "TerminalAgent"
-            };
-            _thread.Start();
+                return JsonSerializer.Serialize(new
+                {
+                    error = ex.Message,
+                    state = console.State.ToString()
+                });
+            }
         }
 
         /// <summary>
-        /// 游戏加载完成后自动输出初始 turn，让调用方无需发送额外命令即可获取状态。
+        /// TINPUT 超时专用路径，调用 EmueraConsole.SubmitTimeout() 并返回下一 turn。
         /// </summary>
-        private void OnStart()
+        internal override string? SubmitTimeout()
         {
-            if (WaitForInput())
-                _io.WriteLine(BuildTurn());
-        }
-
-        private void HandleMessage(string line)
-        {
-            JsonlCommand cmd;
-            try { cmd = JsonSerializer.Deserialize<JsonlCommand>(line); }
-            catch { return; }
-
-            if (cmd?.type == "input")
-            {
-                try
-                {
-                    string turn = SubmitAndGetTurn(cmd.value ?? "");
-                    if (turn != null)
-                        _io.WriteLine(turn);
-                }
-                catch (Exception ex)
-                {
-                    Console.Error.WriteLine($"[jsonl] 输入处理异常: {ex.Message}");
-                    _io.WriteLine(JsonSerializer.Serialize(new { error = ex.Message, state = console.State.ToString() }));
-                }
-            }
+#if HEADLESS
+            console.SubmitTimeout();
+            return BuildTurn();
+#else
+            throw new NotSupportedException("TINPUT timeout is only supported in HEADLESS builds.");
+#endif
         }
 
         #region Turn helpers
@@ -106,8 +112,6 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>
         /// 收集窗口默认可见区域中所有按钮的标签与对应输入值。
-        /// TODO: 部分按钮可能跨多行显示（较少见），当前按行独立采集，
-        ///       未来可基于 Generation 合并跨行按钮的文本片段。
         /// </summary>
         private List<object> CollectVisibleButtons()
         {
@@ -136,39 +140,8 @@ namespace MinorShift.Emuera.GameView
             return buttons;
         }
 
-        /// <summary>
-        /// Submit input and advance one game turn. Returns next-turn JSON, or null on timeout.
-        /// </summary>
-        private string SubmitAndGetTurn(string value)
-        {
-            if (!WaitForInput()) return null;
-            if (console.State != ConsoleState.WaitInput) return null;
-
-            ui.Invoke(() =>
-            {
-                if (console.State == ConsoleState.WaitInput)
-                    console.PressEnterKey(false, value, false);
-            });
-
-            return BuildTurn();
-        }
-
-        private void ReadStdinLoop(Action<string> onLine)
-        {
-            while (!IsStopped && _io.IsConnected)
-            {
-                string? line;
-                try { line = _io.ReadLine(); }
-                catch (ThreadInterruptedException) { break; }
-                if (line == null) break;
-                onLine(line);
-            }
-            if (!IsStopped)
-                ui.Invoke(() => ui.Close());
-        }
-
-        private record JsonlCommand(string type, string value);
-
         #endregion
     }
 }
+
+internal record JsonlCommand(string type, string value);

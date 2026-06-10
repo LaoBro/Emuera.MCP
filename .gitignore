@@ -15,7 +15,6 @@ Emuera.Headless/obj/*
 Emuera.Headless/publish/*
 
 test_game/
-tests/
 Emuera.CLI/artifacts/
 
 *.diff

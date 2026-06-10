@@ -13,6 +13,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Runtime;
+using System.Text.Json;
 using System.Threading;
 
 namespace MinorShift.Emuera;
@@ -29,7 +30,7 @@ static partial class Program
     );
     static readonly Option<bool> serverOption = new(
         name: "--server",
-        description: "服务器模式：通过 HTTP 接口提供多会话服务"
+        description: "服务器模式：通过 HTTP 接口提供单会话服务"
     );
     static readonly Option<int> portOption = new(
         name: "--port",
@@ -121,16 +122,54 @@ static partial class Program
         console.Initialize().Wait();
 
         var protocol = console.AgentBridge;
-        if (protocol != null)
-        {
-            while (!protocol.IsStopped)
-                Thread.Sleep(100);
-        }
-        else
+        if (protocol == null)
         {
             Console.Error.WriteLine("[headless] 未检测到输入管道");
             Environment.Exit(1);
+            return;
         }
+
+        if (Console.IsInputRedirected)
+            RunJsonlLoop(protocol);
+        else
+            RunCliLoop(protocol);
+    }
+
+    private static void RunJsonlLoop(AgentProtocolBase protocol)
+    {
+        var io = ConsoleOutIO.Instance;
+
+        var initialTurn = protocol.GetInitialTurn();
+        if (initialTurn != null)
+            io.WriteLine(initialTurn);
+
+        while (!protocol.IsStopped)
+        {
+            var line = io.ReadLine(-1);
+            if (line == null)
+                break;
+
+            JsonlCommand? cmd;
+            try { cmd = JsonSerializer.Deserialize<JsonlCommand>(line); }
+            catch { continue; }
+
+            if (cmd?.type != "input")
+                continue;
+
+            var turn = protocol.Step(cmd.value ?? "");
+            if (turn != null)
+                io.WriteLine(turn);
+            else
+                break;
+        }
+    }
+
+    private static void RunCliLoop(AgentProtocolBase protocol)
+    {
+        if (protocol is AgentCliProtocol cli)
+            cli.RunCliLoop();
+        else
+            Console.Error.WriteLine("[headless] 非 CLI 协议，无法启动终端交互");
     }
 
     private static void RunServer(int port)

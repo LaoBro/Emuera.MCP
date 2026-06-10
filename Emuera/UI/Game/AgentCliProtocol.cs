@@ -13,28 +13,30 @@ namespace MinorShift.Emuera.GameView
         public AgentCliProtocol(EmueraConsole console, IConsoleUI ui)
             : base(console, ui) { }
 
-        public override void Run()
-        {
-            _thread = new Thread(RunLoop)
-            {
-                IsBackground = true,
-                Name = "TerminalAgent"
-            };
-            _thread.Start();
-        }
+        internal override string? GetInitialTurn() => null;
 
-        private void RunLoop()
+        internal override string? Step(string input) => null;
+
+        /// <summary>
+        /// 同步 CLI 主循环，由 Program.RunHeadless() 调用。
+        /// </summary>
+        internal void RunCliLoop()
         {
+            FlushBuffer();
+
             while (!IsStopped)
             {
                 if (Console.KeyAvailable)
                 {
                     var key = Console.ReadKey(true);
-                    ui.Invoke(() => ProcessKey(key));
+                    ProcessKey(key);
                 }
+
                 FlushBuffer();
                 Thread.Sleep(PollIntervalMs);
             }
+
+            FlushBuffer();
         }
 
         private void FlushBuffer()
