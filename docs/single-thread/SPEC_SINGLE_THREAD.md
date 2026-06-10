@@ -1,609 +1,708 @@
-# Emuera.Headless 单线程化改造规格书
+# Emuera.Headless 单线程化改造规格书 v1.1
 
-> 版本：v1.0 | 日期：2026-06-10
-
----
-
-## 一、为什么要做这个改造
-
-### 1.1 现状
-
-当前 Headless 模式下，每个游戏会话至少使用 2 个线程：
-
-- **主线程**：什么都不做，只是 `Thread.Sleep(100)` 轮询等待协议线程结束
-- **Agent 线程**：读取输入、调用 `PressEnterKey` 驱动游戏、采集输出
-
-此外还有一个隐藏的 **Timer 线程**（`System.Timers.Timer`），在游戏脚本使用 `TINPUT`（带超时的输入指令）时触发，通过 `ui.Invoke` 调用游戏逻辑。
-
-这套多线程设计是从 WinForms 版本继承来的——WinForms 中 UI 线程不能阻塞在 `ReadLine` 上（会冻住窗口），所以必须用独立线程读输入。但在无头模式下，根本没有窗口需要响应，这些线程只是增加了复杂度。
-
-### 1.2 问题
-
-1. **竞态条件**：Timer 线程和 Agent 线程可能同时调用 `PressEnterKey`，没有任何锁保护。在 WinForms 中这不是问题（因为 `Control.Invoke` 会串行化到 UI 线程），但 Headless 的 `Invoke` 是直接调用，没有串行化保障。
-
-2. **资源浪费**：服务器模式下每个会话 2-3 个线程，100 个会话就是 200-300 个线程，大部分时间都在 `Sleep` 或 `WaitOne`。
-
-3. **代码复杂**：为了线程安全，引入了 `_agentBufferLock`、`ConcurrentQueue`、`AutoResetEvent` 等同步原语。`AgentJsonlProtocol` 还需要 `WaitForInput()` 轮询（每 50ms 检查一次游戏状态），增加了延迟。
-
-4. **调试困难**：多线程 bug 难以复现，`ui.Invoke` 的间接调用让调用栈变深。
-
-### 1.3 核心洞察
-
-**游戏引擎本身就是单线程的。** `Process.DoScript()` 是一个同步阻塞方法——从当前指令一直执行到游戏进入 `WaitInput` 状态才返回，中间不会 yield、不会 await、不会主动让出线程。这意味着：
-
-- 不可能同时处理两个输入
-- 不可能在执行游戏逻辑的同时做其他事情
-- 每个会话天然就是"输入 → 执行 → 输出 → 等待下一个输入"的串行循环
-
-当前的多线程完全是为了适配 WinForms 消息泵而引入的，在无头场景下是多余的。
+> 版本：v1.1  
+> 日期：2026-06-10  
+> 配套实施计划：[PLAN_SINGLE_THREAD.md](./PLAN_SINGLE_THREAD.md)  
+> 修订依据：v1.0 审核结论 + 技术范围确认
 
 ---
 
-## 二、改造目标
+## 1. 修订摘要
 
-把 Headless 模式从"多线程 + 间接调用"改为"单线程 + 直接调用"，让代码更简单、更可靠、更省资源。
+v1.1 对 v1.0 做以下关键修订：
 
-具体来说：
-
-- **管道模式**（`--headless`）：从 3 个线程降到 1 个
-- **服务器模式**（`--server`）：从每会话 2-3 个线程降到每会话 1 个；暂只实现单会话
-- 消除 Timer 线程与 Agent 线程的竞态条件
-- 消除 `ui.Invoke` 间接调用，改为直接调用
-- 消除 `_agentBufferLock`，改为单线程直接访问
-- 消除 `WaitForInput()` 轮询，因为 `PressEnterKey` 执行完毕后游戏一定已经到达下一个 `WaitInput`
+1. **明确单线程化范围**：本规格优先覆盖 `--headless` JSONL/CLI 模式；server 模式在 v1.1 只做**单会话化**，不承诺单线程化。
+2. **明确 stdin 管道超时范围**：普通 stdin 管道的 `ReadLine(timeoutMs)` 在 v1.1 **不承诺支持**，但保留接口和后续 TODO；TINPUT 超时优先覆盖 `HttpSessionIO` / server 模式。
+3. **修正 TINPUT 超时语义**：超时不能简单等价于 `PressEnterKey("")`，必须尽量接近原 WinForms timer 行为，包括默认输入、`TimeUpMes`、`isTimeout` 状态。
+4. **降低 CLI 范围**：CLI 模式只保证交互路径从后台线程改为同步驱动；TINPUT timeout 不进入 v1.1 范围。
+5. **补充验收标准**：新增 timeout、server 单会话、CLI smoke、WinForms 回归等验收项。
 
 ---
 
-## 三、改造后的运行模型
+## 2. 目标
 
-### 3.1 管道模式
+### 2.1 主要目标
 
-**改造前**（3 个线程）：
+- 将 `--headless` JSONL 管道模式的 agent 协议从“后台线程驱动”改为“调用方同步步进驱动”。
+- 保留现有 JSONL 协议对外行为：初始 turn 自动输出；每个 `{"type":"input","value":"..."}` 输入后输出下一个 turn。
+- 支持 server 模式下 TINPUT 超时，超时行为尽量接近现有 WinForms timer。
+- 将 HTTP server 从多会话改为单会话，避免同一进程同时运行多个游戏实例。
+- 保持 WinForms 非 headless 行为不变。
 
-```
-主线程:     Sleep(100) 轮询 ──────────────────────────────── 退出
-Agent 线程: ReadLine → WaitForInput(轮询) → Invoke(PressEnterKey) → BuildTurn → ReadLine → ...
-Timer 线程: [TINPUT时] tickTimer → Invoke(RunEmueraProgram)
-```
+### 2.2 非目标
 
-**改造后**（1 个线程）：
+v1.1 不覆盖以下内容：
 
-```
-主线程: ReadLine → PressEnterKey → BuildTurn → WriteTurn → ReadLine → ...
-```
-
-就这么简单。主线程读一行输入，直接调用 `PressEnterKey`（游戏逻辑同步执行完毕），构建回合输出，写出去，然后读下一行输入。
-
-### 3.2 服务器模式（单会话）
-
-**改造前**（3+ 个线程）：
-
-```
-主线程:           Sleep 等待 Enter
-HttpListener 线程: 接收请求 → 投递到 SessionIO 队列
-Session 线程:     Sleep(100) 轮询
-Agent 线程:       ReadLine(从队列) → WaitForInput → Invoke(PressEnterKey) → BuildTurn → ...
-```
-
-**改造后**（2 个线程：1 个 HTTP + 1 个游戏）：
-
-```
-主线程:           Sleep 等待 Enter
-HttpListener 线程: 接收请求 → 投递到 SessionIO 队列 / 从队列读取输出
-游戏线程:         ReadLine(从队列) → PressEnterKey → BuildTurn → WriteLine(到队列) → ReadLine → ...
-```
-
-HttpListener 线程是 .NET 运行时管理的，我们无法消除。但游戏逻辑本身只在 1 个线程上运行。
-
-### 3.3 TINPUT（带超时的输入）的处理
-
-**改造前**：`System.Timers.Timer` 在 ThreadPool 线程上触发超时回调。
-
-**改造后**：在等待输入时用带超时的阻塞等待。如果超时了还没收到输入，就自动提交默认输入。
-
-```
-游戏线程: PressEnterKey → 游戏进入 WaitInput(带超时)
-         → ReadLine(timeout=剩余时间)
-             ├─ 收到输入 → 正常处理
-             └─ 超时 → PressEnterKey(默认值) → 游戏继续
-```
+- WebSocket 支持。
+- 多会话 server。
+- 普通 stdin 管道模式的可靠 `ReadLine(timeoutMs)`。
+- CLI 模式的 TINPUT timeout。
+- Runtime 层核心脚本语义修改。
+- WinForms UI 行为变更。
+- 跨平台 native stdin 非阻塞读取。
 
 ---
 
-## 四、需要改动的文件
+## 3. 术语
 
-### 4.1 重写的文件
+| 术语 | 含义 |
+|------|------|
+| JSONL 管道模式 | `stdin` 被重定向，`Emuera.Headless` 通过 stdout 输出 JSON turn，通过 stdin 接收 JSON 输入。 |
+| CLI 模式 | 普通终端交互模式，不使用 JSONL 协议。 |
+| server 模式 | `--server` 启动 HTTP 服务，通过 `/sessions` API 长轮询 turn 和提交输入。 |
+| Step | 同步执行“提交输入 → 游戏推进 → 返回下一 turn JSON”的最小单位。 |
+| TINPUT | 带时限的输入请求，由 `inputReq.Timelimit > 0` 表示。 |
+| `HttpSessionIO` | server 模式使用的内存队列 IO，支持 `ReadLine(timeoutMs)`。 |
+| `ConsoleOutIO` | 普通 stdin/stdout 管道模式使用的 IO。 |
 
-| 文件 | 改动说明 |
-|------|---------|
-| `Emuera.Headless/Program.cs` | `RunHeadless()` 和 `RunServer()` 改为同步循环驱动 |
+---
 
-### 4.2 大幅修改的文件
+## 4. v1.1 范围矩阵
 
-| 文件 | 改动说明 |
-|------|---------|
-| `Emuera/UI/Game/AgentProtocolBase.cs` | 去掉线程管理，保留 `BuildTurn` / `CollectVisibleButtons` 等工具方法，新增同步 `Step()` 方法 |
-| `Emuera/UI/Game/AgentJsonlProtocol.cs` | 重写：去掉 `ReadStdinLoop` 和 `WaitForInput` 轮询，改为同步的 `Step(value)` 方法 |
-| `Emuera/UI/Game/AgentCliProtocol.cs` | 重写：去掉独立线程，改为同步的按键处理循环 |
-| `Emuera/Server/Session.cs` | `GameLoop` 改为同步驱动循环，不再启动 Agent 线程 |
-| `Emuera/Server/SessionIO.cs` | `ReadLine()` 增加超时参数 `ReadLine(int timeoutMs)` |
+| 模式 | 单线程同步步进 | TINPUT timeout | 单会话 server | 说明 |
+|------|----------------|----------------|---------------|------|
+| `--headless` JSONL 管道 | 是 | 否，v1.1 TODO | 不适用 | 保留现有协议行为；`ConsoleOutIO.ReadLine(timeoutMs)` 不承诺可用。 |
+| CLI 终端交互 | 是 | 否 | 不适用 | 只保证交互路径不再后台线程驱动。 |
+| `--server` HTTP | 否，允许 worker thread | 是 | 是 | v1.1 只做单会话化，不要求 HTTP 层单线程。 |
+| WinForms | 不变 | 不变 | 不适用 | 非 `HEADLESS` 构建不改变行为。 |
 
-### 4.3 小幅修改的文件
+---
 
-| 文件 | 改动说明 |
-|------|---------|
-| `Emuera/UI/Game/EmueraConsole.cs` | Timer 相关逻辑加 `#if HEADLESS` 条件编译，无头模式下禁用 `genericTimer` |
-| `Emuera/UI/Game/HeadlessConsole.cs` | `Invoke()` 改为直接调用（已经是了，确认无需改动） |
-| `Emuera/Server/HttpSessionIO.cs` | `ReadLine()` 支持超时参数 |
-| `Emuera/Server/ConsoleOutIO.cs` | `ReadLine()` 支持超时参数 |
-| `Emuera/Server/HttpGameServer.cs` | 适配单会话模式，去掉多会话管理 |
+## 5. 架构约束
 
-### 4.4 可以删除/简化的代码
+### 5.1 单线程步进边界
 
-| 代码 | 位置 | 原因 |
+v1.1 中，JSONL 管道模式的协议层不再自行创建 agent 线程。调用方负责：
+
+1. 初始化 `EmueraConsole`。
+2. 等待游戏进入 `WaitInput` / `Quit` / `Error`。
+3. 输出初始 turn。
+4. 从 IO 读取输入。
+5. 调用 `AgentProtocolBase.Step(input)`。
+6. 输出返回的 turn。
+
+### 5.2 server 模式边界
+
+server 模式 v1.1 允许保留 session worker thread，但必须满足：
+
+- 同一时间最多存在一个 `Session`。
+- 第二个 `POST /sessions` 必须返回 `409 Conflict`。
+- 旧会话未销毁前，不允许创建新会话。
+- HTTP 请求处理仍可使用 `Task.Run` / worker thread，不作为 v1.1 单线程化验收项。
+
+### 5.3 stdin 管道超时边界
+
+v1.1 不要求 `ConsoleOutIO.ReadLine(timeoutMs)` 可靠支持超时。
+
+允许行为：
+
+- `timeoutMs < 0`：无限等待，等价于 `ReadLine()`。
+- `timeoutMs > 0`：可以阻塞等待，也可以返回 `null`；但不得破坏后续输入顺序。
+- `timeoutMs == 0`：可以阻塞等待；不得承诺非阻塞。
+
+禁止行为：
+
+- 使用 `Task.Run(() => Console.ReadLine())` 后通过 `Task.Wait(timeout)` 模拟超时，因为超时 task 可能吞掉后续输入。
+- 在超时后继续复用已被后台 task 消费的 stdin 状态。
+
+后续 TODO：如必须支持 stdin 管道 TINPUT timeout，应单独设计 native non-blocking / cancellable stdin 读取方案。
+
+---
+
+## 6. 协议规格
+
+### 6.1 JSONL turn 输出
+
+每次 turn 输出必须是一行 JSON，字段保持兼容：
+
+```json
+{
+  "text": "当前可见文本",
+  "state": "WaitInput",
+  "inputType": "EnterKey",
+  "needValue": false,
+  "buttons": [
+    { "label": "[0] Hello", "value": 0 }
+  ]
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 说明 |
 |------|------|------|
-| `AgentProtocolBase._thread` 字段 | AgentProtocolBase.cs | 不再需要后台线程 |
-| `AgentProtocolBase.Run()` 的线程启动逻辑 | AgentProtocolBase.cs | 改为同步调用 |
-| `AgentJsonlProtocol.ReadStdinLoop()` | AgentJsonlProtocol.cs | 改为主循环直接 ReadLine |
-| `AgentJsonlProtocol.WaitForInput()` | AgentJsonlProtocol.cs | PressEnterKey 后游戏直接到达 WaitInput，无需轮询 |
-| `AgentJsonlProtocol.SubmitAndGetTurn()` 中的 `ui.Invoke` | AgentJsonlProtocol.cs | 直接调用 PressEnterKey |
-| `EmueraConsole.genericTimer` / `tickTimer` / `endTimer` | EmueraConsole.cs | 无头模式下用内联超时替代 |
-| `EmueraConsole._agentBufferLock` | EmueraConsole.cs | 单线程无需锁 |
-| `SessionManager.cs` | Server/ | 单会话模式不需要 |
+| `text` | string | 当前可见文本。 |
+| `state` | string | `ConsoleState.ToString()`。 |
+| `inputType` | string? | 当前 `InputRequest.InputType.ToString()`。 |
+| `needValue` | bool | 当前请求是否需要值。 |
+| `buttons` | array | 可见按钮列表，每项包含 `label` 和 `value`。 |
+
+### 6.2 JSONL input
+
+客户端输入仍为：
+
+```json
+{ "type": "input", "value": "0" }
+```
+
+约束：
+
+- `type != "input"` 时忽略。
+- `value` 缺失时按空字符串处理。
+- 非法 JSON 忽略，不输出错误。
+- 输入处理异常时输出 error turn：
+
+```json
+{ "error": "异常消息", "state": "Error" }
+```
+
+error turn 必须使用 `JsonSerializer.Serialize(...)`，禁止字符串拼接未转义 JSON。
 
 ---
 
-## 五、关键接口设计
+## 7. 核心状态机
 
-### 5.1 AgentProtocolBase — 从"线程管理器"变为"同步步进器"
+### 7.1 JSONL 管道模式
 
-**改造前**：
+```text
+Start
+  ↓
+Initialize EmueraConsole
+  ↓
+WaitForInitialState()
+  ├─ WaitInput → BuildTurn() → Output initial turn
+  ├─ Quit/Error → BuildTurn() → Stop
+  └─ Timeout → Stop without output
+
+Loop while !IsStopped:
+  ↓
+ReadLine()
+  ├─ EOF → Stop
+  ├─ invalid JSON → continue
+  ├─ non-input command → continue
+  └─ input command → Step(value ?? "")
+        ↓
+      BuildTurn()
+        ├─ Quit/Error → Stop after output
+        └─ WaitInput/Running/Sleep → Output turn and continue
+```
+
+v1.1 中 JSONL 管道模式不处理 TINPUT timeout；即使当前存在 `InputTimeoutMs`，普通 stdin 管道仍使用普通 `ReadLine()`。
+
+### 7.2 server 模式 TINPUT timeout
+
+```text
+Session started
+  ↓
+Initialize console
+  ↓
+GetInitialTurn()
+  ↓
+Output initial turn
+  ↓
+Loop while session active:
+  ↓
+timeoutMs = console.InputTimeoutMs
+  ├─ null / <= 0 → ReadLine()
+  └─ > 0 → ReadLine(timeoutMs)
+
+ReadLine result:
+  ├─ null && !IsConnected → Stop
+  ├─ null && IsConnected && InputTimeoutMs exists → SubmitTimeout()
+  ├─ invalid JSON → continue
+  └─ input command → Step(value ?? "")
+
+SubmitTimeout():
+  ↓
+尽量等价于原 timer timeout:
+  - 停止当前 timer
+  - 设置 isTimeout = true
+  - 显示 TimeUpMes（如存在）
+  - 以空输入执行默认输入路径
+  - RefreshStrings
+  - BuildTurn()
+```
+
+### 7.3 CLI 模式
+
+CLI 模式 v1.1 只做同步化：
+
+- 不再由 `AgentCliProtocol.Run()` 创建后台线程。
+- `Program.RunHeadless()` 在非管道模式下调用同步 `RunCliLoop()`。
+- `RunCliLoop()` 继续处理 `Console.ReadKey(true)`、退格、回车、输入缓冲。
+- TINPUT timeout 不进入 v1.1。
+
+---
+
+## 8. API 设计
+
+### 8.1 `SessionIO`
+
+`Emuera/Server/SessionIO.cs`
+
+新增方法：
 
 ```csharp
-class AgentProtocolBase
+public abstract string? ReadLine(int timeoutMs);
+```
+
+语义：
+
+| `timeoutMs` | 语义 |
+|-------------|------|
+| `< 0` | 无限等待，等价于 `ReadLine()`。 |
+| `= 0` | 立即尝试读取；如果实现无法非阻塞，可阻塞。 |
+| `> 0` | 等待指定毫秒；具体是否支持取决于实现。 |
+
+实现要求：
+
+- `HttpSessionIO` 必须支持可靠超时。
+- `ConsoleOutIO` v1.1 不承诺可靠超时；禁止使用会吞后续输入的后台 `Console.ReadLine()` task。
+
+### 8.2 `AgentProtocolBase`
+
+`Emuera/UI/Game/AgentProtocolBase.cs`
+
+v1.1 建议接口：
+
+```csharp
+internal abstract class AgentProtocolBase
 {
-    protected Thread _thread;
-    abstract void Run();           // 启动后台线程
-    void Stop();                   // 停止线程
-    void WriteOutput(...);         // 写入缓冲（需加锁）
+    private volatile bool _stopped;
+
+    protected readonly EmueraConsole console;
+    protected readonly IConsoleUI ui;
+
+    protected const int TurnTimeoutMs = 30000;
+    protected const int PollIntervalMs = 50;
+
+    internal AgentProtocolBase(EmueraConsole console, IConsoleUI ui);
+
+    internal bool IsStopped => _stopped;
+
+    internal abstract string? GetInitialTurn();
+    internal abstract string? Step(string input);
+
+    public virtual void Stop() => _stopped = true;
+
+    public static AgentProtocolBase? Detect(EmueraConsole console, IConsoleUI ui);
 }
 ```
 
-**改造后**：
+说明：
+
+- `Step(string input)` 使用非 nullable `string`，避免调用方误把 `null` 当作正常输入。
+- TINPUT timeout 不再通过 `Step(null)` 表达，而通过专门的 `SubmitTimeout()` / `HandleTimerTimeout()` 路径表达。
+- `Detect()` 只检测并创建协议实例，不再自动启动线程。
+
+### 8.3 `AgentJsonlProtocol`
+
+`Emuera/UI/Game/AgentJsonlProtocol.cs`
+
+职责：
+
+- `GetInitialTurn()`：等待初始 `WaitInput` / `Quit` / `Error`，返回初始 turn JSON 或 `null`。
+- `Step(string input)`：在 `WaitInput` 状态下提交输入，返回下一 turn JSON 或 `null`。
+- `SubmitTimeout()`：server 模式超时专用路径，调用 `EmueraConsole` 的 timer-timeout 等价逻辑。
+- `BuildTurn()`：采集 `_agentBuffer`、`CurrentRequest`、可见 buttons。
+
+`JsonlCommand` 必须从 private record 提升为 protocol 可访问的内部类型，例如：
 
 ```csharp
-class AgentProtocolBase
-{
-    bool IsStopped { get; }
-
-    // 同步执行一个游戏回合：输入 → 游戏执行 → 返回回合 JSON
-    // 超时返回 null
-    abstract string? Step(string? input = null);
-
-    // 初始化后获取初始回合（游戏加载完毕后的第一个 WaitInput 状态）
-    string? GetInitialTurn();
-}
+internal record JsonlCommand(string type, string value);
 ```
 
-调用方式从"启动线程然后轮询"变成"直接调用 Step"：
+### 8.4 `AgentCliProtocol`
+
+`Emuera/UI/Game/AgentCliProtocol.cs`
+
+职责：
+
+- 保留 CLI 输入缓冲、退格、回车、Escape 行为。
+- 不再创建后台线程。
+- 提供同步 `RunCliLoop()` 或等价方法，由 `Program.RunHeadless()` 调用。
+- v1.1 不处理 TINPUT timeout。
+
+### 8.5 `EmueraConsole`
+
+`Emuera/UI/Game/EmueraConsole.cs`
+
+新增 headless 可见属性：
 
 ```csharp
-// 改造前
-protocol.Run();
-while (!protocol.IsStopped) Thread.Sleep(100);
-
-// 改造后
-string? turn = protocol.GetInitialTurn();
-WriteTurn(turn);
-while (!protocol.IsStopped)
-{
-    string? input = ReadInput();
-    turn = protocol.Step(input);
-    WriteTurn(turn);
-}
-```
-
-### 5.2 SessionIO — 增加超时读取
-
-```csharp
-abstract class SessionIO
-{
-    // 原有
-    abstract string? ReadLine();
-    abstract void WriteLine(string text);
-    abstract void Close();
-    abstract bool IsConnected { get; }
-
-    // 新增：带超时的读取
-    // timeoutMs < 0 表示无限等待（等同于 ReadLine()）
-    // timeoutMs = 0 表示立即返回（非阻塞）
-    // timeoutMs > 0 表示等待指定毫秒数
-    // 超时返回 null，IsConnected 仍为 true
-    abstract string? ReadLine(int timeoutMs);
-}
-```
-
-### 5.3 EmueraConsole — 暴露超时信息
-
-为了让协议层知道当前输入的超时时间，需要在 `EmueraConsole` 上暴露：
-
-```csharp
-// EmueraConsole 已有 inputReq 字段
-// 只需暴露超时信息
-public long? InputTimeoutMs
+#if HEADLESS
+internal long? InputTimeoutMs
 {
     get
     {
         if (state != ConsoleState.WaitInput || inputReq == null || inputReq.Timelimit <= 0)
             return null;
-        return inputReq.Timelimit - _genericTimerStopwatch.ElapsedMilliseconds;
+
+        var remaining = inputReq.Timelimit - _genericTimerStopwatch.ElapsedMilliseconds;
+        return remaining <= 0 ? 0 : remaining;
     }
 }
+#endif
 ```
 
----
+要求：
 
-## 六、各模式的完整流程
+- `_genericTimerStopwatch` 必须在 timer 请求创建时重启，而不是在 `Initialize()` 时重启后一直复用。
+- `need_settimer` 在 HEADLESS 下也必须被正确清零，避免状态泄漏。
+- HEADLESS 下不得启动 `genericTimer`。
+- 非 HEADLESS 下保持原行为。
 
-### 6.1 管道模式 (`--headless`)
-
-```
-1. 初始化
-   - 创建 HeadlessConsole
-   - 创建 EmueraConsole(ui)
-   - console.Initialize().Wait()     ← 加载游戏，执行到第一个 WaitInput
-
-2. 输出初始回合
-   - protocol.GetInitialTurn()       ← 采集初始输出和按钮
-   - 写入 stdout
-
-3. 主循环（单线程）
-   while (协议未停止)
-   {
-       line = Console.ReadLine()     ← 阻塞等待输入
-       if (line == null) break       ← 管道关闭
-
-       cmd = 解析 JSON
-       turn = protocol.Step(cmd.value)  ← 同步执行游戏回合
-       写入 stdout
-   }
-
-4. 退出
-```
-
-### 6.2 服务器模式 (`--server`，单会话)
-
-```
-1. 初始化
-   - 创建 HttpSessionIO
-   - 启动 HttpGameServer
-
-2. 游戏线程（单线程）
-   - 创建 HeadlessConsole
-   - 创建 EmueraConsole(ui)
-   - console.Initialize().Wait()
-   - protocol.GetInitialTurn() → 写入 HttpSessionIO 输出队列
-
-   while (会话未断开)
-   {
-       timeoutMs = console.InputTimeoutMs ?? -1
-       line = io.ReadLine(timeoutMs)   ← 带超时等待
-
-       if (line == null && 超时)
-           turn = protocol.Step("")    ← 超时，提交默认输入
-       else if (line != null)
-           turn = protocol.Step(解析输入)  ← 正常输入
-       else
-           break                       ← 连接断开
-
-       写入 HttpSessionIO 输出队列
-   }
-
-3. HttpListener 线程（.NET 管理）
-   - POST /input → io.EnqueueInput(body)
-   - GET /turn   → io.TryDequeueOutput() 或长轮询等待
-```
-
-### 6.3 CLI 交互模式
-
-```
-1. 初始化（同管道模式）
-
-2. 主循环（单线程）
-   while (协议未停止)
-   {
-       // 刷新输出
-       text = console.TakeAgentBuffer()
-       if (text.Length > 0) Console.Write(text)
-
-       // 检查是否有按键
-       if (Console.KeyAvailable)
-       {
-           key = Console.ReadKey(true)
-           处理按键（Enter 提交、Backspace 删除、字符追加）
-       }
-       else if (console.State == ConsoleState.WaitInput && 有超时)
-       {
-           // 带超时等待按键
-           ... 超时则提交默认输入
-       }
-       else
-       {
-           Thread.Sleep(50)  ← 短暂让出 CPU
-       }
-   }
-```
-
----
-
-## 七、TINPUT 超时的详细处理
-
-TINPUT 是游戏脚本中的"带超时的输入"指令，例如 `TINPUT 5000,"超时了",0` 表示等待 5 秒，超时后自动提交默认值。
-
-### 7.1 改造前
-
-```
-1. 游戏执行 TINPUT → WaitInput(timelimit=5000)
-2. EmueraConsole 启动 genericTimer（10ms 间隔）
-3. Timer 每 10ms 检查是否超时
-4. 超时 → tickTimer → endTimer → ui.Invoke(RunEmueraProgram(""))
-5. Agent 线程的 WaitForInput 检测到状态变化
-```
-
-问题：Timer 回调在 ThreadPool 线程上，与 Agent 线程存在竞态。
-
-### 7.2 改造后
-
-```
-1. 游戏执行 TINPUT → WaitInput(timelimit=5000)
-2. 协议层读取 console.InputTimeoutMs → 5000
-3. io.ReadLine(timeoutMs: 5000)  ← 带超时阻塞
-4. 两种结果：
-   a) 5 秒内收到输入 → 正常 Step(input)
-   b) 超时 → Step("")  ← 提交空字符串，游戏引擎内部会使用默认值
-```
-
-**注意**：`PressEnterKey` 内部会检查 `genericTimer.Enabled` 来决定是否停止定时器。在无头模式下，`genericTimer` 不会被启用（通过 `#if HEADLESS` 禁用），所以 `PressEnterKey` 中的 `stopTimer()` 调用是安全的（对已停止的 Timer 调用 `Enabled = false` 不会有副作用）。
-
-### 7.3 需要处理的边界情况
-
-- **DisplayTime**：TINPUT 可以配置为显示剩余时间倒计时。无头模式下不需要这个功能，跳过。
-- **OneInput**：TINPUT 可以配置为只接受单字符输入。协议层不需要特殊处理，由 `PressEnterKey` 内部逻辑处理。
-- **超时后游戏直接退出**：`Step("")` 返回后检查 `console.State`，如果是 `Quit` 或 `Error` 则终止循环。
-
----
-
-## 八、EmueraConsole 中 Timer 相关的条件编译
-
-### 8.1 需要禁用的 Timer 逻辑
-
-在 `#if HEADLESS` 下，以下逻辑需要禁用：
-
-| 逻辑 | 位置 | 原因 | 替代 |
-|------|------|------|------|
-| `genericTimer.Enabled = true` | `setTimer()` | 不需要 Timer 触发超时 | 协议层用 ReadLine 超时替代 |
-| `tickTimer` 回调 | `tickTimer()` | 不需要 Timer 回调 | 协议层内联超时检查 |
-| `endTimer` 中的 `ui.Invoke(RunEmueraProgram)` | `endTimer()` | 不需要 Timer 触发游戏逻辑 | 协议层 `Step("")` 替代 |
-| `redrawTimer` | `setRedrawTimer()` | 无头模式不需要动画重绘 | 直接禁用 |
-| `inputReq.DisplayTime` 倒计时更新 | `tickTimer()` | 无头模式不显示倒计时 | 跳过 |
-
-### 8.2 具体改动
+新增内部方法用于 TINPUT timeout：
 
 ```csharp
-// EmueraConsole.cs 构造函数中
 #if HEADLESS
-    genericTimer = new();
-    genericTimer.Elapsed += tickTimer;
-    genericTimer.Interval = 10;
-    genericTimer.Enabled = false;
-    // 不需要 CBG_Clear
-#else
-    // ... 原有代码
-#endif
-
-// presetTimer() 中
-private void presetTimer()
+internal void SubmitTimeout()
 {
-#if HEADLESS
-    // 无头模式：不启动 Timer，超时由协议层处理
-    // 但仍需设置 need_settimer 标记，以便 InputTimeoutMs 属性能返回正确的超时值
-    need_settimer = true;
-    _genericTimerStopwatch.Restart();
-#else
-    need_settimer = true;
-    if (inputReq.DisplayTime)
+    // 等价于原 endTimer() 的 headless-safe 版本：
+    // 1. stopTimer()
+    // 2. isTimeout = true
+    // 3. 显示 TimeUpMes
+    // 4. RunEmueraProgram("")
+    // 5. RefreshStrings(true)
+}
+#endif
+```
+
+推荐实现方式：将现有 `endTimer()` 拆分为可复用方法，例如：
+
+```csharp
+private void EndTimerCore()
+{
+    stopTimer();
+    isTimeout = true;
+
+    if (IsWaitingPrimitive)
     {
-        var remainingMs = inputReq.Timelimit - _genericTimerStopwatch.ElapsedMilliseconds;
-        PrintSingleLine(trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}");
-        timeDisplayCount = 0;
-        inputed = false;
+        // primitive 默认输入逻辑
+        RefreshStrings(true);
+        return;
     }
-#endif
-}
 
-// setTimer() 中
-private void setTimer()
+    if (inputReq.DisplayTime)
+        changeLastLine(inputReq.TimeUpMes);
+    else if (inputReq.TimeUpMes != null)
+        PrintSingleLine(inputReq.TimeUpMes);
+
+    RunEmueraProgram("");
+    if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+    {
+        // headless 下无需移动鼠标；WinForms 下保留原逻辑
+    }
+    RefreshStrings(true);
+}
+```
+
+非 HEADLESS 的 `endTimer()` 可调用 `EndTimerCore()` 并保留 WinForms 专属 UI 操作。
+
+---
+
+## 9. 模式实现规格
+
+### 9.1 `Program.RunHeadless()`
+
+`Emuera.Headless/Program.cs`
+
+v1.1 行为：
+
+1. 创建 `HeadlessConsole` 和 `EmueraConsole`。
+2. `console.Initialize().Wait()`。
+3. `var protocol = console.AgentBridge`。
+4. 如果 `protocol == null`：输出错误并退出。
+5. 如果 `Console.IsInputRedirected`：
+   - 使用 JSONL 同步主循环。
+   - 不处理 TINPUT timeout。
+6. 否则：
+   - 调用 CLI 同步循环。
+   - 不处理 TINPUT timeout。
+
+JSONL 主循环伪代码：
+
+```csharp
+var io = ConsoleOutIO.Instance;
+
+var initialTurn = protocol.GetInitialTurn();
+if (initialTurn != null)
+    io.WriteLine(initialTurn);
+
+while (!protocol.IsStopped)
 {
-#if HEADLESS
-    // 无头模式：不启动 Timer
-#else
-    genericTimer.Enabled = true;
-    _genericTimerStopwatch.Restart();
-    timer_endTime = inputReq.Timelimit;
-#endif
+    var line = io.ReadLine(-1);
+    if (line == null)
+        break;
+
+    JsonlCommand? cmd;
+    try { cmd = JsonSerializer.Deserialize<JsonlCommand>(line); }
+    catch { continue; }
+
+    if (cmd?.type != "input")
+        continue;
+
+    var turn = protocol.Step(cmd.value ?? "");
+    if (turn != null)
+        io.WriteLine(turn);
+    else
+        break;
+}
+```
+
+### 9.2 server `Session`
+
+`Emuera/Server/Session.cs`
+
+v1.1 允许保留 session worker thread，但 server 必须单会话。
+
+`Session` 职责：
+
+- 持有单个 `EmueraConsole`。
+- 持有单个 `AgentJsonlProtocol`。
+- 持有单个 `HttpSessionIO`。
+- 启动后输出初始 turn。
+- 循环读取 `HttpSessionIO.ReadLine(timeoutMs)`。
+- 对 TINPUT timeout 调用 `SubmitTimeout()`。
+- 对正常输入调用 `Step(input)`。
+
+`IsRunning` 可以继续表示 session worker 是否存活。
+
+### 9.3 server `HttpGameServer`
+
+`Emuera/Server/HttpGameServer.cs`
+
+v1.1 要求：
+
+- 删除 `SessionManager`。
+- 使用单个 `Session? _session`。
+- `POST /sessions`：
+  - 如果 `_session != null` 且未结束，返回 `409 Conflict`。
+  - 否则创建新 session。
+- `GET /sessions/{id}`：
+  - 只接受当前 session id。
+- `GET /sessions/{id}/turn`：
+  - 只接受当前 session id。
+  - 长轮询当前 session 的 `HttpSessionIO` 输出队列。
+- `POST /sessions/{id}/input`：
+  - 只接受当前 session id。
+  - 将 body 原样 enqueue 到 `HttpSessionIO`。
+- `DELETE /sessions/{id}`：
+  - 只接受当前 session id。
+  - 停止并释放 session。
+
+HTTP 请求处理是否继续使用 `Task.Run` 不属于 v1.1 单线程化验收范围。
+
+---
+
+## 10. 错误处理
+
+### 10.1 输入处理异常
+
+JSONL/server 输入处理异常必须输出合法 JSON：
+
+```csharp
+_io.WriteLine(JsonSerializer.Serialize(new
+{
+    error = ex.Message,
+    state = console.State.ToString()
+}));
+```
+
+### 10.2 IO 断开
+
+- `ReadLine()` 返回 `null` 且 `IsConnected == false`：停止 session。
+- `ReadLine(timeoutMs)` 返回 `null` 且 `IsConnected == true`：
+  - JSONL 管道模式：v1.1 不处理 timeout，继续阻塞读取。
+  - server 模式：调用 `SubmitTimeout()`。
+
+### 10.3 Dispose 幂等
+
+`Session.Dispose()` 必须可重复调用：
+
+```csharp
+private bool _disposed;
+
+public void Dispose()
+{
+    if (_disposed)
+        return;
+
+    _disposed = true;
+    _cts.Cancel();
+    _protocol?.Stop();
+    _io?.Close();
+    _console?.Dispose();
 }
 ```
 
 ---
 
-## 九、服务器单会话模式的简化
+## 11. 兼容性与回归要求
 
-### 9.1 当前多会话架构
+### 11.1 JSONL 兼容
 
-```
-HttpGameServer
-  ├── SessionManager (ConcurrentDictionary<string, Session>)
-  │     └── Timer (1分钟清理空闲 >30分钟的会话)
-  └── ConcurrentDictionary<string, HttpSessionIO>
-```
+现有测试必须继续通过：
 
-### 9.2 单会话简化
+- [tests/test_jsonl.py](tests/test_jsonl.py)
+- [tests/test_buttons.py](tests/test_buttons.py)
 
-```
-HttpGameServer
-  ├── Session? _session          ← 唯一的会话
-  └── HttpSessionIO _io          ← 唯一的 IO
-```
+要求：
 
-**API 变化**：
+- 初始 turn 仍自动输出。
+- `text`、`state`、`inputType`、`needValue`、`buttons` 字段保持存在。
+- buttons 的 `label` / `value` 行为不变。
+- 非法 JSON 输入不导致进程崩溃。
 
-| 方法 | 路径 | 行为变化 |
-|------|------|---------|
-| POST | `/sessions` | 如果已有会话则返回 409 Conflict，否则创建 |
-| GET | `/sessions/{id}` | 只接受当前会话的 id，否则 404 |
-| POST | `/sessions/{id}/input` | 同上 |
-| GET | `/sessions/{id}/turn` | 同上 |
-| DELETE | `/sessions/{id}` | 销毁当前会话，允许创建新会话 |
+### 11.2 WinForms 兼容
 
-**好处**：
-- 不需要 `SessionManager`
-- 不需要空闲超时清理
-- 不需要 `ConcurrentDictionary`
-- 全局状态（`GlobalStatic`、`Config`）的并发访问问题不存在
+非 `HEADLESS` 构建必须保持：
 
----
+- timer 显示倒计时。
+- `endTimer()` 的 UI 行为不变。
+- 鼠标移动、tooltip、重绘、WinForms 事件处理不变。
+- `AgentProtocolBase` 在非 headless 下不引入新行为。
 
-## 十、改动清单汇总
+### 11.3 CLI 兼容
 
-### 10.1 新建文件
+CLI 模式必须保持：
 
-无。所有改动都是修改现有文件。
-
-### 10.2 修改文件
-
-| 文件 | 改动量 | 改动说明 |
-|------|--------|---------|
-| `Emuera.Headless/Program.cs` | 大 | 重写 `RunHeadless()` 和 `RunServer()` 为同步循环 |
-| `Emuera/UI/Game/AgentProtocolBase.cs` | 大 | 去掉线程管理，新增 `Step()` / `GetInitialTurn()` |
-| `Emuera/UI/Game/AgentJsonlProtocol.cs` | 大 | 重写为同步步进器 |
-| `Emuera/UI/Game/AgentCliProtocol.cs` | 大 | 重写为同步循环 |
-| `Emuera/Server/Session.cs` | 中 | `GameLoop` 改为同步驱动 |
-| `Emuera/Server/SessionIO.cs` | 小 | `ReadLine` 增加超时重载 |
-| `Emuera/Server/HttpSessionIO.cs` | 小 | 实现超时 ReadLine |
-| `Emuera/Server/ConsoleOutIO.cs` | 小 | 实现超时 ReadLine |
-| `Emuera/Server/HttpGameServer.cs` | 中 | 适配单会话模式 |
-| `Emuera/UI/Game/EmueraConsole.cs` | 中 | Timer 条件编译 + 暴露 `InputTimeoutMs` |
-
-### 10.3 可删除的文件
-
-| 文件 | 原因 |
-|------|------|
-| `Emuera/Server/SessionManager.cs` | 单会话模式不需要 |
+- 可输入文本。
+- Backspace 删除。
+- Enter 提交。
+- Escape 清空当前输入。
+- 非等待输入状态下输入被提示忽略。
 
 ---
 
-## 十一、验证标准
+## 12. 验收标准
 
-### 11.1 编译验证
+### 12.1 编译
+
+必须通过：
 
 ```bash
-# 无头项目编译通过
 dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug
-
-# WinForms 项目不受影响
 dotnet build Emuera/Emuera.csproj -c Debug-NAudio
 ```
 
-### 11.2 自动化测试（管道模式）
+### 12.2 JSONL 回归
 
-项目 `tests/` 目录下已有自动化测试脚本，基于 `test_game/` 最小游戏目录，使用 `EmueraAgent` 封装类驱动 Headless 进程。
-
-**测试游戏**（`test_game/erb/TEST.ERB`）：3 轮交互流程，覆盖 WaitInput → 输入 → WaitInput → 输入 → Quit。
-
-**运行方式**：
+必须通过：
 
 ```bash
-# 默认：自动查找 Emuera.Headless.exe，使用 test_game 目录
 python tests/test_jsonl.py
 python tests/test_buttons.py
-
-# 指定二进制路径
-python tests/test_jsonl.py --binary path/to/Emuera.Headless.exe
-
-# 指定游戏目录
-python tests/test_jsonl.py --game-dir path/to/game
-
-# 通过环境变量指定二进制
-set EMUERA_BINARY=path/to/Emuera.Headless.exe
-python tests/test_jsonl.py
 ```
 
-**测试脚本说明**：
+### 12.3 TINPUT timeout
 
-| 脚本 | 验证内容 |
-|------|---------|
-| `test_jsonl.py` | JSONL 协议基本流程：初始回合输出、多轮输入/输出、状态转换（WaitInput → Quit）、文本内容正确性 |
-| `test_buttons.py` | 按钮字段结构：每个按钮包含 label + value、value 类型为整数、按钮标签与游戏输出一致 |
+新增测试必须覆盖：
 
-**改造前基线**（当前版本测试结果）：
+- TINPUT 超时后输出 `TimeUpMes`（如配置存在）。
+- 超时后执行默认空输入路径。
+- 超时后状态进入下一 turn。
+- 超时后继续输入不会吞行或串轮。
+- `InputTimeoutMs` 在剩余时间 <= 0 时返回 `0`。
 
-```
-test_jsonl.py:   10 passed, 0 failed
-test_buttons.py: 18 passed, 0 failed
-```
+### 12.4 server 单会话
 
-**改造后验证**：所有测试必须全部通过，且无需修改测试脚本本身（测试脚本不依赖内部线程模型）。
-
-### 11.3 手动验证（服务器模式）
+新增测试或手动验证必须覆盖：
 
 ```bash
-# 启动服务器
 Emuera.Headless.exe --server --port 8080
 
-# 创建会话
 curl -X POST http://localhost:8080/sessions
-# → 返回会话 ID
+# → 201
 
-# 提交输入
-curl -X POST http://localhost:8080/sessions/{id}/input -d '{"value":"0"}'
+curl -X POST http://localhost:8080/sessions
+# → 409
 
-# 获取回合
+curl -X POST http://localhost:8080/sessions/{id}/input \
+  -H "Content-Type: application/json" \
+  -d '{"type":"input","value":"0"}'
+# → 200
+
 curl http://localhost:8080/sessions/{id}/turn
+# → 200 或 204，取决于是否已有输出
 
-# 第二次创建会话应返回 409
-curl -X POST http://localhost:8080/sessions
-# → 409 Conflict
+curl -X DELETE http://localhost:8080/sessions/{id}
+# → 200
 ```
 
-### 11.4 回归验证
+### 12.5 CLI smoke
 
-```bash
-# WinForms 版本不受影响
-Emuera.exe
-# → 正常出现窗口，游戏功能正常
-```
+新增轻量测试或手动验证：
+
+- 非管道启动 `Emuera.Headless.exe --ExeDir <game>`。
+- 输入文本、Backspace、Enter。
+- 游戏能正常推进。
+- 进程可退出。
+
+### 12.6 WinForms 回归
+
+至少手动验证：
+
+- `Emuera.exe` 可启动。
+- TINPUT 倒计时显示正常。
+- 超时后行为与改造前一致。
+- 普通按钮输入正常。
 
 ---
 
-## 十二、不做的事情
+## 13. 风险与控制
 
-| 不做 | 原因 |
-|------|------|
-| 修改 `Process.DoScript()` 或 Runtime 层核心逻辑 | 游戏引擎本身不需要改动 |
-| 实现多会话服务器模式 | 先验证单线程模型可行，多会话是后续工作 |
-| 修改 WinForms 版本的任何行为 | 所有改动通过条件编译隔离 |
-| 跨平台编译 | 仍依赖 System.Drawing，后续 Phase |
-| 实现 WebSocket | HTTP 长轮询足够，后续升级 |
+| 风险 | 等级 | 控制措施 |
+|------|------|----------|
+| `ConsoleOutIO.ReadLine(timeout)` 误用 `Task.Run(Console.ReadLine)` 导致吞输入 | 高 | v1.1 明确不支持普通 stdin timeout；禁止该实现。 |
+| TINPUT timeout 与 `PressEnterKey("")` 语义不一致 | 高 | 新增 `SubmitTimeout()` / `EndTimerCore()`，复用原 timer 语义。 |
+| HEADLESS 下 `need_settimer` 状态泄漏 | 中高 | 明确 `need_settimer` 清零位置和 `_genericTimerStopwatch.Restart()` 时机。 |
+| server 单会话与 HTTP 长轮询并发冲突 | 中 | `_session` 加锁或同步访问；`HttpSessionIO` 队列线程安全。 |
+| WinForms timer 行为被 `#if HEADLESS` 误改 | 中 | 所有 timer UI 逻辑用 `#if !HEADLESS` 保护；非 HEADLESS 构建必须回归。 |
+| JSON error 序列化不合法 | 中 | 所有 error turn 使用 `JsonSerializer.Serialize`。 |
 
 ---
 
-## 十三、风险与回退
+## 14. 后续 TODO
 
-| 风险 | 缓解 |
-|------|------|
-| TINPUT 超时精度从 ~10ms 降为 ~100ms | 对游戏逻辑无影响，超时精度不需要很高 |
-| `PressEnterKey` 内部逻辑依赖 Timer 状态 | 通过条件编译禁用 Timer，`stopTimer()` 对已停止的 Timer 无副作用 |
-| CLI 模式下无法同时等待按键和超时 | 用 `Console.KeyAvailable` + `Thread.Sleep` 轮询，与当前行为一致 |
-| 改动范围较大 | 逐文件修改，每步编译验证；回退方案是 git revert |
+v1.1 暂不实现，但应记录为后续工作，并在每次制定或修订新计划前更新：
 
-**回退方案**：如果单线程化出现问题，直接 revert 所有改动，原有 WinForms 版本不受任何影响。
+- [普通 stdin 管道模式支持可靠 `ReadLine(timeoutMs)`](./TODO.md#t-001普通-stdin-管道模式支持可靠-readlinetimeoutms)
+- [CLI 模式支持 TINPUT timeout](./TODO.md#t-002cli-模式支持-tinput-timeout)
+- [server HTTP 层进一步事件驱动化](./TODO.md#t-003server-http-层进一步事件驱动化)
+- [补充 server 单会话自动化测试](./TODO.md#t-004补充-server-单会话自动化测试)
+- [补充 TINPUT timeout 自动化测试](./TODO.md#t-005补充-tinput-timeout-自动化测试)
+- [拆分 SPEC 与 PLAN 职责](./TODO.md#t-006拆分-spec-与-plan-职责)
+- [清理 `_agentBufferLock`](./TODO.md#t-007清理-_agentbufferlock)
+
+完整维护文件：[docs/single-thread/TODO.md](./TODO.md)。
+
+---
+
+## 15. 文件改动总览
+
+| 文件 | v1.1 改动 |
+|------|-----------|
+| `Emuera/Server/SessionIO.cs` | 新增 `ReadLine(int timeoutMs)`；明确各实现支持范围。 |
+| `Emuera/Server/ConsoleOutIO.cs` | v1.1 不实现会吞输入的 timeout；保留接口。 |
+| `Emuera/Server/HttpSessionIO.cs` | 实现可靠 `ReadLine(int timeoutMs)`。 |
+| `Emuera/UI/Game/AgentProtocolBase.cs` | 从后台线程协议改为同步 `Step()`；`Detect()` 不自动启动线程。 |
+| `Emuera/UI/Game/AgentJsonlProtocol.cs` | 实现 `GetInitialTurn()`、`Step()`、`SubmitTimeout()`。 |
+| `Emuera/UI/Game/AgentCliProtocol.cs` | 改为同步 CLI loop；v1.1 不处理 timeout。 |
+| `Emuera/UI/Game/EmueraConsole.cs` | HEADLESS 下暴露 `InputTimeoutMs`；拆分 timer timeout core。 |
+| `Emuera.Headless/Program.cs` | JSONL/CLI 主循环改为同步驱动。 |
+| `Emuera/Server/Session.cs` | server 同步游戏主循环；允许 session worker thread。 |
+| `Emuera/Server/HttpGameServer.cs` | 删除 `SessionManager`，改为单 `Session?`。 |
+| `Emuera/Server/SessionManager.cs` | 删除。 |
+| `Emuera/UI/Game/EmueraConsole.AgentBuffer.cs` | 单线程化后可移除 `_agentBufferLock`，但需确认所有构建路径。 |
+
+---
+
+## 16. 验收结论判定
+
+v1.1 通过条件：
+
+- 12.1、12.2、12.3、12.4 必须全部通过。
+- 12.5、12.6 至少完成 smoke 验证。
+- 普通 stdin timeout 不作为失败项，但必须在文档和代码中明确“v1.1 不支持”。
+- server 不要求单线程，但必须单会话。
