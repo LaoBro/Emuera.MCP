@@ -1,3 +1,0 @@
-{"type":"input","value":""}
-{"type":"input","value":"1"}
-{"type":"input","value":""}
