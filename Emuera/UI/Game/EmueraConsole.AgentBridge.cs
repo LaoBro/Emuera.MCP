@@ -49,10 +49,7 @@ namespace MinorShift.Emuera.GameView
 
         private void WriteToAgentBuffer(string text)
         {
-            lock (_agentBufferLock)
-            {
-                _agentBuffer.AppendLine(text);
-            }
+            _agentBuffer.AppendLine(text);
         }
 #else
         private void WriteAlignedLine(ConsoleDisplayLine line)
