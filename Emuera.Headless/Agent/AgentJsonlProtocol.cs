@@ -68,6 +68,8 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>
         /// TINPUT 超时专用路径，调用 EmueraConsole.SubmitTimeout() 并返回下一 turn。
+        /// 仅由 server 模式的 Session 轮询线程调用；JSONL 管道模式不检查 InputTimeoutMs，
+        /// 不会自动触发超时，客户端不发 input 时进程永久阻塞等待。
         /// </summary>
         internal override string? SubmitTimeout()
         {

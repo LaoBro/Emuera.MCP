@@ -34,6 +34,9 @@ namespace MinorShift.Emuera.GameView
         /// <summary>
         /// TINPUT 超时专用路径，调用 EmueraConsole 的 timer-timeout 等价逻辑。
         /// 默认抛出 NotSupportedException，由需要 TINPUT 的子类覆盖。
+        /// 仅由 server 模式的 Session 轮询线程调用；CLI 模式在自身轮询中直接检查
+        /// InputTimeoutMs 并调用 console.SubmitTimeout()，不走此路径；
+        /// JSONL 管道模式不检查超时，永不调用此方法。
         /// </summary>
         internal virtual string? SubmitTimeout()
         {
