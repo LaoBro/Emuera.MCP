@@ -8,6 +8,12 @@ namespace MinorShift.Emuera.GameView
     {
         internal ConsoleState State => state;
         internal InputRequest CurrentRequest => inputReq;
+
+        /// <summary>
+        /// HEADLESS 下标记终端需要全量刷新（清屏 + 重绘 displayLineList）。
+        /// 由 ClearDisplay() 等设置，由 AgentCliProtocol 轮询检查并消费。
+        /// </summary>
+        internal bool _needFullRefresh;
  
 #if HEADLESS
         private void WriteAlignedLine(ConsoleDisplayLine line)
@@ -50,6 +56,38 @@ namespace MinorShift.Emuera.GameView
         private void WriteToAgentBuffer(string text)
         {
             _agentBuffer.AppendLine(text);
+        }
+
+        /// <summary>
+        /// 将 ConsoleDisplayLine 格式化为终端对齐文本，复用 WriteAlignedLine 的对齐逻辑。
+        /// 供 AgentCliProtocol 全量刷新时使用。
+        /// </summary>
+        internal string FormatLineForTerminal(ConsoleDisplayLine line)
+        {
+            string text = line.ToString();
+            if (string.IsNullOrEmpty(text))
+                return "";
+
+            int textWidth = GetDisplayWidth(text);
+            int consoleWidth;
+            try { consoleWidth = Console.WindowWidth; }
+            catch { consoleWidth = 80; }
+
+            switch (line.Align)
+            {
+                case DisplayLineAlignment.CENTER:
+                    {
+                        int pad = Math.Max((consoleWidth - textWidth) / 2, 0);
+                        return new string(' ', pad) + text;
+                    }
+                case DisplayLineAlignment.RIGHT:
+                    {
+                        int pad = Math.Max(consoleWidth - textWidth, 0);
+                        return new string(' ', pad) + text;
+                    }
+                default:
+                    return text;
+            }
         }
 #else
         private void WriteAlignedLine(ConsoleDisplayLine line)

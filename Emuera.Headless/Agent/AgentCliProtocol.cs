@@ -37,6 +37,14 @@ namespace MinorShift.Emuera.GameView
         {
             while (!IsStopped)
             {
+                if (console._needFullRefresh)
+                {
+                    console._needFullRefresh = false;
+                    FlushBuffer();
+                    FullRefresh();
+                    continue;
+                }
+
                 var timeoutMs = console.InputTimeoutMs;
                 if (timeoutMs.HasValue && timeoutMs.Value <= 0)
                 {
@@ -65,6 +73,13 @@ namespace MinorShift.Emuera.GameView
         {
             while (!IsStopped)
             {
+                if (console._needFullRefresh)
+                {
+                    console._needFullRefresh = false;
+                    FlushBuffer();
+                    FullRefresh();
+                }
+
                 string? line = input.ReadLine();
                 if (line == null)
                     break;
@@ -74,6 +89,36 @@ namespace MinorShift.Emuera.GameView
 
                 ProcessChar('\r');
                 FlushBuffer();
+            }
+        }
+
+        /// <summary>
+        /// 终端全量刷新：清屏后从 displayLineList 重绘所有可见行。
+        /// </summary>
+        private void FullRefresh()
+        {
+            try { Console.Clear(); }
+            catch { return; }
+
+            var lines = console.DisplayLineList;
+            if (lines.Count == 0)
+                return;
+
+            int consoleHeight;
+            try { consoleHeight = Console.WindowHeight; }
+            catch { consoleHeight = 25; }
+
+            // 只输出最后 N 行（终端可见区域，留 1 行给输入提示）
+            int visibleLines = Math.Max(consoleHeight - 1, 1);
+            int startLine = Math.Max(0, lines.Count - visibleLines);
+
+            for (int i = startLine; i < lines.Count; i++)
+            {
+                string formatted = console.FormatLineForTerminal(lines[i]);
+                if (formatted.Length > 0)
+                    Console.WriteLine(formatted);
+                else
+                    Console.WriteLine();
             }
         }
 

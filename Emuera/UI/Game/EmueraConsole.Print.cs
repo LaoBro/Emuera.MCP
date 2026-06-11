@@ -61,6 +61,9 @@ internal sealed partial class EmueraConsole : IDisposable
 		#endregion
 		lineNo = 0;
 		lastDrawnLineNo = -1;
+#if HEADLESS
+		_needFullRefresh = true;
+#endif
 		verticalScrollBarUpdate();
 		_uiAdapter.Refresh();//OnPaint発行
 	}
