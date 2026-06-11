@@ -46,7 +46,7 @@ static partial class Program
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 
-        var rootCommand = new RootCommand("Emuera.Headless");
+        var rootCommand = new RootCommand("Emuera.Headless - Emuera 无头模式运行器");
 
         exeDirOption.AddAlias("-exedir");
         exeDirOption.AddAlias("-EXEDIR");
@@ -65,6 +65,28 @@ static partial class Program
         rootCommand.AddOption(portOption);
 
         var result = rootCommand.Parse(args);
+
+        if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0 || Array.IndexOf(args, "-?") >= 0)
+        {
+            Console.WriteLine(rootCommand.Description);
+            Console.WriteLine();
+            Console.WriteLine("用法: Emuera.Headless [选项]");
+            Console.WriteLine();
+            Console.WriteLine("选项:");
+            Console.WriteLine("  --ExeDir <路径>       游戏目录（包含 CSV/ERB 等子目录）");
+            Console.WriteLine("  --protocol <模式>     协议模式：auto(默认), jsonl, cli");
+            Console.WriteLine("  --server              服务器模式：通过 HTTP 接口提供单会话服务");
+            Console.WriteLine("  --port <端口>         服务器监听端口（默认 8080）");
+            Console.WriteLine("  --help, -h, -?        显示帮助信息");
+            Console.WriteLine();
+            Console.WriteLine("协议模式说明:");
+            Console.WriteLine("  auto    自动检测：stdin 为管道时使用 jsonl，否则使用 cli");
+            Console.WriteLine("  jsonl   JSONL 协议：每行一个 JSON 对象，适合程序间通信");
+            Console.WriteLine("  cli     CLI 协议：终端交互模式，支持键盘输入");
+            Console.WriteLine("  server  HTTP 服务器：通过 REST API 提供单会话服务");
+            return;
+        }
+
         var exeDir = result.GetValueForOption(exeDirOption);
         var protocolArg = result.GetValueForOption(protocolOption);
         var server = result.GetValueForOption(serverOption);
