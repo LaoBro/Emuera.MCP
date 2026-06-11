@@ -10,22 +10,117 @@
 
 ### T-005：CLI 模式 DisplayTime 动态倒计时
 
+- 状态：已实现
+- 说明：TINPUT 带 `DisplayTime` 时，CLI 终端通过 `SetCursorPosition` 原地覆盖倒计时行，超时后替换为 `TimeUpMes`。
+
+### T-006：CLI 模式 CLEARLINE 删行后终端同步
+
 - 状态：未实现
-- 范围：`AgentCliProtocol.RunConsoleKeyLoop()`、终端 ANSI 转义输出
-- 说明：TINPUT 带 `DisplayTime` 时，CLI 终端应动态更新倒计时文字（如"残り時間: 5.0"→"4.0"→…），而非只显示初始剩余时间。当前实现满足"至少不阻塞 timeout 语义"，但倒计时不递减。
+- 范围：`EmueraConsole.Print.deleteLine()`、`AgentCliProtocol`
+- 说明：`CLEARLINE n` 从 `displayLineList` 末尾删除 n 行，但终端上已输出的行无法撤回。当前 CLI 下 `CLEARLINE` 只删内存不删终端，导致终端显示与游戏状态不一致。
 - 纳入范围：
-  - 在轮询中检测 `InputTimeoutMs` + `DisplayTime`，剩余秒数变化时更新终端倒计时行。
-  - 用 ANSI 转义（`\x1b[A\r` 光标上移 + 覆盖写）替换最后一行，避免追加多行。
-  - 超时时替换为 `TimeUpMes`。
+  - `deleteLine()` 调用后设置 `_needFullRefresh`，触发终端清屏 + 从 `displayLineList` 重绘。
+  - 或引入更轻量的方案：记录被删行的终端行号，用 ANSI 转义或 `SetCursorPosition` 擦除。
 - 不纳入范围：
-  - WinForms `genericTimer` 驱动的精确 100ms 刷新；CLI 精度受轮询间隔（50ms）限制。
-  - 终端宽度不足时的折行处理。
+  - `SKIPDISP` 抑制输出（见 T-008）。
 - 验收：
-  - 带 `DisplayTime` 的 TINPUT 在 CLI 终端上显示递减的倒计时。
-  - 倒计时行不重复追加，而是原地替换。
-  - 超时后倒计时行替换为 `TimeUpMes`。
-  - 倒计时刷新不干扰用户输入行。
-- 关联：T-001（已完成的 timeout 核心逻辑）
+  - `CLEARLINE` 后终端上被删的行消失。
+  - 后续输出从正确位置开始。
+- 关联：`REUSELASTLINE`（`PrintTemporaryLine`）也依赖 `deleteLine(1)`，同样需要终端同步。
+
+### T-007：CLI 模式 REDRAW 输出抑制与强制刷新
+
+- 状态：未实现
+- 范围：`EmueraConsole.SetRedraw()`、`WriteAlignedLine()`、`AgentCliProtocol`
+- 说明：`REDRAW 0` 抑制画面刷新，`REDRAW 2` 强制刷新。当前 CLI 模式完全忽略 REDRAW——`WriteAlignedLine()` 无条件写入 `_agentBuffer`，`FlushBuffer()` 无条件输出到终端。`REDRAW 0` 期间的中间输出也会立即显示。
+- 纳入范围：
+  - `WriteAlignedLine()` 中检查 `redraw == ConsoleRedraw.None`，跳过终端输出（仍写入 `displayLineList` 内存）。
+  - `REDRAW 2` 时设置 `_needFullRefresh`，触发终端清屏 + 重绘 `displayLineList` 中累积的行。
+- 不纳入范围：
+  - `REDRAW 0` 期间 `SKIPDISP` 的交互（`SKIPDISP` 在 Process 层跳过整个指令，不进入 `addDisplayLine`，两者不冲突）。
+- 验收：
+  - `REDRAW 0` 期间终端不输出中间内容。
+  - `REDRAW 2` 后终端一次性显示最终内容。
+  - `REDRAW 1`（默认）行为不变。
+
+### T-008：CLI 模式 SKIPDISP / NOSKIP 输出抑制
+
+- 状态：未实现
+- 范围：`Process.ScriptProc`、`WriteAlignedLine()`
+- 说明：`SKIPDISP 1` 设置 `skipPrint = true`，Process 层跳过所有 `IsPrint()` 指令，不进入 `addDisplayLine`。`NOSKIP` 临时恢复输出，`ENDNOSKIP` 恢复抑制。当前 CLI 下 `SKIPDISP` 在 Process 层已正确跳过输出，但 `SKIPDISP 0` 恢复输出时不会触发终端刷新——如果 `SKIPDISP` 期间 `displayLineList` 被 `CLEARLINE` 等修改，终端不会同步。
+- 纳入范围：
+  - `SKIPDISP 0`（恢复输出）时检查 `displayLineList` 是否与终端一致，不一致则设置 `_needFullRefresh`。
+  - 或更简单：`SKIPDISP` 状态变化时始终设置 `_needFullRefresh`。
+- 不纳入范围：
+  - `SKIPDISP` 核心逻辑（Process 层已正确实现）。
+- 验收：
+  - `SKIPDISP 1` 期间终端不输出。
+  - `SKIPDISP 0` 恢复后终端显示与 `displayLineList` 一致。
+
+### T-009：CLI 模式 changeLastLine 终端同步
+
+- 状态：未实现
+- 范围：`EmueraConsole.Print.changeLastLine()`、`AgentCliProtocol`
+- 说明：`changeLastLine()` 删除最后一行并写入新行（用于 TINPUT 倒计时、`REUSELASTLINE` 等）。当前 CLI 下 `changeLastLine` 通过 `deleteLine(1)` + `PrintSingleLine()` 走 `addDisplayLine` → `WriteAlignedLine`，终端上表现为追加新行而非替换旧行。T-005 的 DisplayTime 倒计时已通过 `SetCursorPosition` 单独处理，但 `changeLastLine` 的通用场景（如非 DisplayTime 的 `REUSELASTLINE`）仍未覆盖。
+- 纳入范围：
+  - `changeLastLine()` 调用时设置标志，通知 `AgentCliProtocol` 需要替换终端最后一行而非追加。
+  - 或统一走 `_needFullRefresh` 全量刷新。
+- 不纳入范围：
+  - DisplayTime 倒计时（T-005 已单独实现）。
+- 验收：
+  - `REUSELASTLINE` 后终端最后一行被替换，而非追加新行。
+  - `changeLastLine` 的其他调用场景（如错误信息覆盖）也能正确替换。
+
+### T-010：CLI 模式文字样式与颜色提示
+
+- 状态：未实现
+- 范围：`SETCOLOR`、`RESETCOLOR`、`FONTBOLD`、`FONTITALIC`、`FONTREGULAR`、`FONTSTYLE`、`SETFONT`
+- 说明：WinForms 下这些指令改变文字颜色、粗体、斜体、字体。终端不支持富文本样式，但可以用 ANSI 转义序列模拟部分效果：
+  - `SETCOLOR` → ANSI 256色/真彩色转义 `\x1b[38;5;Nm` 或 `\x1b[38;2;R;G;Bm`
+  - `FONTBOLD` → ANSI `\x1b[1m`
+  - `FONTITALIC` → ANSI `\x1b[3m`
+  - `RESETCOLOR` / `FONTREGULAR` → ANSI `\x1b[0m`
+  - `SETBGCOLOR` → ANSI `\x1b[48;2;R;G;Bm`
+- 纳入范围：
+  - 在 `WriteAlignedLine()` 中根据当前 `StringStyle` 的颜色/字体信息输出 ANSI 转义。
+  - 每行结束后重置样式，避免影响后续行。
+- 不纳入范围：
+  - `SETFONT` 改变字体族（终端不支持）。
+  - `SETBGIMAGE` / `CLEARBGIMAGE`（终端不支持背景图）。
+- 验收：
+  - `SETCOLOR` 后的文字在终端上显示对应颜色。
+  - `FONTBOLD` 后的文字在终端上显示粗体。
+  - 样式重置后恢复正常显示。
+
+### T-011：CLI 模式 PRINTBUTTON 按钮标记
+
+- 状态：未实现
+- 范围：`PRINTBUTTON`、`PRINTBUTTONC`、`PRINTBUTTONLC`
+- 说明：WinForms 下 `PRINTBUTTON` 创建可点击按钮，按钮有标签和对应输入值。CLI 终端没有可点击按钮，但可以显示按钮标记帮助用户识别可选项。JSONL 协议已在 `CollectVisibleButtons()` 中采集按钮数据，CLI 模式目前只显示按钮文本，不区分按钮与普通文字。
+- 纳入范围：
+  - 在 `WriteAlignedLine()` 中识别按钮部分，用 `[label]` 或 `label(value)` 格式标记。
+  - 或在输入提示行显示可用按钮列表。
+- 不纳入范围：
+  - 终端可点击按钮（不可能实现）。
+  - `HTML_PRINT` 中的按钮（见 T-012）。
+- 验收：
+  - 用户能识别哪些文字是可点击按钮及其对应输入值。
+
+### T-012：CLI 模式 HTML_PRINT 纯文本降级
+
+- 状态：未实现
+- 范围：`HTML_PRINT`、`HtmlManager`
+- 说明：`HTML_PRINT` 解析 HTML 标签生成富文本行（含按钮、图片、对齐等）。当前 CLI 下 `HTML_PRINT` 的输出经过 `Html2DisplayLine()` 生成 `ConsoleDisplayLine`，`WriteAlignedLine()` 只取 `line.ToString()` 纯文本，HTML 标签效果丢失。部分标签（如 `<b>`、`<i>`、`<align>`）可以降级为 ANSI 转义或纯文本对齐；图片标签（`<img>`）无法降级。
+- 纳入范围：
+  - `WriteAlignedLine()` 已处理 `line.Align` 对齐，`<align>` 标签效果已保留。
+  - `<b>` / `<i>` 标签可结合 T-010 的 ANSI 样式输出。
+  - `<button>` 标签可结合 T-011 的按钮标记。
+- 不纳入范围：
+  - `<img>` / `<img src>` 图片标签（终端无法显示）。
+  - `<shape>` / `<rect>` 图形标签。
+- 验收：
+  - `HTML_PRINT` 的文字内容正确显示。
+  - 对齐、粗体、斜体等样式降级但不丢失语义。
 
 ### T-004：server timer 数据契约暂缓
 

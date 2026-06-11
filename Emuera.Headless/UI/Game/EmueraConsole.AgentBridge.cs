@@ -1,6 +1,7 @@
 using System;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.UI.Game;
+using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
 
 namespace MinorShift.Emuera.GameView
 {
@@ -14,6 +15,27 @@ namespace MinorShift.Emuera.GameView
         /// 由 ClearDisplay() 等设置，由 AgentCliProtocol 轮询检查并消费。
         /// </summary>
         internal bool _needFullRefresh;
+
+        /// <summary>
+        /// 当前 TINPUT 请求是否带 DisplayTime（倒计时显示）。
+        /// </summary>
+        internal bool IsDisplayTimeActive =>
+            state == ConsoleState.WaitInput && inputReq != null && inputReq.DisplayTime && inputReq.Timelimit > 0;
+
+        /// <summary>
+        /// 当前 TINPUT 请求的 TimeUpMes，无请求时返回 null。
+        /// </summary>
+        internal string? TimeUpMessage => inputReq?.TimeUpMes;
+
+        /// <summary>
+        /// 构建倒计时显示文本，格式与 WinForms presetTimer/tickTimer 一致。
+        /// </summary>
+        internal string BuildCountdownText()
+        {
+            if (inputReq == null) return "";
+            var remainingMs = inputReq.Timelimit - _genericTimerStopwatch.ElapsedMilliseconds;
+            return trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}";
+        }
 
         private void WriteAlignedLine(ConsoleDisplayLine line)
         {
