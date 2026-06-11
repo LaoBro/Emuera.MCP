@@ -14,8 +14,7 @@ namespace MinorShift.Emuera.GameView
         /// 由 ClearDisplay() 等设置，由 AgentCliProtocol 轮询检查并消费。
         /// </summary>
         internal bool _needFullRefresh;
- 
-#if HEADLESS
+
         private void WriteAlignedLine(ConsoleDisplayLine line)
         {
             string text = line.ToString();
@@ -89,13 +88,7 @@ namespace MinorShift.Emuera.GameView
                     return text;
             }
         }
-#else
-        private void WriteAlignedLine(ConsoleDisplayLine line)
-        {
-            // WinForms 模式不采集 agent buffer。
-        }
-#endif
- 
+
         /// <summary>
         /// 计算字符串在终端中的显示宽度（中日韩字符占2列，其余占1列）
         /// </summary>
@@ -108,7 +101,7 @@ namespace MinorShift.Emuera.GameView
             }
             return width;
         }
- 
+
         private static bool IsWideChar(char c)
         {
             // CJK Unified Ideographs + Hiragana + Katakana + Fullwidth forms

@@ -901,4 +901,11 @@ internal sealed partial class EmueraConsole : IDisposable
 			return null;
 		return printBuffer.Flush(stringMeasure, force_temporary);
 	}
+
+#if !HEADLESS
+	private void WriteAlignedLine(ConsoleDisplayLine line)
+	{
+		// WinForms 模式不采集 agent buffer，由 OnPaint 负责绘制。
+	}
+#endif
 }
