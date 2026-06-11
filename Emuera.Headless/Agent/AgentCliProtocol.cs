@@ -37,6 +37,19 @@ namespace MinorShift.Emuera.GameView
         {
             while (!IsStopped)
             {
+                var timeoutMs = console.InputTimeoutMs;
+                if (timeoutMs.HasValue && timeoutMs.Value <= 0)
+                {
+                    if (_buf.Length > 0)
+                    {
+                        WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
+                        _buf.Clear();
+                    }
+                    console.SubmitTimeout();
+                    FlushBuffer();
+                    continue;
+                }
+
                 if (Console.KeyAvailable)
                 {
                     var key = Console.ReadKey(true);
