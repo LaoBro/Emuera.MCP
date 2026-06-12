@@ -49,7 +49,10 @@ namespace MinorShift.Emuera.GameView
             string text = line.ToString();
             if (string.IsNullOrEmpty(text))
             {
-                WriteToAgentBuffer("");
+                if (line.IsLineEnd)
+                    WriteToAgentBuffer("");
+                else
+                    WriteToAgentBufferNoNewline("");
                 return;
             }
 
@@ -78,7 +81,10 @@ namespace MinorShift.Emuera.GameView
                     break;
             }
 
-            WriteToAgentBuffer(output);
+            if (line.IsLineEnd)
+                WriteToAgentBuffer(output);
+            else
+                WriteToAgentBufferNoNewline(output);
         }
 
         /// <summary>

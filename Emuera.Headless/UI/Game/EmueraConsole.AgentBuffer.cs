@@ -18,6 +18,16 @@ internal sealed partial class EmueraConsole
         _agentBufferLineCount++;
     }
 
+    /// <summary>
+    /// 不换行写入（对应 IsLineEnd=false 的行，如 PRINT 不换行）。
+    /// 后续行合并时通过 RemoveLastLineFromAgentBuffer() 移除并重写。
+    /// </summary>
+    internal void WriteToAgentBufferNoNewline(string text)
+    {
+        _agentBuffer.Append(text);
+        _agentBufferLineCount++;
+    }
+
     internal string TakeAgentBuffer()
     {
         var text = _agentBuffer.ToString();

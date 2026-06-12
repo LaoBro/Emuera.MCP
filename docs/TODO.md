@@ -15,18 +15,8 @@
 
 ### T-006：CLI 模式 CLEARLINE 删行后终端同步
 
-- 状态：未实现
-- 范围：`EmueraConsole.Print.deleteLine()`、`AgentCliProtocol`
-- 说明：`CLEARLINE n` 从 `displayLineList` 末尾删除 n 行，但终端上已输出的行无法撤回。当前 CLI 下 `CLEARLINE` 只删内存不删终端，导致终端显示与游戏状态不一致。
-- 纳入范围：
-  - `deleteLine()` 调用后设置 `_needFullRefresh`，触发终端清屏 + 从 `displayLineList` 重绘。
-  - 或引入更轻量的方案：记录被删行的终端行号，用 ANSI 转义或 `SetCursorPosition` 擦除。
-- 不纳入范围：
-  - `SKIPDISP` 抑制输出（见 T-008）。
-- 验收：
-  - `CLEARLINE` 后终端上被删的行消失。
-  - 后续输出从正确位置开始。
-- 关联：`REUSELASTLINE`（`PrintTemporaryLine`）也依赖 `deleteLine(1)`，同样需要终端同步。
+- 状态：已实现
+- 说明：`deleteLine()` 中添加 HEADLESS 分支，先尝试从 `_agentBuffer` 移除（行仍在缓冲区时），缓冲区空则累加 `_pendingEraseRows`。`AgentCliProtocol.FlushBuffer()` 中调用 `EraseTerminalRows()` 用光标上移 + 空格覆盖擦除终端行。`REUSELASTLINE`（`PrintTemporaryLine`）依赖的 `deleteLine(1)` 同样受益。
 
 ### T-007：CLI 模式 REDRAW 输出抑制与强制刷新
 
@@ -59,17 +49,12 @@
 
 ### T-009：CLI 模式 changeLastLine 终端同步
 
-- 状态：未实现
+- 状态：部分实现
 - 范围：`EmueraConsole.Print.changeLastLine()`、`AgentCliProtocol`
-- 说明：`changeLastLine()` 删除最后一行并写入新行（用于 TINPUT 倒计时、`REUSELASTLINE` 等）。当前 CLI 下 `changeLastLine` 通过 `deleteLine(1)` + `PrintSingleLine()` 走 `addDisplayLine` → `WriteAlignedLine`，终端上表现为追加新行而非替换旧行。T-005 的 DisplayTime 倒计时已通过 `SetCursorPosition` 单独处理，但 `changeLastLine` 的通用场景（如非 DisplayTime 的 `REUSELASTLINE`）仍未覆盖。
-- 纳入范围：
-  - `changeLastLine()` 调用时设置标志，通知 `AgentCliProtocol` 需要替换终端最后一行而非追加。
-  - 或统一走 `_needFullRefresh` 全量刷新。
-- 不纳入范围：
-  - DisplayTime 倒计时（T-005 已单独实现）。
-- 验收：
-  - `REUSELASTLINE` 后终端最后一行被替换，而非追加新行。
-  - `changeLastLine` 的其他调用场景（如错误信息覆盖）也能正确替换。
+- 说明：`changeLastLine()` 删除最后一行并写入新行。`deleteLine(1)` 的终端擦除已由 T-006 覆盖，因此 `changeLastLine` 的"删旧行"部分已正确同步终端。但"写新行"部分仍走 `addDisplayLine` → `WriteAlignedLine`，在终端上表现为先擦除旧行再追加新行（而非原地替换），光标位置可能多出一行空行。DisplayTime 倒计时场景已由 T-005 单独处理。
+- 剩余问题：
+  - `changeLastLine` 后终端光标应停留在被替换行的位置，而非下一行。
+  - 可引入标志通知 `AgentCliProtocol` 新行应覆盖而非追加。
 
 ### T-010：CLI 模式文字样式与颜色提示
 
