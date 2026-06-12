@@ -224,9 +224,54 @@ namespace MinorShift.Emuera.GameView
 
         private void FlushBuffer()
         {
+            // 先处理待擦除的终端行（CLEARLINE 产生的）
+            EraseTerminalRows();
+
             string text = console.TakeAgentBuffer();
             if (text.Length > 0)
                 Console.Write(text);
+        }
+
+        /// <summary>
+        /// 擦除终端中由 CLEARLINE 标记的行数。
+        /// 使用光标上移 + 空格覆盖的方式擦除，与输入回显擦除方式一致。
+        /// </summary>
+        private void EraseTerminalRows()
+        {
+            int rows = console._pendingEraseRows;
+            if (rows <= 0) return;
+            console._pendingEraseRows = 0;
+
+            int savedLeft, savedTop;
+            try
+            {
+                savedLeft = Console.CursorLeft;
+                savedTop = Console.CursorTop;
+            }
+            catch { return; }
+
+            int consoleWidth;
+            try { consoleWidth = Console.WindowWidth; }
+            catch { consoleWidth = 80; }
+
+            for (int i = 0; i < rows; i++)
+            {
+                // 光标上移一行
+                int targetTop = savedTop - 1 - i;
+                if (targetTop < 0) break;
+
+                try
+                {
+                    Console.SetCursorPosition(0, targetTop);
+                    Console.Write(new string(' ', consoleWidth));
+                }
+                catch { break; }
+            }
+
+            // 恢复光标到被擦除区域的首行行首（内容已消失，新内容从此处开始）
+            int newTop = Math.Max(savedTop - rows, 0);
+            try { Console.SetCursorPosition(0, newTop); }
+            catch { }
         }
 
         private void ProcessChar(char ch)

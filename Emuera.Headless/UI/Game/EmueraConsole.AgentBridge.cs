@@ -17,6 +17,13 @@ namespace MinorShift.Emuera.GameView
         internal bool _needFullRefresh;
 
         /// <summary>
+        /// HEADLESS 下标记需要从终端擦除的行数。
+        /// 由 deleteLine() 设置，由 AgentCliProtocol.EraseTerminalRows() 消费。
+        /// 当被删行已刷新到终端时递增；当被删行仍在 _agentBuffer 中时直接从缓冲区移除。
+        /// </summary>
+        internal int _pendingEraseRows;
+
+        /// <summary>
         /// 当前 TINPUT 请求是否带 DisplayTime（倒计时显示）。
         /// </summary>
         internal bool IsDisplayTimeActive =>
@@ -72,11 +79,6 @@ namespace MinorShift.Emuera.GameView
             }
 
             WriteToAgentBuffer(output);
-        }
-
-        private void WriteToAgentBuffer(string text)
-        {
-            _agentBuffer.AppendLine(text);
         }
 
         /// <summary>

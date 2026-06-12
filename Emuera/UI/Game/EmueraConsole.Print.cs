@@ -315,6 +315,11 @@ internal sealed partial class EmueraConsole : IDisposable
 		#region GETDISPLAYLINE修正
 		deletedLines -= num;
 		#endregion
+#if HEADLESS
+		// 先从 _agentBuffer 移除，缓冲区空了再标记终端擦除
+		if (!RemoveLastLineFromAgentBuffer())
+			_pendingEraseRows++;
+#endif
 		//RefreshStrings(true);
 	}
 
