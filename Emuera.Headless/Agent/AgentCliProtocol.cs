@@ -437,6 +437,7 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>
         /// 渲染按钮选择提示行，覆盖当前输入行。
+        /// 使用 SetCursorPosition + 空格覆盖，与倒计时覆盖方式一致。
         /// </summary>
         private void RenderButtonPrompt()
         {
@@ -445,16 +446,13 @@ namespace MinorShift.Emuera.GameView
 
             var btn = _currentButtons[_selectedButtonIndex];
             string label = btn.ToString();
-            string prompt = $"> {label}  ↑↓切换 Enter确认";
+            string prompt = $"> [{_selectedButtonIndex + 1}/{_currentButtons.Count}] {label} | [Up/Dn] Switch  [Enter] OK  [Esc] Cancel";
 
             int newWidth = GetDisplayWidth(prompt);
-            // 先用空格覆盖旧提示
-            if (_buttonPromptWidth > 0)
-                WriteOutput("\r" + new string(' ', _buttonPromptWidth) + "\r", false);
-            else
-                WriteOutput("\r", false);
-
-            WriteOutput(prompt, false);
+            string padded = prompt;
+            if (newWidth < _buttonPromptWidth)
+                padded += new string(' ', _buttonPromptWidth - newWidth);
+            WriteOutput("\r" + padded, false);
             _buttonPromptWidth = Math.Max(newWidth, _buttonPromptWidth);
         }
 
@@ -463,11 +461,11 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         private void ClearButtonPrompt()
         {
-            if (_buttonPromptWidth > 0)
-            {
-                WriteOutput("\r" + new string(' ', _buttonPromptWidth) + "\r", false);
-                _buttonPromptWidth = 0;
-            }
+            if (_buttonPromptWidth <= 0)
+                return;
+
+            WriteOutput("\r" + new string(' ', _buttonPromptWidth) + "\r", false);
+            _buttonPromptWidth = 0;
         }
 
         protected override void DispatchInput(string input)
