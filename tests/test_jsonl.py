@@ -31,15 +31,28 @@ def _has_label(game, expected):
     return any(expected in label for label in _labels(game))
 
 
-def check_buttons(game, passed, failed, turn_name):
-    """Validate the buttons schema for the current turn."""
-    check(len(game.buttons) >= 0, f"{turn_name} has buttons field", passed, failed)
+def check_buttons(game, passed, failed, turn_name, expected_buttons=None):
+    """Validate the buttons schema for the current turn.
+    
+    expected_buttons: list of (label_substring, expected_value) tuples.
+    If provided, also verifies exact button count, values, and absence of stale buttons.
+    """
+    if expected_buttons is not None:
+        check(len(game.buttons) == len(expected_buttons), f"{turn_name} has {len(expected_buttons)} buttons (no stale)", passed, failed)
+    else:
+        check(len(game.buttons) >= 0, f"{turn_name} has buttons field", passed, failed)
     for i, button in enumerate(game.buttons):
         check("label" in button and "value" in button, f"{turn_name} button {i} has label and value", passed, failed)
         check(isinstance(button["value"], int), f"{turn_name} button {i} value is integer", passed, failed)
-    labels = _labels(game)
     check(all("label" in button and "value" in button for button in game.buttons), f"{turn_name} all buttons have label and value", passed, failed)
     check(all(isinstance(button["value"], int) for button in game.buttons), f"{turn_name} all button values are integers", passed, failed)
+    if expected_buttons is not None:
+        for label_sub, expected_val in expected_buttons:
+            matching = [b for b in game.buttons if label_sub in b["label"]]
+            check(len(matching) >= 1, f"{turn_name} contains {label_sub}", passed, failed)
+            if matching:
+                check(matching[0]["value"] == expected_val, f"{turn_name} button '{label_sub}' value is {expected_val}", passed, failed)
+    labels = _labels(game)
     return labels
 
 
@@ -68,18 +81,15 @@ def main():
         check(game.state == "WaitInput", "Turn 1 is WaitInput", passed, failed)
         check("Agent Test Start" in game.text, "Turn 1 shows test start", passed, failed)
         check("You entered" not in game.text, "Turn 1 has not processed an input yet", passed, failed)
-        labels = check_buttons(game, passed, failed, "Turn 1")
-        check(any("[0] Hello" in label for label in labels), "Turn 1 contains [0] Hello", passed, failed)
-        check(any("[1] Quit" in label for label in labels), "Turn 1 contains [1] Quit", passed, failed)
+        check_buttons(game, passed, failed, "Turn 1", expected_buttons=[("[0] Hello", 0), ("[1] Quit", 1)])
 
         # Turn 2: select [0] Hello → shows second menu.
         game.step("0")
         print(f"\nTurn 2: state={game.state} inputType={game.input_type} buttons={len(game.buttons)}")
         check(game.state == "WaitInput", "Turn 2 is WaitInput", passed, failed)
         check("You entered: 0" in game.text, "Turn 2 shows first input result", passed, failed)
-        labels = check_buttons(game, passed, failed, "Turn 2")
-        check(any("[0] World" in label for label in labels), "Turn 2 contains [0] World", passed, failed)
-        check(any("[1] Exit" in label for label in labels), "Turn 2 contains [1] Exit", passed, failed)
+        # Turn 2 should only have current-generation buttons, not stale Turn 1 buttons
+        check_buttons(game, passed, failed, "Turn 2", expected_buttons=[("[0] World", 0), ("[1] Exit", 1)])
 
         # Turn 3: select [0] World → game ends.
         game.step("0")

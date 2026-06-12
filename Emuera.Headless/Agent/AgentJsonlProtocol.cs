@@ -114,6 +114,8 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>
         /// 收集窗口默认可见区域中所有按钮的标签与对应输入值。
+        /// 只采集当前轮次有效的按钮（Generation == LastButtonGeneration），
+        /// 排除历史轮次残留的过期按钮。
         /// </summary>
         private List<object> CollectVisibleButtons()
         {
@@ -122,6 +124,7 @@ namespace MinorShift.Emuera.GameView
             if (lines == null || lines.Count == 0)
                 return buttons;
 
+            long currentGen = console.LastButtonGeneration;
             int start = Math.Max(0, lines.Count - _visibleLineCount);
             for (int i = start; i < lines.Count; i++)
             {
@@ -131,6 +134,10 @@ namespace MinorShift.Emuera.GameView
                 foreach (var btn in line.Buttons)
                 {
                     if (btn == null || !btn.IsButton)
+                        continue;
+                    // 只采集当前轮次的按钮（Generation == LastButtonGeneration）
+                    // Generation=0 的非按钮元素已被 IsButton 过滤；Generation=0 的按钮在旧轮次也是过期的
+                    if (btn.Generation != currentGen)
                         continue;
                     buttons.Add(new
                     {

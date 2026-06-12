@@ -123,6 +123,7 @@ class EmueraAgent:
             self.state = "Disconnected"
             return
         turn = json.loads(line)
+        self._raw = turn
         self.text = turn.get("text", "")
         self.state = turn.get("state", "")
         self.input_type = turn.get("inputType", "")

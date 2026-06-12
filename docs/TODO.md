@@ -49,12 +49,8 @@
 
 ### T-009：CLI 模式 changeLastLine 终端同步
 
-- 状态：部分实现
-- 范围：`EmueraConsole.Print.changeLastLine()`、`AgentCliProtocol`
-- 说明：`changeLastLine()` 删除最后一行并写入新行。`deleteLine(1)` 的终端擦除已由 T-006 覆盖，因此 `changeLastLine` 的"删旧行"部分已正确同步终端。但"写新行"部分仍走 `addDisplayLine` → `WriteAlignedLine`，在终端上表现为先擦除旧行再追加新行（而非原地替换），光标位置可能多出一行空行。DisplayTime 倒计时场景已由 T-005 单独处理。
-- 剩余问题：
-  - `changeLastLine` 后终端光标应停留在被替换行的位置，而非下一行。
-  - 可引入标志通知 `AgentCliProtocol` 新行应覆盖而非追加。
+- 状态：已实现
+- 说明：`changeLastLine()` = `deleteLine(1)` + `PrintSingleLine()`。T-006 的 `EraseTerminalRows()` 在 `FlushBuffer()` 中先擦除终端旧行（光标回到旧行位置），再输出新行，实现原地替换。`WriteAlignedLine` 根据 `IsLineEnd` 控制换行，`RemoveLastLineFromAgentBuffer()` 能正确处理不换行行的移除。DisplayTime 倒计时场景由 T-005 单独处理。
 
 ### T-010：CLI 模式文字样式与颜色提示
 
