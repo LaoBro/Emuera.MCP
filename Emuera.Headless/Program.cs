@@ -43,6 +43,7 @@ static partial class Program
     static void Main(string[] args)
     {
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 
