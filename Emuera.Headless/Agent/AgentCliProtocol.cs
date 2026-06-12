@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -17,6 +18,15 @@ namespace MinorShift.Emuera.GameView
         private string _lastCountdownText = "";
         /// <summary>上次倒计时文本的显示宽度（字符列数），用于空格覆盖。</summary>
         private int _lastCountdownWidth = 0;
+
+        /// <summary>是否处于按钮选择模式。</summary>
+        private bool _buttonMode;
+        /// <summary>当前轮次按钮列表。</summary>
+        private List<ConsoleButtonString> _currentButtons = [];
+        /// <summary>当前选中按钮索引，-1 表示无选中。</summary>
+        private int _selectedButtonIndex = -1;
+        /// <summary>上次按钮选择提示文本的显示宽度，用于空格覆盖。</summary>
+        private int _buttonPromptWidth = 0;
 
         public AgentCliProtocol(EmueraConsole console, IConsoleUI ui)
             : base(console, ui) { }
@@ -98,6 +108,16 @@ namespace MinorShift.Emuera.GameView
                 }
 
                 FlushBuffer();
+
+                // 游戏状态变化后重置按钮选择模式
+                if (_buttonMode && console.State != ConsoleState.WaitInput)
+                {
+                    _buttonMode = false;
+                    _currentButtons = [];
+                    _selectedButtonIndex = -1;
+                    _buttonPromptWidth = 0;
+                }
+
                 Thread.Sleep(PollIntervalMs);
             }
         }
@@ -305,7 +325,18 @@ namespace MinorShift.Emuera.GameView
 
         private void ProcessKey(ConsoleKeyInfo key)
         {
-            if (key.Key == ConsoleKey.Enter)
+            if (_buttonMode)
+            {
+                ProcessButtonModeKey(key);
+                return;
+            }
+
+            if (key.Key == ConsoleKey.UpArrow)
+            {
+                // 尝试进入按钮选择模式
+                TryEnterButtonMode();
+            }
+            else if (key.Key == ConsoleKey.Enter)
                 ProcessChar('\r');
             else if (key.Key == ConsoleKey.Backspace)
                 ProcessChar('\b');
@@ -313,6 +344,130 @@ namespace MinorShift.Emuera.GameView
                 ProcessChar((char)27);
             else if (!char.IsControl(key.KeyChar))
                 ProcessChar(key.KeyChar);
+        }
+
+        /// <summary>
+        /// 尝试进入按钮选择模式。需要有可用按钮才能进入。
+        /// </summary>
+        private void TryEnterButtonMode()
+        {
+            if (console.State != ConsoleState.WaitInput)
+                return;
+
+            var buttons = console.CollectCurrentButtons();
+            if (buttons.Count == 0)
+                return;
+
+            _buttonMode = true;
+            _currentButtons = buttons;
+            _selectedButtonIndex = 0;
+
+            // 清除当前输入缓冲区回显
+            if (_buf.Length > 0)
+            {
+                WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
+                _buf.Clear();
+            }
+
+            RenderButtonPrompt();
+        }
+
+        /// <summary>
+        /// 退出按钮选择模式，恢复输入提示。
+        /// </summary>
+        private void ExitButtonMode()
+        {
+            _buttonMode = false;
+            _currentButtons = [];
+            _selectedButtonIndex = -1;
+            ClearButtonPrompt();
+        }
+
+        /// <summary>
+        /// 处理按钮选择模式下的按键。
+        /// </summary>
+        private void ProcessButtonModeKey(ConsoleKeyInfo key)
+        {
+            switch (key.Key)
+            {
+                case ConsoleKey.UpArrow:
+                    if (_currentButtons.Count > 0)
+                    {
+                        _selectedButtonIndex = (_selectedButtonIndex - 1 + _currentButtons.Count) % _currentButtons.Count;
+                        RenderButtonPrompt();
+                    }
+                    break;
+
+                case ConsoleKey.DownArrow:
+                    if (_currentButtons.Count > 0)
+                    {
+                        _selectedButtonIndex = (_selectedButtonIndex + 1) % _currentButtons.Count;
+                        RenderButtonPrompt();
+                    }
+                    break;
+
+                case ConsoleKey.Enter:
+                    ConfirmButton();
+                    break;
+
+                case ConsoleKey.Escape:
+                    ExitButtonMode();
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// 确认选中按钮，提交输入。
+        /// </summary>
+        private void ConfirmButton()
+        {
+            if (_selectedButtonIndex < 0 || _selectedButtonIndex >= _currentButtons.Count)
+                return;
+
+            var btn = _currentButtons[_selectedButtonIndex];
+            string input = btn.IsInteger ? btn.Input.ToString() : btn.Inputs;
+
+            ClearButtonPrompt();
+            _buttonMode = false;
+            _currentButtons = [];
+            _selectedButtonIndex = -1;
+
+            DispatchInput(input);
+        }
+
+        /// <summary>
+        /// 渲染按钮选择提示行，覆盖当前输入行。
+        /// </summary>
+        private void RenderButtonPrompt()
+        {
+            if (_selectedButtonIndex < 0 || _selectedButtonIndex >= _currentButtons.Count)
+                return;
+
+            var btn = _currentButtons[_selectedButtonIndex];
+            string label = btn.ToString();
+            string prompt = $"> {label}  ↑↓切换 Enter确认";
+
+            int newWidth = GetDisplayWidth(prompt);
+            // 先用空格覆盖旧提示
+            if (_buttonPromptWidth > 0)
+                WriteOutput("\r" + new string(' ', _buttonPromptWidth) + "\r", false);
+            else
+                WriteOutput("\r", false);
+
+            WriteOutput(prompt, false);
+            _buttonPromptWidth = Math.Max(newWidth, _buttonPromptWidth);
+        }
+
+        /// <summary>
+        /// 清除按钮选择提示行。
+        /// </summary>
+        private void ClearButtonPrompt()
+        {
+            if (_buttonPromptWidth > 0)
+            {
+                WriteOutput("\r" + new string(' ', _buttonPromptWidth) + "\r", false);
+                _buttonPromptWidth = 0;
+            }
         }
 
         protected override void DispatchInput(string input)

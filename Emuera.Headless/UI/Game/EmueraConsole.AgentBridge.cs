@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.UI.Game;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
@@ -117,6 +118,34 @@ namespace MinorShift.Emuera.GameView
                 default:
                     return text;
             }
+        }
+
+        /// <summary>
+        /// 收集当前轮次有效的按钮列表（Generation == LastButtonGeneration）。
+        /// 供 CLI 按钮选择模式使用。
+        /// </summary>
+        internal List<ConsoleButtonString> CollectCurrentButtons()
+        {
+            var result = new List<ConsoleButtonString>();
+            var lines = displayLineList;
+            if (lines == null || lines.Count == 0)
+                return result;
+
+            long currentGen = LastButtonGeneration;
+            foreach (var line in lines)
+            {
+                if (line?.Buttons == null)
+                    continue;
+                foreach (var btn in line.Buttons)
+                {
+                    if (btn == null || !btn.IsButton)
+                        continue;
+                    if (btn.Generation != currentGen)
+                        continue;
+                    result.Add(btn);
+                }
+            }
+            return result;
         }
 
         /// <summary>

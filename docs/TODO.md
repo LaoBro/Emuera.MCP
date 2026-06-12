@@ -73,19 +73,10 @@
   - `FONTBOLD` 后的文字在终端上显示粗体。
   - 样式重置后恢复正常显示。
 
-### T-011：CLI 模式 PRINTBUTTON 按钮标记
+### T-011：CLI 模式 PRINTBUTTON 按钮选择模式
 
-- 状态：未实现
-- 范围：`PRINTBUTTON`、`PRINTBUTTONC`、`PRINTBUTTONLC`
-- 说明：WinForms 下 `PRINTBUTTON` 创建可点击按钮，按钮有标签和对应输入值。CLI 终端没有可点击按钮，但可以显示按钮标记帮助用户识别可选项。JSONL 协议已在 `CollectVisibleButtons()` 中采集按钮数据，CLI 模式目前只显示按钮文本，不区分按钮与普通文字。
-- 纳入范围：
-  - 在 `WriteAlignedLine()` 中识别按钮部分，用 `[label]` 或 `label(value)` 格式标记。
-  - 或在输入提示行显示可用按钮列表。
-- 不纳入范围：
-  - 终端可点击按钮（不可能实现）。
-  - `HTML_PRINT` 中的按钮（见 T-012）。
-- 验收：
-  - 用户能识别哪些文字是可点击按钮及其对应输入值。
+- 状态：已实现
+- 说明：CLI 终端在 `WaitInput` 状态下按 `↑` 键进入按钮选择模式，提示行显示 `> [按钮]  ↑↓切换 Enter确认`，`↑↓` 循环切换按钮，`Enter` 确认提交按钮值，`Esc` 退出选择模式。`CollectCurrentButtons()` 采集 `Generation == LastButtonGeneration` 的有效按钮，排除过期按钮。
 
 ### T-012：CLI 模式 HTML_PRINT 纯文本降级
 
