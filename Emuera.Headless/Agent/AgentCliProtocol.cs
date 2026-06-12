@@ -74,6 +74,13 @@ namespace MinorShift.Emuera.GameView
                         WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
                         _buf.Clear();
                     }
+                    if (_buttonMode)
+                    {
+                        ClearButtonPrompt();
+                        _buttonMode = false;
+                        _currentButtons = [];
+                        _selectedButtonIndex = -1;
+                    }
                     console.SubmitTimeout();
                     FlushBuffer();
                     continue;
@@ -112,10 +119,32 @@ namespace MinorShift.Emuera.GameView
                 // 游戏状态变化后重置按钮选择模式
                 if (_buttonMode && console.State != ConsoleState.WaitInput)
                 {
+                    ClearButtonPrompt();
                     _buttonMode = false;
                     _currentButtons = [];
                     _selectedButtonIndex = -1;
-                    _buttonPromptWidth = 0;
+                }
+
+                // 有按钮时自动进入按钮选择模式（EnterKey/AnyKey 不需要按钮选择）
+                if (!_buttonMode && console.State == ConsoleState.WaitInput)
+                {
+                    var req = console.CurrentRequest;
+                    if (req != null && req.InputType != InputType.EnterKey && req.InputType != InputType.AnyKey)
+                    {
+                        var buttons = console.CollectCurrentButtons();
+                        if (buttons.Count > 0)
+                        {
+                            _buttonMode = true;
+                            _currentButtons = buttons;
+                            _selectedButtonIndex = 0;
+                            if (_buf.Length > 0)
+                            {
+                                WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
+                                _buf.Clear();
+                            }
+                            RenderButtonPrompt();
+                        }
+                    }
                 }
 
                 Thread.Sleep(PollIntervalMs);
@@ -331,12 +360,7 @@ namespace MinorShift.Emuera.GameView
                 return;
             }
 
-            if (key.Key == ConsoleKey.UpArrow)
-            {
-                // 尝试进入按钮选择模式
-                TryEnterButtonMode();
-            }
-            else if (key.Key == ConsoleKey.Enter)
+            if (key.Key == ConsoleKey.Enter)
                 ProcessChar('\r');
             else if (key.Key == ConsoleKey.Backspace)
                 ProcessChar('\b');
@@ -344,43 +368,6 @@ namespace MinorShift.Emuera.GameView
                 ProcessChar((char)27);
             else if (!char.IsControl(key.KeyChar))
                 ProcessChar(key.KeyChar);
-        }
-
-        /// <summary>
-        /// 尝试进入按钮选择模式。需要有可用按钮才能进入。
-        /// </summary>
-        private void TryEnterButtonMode()
-        {
-            if (console.State != ConsoleState.WaitInput)
-                return;
-
-            var buttons = console.CollectCurrentButtons();
-            if (buttons.Count == 0)
-                return;
-
-            _buttonMode = true;
-            _currentButtons = buttons;
-            _selectedButtonIndex = 0;
-
-            // 清除当前输入缓冲区回显
-            if (_buf.Length > 0)
-            {
-                WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
-                _buf.Clear();
-            }
-
-            RenderButtonPrompt();
-        }
-
-        /// <summary>
-        /// 退出按钮选择模式，恢复输入提示。
-        /// </summary>
-        private void ExitButtonMode()
-        {
-            _buttonMode = false;
-            _currentButtons = [];
-            _selectedButtonIndex = -1;
-            ClearButtonPrompt();
         }
 
         /// <summary>
@@ -408,10 +395,6 @@ namespace MinorShift.Emuera.GameView
 
                 case ConsoleKey.Enter:
                     ConfirmButton();
-                    break;
-
-                case ConsoleKey.Escape:
-                    ExitButtonMode();
                     break;
             }
         }
@@ -446,7 +429,7 @@ namespace MinorShift.Emuera.GameView
 
             var btn = _currentButtons[_selectedButtonIndex];
             string label = btn.ToString();
-            string prompt = $"> [{_selectedButtonIndex + 1}/{_currentButtons.Count}] {label} | [Up/Dn] Switch  [Enter] OK  [Esc] Cancel";
+            string prompt = $"> [{_selectedButtonIndex + 1}/{_currentButtons.Count}] {label} | [Up/Dn] Switch  [Enter] OK";
 
             int newWidth = GetDisplayWidth(prompt);
             string padded = prompt;
@@ -458,13 +441,22 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>
         /// 清除按钮选择提示行。
+        /// 使用 SetCursorPosition 定位行首 + 空格覆盖到行尾，避免 GetDisplayWidth 对非 CJK 宽字符计算不准导致残留。
         /// </summary>
         private void ClearButtonPrompt()
         {
-            if (_buttonPromptWidth <= 0)
-                return;
-
-            WriteOutput("\r" + new string(' ', _buttonPromptWidth) + "\r", false);
+            FlushBuffer();
+            try
+            {
+                int left = Console.CursorLeft;
+                int top = Console.CursorTop;
+                Console.SetCursorPosition(0, top);
+                int width = Console.WindowWidth;
+                // 写 width-1 个空格覆盖整行内容，但不填满行尾避免自动换行
+                Console.Write(new string(' ', width - 1));
+                Console.SetCursorPosition(0, top);
+            }
+            catch { }
             _buttonPromptWidth = 0;
         }
 
