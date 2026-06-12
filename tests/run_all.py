@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -56,6 +57,10 @@ def _run_script(name, args, env=None, timeout=None):
         errors="replace",
         timeout=timeout,
     )
+    # Brief pause between test suites on Windows to avoid file-lock races
+    # (the .NET single-file host may briefly hold the exe after process exit)
+    if sys.platform == "win32":
+        time.sleep(1)
     return completed.returncode == 0, completed.returncode
 
 
