@@ -13,6 +13,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Runtime;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
 
@@ -44,6 +45,7 @@ static partial class Program
     {
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
         Console.OutputEncoding = System.Text.Encoding.UTF8;
+        TrySetupWindowsConsole();
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 
@@ -299,6 +301,90 @@ static partial class Program
     public static bool AnalysisMode;
     public static List<string> AnalysisFiles;
     public static bool DebugMode { get; private set; }
+
+    public static bool AnsiEnabled { get; private set; }
+
+    private static void TrySetupWindowsConsole()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        if (Console.IsInputRedirected) return;
+        TryEnableVirtualTerminal();
+        TrySetConsoleFont();
+    }
+
+    private static void TryEnableVirtualTerminal()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            IntPtr hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (hOut == IntPtr.Zero || hOut == INVALID_HANDLE_VALUE) return;
+            if (!GetConsoleMode(hOut, out uint mode)) return;
+            if ((mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0)
+            {
+                AnsiEnabled = true;
+                return;
+            }
+            if (SetConsoleMode(hOut, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING))
+                AnsiEnabled = true;
+        }
+        catch { }
+    }
+
+    private static void TrySetConsoleFont()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            IntPtr hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (hOut == IntPtr.Zero || hOut == INVALID_HANDLE_VALUE) return;
+            var info = new CONSOLE_FONT_INFO_EX();
+            info.cbSize = (uint)Marshal.SizeOf<CONSOLE_FONT_INFO_EX>();
+            info.FaceName = "MS Gothic";
+            info.FontFamily = TMPF_TRUETYPE;
+            info.dwFontSizeY = 18;
+            if (!SetCurrentConsoleFontEx(hOut, false, ref info))
+            {
+                info.FaceName = "Cascadia Mono";
+                if (!SetCurrentConsoleFontEx(hOut, false, ref info))
+                {
+                    info.FaceName = "Consolas";
+                    SetCurrentConsoleFontEx(hOut, false, ref info);
+                }
+            }
+        }
+        catch { }
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetStdHandle(int nStdHandle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFO_EX lpConsoleCurrentFontEx);
+
+    private const int STD_OUTPUT_HANDLE = -11;
+    private static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
+    private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
+    private const uint TMPF_TRUETYPE = 0x04;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct CONSOLE_FONT_INFO_EX
+    {
+        public uint cbSize;
+        public uint nFont;
+        public uint dwFontSizeX;
+        public uint dwFontSizeY;
+        public uint FontFamily;
+        public uint FontWeight;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string FaceName;
+    }
 
     static Program()
     {

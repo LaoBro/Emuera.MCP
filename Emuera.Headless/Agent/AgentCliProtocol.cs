@@ -28,8 +28,13 @@ namespace MinorShift.Emuera.GameView
         /// <summary>上次按钮选择提示文本的显示宽度，用于空格覆盖。</summary>
         private int _buttonPromptWidth = 0;
 
+        private readonly bool _ansiEnabled;
+
         public AgentCliProtocol(EmueraConsole console, IConsoleUI ui)
-            : base(console, ui) { }
+            : base(console, ui)
+        {
+            _ansiEnabled = Program.AnsiEnabled || !OperatingSystem.IsWindows();
+        }
 
         internal override string? GetInitialTurn() => null;
 
@@ -211,31 +216,42 @@ namespace MinorShift.Emuera.GameView
         {
             if (_countdownLineTop < 0) return;
 
-            int savedLeft, savedTop;
-            try
-            {
-                savedLeft = Console.CursorLeft;
-                savedTop = Console.CursorTop;
-            }
-            catch { return; }
+            int newWidth = GetDisplayWidth(newText);
+            string padded = newText;
+            if (newWidth < _lastCountdownWidth)
+                padded += new string(' ', _lastCountdownWidth - newWidth);
 
-            try
+            if (_ansiEnabled)
             {
-                Console.SetCursorPosition(0, _countdownLineTop);
-                // 用空格覆盖旧文本，再写新文本
-                int newWidth = GetDisplayWidth(newText);
-                string padded = newText;
-                if (newWidth < _lastCountdownWidth)
-                    padded += new string(' ', _lastCountdownWidth - newWidth);
-                Console.Write(padded);
-                _lastCountdownText = newText;
-                _lastCountdownWidth = Math.Max(newWidth, _lastCountdownWidth);
+                try
+                {
+                    Console.Write($"\x1b[s\x1b[{_countdownLineTop + 1};1H\x1b[2K{padded}\x1b[u");
+                }
+                catch { }
             }
-            catch { }
+            else
+            {
+                int savedLeft, savedTop;
+                try
+                {
+                    savedLeft = Console.CursorLeft;
+                    savedTop = Console.CursorTop;
+                }
+                catch { return; }
 
-            // 恢复光标位置
-            try { Console.SetCursorPosition(savedLeft, savedTop); }
-            catch { }
+                try
+                {
+                    Console.SetCursorPosition(0, _countdownLineTop);
+                    Console.Write(padded);
+                }
+                catch { }
+
+                try { Console.SetCursorPosition(savedLeft, savedTop); }
+                catch { }
+            }
+
+            _lastCountdownText = newText;
+            _lastCountdownWidth = Math.Max(newWidth, _lastCountdownWidth);
         }
 
         /// <summary>
@@ -445,18 +461,22 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         private void ClearButtonPrompt()
         {
-            FlushBuffer();
-            try
+            if (_ansiEnabled)
             {
-                int left = Console.CursorLeft;
-                int top = Console.CursorTop;
-                Console.SetCursorPosition(0, top);
-                int width = Console.WindowWidth;
-                // 写 width-1 个空格覆盖整行内容，但不填满行尾避免自动换行
-                Console.Write(new string(' ', width - 1));
-                Console.SetCursorPosition(0, top);
+                WriteOutput("\x1b[2K\r", false);
             }
-            catch { }
+            else
+            {
+                FlushBuffer();
+                try
+                {
+                    int top = Console.CursorTop;
+                    Console.SetCursorPosition(0, top);
+                    Console.Write(new string(' ', Console.WindowWidth - 1));
+                    Console.SetCursorPosition(0, top);
+                }
+                catch { }
+            }
             _buttonPromptWidth = 0;
         }
 

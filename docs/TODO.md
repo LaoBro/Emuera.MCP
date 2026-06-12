@@ -107,3 +107,87 @@
   - 定义 turn 中 timer metadata。
   - 定义前端刷新间隔或动画帧数据。
   - 保持 server worker thread 与游戏步进边界清晰。
+
+### T-013：CLI 按钮选择模式跨轮次状态同步
+
+- 状态：未实现，需修复
+- 范围：`Emuera.Headless/Agent/AgentCliProtocol.cs`
+- 说明：T-011 的按钮选择模式只在 `console.State != ConsoleState.WaitInput` 时重置。若确认按钮后游戏直接进入下一轮 `WaitInput`，`_buttonMode`、`_currentButtons`、`_selectedButtonIndex` 会保留上一轮按钮，导致下一轮可能提交旧按钮值。
+- 纳入范围：
+  - 将“进入按钮模式 / 重置按钮模式”收敛为统一同步逻辑。
+  - 每次提交输入、超时、全量刷新后，根据当前 `CurrentRequest` 与 `CollectCurrentButtons()` 重新同步按钮列表。
+  - 连续 `WaitInput` 且按钮 Generation 变化时，重置选中索引并重新渲染提示行。
+- 验收：
+  - 第一轮选择按钮后进入第二轮按钮菜单，提示行显示第二轮按钮。
+  - 第二轮 `Enter` 提交第二轮按钮值，而不是第一轮按钮值。
+  - 非按钮输入请求、`EnterKey`、`AnyKey` 不进入按钮选择模式。
+
+### T-014：CLI 模式游戏结束后主动退出
+
+- 状态：未实现，需修复
+- 范围：`Emuera.Headless/Agent/AgentCliProtocol.cs`、`Emuera.Headless/Program.cs`
+- 说明：`AgentCliProtocol.RunConsoleKeyLoop()` 以 `while (!IsStopped)` 运行，但游戏进入 `Quit` / `Error` 后没有代码调用 `Stop()`。pipe 测试因 stdin EOF 退出，真实交互 CLI 可能游戏结束后继续空转。
+- 纳入范围：
+  - 在 `RunConsoleKeyLoop()` 每轮 `FlushBuffer()` 后检查 `console.State`。
+  - `Quit` / `Error` 时调用 `Stop()` 并退出循环。
+  - 或让 `Program.RunCliLoop()` 在外层检测 `protocol.IsStopped` 后返回。
+- 验收：
+  - 交互 CLI 下选择退出按钮后进程自然结束。
+  - 游戏错误状态下 CLI 不继续等待输入。
+  - pipe CLI 现有行为保持不变。
+
+### T-015：CLI CLEARLINE 擦除行避免整行空格触发换行
+
+- 状态：未实现，需修复
+- 范围：`Emuera.Headless/Agent/AgentCliProtocol.cs`
+- 说明：`EraseTerminalRows()` 当前使用 `new string(' ', Console.WindowWidth)` 覆盖旧行。Windows 终端写入整行宽度空格可能触发自动换行，导致终端内容下移，和 `docs/LESSONS.md` 中记录的风险一致。
+- 纳入范围：
+  - ANSI 可用时优先使用 `\x1b[2K` 清除当前行。
+  - fallback 使用 `SetCursorPosition` 定位后写入 `Math.Max(Console.WindowWidth - 1, 1)` 个空格。
+  - 保持 `FlushBuffer()` 中先擦除旧行、再输出新内容的顺序。
+- 验收：
+  - `CLEARLINE` / `deleteLine()` 后终端不额外下移一行。
+  - `changeLastLine()` 仍能原地替换最后一行。
+  - ANSI 不可用的 Windows fallback 不残留旧文本。
+
+### T-016：JSONL/server Agent 协议清理与健壮性
+
+- 状态：未实现，需修复
+- 范围：`Emuera.Headless/Agent/AgentJsonlProtocol.cs`、`Emuera.Headless/Agent/AgentProtocolBase.cs`、`Emuera.Headless/Server/Session.cs`
+- 说明：审查发现 JSONL/server 协议存在未使用 IO 字段、超时路径假设过强、异常后协议继续运行、auto-detect 方法重复且可能释放 stdin 等问题。
+- 纳入范围：
+  - 移除 `AgentJsonlProtocol` 中未使用的 `SessionIO _io` 字段与构造函数参数，server IO 继续由 `Session.GameLoop()` 管理。
+  - `SubmitTimeout()` 调用 `console.SubmitTimeout()` 后等待 `WaitForInput()`，避免返回半运行状态 turn。
+  - `Step()` 捕获异常返回 error JSON 后停止协议，或明确标记 fatal 让调用方停止。
+  - 删除 `AgentProtocolBase.Detect()`，或保留时避免 `using var stdin = Console.OpenStandardInput()` 关闭标准输入。
+- 验收：
+  - server 单会话测试行为不变。
+  - TINPUT timeout 在超时后仍返回 `WaitInput` / `Quit` / `Error` 的稳定 turn。
+  - JSONL stdin 管道模式输入输出行为不变。
+  - auto-detect 逻辑只保留一处，且不破坏 stdin 读取。
+
+### T-017：CLI 终端清行 fallback 边界防御
+
+- 状态：未实现，需修复
+- 范围：`Emuera.Headless/Agent/AgentCliProtocol.cs`
+- 说明：`ClearButtonPrompt()` 的非 ANSI fallback 使用 `Console.WindowWidth - 1`，未处理窗口宽度为 0 或 1 的极端情况。`EraseTerminalRows()` 同样依赖终端宽度，应在 fallback 路径做最小宽度防御。
+- 纳入范围：
+  - 所有 `new string(' ', ...)` 的长度使用 `Math.Max(width, 1)` 或等价保护。
+  - 对 `Console.WindowWidth` 抛异常的场景继续使用 80 作为 fallback。
+- 验收：
+  - 极小终端窗口下清除按钮提示行不抛异常。
+  - ANSI 不可用时按钮提示行能被清空且光标回到原位置。
+
+### T-018：HEADLESS AgentBuffer 删除最后一行容错
+
+- 状态：未实现，需修复
+- 范围：`Emuera.Headless/UI/Game/EmueraConsole.AgentBuffer.cs`
+- 说明：`deleteLine()` 会调用 `RemoveLastLineFromAgentBuffer()`。若 `_agentBufferLineCount > 0` 但 `_agentBuffer` 内容为空或只有 1 个字符，当前 `LastIndexOf('\n', content.Length - 2, content.Length - 1)` 可能因负数参数抛异常。该路径会影响 CLI 下“行仍在缓冲区时被 CLEARLINE 删除”的场景。
+- 纳入范围：
+  - `RemoveLastLineFromAgentBuffer()` 对 `content.Length == 0` 直接清空并递减计数。
+  - `content.Length == 1` 时按单行处理，不调用负数 `startIndex/count`。
+  - 保持不换行行的删除逻辑：有前一行换行符时删除到上一行末尾。
+- 验收：
+  - 缓冲区只有不换行单行时调用 `deleteLine()` 不抛异常。
+  - 多行缓冲区删除最后一行后，前序内容保留正确。
+  - `_agentBufferLineCount` 与 `_agentBuffer` 内容保持一致。
