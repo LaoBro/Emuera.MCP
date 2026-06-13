@@ -43,7 +43,7 @@ namespace MinorShift.Emuera.GameView
             throw new NotSupportedException("TINPUT timeout is not supported by this protocol.");
         }
 
-        public virtual void WriteOutput(string text, bool newLine = true)
+        internal virtual void WriteOutput(string text, bool newLine = true)
         {
             if (newLine)
                 console._agentBuffer.AppendLine(text);
@@ -51,7 +51,7 @@ namespace MinorShift.Emuera.GameView
                 console._agentBuffer.Append(text);
         }
 
-        public virtual void Stop() => _stopped = true;
+        internal virtual void Stop() => _stopped = true;
 
         protected virtual void DispatchInput(string input)
         {
@@ -73,38 +73,18 @@ namespace MinorShift.Emuera.GameView
                 case InputType.AnyValue:
                     if (long.TryParse(input, out _))
                         console.PressEnterKey(false, input, false);
+                    else
+                        OnInputRejected("当前需要整数输入，请重试");
                     break;
                 case InputType.PrimitiveMouseKey:
+                    OnInputRejected("当前等待原始鼠标/键盘事件，终端无法模拟，请在窗口中操作");
                     break;
                 default:
+                    OnInputRejected($"未处理的输入类型: {req.InputType}");
                     break;
             }
         }
 
-        /// <summary>
-        /// 根据运行环境自动检测并创建对应的协议实例。
-        /// 此方法为可选辅助方法，仅用于 --protocol auto 模式。
-        /// 推荐由入口点（Program.cs）根据命令行参数显式创建协议，
-        /// 并通过 EmueraConsole.SetAgentBridge() 注入。
-        /// </summary>
-        public static AgentProtocolBase? Detect(EmueraConsole console, IConsoleUI ui)
-        {
-            AgentProtocolBase protocol;
-            if (Console.IsInputRedirected)
-            {
-                var stdin = Console.OpenStandardInput();
-                if (stdin.CanSeek)
-                    return null;
-                protocol = new AgentJsonlProtocol(console, ui);
-            }
-            else
-            {
-                try { _ = Console.KeyAvailable; }
-                catch { return null; }
-                protocol = new AgentCliProtocol(console, ui);
-            }
-
-            return protocol;
-        }
+        protected virtual void OnInputRejected(string reason) { }
     }
 }

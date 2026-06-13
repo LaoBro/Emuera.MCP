@@ -152,5 +152,3 @@ namespace MinorShift.Emuera.GameView
         #endregion
     }
 }
-
-internal record JsonlCommand(string type, string value);

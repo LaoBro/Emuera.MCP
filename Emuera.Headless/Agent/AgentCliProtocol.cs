@@ -221,28 +221,7 @@ namespace MinorShift.Emuera.GameView
             _lastCountdownWidth = 0;
         }
 
-        /// <summary>
-        /// 计算字符串在终端中的显示宽度（中日韩字符占2列，其余占1列）。
-        /// 与 EmueraConsole.AgentBridge 中的 GetDisplayWidth 逻辑一致。
-        /// </summary>
-        private static int GetDisplayWidth(string str)
-        {
-            int width = 0;
-            foreach (char c in str)
-            {
-                width += IsWideChar(c) ? 2 : 1;
-            }
-            return width;
-        }
-
-        private static bool IsWideChar(char c)
-        {
-            return (c >= 0x2E80 && c <= 0x9FFF)
-                || (c >= 0xAC00 && c <= 0xD7AF)
-                || (c >= 0xF900 && c <= 0xFAFF)
-                || (c >= 0xFF01 && c <= 0xFF60)
-                || (c >= 0xFFE0 && c <= 0xFFE6);
-        }
+        private static int GetDisplayWidth(string str) => TerminalDisplayWidth.GetDisplayWidth(str);
 
         private void FlushBuffer()
         {
@@ -502,43 +481,9 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
-        protected override void DispatchInput(string input)
+        protected override void OnInputRejected(string reason)
         {
-            if (console.State != ConsoleState.WaitInput)
-            {
-                WriteOutput("[终端] 当前不在等待输入状态，输入已忽略");
-                return;
-            }
-
-            var req = console.CurrentRequest;
-            if (req == null) return;
-
-            switch (req.InputType)
-            {
-                case InputType.EnterKey:
-                case InputType.AnyKey:
-                case InputType.StrValue:
-                case InputType.IntButton:
-                case InputType.StrButton:
-                    console.PressEnterKey(false, input, false);
-                    break;
-
-                case InputType.IntValue:
-                case InputType.AnyValue:
-                    if (long.TryParse(input, out _))
-                        console.PressEnterKey(false, input, false);
-                    else
-                        WriteOutput("[终端] 当前需要整数输入，请重试");
-                    break;
-
-                case InputType.PrimitiveMouseKey:
-                    WriteOutput("[终端] 当前等待原始鼠标/键盘事件，终端无法模拟，请在窗口中操作");
-                    break;
-
-                default:
-                    WriteOutput($"[终端] 未处理的输入类型: {req.InputType}");
-                    break;
-            }
+            WriteOutput($"[终端] {reason}");
         }
     }
 }
