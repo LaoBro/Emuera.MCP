@@ -65,29 +65,19 @@ namespace MinorShift.Emuera.GameView
                     FlushBuffer();
                     FullRefresh();
                     ResetCountdown();
+                    SyncButtonState();
                     continue;
                 }
 
                 var timeoutMs = console.InputTimeoutMs;
                 if (timeoutMs.HasValue && timeoutMs.Value <= 0)
                 {
-                    // 超时：覆盖倒计时行为 TimeUpMes
                     OverwriteCountdownLine(console.TimeUpMessage ?? "");
                     ResetCountdown();
-                    if (_buf.Length > 0)
-                    {
-                        WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
-                        _buf.Clear();
-                    }
-                    if (_buttonMode)
-                    {
-                        ClearButtonPrompt();
-                        _buttonMode = false;
-                        _currentButtons = [];
-                        _selectedButtonIndex = -1;
-                    }
+                    ClearInputBuffer();
                     console.SubmitTimeout();
                     FlushBuffer();
+                    SyncButtonState();
                     continue;
                 }
 
@@ -99,8 +89,6 @@ namespace MinorShift.Emuera.GameView
                     {
                         if (_countdownLineTop < 0)
                         {
-                            // presetTimer 刚输出倒计时行，记录其位置
-                            // 光标在倒计时行下一行的行首，所以倒计时行 = CursorTop - 1
                             try { _countdownLineTop = Console.CursorTop - 1; }
                             catch { _countdownLineTop = -1; }
                         }
@@ -109,7 +97,6 @@ namespace MinorShift.Emuera.GameView
                 }
                 else if (_countdownLineTop >= 0)
                 {
-                    // 不再是 DisplayTime 状态（可能游戏已推进），重置
                     ResetCountdown();
                 }
 
@@ -120,37 +107,7 @@ namespace MinorShift.Emuera.GameView
                 }
 
                 FlushBuffer();
-
-                // 游戏状态变化后重置按钮选择模式
-                if (_buttonMode && console.State != ConsoleState.WaitInput)
-                {
-                    ClearButtonPrompt();
-                    _buttonMode = false;
-                    _currentButtons = [];
-                    _selectedButtonIndex = -1;
-                }
-
-                // 有按钮时自动进入按钮选择模式（EnterKey/AnyKey 不需要按钮选择）
-                if (!_buttonMode && console.State == ConsoleState.WaitInput)
-                {
-                    var req = console.CurrentRequest;
-                    if (req != null && req.InputType != InputType.EnterKey && req.InputType != InputType.AnyKey)
-                    {
-                        var buttons = console.CollectCurrentButtons();
-                        if (buttons.Count > 0)
-                        {
-                            _buttonMode = true;
-                            _currentButtons = buttons;
-                            _selectedButtonIndex = 0;
-                            if (_buf.Length > 0)
-                            {
-                                WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
-                                _buf.Clear();
-                            }
-                            RenderButtonPrompt();
-                        }
-                    }
-                }
+                SyncButtonState();
 
                 Thread.Sleep(PollIntervalMs);
             }
@@ -427,9 +384,6 @@ namespace MinorShift.Emuera.GameView
             string input = btn.IsInteger ? btn.Input.ToString() : btn.Inputs;
 
             ClearButtonPrompt();
-            _buttonMode = false;
-            _currentButtons = [];
-            _selectedButtonIndex = -1;
 
             DispatchInput(input);
         }
@@ -478,6 +432,74 @@ namespace MinorShift.Emuera.GameView
                 catch { }
             }
             _buttonPromptWidth = 0;
+        }
+
+        private void ClearInputBuffer()
+        {
+            if (_buf.Length > 0)
+            {
+                WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
+                _buf.Clear();
+            }
+        }
+
+        private static bool ButtonListEquals(List<ConsoleButtonString> a, List<ConsoleButtonString> b)
+        {
+            if (a.Count != b.Count) return false;
+            for (int i = 0; i < a.Count; i++)
+            {
+                if (a[i].Generation != b[i].Generation) return false;
+                if (a[i].IsInteger ? a[i].Input != b[i].Input : a[i].Inputs != b[i].Inputs)
+                    return false;
+            }
+            return true;
+        }
+
+        private void SyncButtonState()
+        {
+            bool shouldHaveButtons = false;
+            List<ConsoleButtonString> newButtons = [];
+
+            if (console.State == ConsoleState.WaitInput)
+            {
+                var req = console.CurrentRequest;
+                if (req != null && req.InputType != InputType.EnterKey && req.InputType != InputType.AnyKey)
+                {
+                    newButtons = console.CollectCurrentButtons();
+                    if (newButtons.Count > 0)
+                        shouldHaveButtons = true;
+                }
+            }
+
+            if (!shouldHaveButtons)
+            {
+                if (_buttonMode)
+                {
+                    ClearButtonPrompt();
+                    _buttonMode = false;
+                    _currentButtons = [];
+                    _selectedButtonIndex = -1;
+                    _buttonPromptWidth = 0;
+                }
+            }
+            else if (!_buttonMode)
+            {
+                _buttonMode = true;
+                _currentButtons = newButtons;
+                _selectedButtonIndex = 0;
+                ClearInputBuffer();
+                RenderButtonPrompt();
+            }
+            else
+            {
+                if (!ButtonListEquals(_currentButtons, newButtons))
+                {
+                    _currentButtons = newButtons;
+                    _selectedButtonIndex = Math.Min(_selectedButtonIndex, newButtons.Count - 1);
+                    if (_selectedButtonIndex < 0) _selectedButtonIndex = 0;
+                    RenderButtonPrompt();
+                }
+            }
         }
 
         protected override void DispatchInput(string input)

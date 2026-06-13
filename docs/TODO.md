@@ -110,17 +110,8 @@
 
 ### T-013：CLI 按钮选择模式跨轮次状态同步
 
-- 状态：未实现，需修复
-- 范围：`Emuera.Headless/Agent/AgentCliProtocol.cs`
-- 说明：T-011 的按钮选择模式只在 `console.State != ConsoleState.WaitInput` 时重置。若确认按钮后游戏直接进入下一轮 `WaitInput`，`_buttonMode`、`_currentButtons`、`_selectedButtonIndex` 会保留上一轮按钮，导致下一轮可能提交旧按钮值。
-- 纳入范围：
-  - 将“进入按钮模式 / 重置按钮模式”收敛为统一同步逻辑。
-  - 每次提交输入、超时、全量刷新后，根据当前 `CurrentRequest` 与 `CollectCurrentButtons()` 重新同步按钮列表。
-  - 连续 `WaitInput` 且按钮 Generation 变化时，重置选中索引并重新渲染提示行。
-- 验收：
-  - 第一轮选择按钮后进入第二轮按钮菜单，提示行显示第二轮按钮。
-  - 第二轮 `Enter` 提交第二轮按钮值，而不是第一轮按钮值。
-  - 非按钮输入请求、`EnterKey`、`AnyKey` 不进入按钮选择模式。
+- 状态：已实现
+- 说明：提取 `SyncButtonState()` 统一管理按钮模式的进入/退出/刷新，在 `RunConsoleKeyLoop` 的三个关键点（FullRefresh 后、超时后、每轮 `FlushBuffer()` 后）调用。`ConfirmButton()` 和 Timeout 路径不再手动清除按钮状态，全部由 `SyncButtonState()` 统一处理。新增 `ButtonListEquals()` 辅助方法检测按钮列表是否变化（按 Generation + Input 值比较），新增 `ClearInputBuffer()` 提取重复的输入缓冲区清除逻辑。
 
 ### T-014：CLI 模式游戏结束后主动退出
 
