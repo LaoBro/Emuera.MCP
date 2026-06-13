@@ -3,6 +3,7 @@
 .idea/*
 .reasonix/*
 .kilo/*
+.mimocode/*
 
 Emuera/artifacts/*
 Emuera/Emuera.csproj.user
@@ -14,7 +15,9 @@ Emuera.Headless/bin/*
 Emuera.Headless/obj/*
 Emuera.Headless/publish/*
 
-test_game/
+test_game/save/
+test_game/emuera.log
+test_game/profile
 Emuera.CLI/artifacts/
 
 *.diff
@@ -23,3 +26,5 @@ Emuera.CLI/artifacts/
 .mcp.json
 .emuera-mcp.json
 CLAUDE.md
+test_game/setting.json
+test_game/emuera.config

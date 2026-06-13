@@ -1,0 +1,21 @@
+@SYSTEM_TITLE
+PRINTL Agent Test Start
+PRINTL [0] Hello
+PRINTL [1] Quit
+INPUT
+IF RESULT == 0
+	PRINTFORML You entered: {RESULT}
+	PRINTL Select again:
+	PRINTL [0] World
+	PRINTL [1] Exit
+	INPUT
+	IF RESULT == 0
+		PRINTL You entered: 0
+	ELSE
+		PRINTL You entered: 1
+	ENDIF
+ELSE
+	PRINTFORML You entered: {RESULT}
+ENDIF
+PRINTL Agent Test End
+QUIT

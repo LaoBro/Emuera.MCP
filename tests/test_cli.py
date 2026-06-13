@@ -13,6 +13,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -62,6 +63,20 @@ class CliProcess:
         self.proc.stdin.write(value + "\n")
         self.proc.stdin.flush()
 
+    def _readline_with_timeout(self, timeout):
+        result = [None]
+        def read():
+            try:
+                result[0] = self.proc.stdout.readline()
+            except Exception:
+                result[0] = ""
+        t = threading.Thread(target=read, daemon=True)
+        t.start()
+        t.join(timeout)
+        if t.is_alive():
+            return None
+        return result[0]
+
     def read_until(self, expected, timeout=30):
         if self.proc is None or self.proc.stdout is None:
             raise RuntimeError("CLI process is not started")
@@ -77,7 +92,12 @@ class CliProcess:
                     f"stdout:\n{self.output}\nstderr:\n{stderr}"
                 )
 
-            line = self.proc.stdout.readline()
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            line = self._readline_with_timeout(min(remaining, 5))
+            if line is None:
+                continue
             if line:
                 self.output += line
                 if expected in self.output:
