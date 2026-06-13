@@ -151,6 +151,12 @@ static partial class Program
         var ui = new HeadlessConsole();
         var console = new EmueraConsole(ui);
 
+        // 尝试设置终端宽度匹配游戏配置宽度
+        TrySetConsoleSize();
+
+        // 检测终端中 Ambiguous Width 字符的实际渲染宽度
+        TerminalDisplayWidth.DetectAmbiguousWidth();
+
         AgentProtocolBase? protocol;
         try
         {
@@ -177,6 +183,31 @@ static partial class Program
             RunJsonlLoop(protocol);
         else if (protocol is AgentCliProtocol)
             RunCliLoop(protocol);
+    }
+
+    private static void TrySetConsoleSize()
+    {
+        if (Console.IsInputRedirected) return;
+        try
+        {
+            int charWidth = Math.Max(Config.FontSize / 2, 1);
+            int gameColumns = Config.DrawableWidth / charWidth;
+            int gameRows = Config.WindowY / Config.LineHeight;
+
+            if (gameColumns > 0 && gameRows > 0)
+            {
+                // 先设置缓冲区大小（必须 >= 窗口大小）
+                if (Console.BufferWidth < gameColumns)
+                    Console.BufferWidth = gameColumns;
+                if (Console.BufferHeight < gameRows + 10)
+                    Console.BufferHeight = gameRows + 10;
+
+                // 再设置窗口大小
+                Console.WindowWidth = Math.Min(gameColumns, Console.LargestWindowWidth);
+                Console.WindowHeight = Math.Min(gameRows + 1, Console.LargestWindowHeight);
+            }
+        }
+        catch { }
     }
 
     private static AgentProtocolBase? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui)

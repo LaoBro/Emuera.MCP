@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
 
@@ -57,23 +58,22 @@ namespace MinorShift.Emuera.GameView
                 return;
             }
 
+            // 宽度计算基于原始文本（与游戏内部一致）
             int textWidth = GetDisplayWidth(text);
-            int consoleWidth;
-            try { consoleWidth = Console.WindowWidth; }
-            catch { consoleWidth = 80; }
+            int gameWidth = GetGameColumnWidth();
 
             string output;
             switch (line.Align)
             {
                 case DisplayLineAlignment.CENTER:
                     {
-                        int pad = Math.Max((consoleWidth - textWidth) / 2, 0);
+                        int pad = Math.Max((gameWidth - textWidth) / 2, 0);
                         output = new string(' ', pad) + text;
                         break;
                     }
                 case DisplayLineAlignment.RIGHT:
                     {
-                        int pad = Math.Max(consoleWidth - textWidth, 0);
+                        int pad = Math.Max(gameWidth - textWidth, 0);
                         output = new string(' ', pad) + text;
                         break;
                     }
@@ -81,6 +81,9 @@ namespace MinorShift.Emuera.GameView
                     output = text;
                     break;
             }
+
+            // 输出前替换终端不兼容字符（░▒▓ → 半角等价字符）
+            output = TerminalDisplayWidth.ReplaceForTerminal(output);
 
             if (line.IsLineEnd)
                 WriteToAgentBuffer(output);
@@ -98,26 +101,32 @@ namespace MinorShift.Emuera.GameView
             if (string.IsNullOrEmpty(text))
                 return "";
 
+            // 宽度计算基于原始文本
             int textWidth = GetDisplayWidth(text);
-            int consoleWidth;
-            try { consoleWidth = Console.WindowWidth; }
-            catch { consoleWidth = 80; }
+            int gameWidth = GetGameColumnWidth();
 
+            string output;
             switch (line.Align)
             {
                 case DisplayLineAlignment.CENTER:
                     {
-                        int pad = Math.Max((consoleWidth - textWidth) / 2, 0);
-                        return new string(' ', pad) + text;
+                        int pad = Math.Max((gameWidth - textWidth) / 2, 0);
+                        output = new string(' ', pad) + text;
+                        break;
                     }
                 case DisplayLineAlignment.RIGHT:
                     {
-                        int pad = Math.Max(consoleWidth - textWidth, 0);
-                        return new string(' ', pad) + text;
+                        int pad = Math.Max(gameWidth - textWidth, 0);
+                        output = new string(' ', pad) + text;
+                        break;
                     }
                 default:
-                    return text;
+                    output = text;
+                    break;
             }
+
+            // 输出前替换终端不兼容字符
+            return TerminalDisplayWidth.ReplaceForTerminal(output);
         }
 
         /// <summary>
@@ -149,5 +158,17 @@ namespace MinorShift.Emuera.GameView
         }
 
         private static int GetDisplayWidth(string str) => TerminalDisplayWidth.GetDisplayWidth(str);
+
+        /// <summary>
+        /// 根据游戏配置的像素宽度计算终端字符列数。
+        /// 游戏窗口宽度由配置文件决定（WindowX/DrawableWidth），与终端宽度无关。
+        /// </summary>
+        internal static int GetGameColumnWidth()
+        {
+            // DrawableWidth 是像素宽度，半角字符宽度 = FontSize / 2 像素
+            // 所以字符列数 = DrawableWidth / (FontSize / 2)
+            int charWidth = Math.Max(Config.FontSize / 2, 1);
+            return Config.DrawableWidth / charWidth;
+        }
     }
 }
