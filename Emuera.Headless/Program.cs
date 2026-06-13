@@ -154,8 +154,11 @@ static partial class Program
         // 尝试设置终端宽度匹配游戏配置宽度
         TrySetConsoleSize();
 
-        // 检测终端中 Ambiguous Width 字符的实际渲染宽度
+        // 检测终端中 Ambiguous Width 字符的实际渲染宽度（需在字体检测之前）
         TerminalDisplayWidth.DetectAmbiguousWidth();
+
+        // 检测终端字体（依赖 AmbiguousIsWide 检测结果给出提示）
+        DetectConsoleFont();
 
         AgentProtocolBase? protocol;
         try
@@ -387,6 +390,67 @@ static partial class Program
         catch { }
     }
 
+    private static void DetectConsoleFont()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            // 尝试通过 CONOUT$ 获取真正的控制台句柄
+            // GetStdHandle 在管道重定向时可能返回非控制台句柄
+            IntPtr hOut = CreateFileW("CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+            bool openedConout = hOut != IntPtr.Zero && hOut != INVALID_HANDLE_VALUE;
+
+            if (!openedConout)
+            {
+                hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+                if (hOut == IntPtr.Zero || hOut == INVALID_HANDLE_VALUE)
+                {
+                    Console.Error.WriteLine("[terminal] Console font: failed to get console handle");
+                    return;
+                }
+            }
+
+            var info = new CONSOLE_FONT_INFO_EX();
+            info.cbSize = (uint)Marshal.SizeOf<CONSOLE_FONT_INFO_EX>();
+            if (!GetCurrentConsoleFontEx(hOut, false, ref info))
+            {
+                int err = Marshal.GetLastWin32Error();
+                Console.Error.WriteLine($"[terminal] Console font: GetCurrentConsoleFontEx failed, error={err}");
+                if (openedConout) CloseHandle(hOut);
+                return;
+            }
+            Console.Error.WriteLine($"[terminal] Console font: {info.FaceName}, size={info.dwFontSizeX}x{info.dwFontSizeY}");
+
+            // 检测非 CJK 友好字体时给出提示
+            string face = info.FaceName ?? "";
+            bool isCjkFont = face.IndexOf("Gothic", StringComparison.OrdinalIgnoreCase) >= 0
+                          || face.IndexOf("明朝", StringComparison.OrdinalIgnoreCase) >= 0
+                          || face.IndexOf("宋体", StringComparison.OrdinalIgnoreCase) >= 0
+                          || face.IndexOf("黑体", StringComparison.OrdinalIgnoreCase) >= 0
+                          || face.IndexOf("楷体", StringComparison.OrdinalIgnoreCase) >= 0
+                          || face.IndexOf("仿宋", StringComparison.OrdinalIgnoreCase) >= 0
+                          || face.IndexOf("Meiryo", StringComparison.OrdinalIgnoreCase) >= 0
+                          || face.IndexOf("Yu Gothic", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (!isCjkFont && !TerminalDisplayWidth.AmbiguousIsWide)
+            {
+                Console.Error.WriteLine("[terminal] WARNING: Non-CJK font detected with half-width Box Drawing chars.");
+                Console.Error.WriteLine("[terminal] For correct alignment, use a CJK font (e.g. MS Gothic) or run in Windows Terminal/cmd with MS Gothic.");
+            }
+
+            if (openedConout) CloseHandle(hOut);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[terminal] Console font: exception - {ex.Message}");
+        }
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateFileW(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr hObject);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr GetStdHandle(int nStdHandle);
 
@@ -399,18 +463,26 @@ static partial class Program
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFO_EX lpConsoleCurrentFontEx);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFO_EX lpConsoleCurrentFontEx);
+
     private const int STD_OUTPUT_HANDLE = -11;
     private static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
     private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
     private const uint TMPF_TRUETYPE = 0x04;
+    private const uint GENERIC_READ = 0x80000000;
+    private const uint GENERIC_WRITE = 0x40000000;
+    private const uint FILE_SHARE_READ = 0x00000001;
+    private const uint FILE_SHARE_WRITE = 0x00000002;
+    private const uint OPEN_EXISTING = 3;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct CONSOLE_FONT_INFO_EX
     {
         public uint cbSize;
         public uint nFont;
-        public uint dwFontSizeX;
-        public uint dwFontSizeY;
+        public short dwFontSizeX;
+        public short dwFontSizeY;
         public uint FontFamily;
         public uint FontWeight;
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
