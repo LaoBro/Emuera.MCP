@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Text;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
@@ -58,9 +60,12 @@ namespace MinorShift.Emuera.GameView
                 return;
             }
 
-            // 宽度计算基于原始文本（与游戏内部一致）
+            // 宽度计算基于原始纯文本（与游戏内部一致，ANSI 转义不占显示宽度）
             int textWidth = GetDisplayWidth(text);
             int gameWidth = GetGameColumnWidth();
+
+            // 带 ANSI 样式的文本（若终端不支持 ANSI 则回退到纯文本）
+            string styledText = IsAnsiEnabled() ? FormatLineWithAnsi(line) : text;
 
             string output;
             switch (line.Align)
@@ -68,17 +73,17 @@ namespace MinorShift.Emuera.GameView
                 case DisplayLineAlignment.CENTER:
                     {
                         int pad = Math.Max((gameWidth - textWidth) / 2, 0);
-                        output = new string(' ', pad) + text;
+                        output = new string(' ', pad) + styledText;
                         break;
                     }
                 case DisplayLineAlignment.RIGHT:
                     {
                         int pad = Math.Max(gameWidth - textWidth, 0);
-                        output = new string(' ', pad) + text;
+                        output = new string(' ', pad) + styledText;
                         break;
                     }
                 default:
-                    output = text;
+                    output = styledText;
                     break;
             }
 
@@ -92,6 +97,61 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>
+        /// 将 ConsoleDisplayLine 格式化为带 ANSI 转义序列的终端文本。
+        /// 逐段提取 ConsoleStyledString 的颜色与字体样式，生成对应的 ANSI 转义码。
+        /// 宽度计算与对齐由调用方基于纯文本完成，本方法仅负责样式输出。
+        /// </summary>
+        private string FormatLineWithAnsi(ConsoleDisplayLine line)
+        {
+            var sb = new StringBuilder();
+            Color? lastColor = null;
+            FontStyle lastFontStyle = FontStyle.Regular;
+
+            foreach (var button in line.Buttons)
+            {
+                foreach (var node in button.StrArray)
+                {
+                    if (node is ConsoleStyledString css)
+                    {
+                        var style = css.StringStyle;
+                        // 仅在样式发生变化时输出 ANSI 转义，减少冗余
+                        if (lastColor != style.Color || lastFontStyle != style.FontStyle)
+                        {
+                            // 若之前已有样式，先重置
+                            if (lastColor != null || lastFontStyle != FontStyle.Regular)
+                                sb.Append("\x1b[0m");
+
+                            // 前景色: \x1b[38;2;R;G;Bm（真彩色）
+                            sb.Append($"\x1b[38;2;{style.Color.R};{style.Color.G};{style.Color.B}m");
+
+                            // 粗体: \x1b[1m
+                            if ((style.FontStyle & FontStyle.Bold) != 0)
+                                sb.Append("\x1b[1m");
+                            // 斜体: \x1b[3m
+                            if ((style.FontStyle & FontStyle.Italic) != 0)
+                                sb.Append("\x1b[3m");
+
+                            lastColor = style.Color;
+                            lastFontStyle = style.FontStyle;
+                        }
+                        sb.Append(node.Text ?? "");
+                    }
+                    else
+                    {
+                        // 非样式节点（ConsoleImagePart、ConsoleShapePart 等），输出纯文本
+                        sb.Append(node.ToString());
+                    }
+                }
+            }
+
+            // 行尾重置样式，防止泄漏到下一行
+            if (lastColor != null || lastFontStyle != FontStyle.Regular)
+                sb.Append("\x1b[0m");
+
+            return sb.ToString();
+        }
+
+        /// <summary>
         /// 将 ConsoleDisplayLine 格式化为终端对齐文本，复用 WriteAlignedLine 的对齐逻辑。
         /// 供 AgentCliProtocol 全量刷新时使用。
         /// </summary>
@@ -101,9 +161,12 @@ namespace MinorShift.Emuera.GameView
             if (string.IsNullOrEmpty(text))
                 return "";
 
-            // 宽度计算基于原始文本
+            // 宽度计算基于原始纯文本
             int textWidth = GetDisplayWidth(text);
             int gameWidth = GetGameColumnWidth();
+
+            // 带 ANSI 样式的文本（若终端不支持 ANSI 则回退到纯文本）
+            string styledText = IsAnsiEnabled() ? FormatLineWithAnsi(line) : text;
 
             string output;
             switch (line.Align)
@@ -111,17 +174,17 @@ namespace MinorShift.Emuera.GameView
                 case DisplayLineAlignment.CENTER:
                     {
                         int pad = Math.Max((gameWidth - textWidth) / 2, 0);
-                        output = new string(' ', pad) + text;
+                        output = new string(' ', pad) + styledText;
                         break;
                     }
                 case DisplayLineAlignment.RIGHT:
                     {
                         int pad = Math.Max(gameWidth - textWidth, 0);
-                        output = new string(' ', pad) + text;
+                        output = new string(' ', pad) + styledText;
                         break;
                     }
                 default:
-                    output = text;
+                    output = styledText;
                     break;
             }
 
@@ -170,5 +233,12 @@ namespace MinorShift.Emuera.GameView
             int charWidth = Math.Max(Config.FontSize / 2, 1);
             return Config.DrawableWidth / charWidth;
         }
+
+        /// <summary>
+        /// 判断当前终端是否支持 ANSI 转义序列。
+        /// 与 AgentCliProtocol 中的判定逻辑一致：Program.AnsiEnabled 或非 Windows 平台。
+        /// </summary>
+        private static bool IsAnsiEnabled() => Program.AnsiEnabled || !OperatingSystem.IsWindows();
+
     }
 }

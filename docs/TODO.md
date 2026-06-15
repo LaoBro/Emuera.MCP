@@ -1,6 +1,6 @@
 ## TODO 列表
 
-> 维护规则：TODO 列表只保留未实现或仍需推进的目标；已完成目标应从本文件删除，避免把完成项继续当作待办。
+> 维护规则：TODO 列表只保留未实现或仍需推进的目标；已完成目标应从本文件删除，避免把完成项继续当作待办.
 >
 > 当前目标筛选：最终目标按模式拆分——
 >
@@ -54,7 +54,7 @@
 
 ### T-010：CLI 模式文字样式与颜色提示
 
-- 状态：未实现
+- 状态：已实现
 - 范围：`SETCOLOR`、`RESETCOLOR`、`FONTBOLD`、`FONTITALIC`、`FONTREGULAR`、`FONTSTYLE`、`SETFONT`
 - 说明：WinForms 下这些指令改变文字颜色、粗体、斜体、字体。终端不支持富文本样式，但可以用 ANSI 转义序列模拟部分效果：
   - `SETCOLOR` → ANSI 256色/真彩色转义 `\x1b[38;5;Nm` 或 `\x1b[38;2;R;G;Bm`
@@ -68,6 +68,12 @@
 - 不纳入范围：
   - `SETFONT` 改变字体族（终端不支持）。
   - `SETBGIMAGE` / `CLEARBGIMAGE`（终端不支持背景图）。
+  - `SETBGCOLOR` 背景色（会覆盖用户终端配色方案，且为背景色全局状态追踪复杂度高）。
+- 实现说明：
+  - 新增 `FormatLineWithAnsi()` 方法，逐段遍历 `ConsoleDisplayLine` 中的 `ConsoleStyledString`，提取 `StringStyle.Color`（真彩色 `\x1b[38;2;R;G;Bm`）和 `StringStyle.FontStyle`（粗体 `\x1b[1m`、斜体 `\x1b[3m`），仅在样式变化时输出转义码。
+  - `WriteAlignedLine()` 和 `FormatLineForTerminal()` 均调用 `FormatLineWithAnsi()`，保证增量输出与全量刷新一致。
+  - 宽度计算与对齐仍基于纯文本（ANSI 转义不占显示宽度）。
+  - 受 `IsAnsiEnabled()`（`Program.AnsiEnabled || !OperatingSystem.IsWindows()`）控制，终端不支持时回退到纯文本。
 - 验收：
   - `SETCOLOR` 后的文字在终端上显示对应颜色。
   - `FONTBOLD` 后的文字在终端上显示粗体。
