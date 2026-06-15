@@ -126,17 +126,17 @@ internal static class TerminalDisplayWidth
         {
             switch (c)
             {
-                case '\u2591': // ░ → . (半角)
-                    sb.Append('.');
+                case '\u2591': // ░ → ⠒ (盲文2点，≈25%灰度)
+                    sb.Append('\u2812');
                     break;
-                case '\u2592': // ▒ → : (半角)
-                    sb.Append(':');
+                case '\u2592': // ▒ → ⠶ (盲文4点，≈50%灰度)
+                    sb.Append('\u2836');
                     break;
-                case '\u2593': // ▓ → # (半角)
-                    sb.Append('#');
+                case '\u2593': // ▓ → ⠿ (盲文6点，≈75%灰度)
+                    sb.Append('\u287F');
                     break;
-                case '\u2588': // █ → # (半角，游戏中按半角使用)
-                    sb.Append('#');
+                case '\u2588': // █ → ⣿ (盲文8点全满，≈100%灰度)
+                    sb.Append('\u28FF');
                     break;
                 default:
                     sb.Append(c);
