@@ -39,6 +39,11 @@ static partial class Program
         description: "服务器监听端口",
         getDefaultValue: () => 8080
     );
+    static readonly Option<string> termWidthHintOption = new(
+        name: "--term-width-hint",
+        description: "字符宽度提示：auto(默认,探测), cjk(全角), latin(半角)",
+        getDefaultValue: () => "auto"
+    );
 
     [STAThread]
     static void Main(string[] args)
@@ -67,6 +72,10 @@ static partial class Program
         portOption.AddAlias("-PORT");
         rootCommand.AddOption(portOption);
 
+        termWidthHintOption.AddAlias("-term-width-hint");
+        termWidthHintOption.AddAlias("-TERM-WIDTH-HINT");
+        rootCommand.AddOption(termWidthHintOption);
+
         var result = rootCommand.Parse(args);
 
         if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0 || Array.IndexOf(args, "-?") >= 0)
@@ -80,6 +89,7 @@ static partial class Program
             Console.WriteLine("  --protocol <模式>     协议模式：auto(默认), jsonl, cli");
             Console.WriteLine("  --server              服务器模式：通过 HTTP 接口提供单会话服务");
             Console.WriteLine("  --port <端口>         服务器监听端口（默认 8080）");
+            Console.WriteLine("  --term-width-hint <模式>  字符宽度提示：auto(默认,探测), cjk(全角), latin(半角)");
             Console.WriteLine("  --help, -h, -?        显示帮助信息");
             Console.WriteLine();
             Console.WriteLine("协议模式说明:");
@@ -94,6 +104,7 @@ static partial class Program
         var protocolArg = result.GetValueForOption(protocolOption);
         var server = result.GetValueForOption(serverOption);
         var port = result.GetValueForOption(portOption);
+        var termWidthHint = result.GetValueForOption(termWidthHintOption) ?? "auto";
 
         if (server && ArgsContainProtocol(args))
         {
@@ -139,14 +150,15 @@ static partial class Program
         if (server)
             RunServer(port);
         else
-            RunHeadless(protocolArg);
+            RunHeadless(protocolArg, termWidthHint);
     }
 
-    private static void RunHeadless(string protocolArg)
+    private static void RunHeadless(string protocolArg, string termWidthHint)
     {
         Console.Error.WriteLine($"[headless] Emuera {AssemblyData.EmueraVersionText} 无头模式启动");
         Console.Error.WriteLine($"[headless] 工作目录: {ExeDir}");
         Console.Error.WriteLine($"[headless] 协议模式: {protocolArg}");
+        Console.Error.WriteLine($"[headless] 字符宽度提示: {termWidthHint}");
 
         var ui = new HeadlessConsole();
         var console = new EmueraConsole(ui);
@@ -154,11 +166,21 @@ static partial class Program
         // 尝试设置终端宽度匹配游戏配置宽度
         TrySetConsoleSize();
 
-        // 检测终端中 Ambiguous Width 字符的实际渲染宽度（需在字体检测之前）
-        TerminalDisplayWidth.DetectAmbiguousWidth();
+        // 应用用户提供的字符宽度提示（cjk/latin 强制覆盖；auto 交由探测决定）
+        string hint = (termWidthHint ?? "auto").Trim().ToLowerInvariant();
+        TerminalDisplayWidth.ApplyWidthHint(hint);
+        if (hint == "auto")
+        {
+            // 探测各字符组在当前终端的实际渲染宽度
+            // 在 conhost、Windows Terminal(conpty) 中可靠；重定向/mintty 下保持默认
+            TerminalDisplayWidth.DetectCharWidths();
+        }
 
-        // 检测终端字体（依赖 AmbiguousIsWide 检测结果给出提示）
+        // 读取并打印当前终端字体名（仅诊断信息，不参与判断）
         DetectConsoleFont();
+
+        // 基于探测结果给出字体配置建议
+        PrintTerminalGuidance();
 
         AgentProtocolBase? protocol;
         try
@@ -343,7 +365,9 @@ static partial class Program
         if (!OperatingSystem.IsWindows()) return;
         if (Console.IsInputRedirected) return;
         TryEnableVirtualTerminal();
-        TrySetConsoleFont();
+        // 不再自动设置终端字体：SetCurrentConsoleFontEx 在 Windows Terminal(conpty)
+        // 和 Git Bash(mintty/winpty) 下均无效，仅在老式 conhost 中生效。
+        // 强行设置会导致不同终端效果不一致，改为探测渲染宽度 + 提示用户手动配置。
     }
 
     private static void TryEnableVirtualTerminal()
@@ -361,31 +385,6 @@ static partial class Program
             }
             if (SetConsoleMode(hOut, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING))
                 AnsiEnabled = true;
-        }
-        catch { }
-    }
-
-    private static void TrySetConsoleFont()
-    {
-        if (!OperatingSystem.IsWindows()) return;
-        try
-        {
-            IntPtr hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-            if (hOut == IntPtr.Zero || hOut == INVALID_HANDLE_VALUE) return;
-            var info = new CONSOLE_FONT_INFO_EX();
-            info.cbSize = (uint)Marshal.SizeOf<CONSOLE_FONT_INFO_EX>();
-            info.FaceName = "MS Gothic";
-            info.FontFamily = TMPF_TRUETYPE;
-            info.dwFontSizeY = 18;
-            if (!SetCurrentConsoleFontEx(hOut, false, ref info))
-            {
-                info.FaceName = "Cascadia Mono";
-                if (!SetCurrentConsoleFontEx(hOut, false, ref info))
-                {
-                    info.FaceName = "Consolas";
-                    SetCurrentConsoleFontEx(hOut, false, ref info);
-                }
-            }
         }
         catch { }
     }
@@ -420,28 +419,49 @@ static partial class Program
                 return;
             }
             Console.Error.WriteLine($"[terminal] Console font: {info.FaceName}, size={info.dwFontSizeX}x{info.dwFontSizeY}");
-
-            // 检测非 CJK 友好字体时给出提示
-            string face = info.FaceName ?? "";
-            bool isCjkFont = face.IndexOf("Gothic", StringComparison.OrdinalIgnoreCase) >= 0
-                          || face.IndexOf("明朝", StringComparison.OrdinalIgnoreCase) >= 0
-                          || face.IndexOf("宋体", StringComparison.OrdinalIgnoreCase) >= 0
-                          || face.IndexOf("黑体", StringComparison.OrdinalIgnoreCase) >= 0
-                          || face.IndexOf("楷体", StringComparison.OrdinalIgnoreCase) >= 0
-                          || face.IndexOf("仿宋", StringComparison.OrdinalIgnoreCase) >= 0
-                          || face.IndexOf("Meiryo", StringComparison.OrdinalIgnoreCase) >= 0
-                          || face.IndexOf("Yu Gothic", StringComparison.OrdinalIgnoreCase) >= 0;
-            if (!isCjkFont && !TerminalDisplayWidth.AmbiguousIsWide)
-            {
-                Console.Error.WriteLine("[terminal] WARNING: Non-CJK font detected with half-width Box Drawing chars.");
-                Console.Error.WriteLine("[terminal] For correct alignment, use a CJK font (e.g. MS Gothic) or run in Windows Terminal/cmd with MS Gothic.");
-            }
+            Console.Error.WriteLine("[terminal] (注意: Windows Terminal/Git Bash 下字体名可能不准确，以宽度探测结果为准)");
 
             if (openedConout) CloseHandle(hOut);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[terminal] Console font: exception - {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 基于字符宽度探测结果，向用户给出补偿说明与字体建议。
+    /// 探测解决的是终端 cell allocation（占位列数），输出时补空格/替换补偿的是对齐。
+    /// 但字体字形宽度与 cell allocation 不匹配时仍会视觉异常：
+    ///   - cell=1 但字形全角（如 WT+MS Gothic 的 █）→ 字形溢出与相邻字符重叠
+    ///   - cell=2（含补空格）但字形半角（如 WT 的 ━）→ 空白列产生线条空缺
+    /// 因此仍需建议用户选择字形宽度与 cell allocation 匹配的字体。
+    /// </summary>
+    private static void PrintTerminalGuidance()
+    {
+        bool anySymbolHalf = !TerminalDisplayWidth.BoxDrawingIsWide
+                          || !TerminalDisplayWidth.GeometricIsWide
+                          || !TerminalDisplayWidth.MiscSymbolsIsWide;
+        bool blockReplaced = TerminalDisplayWidth.BlockElementsIsWide;
+
+        if (anySymbolHalf)
+        {
+            Console.Error.WriteLine("[terminal] 检测到制表符/几何/符号字符被渲染为半角，已自动补空格补偿对齐。");
+        }
+        if (blockReplaced)
+        {
+            Console.Error.WriteLine("[terminal] 检测到方块字符被渲染为全角，已自动替换为盲文点阵以保持游戏布局。");
+        }
+        if (anySymbolHalf || blockReplaced)
+        {
+            Console.Error.WriteLine("[terminal] 建议：选择字形宽度与终端占位匹配的字体可改善视觉效果。");
+            Console.Error.WriteLine("[terminal]   若占位半角但字形全角（字符重叠），选字形本身为半角的字体（如 Cascadia Mono）。");
+            Console.Error.WriteLine("[terminal]   若补空格后出现线条空缺，选字形本身为全角的字体（如 MS Gothic）。");
+            Console.Error.WriteLine("[terminal]   理想字体：各字符组的字形宽度恰好等于终端的占位列数。");
+        }
+        if (!anySymbolHalf && !blockReplaced)
+        {
+            Console.Error.WriteLine("[terminal] 字符宽度检测正常，无需额外补偿。");
         }
     }
 
@@ -461,15 +481,11 @@ static partial class Program
     private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
     [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool SetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFO_EX lpConsoleCurrentFontEx);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFO_EX lpConsoleCurrentFontEx);
 
     private const int STD_OUTPUT_HANDLE = -11;
     private static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
     private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
-    private const uint TMPF_TRUETYPE = 0x04;
     private const uint GENERIC_READ = 0x80000000;
     private const uint GENERIC_WRITE = 0x40000000;
     private const uint FILE_SHARE_READ = 0x00000001;
