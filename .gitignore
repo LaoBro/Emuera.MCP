@@ -14,6 +14,7 @@ Emuera/obj/*
 Emuera.Headless/bin/*
 Emuera.Headless/obj/*
 Emuera.Headless/publish/*
+docs/2026.6.16.mouse-input/spikes/*
 
 test_game/save/
 test_game/emuera.log
