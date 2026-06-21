@@ -350,10 +350,11 @@ namespace MinorShift.Emuera.GameView
         {
             if (console.State != ConsoleState.WaitInput) return;
 
-            // 非按钮模式（AnyKey/EnterKey）下，鼠标点击统一派发回车推进游戏
+            // 非按钮模式（AnyKey/EnterKey）下，鼠标点击统一派发空输入推进游戏
+            // 注意：不能传 "\n"，PressEnterKey 会按 \n split 成两个空串导致推进两次
             if (!_buttonMode)
             {
-                DispatchInput("\n");
+                DispatchInput("");
                 return;
             }
 
@@ -377,7 +378,7 @@ namespace MinorShift.Emuera.GameView
             if (console.State != ConsoleState.WaitInput) return;
             if (_buttonMode) return;
 
-            DispatchInput("\n");
+            DispatchInput("");
         }
 
         private long _lastRegionGeneration = -1;

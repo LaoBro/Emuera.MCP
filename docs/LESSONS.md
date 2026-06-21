@@ -79,3 +79,87 @@
 - **宽度计算始终与游戏设计一致，终端差异在输出层弥补**：`IsWideChar` 定义游戏期望宽度，`ReplaceForTerminal` 通过补空格/替换把终端实际视觉宽度校准回游戏期望。
 - **自动设字体是反模式**：改为"暴露问题 + 清晰提示"更健壮，也尊重用户控制权。
 - **实测数据比理论推演重要**：理论上"MS Gothic 让 Geometric 全角"在 conhost 中正确，但在 WT 中并非如此。探测告诉你"实际做了什么"，而非"应该做什么"。
+
+## Win32 P/Invoke 结构体中 BOOL 必须用 int 而非 bool
+
+**场景**：`KEY_EVENT_RECORD.bKeyDown` 声明为 `bool`，`FOCUS_EVENT_RECORD.bSetFocus` 同理。
+
+**结果**：所有键盘事件被当作释放事件（`bKeyDown=false`）忽略，键盘输入完全失灵。
+
+**原因**：Win32 `BOOL` 是 4 字节 `int`（0/非0），C# `bool` marshalling 语义不同。`bool` 在结构体中的布局和对齐可能与 Win32 `BOOL` 不一致，导致后续字段偏移错位，读取到错误值。
+
+**解决**：将 `bKeyDown`、`bSetFocus` 等 Win32 BOOL 字段改为 `int`，判断时用 `!= 0`。
+
+**教训**：P/Invoke 结构体中 Win32 `BOOL` 一律用 `int`，不要用 `bool`。`bool` 只适用于 Win32 API 参数（P/Invoke 会自动 marshalling），不适用于嵌套在结构体中的字段。
+
+## CHAR_UNION 嵌套结构体导致 marshalling 偏移错位
+
+**场景**：`KEY_EVENT_RECORD.uChar` 声明为 `CHAR_UNION`（含 `UnicodeChar` 和 `AsciiChar` 两个 `byte` 字段的 union）。
+
+**结果**：`uChar` 读取到错误值，`uChar==0` 的过滤条件把方向键等控制键全部跳过。
+
+**原因**：`CHAR_UNION` 作为显式布局结构体嵌套在 `KEY_EVENT_RECORD` 中，字段偏移计算容易出错。Win32 原始定义中 `uChar` 是一个 `char`（2 字节 Unicode），直接映射更简单可靠。
+
+**解决**：去掉 `CHAR_UNION`，`uChar` 直接声明为 `char`。
+
+**教训**：P/Invoke 结构体尽量与 Win32 原始布局一一对应，避免不必要的嵌套结构体。能用简单类型直接映射的就不要用 union 模拟。
+
+## IME 过滤条件不能基于 uChar==0
+
+**场景**：键盘事件过滤中，`uChar==0 && !IsModifierKeyCode(vk)` 被当作 IME 中间态跳过。
+
+**结果**：方向键、PgUp/PgDn、Home/End、Insert/Delete、F1-F24 等控制键的 `uChar` 都是 `\0`，全部被错误跳过。
+
+**原因**：IME 组合输入的中间态特征是 `wVirtualKeyCode == VK_PROCESSKEY (0xE5)`，不是 `uChar==0`。控制键有合法的 `wVirtualKeyCode` 但 `uChar` 为空。
+
+**解决**：只过滤 `vk == VK_PROCESSKEY`，其他所有按键事件都放行给 `ProcessKey`。
+
+**教训**：过滤条件必须精确匹配目标特征，不能凭直觉扩大范围。`uChar==0` 是控制键的正常属性，不是异常状态。
+
+## C# 静态字段按声明顺序初始化
+
+**场景**：`s_logEnabled` 在 `s_logPath` 之后声明，`s_logPath` 的初始化调用 `ResolveLogPath()` 读取 `s_logEnabled`。
+
+**结果**：`s_logEnabled` 还是默认值 `false`，`ResolveLogPath()` 直接返回 `null`，日志功能不生效。
+
+**原因**：C# 静态字段按声明顺序初始化。`s_logPath` 先初始化，此时 `s_logEnabled` 尚未被赋值，仍是 `false`。
+
+**解决**：交换声明顺序，`s_logEnabled` 在 `s_logPath` 之前。
+
+**教训**：有依赖关系的静态字段必须按依赖顺序声明。被依赖的字段必须先声明。或者改用静态构造函数/方法避免初始化顺序问题。
+
+## GetDisplayWidth 不处理 ANSI 转义码，不能用于计算居中偏移
+
+**场景**：用 `GetDisplayWidth(formattedLine)` 计算 `formattedWidth`，再算 `leadingOffset = (formattedWidth - segmentsTotalWidth) / 2`。
+
+**结果**：居中偏移计算错误，按钮列范围与屏幕实际位置对不上。
+
+**原因**：`FormatLineForTerminal` 在 ANSI 模式下生成带 `\x1b[...m` 转义码的串，`GetDisplayWidth` 逐字符计算宽度时把转义码的每个字符都算作 1 列，导致 `formattedWidth` 虚高。而居中 padding 是 `FormatLineForTerminal` 内部基于纯文本宽度计算的，不含 ANSI 码字符。
+
+**解决**：直接数 `formattedLine` 的前导空格字符数（`CountLeadingSpaces`）。`FormatLineForTerminal` 对 CENTER 行生成 `new string(' ', pad) + styledText`，前导空格在 ANSI 码之前，直接数即可得到屏幕上的起始列。
+
+**教训**：涉及终端显示宽度的计算必须排除 ANSI 转义码。如果宽度计算函数不处理转义码，就不能用于含转义码的字符串。对于居中偏移这种简单场景，直接数前导空格比通用宽度计算更可靠。
+
+## PressEnterKey 会按 \\n 拆分输入，不能传 "\n"
+
+**场景**：鼠标点击在非按钮模式下派发 `DispatchInput("\n")` 推进游戏。
+
+**结果**：点一下推进两次，相当于按了两次回车。
+
+**原因**：`PressEnterKey` 中 `input.Split(["\\n", "\r\n", "\n", "\r"])` 把 `"\n"` 拆成 `["", ""]` 两个空字符串，循环执行两次 `RunEmueraProgram("")`，每次推进一个 AnyKey 状态。
+
+**解决**：`DispatchInput("")` 传空字符串。空串不被 split，只产生一个元素，只推进一次。
+
+**教训**：调用 `PressEnterKey`/`DispatchInput` 时，输入值会被宏解析系统 split 处理。`"\n"` 是宏分隔符，不能作为"回车"语义使用。AnyKey/EnterKey 等待下空字符串即可推进。
+
+## 鼠标事件 dwEventFlags 过滤不能忽略 DOUBLE_CLICK
+
+**场景**：鼠标事件过滤条件 `dwEventFlags != 0`，只接受单击。
+
+**结果**：双击的第二次点击 `dwEventFlags=DOUBLE_CLICK(0x0002)` 被忽略，快速点击时第二下被吞掉。
+
+**原因**：conhost 对双击的第二次按下设置 `dwEventFlags=DOUBLE_CLICK` 而非 0，但该事件仍然是有效的左键按下，应该响应。
+
+**解决**：过滤条件改为 `dwEventFlags != 0 && dwEventFlags != DOUBLE_CLICK`，允许单击和双击，只忽略移动/释放/滚轮。
+
+**教训**：`dwEventFlags` 的值不只区分事件类型，还标记同一类型的不同交互方式（单击 vs 双击）。过滤时要明确哪些 flag 值需要保留，不能简单地 `!= 0` 一刀切。

@@ -198,11 +198,10 @@ namespace MinorShift.Emuera.GameView
 
         private void HandleMouse(MOUSE_EVENT_RECORD mouseEvent)
         {
-            // 只接受左键按下，eventFlags==0
+            // 只接受左键按下；允许单击和双击，忽略移动/释放/滚轮
             if ((mouseEvent.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED) == 0
-                || mouseEvent.dwEventFlags != 0)
+                || (mouseEvent.dwEventFlags != 0 && mouseEvent.dwEventFlags != DOUBLE_CLICK))
             {
-                // 移动/释放/滚轮/双击/右键/中键全部忽略
                 return;
             }
 
