@@ -229,7 +229,7 @@ static partial class Program
 
                 // 再设置窗口大小
                 Console.WindowWidth = Math.Min(gameColumns, Console.LargestWindowWidth);
-                Console.WindowHeight = Math.Min(gameRows + 1, Console.LargestWindowHeight);
+                Console.WindowHeight = Math.Min(gameRows + 4, Console.LargestWindowHeight);
             }
         }
         catch { }
