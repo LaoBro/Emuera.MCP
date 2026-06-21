@@ -5,9 +5,10 @@
 - 版本：v1.4
 - 基线：`docs/2026.6.16.mouse-input/spec-v1.3.md`
 - 关联验证：`docs/2026.6.16.mouse-input/validation-results.md`、`docs/2026.6.16.mouse-input/coordinate-validation-results.md`
-- 目标文件：`Emuera.Headless/Agent/AgentCliProtocol.cs`、`Emuera.Headless/Agent/AgentCliMouseInput.cs`
+- 目标文件：`Emuera.Headless/Agent/AgentCliProtocol.cs`、`Emuera.Headless/Agent/AgentCliMouseInput.cs`（新建）
 - 目标平台：Windows `conhost.exe` / classic console host
 - 输入 backend：Win32 `ReadConsoleInput()`
+- 输入读取策略：方案 D — `GetNumberOfConsoleInputEvents` 非阻塞轮询 + `ReadConsoleInput` 统一分派
 
 ## 相对 v1.3 的变更
 
@@ -18,6 +19,10 @@
 - `RenderButtonPrompt()` 只负责显示，不再参与命中计算，不再捕获 prompt 行。
 - 删除 v1.3 的 `cursorTop - 1`、`cursorTop - 2`、`promptRow - distanceFromPrompt` 等反推行号逻辑。
 - 不再承诺 Windows Terminal / conpty 坐标兼容。
+- **输入读取改为方案 D**：主循环用 `GetNumberOfConsoleInputEvents` 查询队列长度，>0 时逐条 `ReadConsoleInput` 读取并按 `EventType` 分派；键盘与鼠标事件统一从 `ReadConsoleInput` 消费，不再调用 `Console.KeyAvailable` / `Console.ReadKey()`，避免 .NET Console 内部缓冲吞掉鼠标事件。
+- **键盘事件映射规则**：`KEY_EVENT_RECORD` 显式转换为 `ConsoleKeyInfo` 复用现有 `ProcessKey` 路径，映射规则见「键盘事件映射」一节。
+- **鼠标输入拆分到新文件** `AgentCliMouseInput.cs`：负责 P/Invoke、input mode 生命周期、`INPUT_RECORD` 分派、按钮区域记录与命中；`AgentCliProtocol.cs` 只保留主循环、渲染、文本输入逻辑。
+- **边界点击偏差根因已确认**：conhost 中 `WINDOW_BUFFER_SIZE_EVENT` 的 stderr 日志会推动可见内容下移一行，导致 rawY 偏 +1；生产路径不在绘图阶段向 stderr 输出，该偏差不再出现。
 - 保留 pipe / redirected stdin 禁用鼠标、Win32 input mode 设置、Quick Edit 禁用与恢复、文件日志调试策略。
 
 ## 一句话总结
@@ -135,7 +140,6 @@ buffer row/col
 
 因此：
 
-- `Console.CursorTop` 是 viewport row，不能直接和 `dwMousePosition.Y` 比较；
 - `Console.WindowTop` 可用于从 viewport 行推导 buffer 行；
 - 鼠标命中时不转换鼠标坐标；
 - 按钮区域记录时必须记录 buffer 行。
@@ -218,9 +222,35 @@ for (int i = 0; i < visibleLines; i++)
     int visibleRowIndex = i;
     int bufferRow = windowTop + visibleRowIndex;
 
-    RecordButtonRegionsForLine(lines[lineIndex], bufferRow, consoleWidth);
+    // 必须用 FormatLineForTerminal 后的串计算列范围，与屏幕实际位置一致
+    string formatted = console.FormatLineForTerminal(lines[lineIndex]);
+    RecordButtonRegionsForLine(formatted, bufferRow, consoleWidth);
 }
 ```
+
+### 刷新时机
+
+区域刷新必须发生在 `SyncButtonState()` 渲染完成**之后**，且在 `FullRefresh()` 重绘**之后**：
+
+- `FullRefresh()` 会清屏并重写所有可见行，触发滚动，`WindowTop` 在其返回后才稳定；
+- `SyncButtonState()` 可能调用 `RenderButtonPrompt()` 改变最后一行内容；
+- 只有两者都完成后，`WindowTop` 与可见行布局才反映用户即将点击的真实屏幕。
+
+主循环中的顺序：
+
+```text
+FullRefresh()          // 重绘
+SyncButtonState()      // 渲染按钮 prompt
+RefreshButtonRegions() // 此时 WindowTop 已稳定，记录区域
+```
+
+### 列宽计算基准
+
+`RecordButtonRegionsForLine` 接收的字符串必须是 `console.FormatLineForTerminal(lines[lineIndex])` 的返回值，**不是原始 `displayLine`**：
+
+- `FormatLineForTerminal` 会处理 ANSI 转义、宽字符截断等，改变实际显示宽度；
+- 按原始 `displayLine` 计算的 `Left` / `Right` 会与屏幕实际位置错位；
+- 列宽计算使用 `TerminalDisplayWidth.GetDisplayWidth`，与 `RenderButtonPrompt` / `OverwriteCountdownLine` 保持一致。
 
 注意：
 
@@ -229,6 +259,7 @@ for (int i = 0; i < visibleLines; i++)
 - prompt 行不参与区域计算；
 - `RenderButtonPrompt()` 不需要捕获 `_buttonPromptRow`；
 - 不再需要 `_lastRecordedButtonPromptRow` 之类的 prompt 行缓存。
+- `RecordButtonRegionsForLine` 中若 `buttonWidth <= 0`，直接 `continue` 跳过该按钮，**不要累加 `column`**，避免后续按钮列范围偏移（见「已知限制」历史 bug 修复）。
 
 ## 鼠标事件处理
 
@@ -270,13 +301,89 @@ ENABLE_QUICK_EDIT_MODE
 
 ### 读取方式
 
-使用 Win32 `ReadConsoleInput()` 读取 `INPUT_RECORD`。
+采用**方案 D**：`GetNumberOfConsoleInputEvents` 非阻塞轮询 + `ReadConsoleInput` 统一分派。
 
-只处理：
+主循环每次轮询时：
 
-```text
-EventType == MOUSE_EVENT
+1. 调用 `GetNumberOfConsoleInputEvents(stdinHandle, out int count)`；
+2. 若 `count == 0`，跳过输入处理，进入 `Thread.Sleep(PollIntervalMs)`；
+3. 若 `count > 0`，循环 `count` 次调用 `ReadConsoleInput(stdinHandle, out INPUT_RECORD rec, ...)`，逐条按 `EventType` 分派。
+
+```csharp
+GetNumberOfConsoleInputEvents(stdin, out int count);
+for (int i = 0; i < count; i++)
+{
+    ReadConsoleInput(stdin, out INPUT_RECORD rec, 1, out _);
+    switch (rec.EventType)
+    {
+        case INPUT_RECORD.MOUSE_EVENT: HandleMouse(rec.MouseEvent); break;
+        case INPUT_RECORD.KEY_EVENT:   HandleKey(rec.KeyEvent);   break;
+        default: /* 忽略 */ break;
+    }
+}
 ```
+
+**禁止在鼠标启用期间调用 `Console.KeyAvailable` / `Console.ReadKey()`**：.NET Console 在 Windows 内部会主动消费并丢弃非 key 事件（含 `MOUSE_EVENT_RECORD`），会吞掉鼠标事件。键盘事件必须从 `ReadConsoleInput` 的 `KEY_EVENT_RECORD` 分派。
+
+pipe / redirected stdin 模式不进入此路径，仍走 `RunPipeCliLoop` 的 `TextReader.ReadLine`。
+
+### 键盘事件映射
+
+`KEY_EVENT_RECORD` 必须显式转换为 `ConsoleKeyInfo`，复用 `AgentCliProtocol.ProcessKey` 路径，避免重复实现按键逻辑。
+
+#### 字段映射规则
+
+```csharp
+// KEY_EVENT_RECORD → ConsoleKeyInfo
+ConsoleKey key = (ConsoleKey)keyEvent.wVirtualKeyCode;       // 直接映射虚拟键码
+char keyChar = keyEvent.uChar.UnicodeChar;                   // 取 Unicode 字符
+ConsoleModifiers mods = MapControlKeyState(keyEvent.dwControlKeyState);
+var keyInfo = new ConsoleKeyInfo(keyChar, key, mods.HasFlag(ConsoleModifiers.Shift),
+                                 mods.HasFlag(ConsoleModifiers.Alt),
+                                 mods.HasFlag(ConsoleModifiers.Control));
+```
+
+`dwControlKeyState` → `ConsoleModifiers` 映射：
+
+| `dwControlKeyState` 标志 | `ConsoleModifiers` |
+|---|---|
+| `SHIFT_PRESSED` | `Shift` |
+| `LEFT_ALT_PRESSED` / `RIGHT_ALT_PRESSED` | `Alt` |
+| `LEFT_CTRL_PRESSED` / `RIGHT_CTRL_PRESSED` | `Control` |
+
+#### 释放事件过滤
+
+`KEY_EVENT_RECORD.bKeyDown == false` 的释放事件一律忽略，否则每个按键会触发两次 `ProcessKey`。
+
+```csharp
+if (!keyEvent.bKeyDown) return;
+```
+
+#### Ctrl+C 处理
+
+鼠标启用期间 `Console.CancelKeyPress` 不再可靠触发（因为不再走 `Console.ReadKey`）。必须在 `KEY_EVENT_RECORD` 分派路径手动检测：
+
+```csharp
+if (keyEvent.wVirtualKeyCode == (ushort)ConsoleKey.C
+    && (keyEvent.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0)
+{
+    // 派发 0x03 或触发退出
+}
+```
+
+退出路径仍需恢复 console input mode（见「清理要求」）。
+
+#### IME 组合输入
+
+IME 组合过程中 `KEY_EVENT_RECORD.uChar.UnicodeChar` 可能为 `0`。处理策略：
+
+- `UnicodeChar == 0` 且非修饰键（Ctrl/Alt/Shift 单独按下）时，跳过本次 `ProcessKey` 派发；
+- IME 提交时会产生 `UnicodeChar != 0` 的最终字符事件，正常派发；
+- 不实现 IME 组合中间态的可见回显，保持与现有 `ProcessChar` 行为一致。
+
+#### 与 `ProcessKey` 的对接
+
+转换后的 `ConsoleKeyInfo` 直接传入 `AgentCliProtocol.ProcessKey(ConsoleKeyInfo)`，复用现有 `Enter` / `Backspace` / `Escape` / 字符输入 / 按钮模式 `↑/↓/Enter` 分支，不重复实现按键语义。
 
 ### 接受的事件
 
@@ -297,7 +404,9 @@ dwEventFlags == 0
 - 右键；
 - 中键；
 - double-click 噪声；
-- 坐标越界事件。
+- 坐标越界事件；
+- `WINDOW_BUFFER_SIZE_EVENT`（conhost 在绘图阶段会触发，生产路径不处理，避免引入坐标偏移）；
+- `MENU_EVENT` / `FOCUS_EVENT` 等其他事件类型。
 
 释放事件不会重复提交。
 
@@ -345,12 +454,13 @@ miss bufferRow=128 bufferCol=9 regionRows=126,127
 
 ## 与键盘输入的关系
 
-- 鼠标和键盘可以同时启用。
+- 鼠标和键盘可以同时启用，统一从 `ReadConsoleInput` 读取（方案 D）。
 - 鼠标点击按钮直接提交。
 - `↑/↓` 继续切换当前按钮。
 - `Enter` 继续确认当前按钮。
 - 输入事件按实际到达顺序处理。
 - 鼠标提交后，后续按钮状态交给游戏现有按钮过期逻辑处理。
+- 鼠标启用期间禁止调用 `Console.KeyAvailable` / `Console.ReadKey()`，键盘事件通过 `KEY_EVENT_RECORD → ConsoleKeyInfo → ProcessKey` 派发（见「键盘事件映射」）。
 
 ## 不清理复杂区域的原因
 
@@ -393,21 +503,20 @@ v1.4 不做：
 - 停止读取 Win32 console input；
 - 用保存的原始 input mode 调用 `SetConsoleMode()` 恢复，包括恢复 `ENABLE_QUICK_EDIT_MODE`；
 - 清空当前按钮区域；
-- 清空 prompt 行不参与命中后的旧缓存；
 - 不向 stdout / `Console.Error` 输出鼠标调试信息。
 
 pipe 模式不调用鼠标启用 / 禁用逻辑。
 
 ## 已知限制 / 待验证
 
-以下属于 v1.4 范围内但尚未实测确认，应记录为限制，不视为 MVP 已完全覆盖：
+以下属于 v1.4 范围内但尚未完全覆盖，应记录为限制：
 
-- **边界点击**：左上角 `(0,0)`、右下角 buffer 范围内的 raw 坐标尚未系统实测。越界判断逻辑已设计，但边界值未确认。
-- **全角字符 / ANSI 按钮列宽**：当前主要验证 ASCII 按钮（`[0] Hello` 等）的列范围。含全角字符（占 2 列）或 ANSI 转义的按钮，列范围计算需按实际渲染宽度处理。
-- **`RecordButtonRegionsForLine` 中 `buttonWidth<=0` 的 column 重复累加**：宽度为 0 的按钮会让 `column` 被累加两次（`if (buttonWidth <= 0)` 分支内一次，循环末尾又一次），导致后续按钮列范围偏移。该路径仅在按钮渲染宽度为 0 时触发（罕见），本次生产化改造未修复。
+- **边界点击**：已在 conhost 实测（见 `coordinate-validation-results.md` 用例 6a/6b）。左上角 `(0,0)` 命中正常；右下角存在 `normalizedRow = WindowHeight` 的 +1 偏差（点击窗口最底部边缘像素映射到 viewport 下方一行），属极端边界情况，不影响生产路径。早期 spike 中观察到的 rawY +1 偏差根因已确认：conhost 中 `WINDOW_BUFFER_SIZE_EVENT` 的 stderr 日志会推动可见内容下移一行，生产路径不在绘图阶段向 stderr 输出，该偏差不再出现。
+- **全角字符 / ANSI 按钮列宽**：当前主要验证 ASCII 按钮（`[0] Hello` 等）的列范围。含全角字符（占 2 列）或 ANSI 转义的按钮，列范围计算需按实际渲染宽度处理。v1.4 已要求基于 `FormatLineForTerminal` 后的串计算列宽，但全角场景未系统实测。
 - **prompt 换行**：v1.4 不依赖 prompt 行命中，但按钮区域仍基于当前可见行记录；如果按钮提示自身换行，需要按实际显示行记录 segment。
 - **手动滚动 scrollback**：未实现滚动后命中修正；v1.4 只保证当前可见按钮。
 - **Windows Terminal / conpty**：不作为 v1.4 验收目标。
+- **IME 组合中间态**：v1.4 只处理 IME 提交后的最终字符事件，不实现组合中间态的可见回显。
 
 ## 验收标准
 
@@ -428,6 +537,9 @@ pipe 模式不调用鼠标启用 / 禁用逻辑。
 - 坐标越界不会导致异常。
 - 鼠标功能失败时静默 fallback 到键盘。
 - 退出后 console input mode 恢复（含 Quick Edit）。
+- **键盘事件在鼠标启用期间仍能正常派发**：`↑/↓/Enter/Esc` 及字符输入通过 `KEY_EVENT_RECORD → ConsoleKeyInfo → ProcessKey` 路径生效，不因 `ReadConsoleInput` 统一消费队列而丢失或重复触发。
+- `KEY_EVENT_RECORD.bKeyDown == false` 的释放事件不触发 `ProcessKey`。
+- `Ctrl+C` 在鼠标启用期间能触发退出，不依赖 `Console.CancelKeyPress`。
 
 ### 兼容性验收
 

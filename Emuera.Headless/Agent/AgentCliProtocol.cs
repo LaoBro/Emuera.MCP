@@ -57,6 +57,10 @@ namespace MinorShift.Emuera.GameView
 
         private void RunConsoleKeyLoop()
         {
+            // 创建鼠标输入后端；非 Windows / pipe 模式返回 null，主循环回退到 Console.ReadKey
+            using var mouseInput = AgentCliMouseInput.TryCreate(this);
+            bool mouseEnabled = mouseInput != null && mouseInput.IsEnabled;
+
             while (!IsStopped)
             {
                 if (console._needFullRefresh)
@@ -66,6 +70,7 @@ namespace MinorShift.Emuera.GameView
                     FullRefresh();
                     ResetCountdown();
                     SyncButtonState();
+                    if (mouseEnabled) RefreshButtonRegions(mouseInput!, force: true);
                     continue;
                 }
 
@@ -78,6 +83,7 @@ namespace MinorShift.Emuera.GameView
                     console.SubmitTimeout();
                     FlushBuffer();
                     SyncButtonState();
+                    if (mouseEnabled) RefreshButtonRegions(mouseInput!);
                     continue;
                 }
 
@@ -100,7 +106,12 @@ namespace MinorShift.Emuera.GameView
                     ResetCountdown();
                 }
 
-                if (Console.KeyAvailable)
+                if (mouseEnabled)
+                {
+                    // 方案 D：从 ReadConsoleInput 统一消费鼠标 + 键盘事件
+                    mouseInput!.PollEvents();
+                }
+                else if (Console.KeyAvailable)
                 {
                     var key = Console.ReadKey(true);
                     ProcessKey(key);
@@ -108,6 +119,7 @@ namespace MinorShift.Emuera.GameView
 
                 FlushBuffer();
                 SyncButtonState();
+                if (mouseEnabled) RefreshButtonRegions(mouseInput!);
 
                 Thread.Sleep(PollIntervalMs);
             }
@@ -275,7 +287,10 @@ namespace MinorShift.Emuera.GameView
             catch { }
         }
 
-        private void ProcessChar(char ch)
+        /// <summary>
+        /// 处理字符输入。由 ProcessKey、RunPipeCliLoop、AgentCliMouseInput（Ctrl+C）共同复用。
+        /// </summary>
+        internal void ProcessChar(char ch)
         {
             if (ch == '\r' || ch == '\n')
             {
@@ -320,6 +335,94 @@ namespace MinorShift.Emuera.GameView
                 ProcessChar((char)27);
             else if (!char.IsControl(key.KeyChar))
                 ProcessChar(key.KeyChar);
+        }
+
+        /// <summary>
+        /// 由 AgentCliMouseInput 调用：将 KEY_EVENT_RECORD 转换后的 ConsoleKeyInfo 复用 ProcessKey 路径。
+        /// 鼠标启用期间禁止 Console.ReadKey，键盘事件统一从 ReadConsoleInput 派发。
+        /// </summary>
+        internal void ProcessKeyFromMouseInput(ConsoleKeyInfo key) => ProcessKey(key);
+
+        /// <summary>
+        /// 由 AgentCliMouseInput 调用：鼠标命中按钮后提交对应输入。
+        /// </summary>
+        internal void DispatchMouseClick(ConsoleButtonString btn)
+        {
+            if (console.State != ConsoleState.WaitInput) return;
+
+            // 非按钮模式（AnyKey/EnterKey）下，鼠标点击统一派发回车推进游戏
+            if (!_buttonMode)
+            {
+                DispatchInput("\n");
+                return;
+            }
+
+            string input = btn.IsInteger ? btn.Input.ToString() : btn.Inputs;
+
+            ClearButtonPrompt();
+            _buttonMode = false;
+            _currentButtons = [];
+            _selectedButtonIndex = -1;
+            _buttonPromptWidth = 0;
+
+            DispatchInput(input);
+        }
+
+        /// <summary>
+        /// 由 AgentCliMouseInput 调用：鼠标未命中任何按钮区域。
+        /// 非按钮模式下派发回车推进游戏。
+        /// </summary>
+        internal void DispatchMouseMiss()
+        {
+            if (console.State != ConsoleState.WaitInput) return;
+            if (_buttonMode) return;
+
+            DispatchInput("\n");
+        }
+
+        private long _lastRegionGeneration = -1;
+
+        /// <summary>
+        /// 刷新按钮区域：在 FullRefresh + SyncButtonState 之后调用，
+        /// 此时 WindowTop 已稳定，按 bufferRow = WindowTop + visibleRowIndex 记录区域。
+        /// 居中偏移由 RecordLineRegions 从 formattedLine 的前导空格中提取。
+        /// 仅在 generation 变化或强制刷新时重新记录，避免每 50ms 重复计算。
+        /// </summary>
+        private void RefreshButtonRegions(AgentCliMouseInput mouseInput, bool force = false)
+        {
+            long currentGen = console.LastButtonGeneration;
+            if (!force && currentGen == _lastRegionGeneration) return;
+
+            _lastRegionGeneration = currentGen;
+            mouseInput.ClearRegions();
+
+            var lines = console.DisplayLineList;
+            if (lines == null || lines.Count == 0) return;
+
+            int windowTop;
+            int windowHeight;
+            try
+            {
+                windowTop = Console.WindowTop;
+                windowHeight = Console.WindowHeight;
+            }
+            catch { return; }
+
+            int visibleLines = Math.Min(windowHeight - 1, lines.Count);
+            int startLine = Math.Max(0, lines.Count - visibleLines);
+
+            for (int i = 0; i < visibleLines; i++)
+            {
+                int lineIndex = startLine + i;
+                int visibleRowIndex = i;
+                int bufferRow = windowTop + visibleRowIndex;
+
+                var line = lines[lineIndex];
+                if (line?.Buttons == null || line.Buttons.Length == 0) continue;
+
+                string formatted = console.FormatLineForTerminal(line);
+                mouseInput.RecordLineRegions(formatted, bufferRow, line.Buttons, currentGen);
+            }
         }
 
         /// <summary>
