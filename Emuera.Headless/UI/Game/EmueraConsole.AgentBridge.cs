@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Text;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.UI.Game;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
 
@@ -48,10 +49,66 @@ namespace MinorShift.Emuera.GameView
             return trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}";
         }
 
+        /// <summary>
+        /// 将 ConsoleDisplayLine 逐节点构建为终端友好的纯文本，同时计算正确的显示宽度。
+        /// 非文本节点按降级规则处理：图片/矩形→跳过，Space→空格，Div→递归子行。
+        /// </summary>
+        private static string BuildTerminalLine(ConsoleDisplayLine line, out int displayWidth)
+        {
+            var sb = new StringBuilder();
+            int width = 0;
+            int charWidth = Math.Max(Config.FontSize / 2, 1);
+
+            foreach (var button in line.Buttons)
+            {
+                foreach (var node in button.StrArray)
+                {
+                    switch (node)
+                    {
+                        case ConsoleStyledString:
+                            string txt = node.Text ?? "";
+                            sb.Append(txt);
+                            width += GetDisplayWidth(txt);
+                            break;
+                        case ConsoleSpacePart:
+                            // 像素宽度 → 字符数（整数截断，与 GetGameColumnWidth 一致）
+                            int spaceCount = Math.Max(node.Width / charWidth, 0);
+                            sb.Append(new string(' ', spaceCount));
+                            width += spaceCount;
+                            break;
+                        case ConsoleImagePart:
+                        case ConsoleRectangleShapePart:
+                            // 终端无法显示，跳过
+                            break;
+                        case ConsoleDivPart div:
+                            // 递归输出子行文本
+                            if (div.Children != null)
+                            {
+                                foreach (var child in div.Children)
+                                {
+                                    string childText = BuildTerminalLine(child, out int childWidth);
+                                    sb.Append(childText);
+                                    width += childWidth;
+                                }
+                            }
+                            break;
+                        default:
+                            // ConsoleErrorShapePart 等，输出原文本
+                            string fallback = node.Text ?? "";
+                            sb.Append(fallback);
+                            width += GetDisplayWidth(fallback);
+                            break;
+                    }
+                }
+            }
+            displayWidth = width;
+            return sb.ToString();
+        }
+
         private void WriteAlignedLine(ConsoleDisplayLine line)
         {
-            string text = line.ToString();
-            if (string.IsNullOrEmpty(text))
+            string text = BuildTerminalLine(line, out int textWidth);
+            if (textWidth == 0 && text.Length == 0)
             {
                 if (line.IsLineEnd)
                     WriteToAgentBuffer("");
@@ -60,8 +117,6 @@ namespace MinorShift.Emuera.GameView
                 return;
             }
 
-            // 宽度计算基于原始纯文本（与游戏内部一致，ANSI 转义不占显示宽度）
-            int textWidth = GetDisplayWidth(text);
             int gameWidth = GetGameColumnWidth();
 
             // 带 ANSI 样式的文本（若终端不支持 ANSI 则回退到纯文本）
@@ -99,6 +154,7 @@ namespace MinorShift.Emuera.GameView
         /// <summary>
         /// 将 ConsoleDisplayLine 格式化为带 ANSI 转义序列的终端文本。
         /// 逐段提取 ConsoleStyledString 的颜色与字体样式，生成对应的 ANSI 转义码。
+        /// 非文本节点按降级规则处理：图片/矩形→跳过，Space→空格，Div→递归子行。
         /// 宽度计算与对齐由调用方基于纯文本完成，本方法仅负责样式输出。
         /// </summary>
         private string FormatLineWithAnsi(ConsoleDisplayLine line)
@@ -106,40 +162,63 @@ namespace MinorShift.Emuera.GameView
             var sb = new StringBuilder();
             Color? lastColor = null;
             FontStyle lastFontStyle = FontStyle.Regular;
+            int charWidth = Math.Max(Config.FontSize / 2, 1);
 
             foreach (var button in line.Buttons)
             {
                 foreach (var node in button.StrArray)
                 {
-                    if (node is ConsoleStyledString css)
+                    switch (node)
                     {
-                        var style = css.StringStyle;
-                        // 仅在样式发生变化时输出 ANSI 转义，减少冗余
-                        if (lastColor != style.Color || lastFontStyle != style.FontStyle)
-                        {
-                            // 若之前已有样式，先重置
-                            if (lastColor != null || lastFontStyle != FontStyle.Regular)
-                                sb.Append("\x1b[0m");
+                        case ConsoleStyledString css:
+                            {
+                                var style = css.StringStyle;
+                                // 仅在样式发生变化时输出 ANSI 转义，减少冗余
+                                if (lastColor != style.Color || lastFontStyle != style.FontStyle)
+                                {
+                                    // 若之前已有样式，先重置
+                                    if (lastColor != null || lastFontStyle != FontStyle.Regular)
+                                        sb.Append("\x1b[0m");
 
-                            // 前景色: \x1b[38;2;R;G;Bm（真彩色）
-                            sb.Append($"\x1b[38;2;{style.Color.R};{style.Color.G};{style.Color.B}m");
+                                    // 前景色: \x1b[38;2;R;G;Bm（真彩色）
+                                    sb.Append($"\x1b[38;2;{style.Color.R};{style.Color.G};{style.Color.B}m");
 
-                            // 粗体: \x1b[1m
-                            if ((style.FontStyle & FontStyle.Bold) != 0)
-                                sb.Append("\x1b[1m");
-                            // 斜体: \x1b[3m
-                            if ((style.FontStyle & FontStyle.Italic) != 0)
-                                sb.Append("\x1b[3m");
+                                    // 粗体: \x1b[1m
+                                    if ((style.FontStyle & FontStyle.Bold) != 0)
+                                        sb.Append("\x1b[1m");
+                                    // 斜体: \x1b[3m
+                                    if ((style.FontStyle & FontStyle.Italic) != 0)
+                                        sb.Append("\x1b[3m");
 
-                            lastColor = style.Color;
-                            lastFontStyle = style.FontStyle;
-                        }
-                        sb.Append(node.Text ?? "");
-                    }
-                    else
-                    {
-                        // 非样式节点（ConsoleImagePart、ConsoleShapePart 等），输出纯文本
-                        sb.Append(node.ToString());
+                                    lastColor = style.Color;
+                                    lastFontStyle = style.FontStyle;
+                                }
+                                sb.Append(node.Text ?? "");
+                            }
+                            break;
+                        case ConsoleSpacePart:
+                            int spaceCount = Math.Max(node.Width / charWidth, 0);
+                            sb.Append(new string(' ', spaceCount));
+                            break;
+                        case ConsoleImagePart:
+                        case ConsoleRectangleShapePart:
+                            // 终端无法显示，跳过
+                            break;
+                        case ConsoleDivPart div:
+                            // 递归输出子行（带 ANSI 样式）
+                            if (div.Children != null)
+                            {
+                                foreach (var child in div.Children)
+                                {
+                                    string childStyled = FormatLineWithAnsi(child);
+                                    sb.Append(childStyled);
+                                }
+                            }
+                            break;
+                        default:
+                            // ConsoleErrorShapePart 等，输出原文本
+                            sb.Append(node.Text ?? "");
+                            break;
                     }
                 }
             }
@@ -157,12 +236,10 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         internal string FormatLineForTerminal(ConsoleDisplayLine line)
         {
-            string text = line.ToString();
-            if (string.IsNullOrEmpty(text))
+            string text = BuildTerminalLine(line, out int textWidth);
+            if (textWidth == 0 && text.Length == 0)
                 return "";
 
-            // 宽度计算基于原始纯文本
-            int textWidth = GetDisplayWidth(text);
             int gameWidth = GetGameColumnWidth();
 
             // 带 ANSI 样式的文本（若终端不支持 ANSI 则回退到纯文本）

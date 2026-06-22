@@ -39,19 +39,24 @@
 
 ### T-012：CLI 模式 HTML_PRINT 纯文本降级
 
-- 状态：未实现
-- 范围：`HTML_PRINT`、`HtmlManager`
-- 说明：`HTML_PRINT` 解析 HTML 标签生成富文本行（含按钮、图片、对齐等）。当前 CLI 下 `HTML_PRINT` 的输出经过 `Html2DisplayLine()` 生成 `ConsoleDisplayLine`，`WriteAlignedLine()` 只取 `line.ToString()` 纯文本，HTML 标签效果丢失。部分标签（如 `<b>`、`<i>`、`<align>`）可以降级为 ANSI 转义或纯文本对齐；图片标签（`<img>`）无法降级。
+- 状态：已实现
+- 范围：`HTML_PRINT`、`HtmlManager`、`EmueraConsole.AgentBridge`
+- 说明：`HTML_PRINT` 解析 HTML 标签生成富文本行（含按钮、图片、对齐等）。CLI 下 `WriteAlignedLine()` 原先调用 `line.ToString()` 获取纯文本，非文本节点（`ConsoleImagePart`、`ConsoleSpacePart`、`ConsoleRectangleShapePart`、`ConsoleDivPart`）的 `ToString()` 返回完整 HTML 标签（如 `<img src='c1234' height='19'>`），导致文本过长、排版错位、自动换行后按钮失灵。
+- 实现方案：
+  - 新增 `BuildTerminalLine()` 方法：逐节点构建终端友好文本，同时计算正确的显示宽度。
+  - 降级规则：`ConsoleStyledString`→原样文本；`ConsoleSpacePart`→像素宽度转空格数；`ConsoleImagePart`/`ConsoleRectangleShapePart`→跳过；`ConsoleDivPart`→递归子行；其他→原文本。
+  - `WriteAlignedLine()`、`FormatLineWithAnsi()`、`FormatLineForTerminal()` 三处均改用降级逻辑。
 - 纳入范围：
   - `WriteAlignedLine()` 已处理 `line.Align` 对齐，`<align>` 标签效果已保留。
   - `<b>` / `<i>` 标签可结合 T-010 的 ANSI 样式输出。
   - `<button>` 标签可结合 T-011 的按钮标记。
 - 不纳入范围：
-  - `<img>` / `<img src>` 图片标签（终端无法显示）。
-  - `<shape>` / `<rect>` 图形标签。
+  - `<img>` / `<img src>` 图片标签（终端无法显示，降级为空串）。
+  - `<shape>` / `<rect>` 图形标签（降级为空串）。
 - 验收：
   - `HTML_PRINT` 的文字内容正确显示。
   - 对齐、粗体、斜体等样式降级但不丢失语义。
+  - 非文本节点不再输出 HTML 标签文本，行宽计算正确，不再因超长文本换行导致按钮失灵。
 
 ### T-004：server timer 数据契约暂缓
 
