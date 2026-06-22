@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Runtime.InteropServices;
 using MinorShift.Emuera.UI.Game;
 
@@ -18,9 +16,8 @@ namespace MinorShift.Emuera.GameView
         private readonly bool _enabled;
         private bool _disposed;
 
-        private readonly List<ButtonTerminalRegion> _buttonRegions = new();
-
-        private static readonly LogConfig s_log = new();
+        private readonly ButtonRegionTracker _tracker = new();
+        private static readonly AgentLog s_log = AgentLog.Instance;
 
         private const uint ENABLE_MOUSE_INPUT = 0x0010;
         private const uint ENABLE_WINDOW_INPUT = 0x0008;
@@ -151,18 +148,14 @@ namespace MinorShift.Emuera.GameView
             int mouseRow = mouseEvent.dwMousePosition.Y;
             int mouseCol = mouseEvent.dwMousePosition.X;
 
-            s_log.Write($"[mouse] left-down bufferRow={mouseRow} bufferCol={mouseCol} regions={_buttonRegions.Count}");
+            s_log.Write($"[mouse] left-down bufferRow={mouseRow} bufferCol={mouseCol} regions={_tracker.RegionCount}");
 
-            // 命中查找：从后往前（重叠时选最后记录的按钮）
-            for (int i = _buttonRegions.Count - 1; i >= 0; i--)
+            var hit = _tracker.HitTest(mouseRow, mouseCol);
+            if (hit != null)
             {
-                var r = _buttonRegions[i];
-                if (r.Row == mouseRow && mouseCol >= r.Left && mouseCol <= r.Right)
-                {
-                    s_log.Write($"[mouse] hit row={mouseRow} col={mouseCol} region={r.Left}-{r.Right} input={r.Button.Inputs}");
-                    _host.DispatchMouseClick(r.Button);
-                    return;
-                }
+                s_log.Write($"[mouse] hit row={mouseRow} col={mouseCol}");
+                _host.DispatchMouseClick(hit);
+                return;
             }
 
             s_log.Write($"[mouse] miss bufferRow={mouseRow} bufferCol={mouseCol}");
@@ -173,43 +166,11 @@ namespace MinorShift.Emuera.GameView
 
         #region Button regions
 
-        internal void ClearRegions() => _buttonRegions.Clear();
+        internal void ClearRegions() => _tracker.Clear();
 
         internal void RecordLineRegions(string formattedLine, int bufferRow, ConsoleButtonString[]? buttons, long currentGeneration)
         {
-            if (buttons == null || buttons.Length == 0 || string.IsNullOrEmpty(formattedLine)) return;
-
-            int column = LeadingDisplayWidth(formattedLine);
-
-            foreach (var btn in buttons)
-            {
-                if (btn == null) continue;
-
-                string btnText = btn.ToString() ?? "";
-                int segmentWidth = TerminalDisplayWidth.GetDisplayWidth(btnText);
-
-                if (btn.IsButton && btn.Generation == currentGeneration && segmentWidth > 0)
-                {
-                    _buttonRegions.Add(new ButtonTerminalRegion(
-                        bufferRow, column, column + segmentWidth - 1, btn, currentGeneration));
-
-                    s_log.Write($"[region] row={bufferRow} col={column}-{column + segmentWidth - 1} input={btn.Inputs} label={btnText}");
-                }
-
-                column += segmentWidth;
-            }
-        }
-
-        private static int LeadingDisplayWidth(string s)
-        {
-            int width = 0;
-            foreach (char c in s)
-            {
-                if (c == ' ') { width += 1; continue; }
-                if (c == '\u3000') { width += 2; continue; }
-                break;
-            }
-            return width;
+            _tracker.RecordLineRegions(formattedLine, bufferRow, buttons, currentGeneration);
         }
 
         #endregion
@@ -221,7 +182,7 @@ namespace MinorShift.Emuera.GameView
             if (_disposed) return;
             _disposed = true;
 
-            _buttonRegions.Clear();
+            _tracker.Clear();
 
             if (_stdinHandle != IntPtr.Zero && _stdinHandle != INVALID_HANDLE_VALUE)
             {
@@ -229,17 +190,6 @@ namespace MinorShift.Emuera.GameView
                 s_log.Write($"[mouse-input] restored inputMode=0x{_originalInputMode:X8}");
             }
         }
-
-        #endregion
-
-        #region ButtonTerminalRegion
-
-        internal readonly record struct ButtonTerminalRegion(
-            int Row,
-            int Left,
-            int Right,
-            ConsoleButtonString Button,
-            long Generation);
 
         #endregion
 
@@ -317,46 +267,6 @@ namespace MinorShift.Emuera.GameView
 
         [StructLayout(LayoutKind.Sequential)]
         private struct FOCUS_EVENT_RECORD { public int bSetFocus; } // Win32 BOOL = int
-
-        #endregion
-
-        #region Logging
-
-        private sealed class LogConfig
-        {
-            public readonly bool Enabled;
-            public readonly string? Path;
-
-            public LogConfig()
-            {
-                try
-                {
-                    string? v = Environment.GetEnvironmentVariable("EMUERA_MOUSE_LOG");
-                    Enabled = v == "1" || v == "true";
-                }
-                catch { Enabled = false; }
-
-                if (Enabled)
-                {
-                    try
-                    {
-                        string exeDir = Program.ExeDir;
-                        if (string.IsNullOrEmpty(exeDir)) exeDir = AppContext.BaseDirectory;
-                        string dir = System.IO.Path.Combine(exeDir, "debug");
-                        Directory.CreateDirectory(dir);
-                        Path = System.IO.Path.Combine(dir, "mouse.log");
-                    }
-                    catch { Path = null; }
-                }
-            }
-
-            public void Write(string message)
-            {
-                if (!Enabled || Path == null) return;
-                try { File.AppendAllText(Path, $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}"); }
-                catch { }
-            }
-        }
 
         #endregion
     }

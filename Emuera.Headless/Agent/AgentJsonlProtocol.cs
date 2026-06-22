@@ -47,11 +47,7 @@ namespace MinorShift.Emuera.GameView
 
             try
             {
-                ui.Invoke(() =>
-                {
-                    if (console.State == ConsoleState.WaitInput)
-                        console.PressEnterKey(false, input, false);
-                });
+                ui.Invoke(() => DispatchInput(input));
 
                 return BuildTurn();
             }
@@ -94,14 +90,15 @@ namespace MinorShift.Emuera.GameView
         private bool WaitForInput()
         {
             var sw = Stopwatch.StartNew();
-            while (!IsStopped)
+            var token = StopToken;
+            while (!token.IsCancellationRequested)
             {
                 var state = console.State;
                 if (state == ConsoleState.WaitInput || state == ConsoleState.Quit || state == ConsoleState.Error)
                     return true;
                 if (sw.ElapsedMilliseconds > TurnTimeoutMs)
                     return false;
-                Thread.Sleep(PollIntervalMs);
+                token.WaitHandle.WaitOne(PollIntervalMs);
             }
             return false;
         }

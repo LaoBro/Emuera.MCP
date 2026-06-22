@@ -23,6 +23,7 @@ namespace MinorShift.Emuera.GameView
         private int _selectedButtonIndex = -1;
         private int _buttonPromptWidth;
 
+        private readonly TerminalCursor _cursor;
         private readonly bool _ansiEnabled;
         private long _lastRegionGeneration = -1;
         private long _lastButtonSyncGen = -1;
@@ -31,6 +32,7 @@ namespace MinorShift.Emuera.GameView
             : base(console, ui)
         {
             _ansiEnabled = Program.AnsiEnabled || !OperatingSystem.IsWindows();
+            _cursor = new TerminalCursor(_ansiEnabled);
         }
 
         internal override string? GetInitialTurn() => null;
@@ -52,8 +54,9 @@ namespace MinorShift.Emuera.GameView
         {
             using var mouseInput = AgentCliMouseInput.TryCreate(this);
             bool mouseEnabled = mouseInput != null && mouseInput.IsEnabled;
+            var token = StopToken;
 
-            while (!IsStopped)
+            while (!token.IsCancellationRequested)
             {
                 if (console._needFullRefresh)
                 {
@@ -90,13 +93,14 @@ namespace MinorShift.Emuera.GameView
                 SyncButtonState();
                 if (mouseEnabled) RefreshButtonRegions(mouseInput!);
 
-                Thread.Sleep(PollIntervalMs);
+                token.WaitHandle.WaitOne(PollIntervalMs);
             }
         }
 
         private void RunPipeCliLoop(TextReader input)
         {
-            while (!IsStopped)
+            var token = StopToken;
+            while (!token.IsCancellationRequested)
             {
                 if (console._needFullRefresh)
                 {
@@ -146,17 +150,13 @@ namespace MinorShift.Emuera.GameView
 
             string padded = PadToWidth(newText, _lastCountdownWidth, out int newWidth);
 
+            _cursor.Save(out int left, out int top);
+            _cursor.Set(0, _countdownLineTop);
             if (_ansiEnabled)
-            {
-                TryWrite($"\x1b7\x1b[{_countdownLineTop + 1};1H\x1b[2K{padded}\x1b8");
-            }
+                TerminalCursor.TryWrite($"\x1b[2K{padded}");
             else
-            {
-                SaveCursor(out int left, out int top);
-                TrySetCursorPosition(0, _countdownLineTop);
-                TryWrite(padded);
-                TrySetCursorPosition(left, top);
-            }
+                TerminalCursor.TryWrite(padded);
+            _cursor.Set(left, top);
 
             _lastCountdownText = newText;
             _lastCountdownWidth = Math.Max(newWidth, _lastCountdownWidth);
@@ -183,23 +183,12 @@ namespace MinorShift.Emuera.GameView
 
         private void FullRefresh()
         {
-            bool cleared = false;
-            try { Console.Clear(); cleared = true; }
-            catch { }
-
-            if (!cleared && _ansiEnabled)
-            {
-                try { Console.Write("\x1b[2J\x1b[H"); cleared = true; }
-                catch { }
-            }
-
-            if (!cleared)
-                Console.WriteLine(new string('=', Math.Max(TryGetWindowWidth() - 1, 20)));
+            _cursor.ClearScreen();
 
             var lines = console.DisplayLineList;
             if (lines.Count == 0) return;
 
-            int consoleHeight = TryGetWindowHeight();
+            int consoleHeight = TerminalCursor.TryGetWindowHeight();
             int visibleLines = Math.Max(consoleHeight - 1, 1);
             int startLine = Math.Max(0, lines.Count - visibleLines);
 
@@ -216,18 +205,18 @@ namespace MinorShift.Emuera.GameView
             if (rows <= 0) return;
             console._pendingEraseRows = 0;
 
-            SaveCursor(out int savedLeft, out int savedTop);
-            int consoleWidth = TryGetWindowWidth();
+            _cursor.Save(out int savedLeft, out int savedTop);
+            int consoleWidth = TerminalCursor.TryGetWindowWidth();
 
             for (int i = 0; i < rows; i++)
             {
                 int targetTop = savedTop - 1 - i;
                 if (targetTop < 0) break;
-                TrySetCursorPosition(0, targetTop);
-                TryWrite(new string(' ', consoleWidth));
+                _cursor.Set(0, targetTop);
+                TerminalCursor.TryWrite(new string(' ', consoleWidth));
             }
 
-            TrySetCursorPosition(0, Math.Max(savedTop - rows, 0));
+            _cursor.Set(0, Math.Max(savedTop - rows, 0));
         }
 
         #endregion
@@ -357,19 +346,7 @@ namespace MinorShift.Emuera.GameView
 
         private void ClearButtonPrompt()
         {
-            if (_ansiEnabled)
-            {
-                WriteOutput("\x1b[2K\r", false);
-            }
-            else
-            {
-                FlushBuffer();
-                int top = Console.CursorTop;
-                int width = TryGetWindowWidth();
-                TrySetCursorPosition(0, top);
-                TryWrite(new string(' ', width - 1));
-                TrySetCursorPosition(0, top);
-            }
+            _cursor.ClearLine();
             _buttonPromptWidth = 0;
         }
 
@@ -489,41 +466,12 @@ namespace MinorShift.Emuera.GameView
 
         private static int GetDisplayWidth(string str) => TerminalDisplayWidth.GetDisplayWidth(str);
 
-        /// <summary>将文本填充到指定显示宽度，返回填充后的文本和实际宽度。</summary>
         private static string PadToWidth(string text, int minWidth, out int actualWidth)
         {
             actualWidth = GetDisplayWidth(text);
             if (actualWidth < minWidth)
                 return text + new string(' ', minWidth - actualWidth);
             return text;
-        }
-
-        private static void SaveCursor(out int left, out int top)
-        {
-            try { left = Console.CursorLeft; top = Console.CursorTop; }
-            catch { left = 0; top = 0; }
-        }
-
-        private static void TrySetCursorPosition(int left, int top)
-        {
-            try { Console.SetCursorPosition(left, top); } catch { }
-        }
-
-        private static void TryWrite(string text)
-        {
-            try { Console.Write(text); } catch { }
-        }
-
-        private static int TryGetWindowWidth()
-        {
-            try { return Console.WindowWidth; }
-            catch { return 80; }
-        }
-
-        private static int TryGetWindowHeight()
-        {
-            try { return Console.WindowHeight; }
-            catch { return 25; }
         }
 
         #endregion

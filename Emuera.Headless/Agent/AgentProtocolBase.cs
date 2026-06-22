@@ -7,7 +7,7 @@ namespace MinorShift.Emuera.GameView
 {
     internal abstract class AgentProtocolBase
     {
-        private volatile bool _stopped;
+        private readonly CancellationTokenSource _cts = new();
         protected readonly EmueraConsole console;
         protected readonly IConsoleUI ui;
         protected const int TurnTimeoutMs = 30000;
@@ -19,7 +19,8 @@ namespace MinorShift.Emuera.GameView
             this.ui = ui;
         }
 
-        internal bool IsStopped => _stopped;
+        internal bool IsStopped => _cts.IsCancellationRequested;
+        internal CancellationToken StopToken => _cts.Token;
 
         /// <summary>
         /// 获取初始 turn JSON。等待游戏进入 WaitInput/Quit/Error 状态后返回 turn，超时或停止返回 null。
@@ -51,7 +52,7 @@ namespace MinorShift.Emuera.GameView
                 console._agentBuffer.Append(text);
         }
 
-        internal virtual void Stop() => _stopped = true;
+        internal virtual void Stop() => _cts.Cancel();
 
         protected virtual void DispatchInput(string input)
         {
