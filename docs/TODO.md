@@ -137,9 +137,10 @@
 
 ### T-018：HEADLESS AgentBuffer 删除最后一行容错
 
-- 状态：未实现，需修复
+- 状态：已实现
 - 范围：`Emuera.Headless/UI/Game/EmueraConsole.AgentBuffer.cs`
 - 说明：`deleteLine()` 会调用 `RemoveLastLineFromAgentBuffer()`。若 `_agentBufferLineCount > 0` 但 `_agentBuffer` 内容为空或只有 1 个字符，当前 `LastIndexOf('\n', content.Length - 2, content.Length - 1)` 可能因负数参数抛异常。该路径会影响 CLI 下"行仍在缓冲区时被 CLEARLINE 删除"的场景。
+- 实现方案：在 `LastIndexOf` 调用前增加 `content.Length <= 1` 的前置判断，直接清空缓冲区并递减计数，避免负数参数异常。
 - 纳入范围：
   - `RemoveLastLineFromAgentBuffer()` 对 `content.Length == 0` 直接清空并递减计数。
   - `content.Length == 1` 时按单行处理，不调用负数 `startIndex/count`。

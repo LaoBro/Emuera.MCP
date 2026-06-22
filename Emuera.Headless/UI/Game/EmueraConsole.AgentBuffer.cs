@@ -45,6 +45,15 @@ internal sealed partial class EmueraConsole
         if (_agentBufferLineCount <= 0) return false;
 
         string content = _agentBuffer.ToString();
+
+        if (content.Length <= 1)
+        {
+            // 空缓冲区或仅含单字符（单行），直接清空
+            _agentBuffer.Clear();
+            _agentBufferLineCount--;
+            return true;
+        }
+
         // 找到最后一个换行符的位置（去掉末尾换行后找最后一个换行）
         int lastNewline = content.LastIndexOf('\n', content.Length - 2, content.Length - 1);
         if (lastNewline < 0)
