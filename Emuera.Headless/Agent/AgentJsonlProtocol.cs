@@ -12,9 +12,10 @@ namespace MinorShift.Emuera.GameView
 {
     internal class AgentJsonlProtocol : AgentProtocolBase
     {
-        /// <summary>默认窗口高度内可显示的行数。用于采集可见按钮。</summary>
-        private readonly int _visibleLineCount;
         private readonly SessionIO _io;
+
+        private int VisibleLineCount => Math.Max(1, ui.ClientHeight / Config.LineHeight);
+        private string? _pendingRejectReason;
 
         public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui)
             : this(console, ui, ConsoleOutIO.Instance) { }
@@ -23,8 +24,6 @@ namespace MinorShift.Emuera.GameView
             : base(console, ui)
         {
             _io = io;
-            int clientHeight = ui.ClientHeight;
-            _visibleLineCount = Math.Max(1, clientHeight / Config.LineHeight);
         }
 
         internal override string? GetInitialTurn()
@@ -60,8 +59,12 @@ namespace MinorShift.Emuera.GameView
             {
                 return JsonSerializer.Serialize(new
                 {
-                    error = ex.Message,
-                    state = console.State.ToString()
+                    text = "",
+                    state = console.State.ToString(),
+                    inputType = (string?)null,
+                    needValue = false,
+                    buttons = Array.Empty<object>(),
+                    error = ex.Message
                 });
             }
         }
@@ -79,6 +82,11 @@ namespace MinorShift.Emuera.GameView
 #else
             throw new NotSupportedException("TINPUT timeout is only supported in HEADLESS builds.");
 #endif
+        }
+
+        protected override void OnInputRejected(string reason)
+        {
+            _pendingRejectReason = reason;
         }
 
         #region Turn helpers
@@ -102,13 +110,16 @@ namespace MinorShift.Emuera.GameView
         {
             var text = console.TakeAgentBuffer();
             var req = console.CurrentRequest;
+            string? error = _pendingRejectReason;
+            _pendingRejectReason = null;
             return JsonSerializer.Serialize(new
             {
                 text,
                 state = console.State.ToString(),
                 inputType = req?.InputType.ToString(),
                 needValue = req?.NeedValue ?? false,
-                buttons = CollectVisibleButtons()
+                buttons = CollectVisibleButtons(),
+                error
             });
         }
 
@@ -125,7 +136,7 @@ namespace MinorShift.Emuera.GameView
                 return buttons;
 
             long currentGen = console.LastButtonGeneration;
-            int start = Math.Max(0, lines.Count - _visibleLineCount);
+            int start = Math.Max(0, lines.Count - VisibleLineCount);
             for (int i = start; i < lines.Count; i++)
             {
                 var line = lines[i];
