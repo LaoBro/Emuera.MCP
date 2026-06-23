@@ -21,8 +21,6 @@ namespace MinorShift.Emuera.GameView
         private bool _buttonMode;
         private List<ButtonPos> _buttonPositions = [];
         private int _selectedButtonIndex = -1;
-        private int _buttonPromptWidth;
-        private int _buttonPromptRow = -1;
 
         // VT 模式状态（DA1 探测通过后非 null）
         private AgentCliVtScreen? _screen;
@@ -375,6 +373,10 @@ namespace MinorShift.Emuera.GameView
                     string formatted = console.FormatLineForTerminal(lines[lineIndex]);
                     _screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
                 }
+
+                // 光标定位到实际内容末尾的下一行行首，作为输入回显行
+                int drawnRows = Math.Min(visibleLines, lines.Count - startLine);
+                _screen.SetCursor(drawnRows, 0);
                 return;
             }
 
@@ -463,8 +465,36 @@ namespace MinorShift.Emuera.GameView
 
         private void ProcessKey(ConsoleKeyInfo key)
         {
+            // 按钮存在时，方向键用于进入/导航按钮选择模式
+            bool isArrow = key.Key == ConsoleKey.UpArrow
+                || key.Key == ConsoleKey.DownArrow
+                || key.Key == ConsoleKey.LeftArrow
+                || key.Key == ConsoleKey.RightArrow;
+
             if (_buttonMode)
             {
+                if (key.Key == ConsoleKey.Enter)
+                {
+                    ProcessButtonModeKey(key);
+                    return;
+                }
+                if (isArrow)
+                {
+                    ProcessButtonModeKey(key);
+                    return;
+                }
+                // 其他键：退出按钮模式并透传原输入
+                ExitButtonMode();
+                // 继续走下面的常规输入处理
+            }
+            else if (isArrow && _buttonPositions.Count > 0)
+            {
+                // 首次按方向键进入按钮选择模式
+                _buttonMode = true;
+                _selectedButtonIndex = 0;
+                console.SetSelectingButton(_buttonPositions[0].Button);
+                ClearInputBuffer();
+                RedrawButtonLine(_buttonPositions[0].Row);
                 ProcessButtonModeKey(key);
                 return;
             }
@@ -489,14 +519,10 @@ namespace MinorShift.Emuera.GameView
         {
             if (console.State != ConsoleState.WaitInput) return;
 
-            if (!_buttonMode)
-            {
-                DispatchInput("");
-                return;
-            }
+            // 鼠标点击退出按钮选择模式（若有），并执行点击命中
+            if (_buttonMode) ExitButtonMode();
 
             string input = btn.IsInteger ? btn.Input.ToString() : btn.Inputs;
-            ExitButtonMode();
             DispatchInput(input);
         }
 
@@ -504,7 +530,23 @@ namespace MinorShift.Emuera.GameView
         {
             if (console.State != ConsoleState.WaitInput) return;
             if (_buttonMode) return;
-            DispatchInput("");
+
+            var req = console.CurrentRequest;
+            if (req == null) return;
+
+            // 仅在允许空输入的请求类型下才 dispatch 空输入（模拟回车）；
+            // 整数输入等场景下点击空白区域直接忽略，与 winforms 行为一致
+            switch (req.InputType)
+            {
+                case InputType.EnterKey:
+                case InputType.AnyKey:
+                case InputType.StrValue:
+                case InputType.AnyValue:
+                case InputType.IntButton:
+                case InputType.StrButton:
+                    DispatchInput("");
+                    break;
+            }
         }
 
         #endregion
@@ -576,6 +618,39 @@ namespace MinorShift.Emuera.GameView
                 break;
             }
             return width;
+        }
+
+        /// <summary>
+        /// 重绘指定 viewport 行的按钮内容（含选中高亮）。
+        /// VT 模式用绝对定位单行重绘，并通过 Console.CursorTop/Left 保存恢复光标；
+        /// 非 VT 模式退化为 FullRefresh。
+        /// </summary>
+        private void RedrawButtonLine(int viewportRow)
+        {
+            if (_screen != null)
+            {
+                int savedRow, savedCol;
+                try { savedRow = Console.CursorTop; savedCol = Console.CursorLeft; }
+                catch { savedRow = 0; savedCol = 0; }
+
+                var lines = console.DisplayLineList;
+                int windowHeight = _screen.WindowHeight;
+                int visibleLines = Math.Min(Math.Max(windowHeight - 1, 1), lines.Count);
+                int startLine = Math.Max(0, lines.Count - visibleLines);
+                int lineIndex = startLine + viewportRow;
+                if (lineIndex >= 0 && lineIndex < lines.Count)
+                {
+                    string formatted = console.FormatLineForTerminal(lines[lineIndex]);
+                    _screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
+                }
+
+                _screen.SetCursor(savedRow, savedCol);
+            }
+            else
+            {
+                // 非 VT 模式无法定位单行，退化为全量刷新
+                FullRefresh();
+            }
         }
 
         private void ProcessButtonModeKey(ConsoleKeyInfo key)
@@ -676,8 +751,13 @@ namespace MinorShift.Emuera.GameView
 
             if (newIdx >= 0 && newIdx != currentIdx)
             {
+                int oldRow = _buttonPositions[currentIdx].Row;
+                int newRow = _buttonPositions[newIdx].Row;
                 _selectedButtonIndex = newIdx;
-                RenderButtonPrompt();
+                console.SetSelectingButton(_buttonPositions[newIdx].Button);
+                RedrawButtonLine(oldRow);
+                if (newRow != oldRow && _screen != null)
+                    RedrawButtonLine(newRow);
             }
         }
 
@@ -691,51 +771,19 @@ namespace MinorShift.Emuera.GameView
             DispatchInput(input);
         }
 
-        private void RenderButtonPrompt()
-        {
-            if (_selectedButtonIndex < 0 || _selectedButtonIndex >= _buttonPositions.Count) return;
-
-            var btn = _buttonPositions[_selectedButtonIndex].Button;
-            string prompt = $"> [{_selectedButtonIndex + 1}/{_buttonPositions.Count}] {btn} | [↑↓←→] Switch  [Enter] OK";
-
-            string padded = PadToWidth(prompt, _buttonPromptWidth, out int newWidth);
-
-            if (_screen != null)
-            {
-                // VT 模式：记录当前行作为按钮提示行，绝对定位写入
-                if (_buttonPromptRow < 0)
-                    _buttonPromptRow = _screen.GetCurrentRow();
-                _screen.WriteLineAt(_buttonPromptRow, padded);
-            }
-            else
-            {
-                WriteOutput("\r" + padded, false);
-            }
-            _buttonPromptWidth = Math.Max(newWidth, _buttonPromptWidth);
-        }
-
-        private void ClearButtonPrompt()
-        {
-            if (_screen != null)
-            {
-                if (_buttonPromptRow >= 0)
-                    _screen.ClearLine(_buttonPromptRow);
-            }
-            else
-            {
-                _cursor.ClearLine();
-            }
-            _buttonPromptWidth = 0;
-            _buttonPromptRow = -1;
-        }
-
         private void ExitButtonMode()
         {
-            ClearButtonPrompt();
+            int highlightedRow = -1;
+            if (_selectedButtonIndex >= 0 && _selectedButtonIndex < _buttonPositions.Count)
+                highlightedRow = _buttonPositions[_selectedButtonIndex].Row;
+
+            console.SetSelectingButton(null);
             _buttonMode = false;
             _buttonPositions = [];
             _selectedButtonIndex = -1;
-            _buttonPromptWidth = 0;
+
+            if (highlightedRow >= 0)
+                RedrawButtonLine(highlightedRow);
         }
 
         private void ClearInputBuffer()
@@ -777,20 +825,32 @@ namespace MinorShift.Emuera.GameView
             if (!shouldHaveButtons)
             {
                 if (_buttonMode) ExitButtonMode();
+                _buttonPositions = [];
+                _vtInput?.ClearRegions();
             }
-            else if (!_buttonMode)
+            else
             {
-                _buttonMode = true;
-                _buttonPositions = newPositions;
-                _selectedButtonIndex = 0;
-                ClearInputBuffer();
-                RenderButtonPrompt();
-            }
-            else if (!ButtonListEquals(_buttonPositions, newPositions))
-            {
-                _buttonPositions = newPositions;
-                _selectedButtonIndex = Math.Clamp(_selectedButtonIndex, 0, newPositions.Count - 1);
-                RenderButtonPrompt();
+                // 按钮存在时仅维护位置列表，不自动进入选择模式；
+                // 选择模式由玩家按方向键显式触发。
+                if (_buttonMode)
+                {
+                    if (!ButtonListEquals(_buttonPositions, newPositions))
+                    {
+                        int oldRow = _selectedButtonIndex >= 0 && _selectedButtonIndex < _buttonPositions.Count
+                            ? _buttonPositions[_selectedButtonIndex].Row : -1;
+                        _buttonPositions = newPositions;
+                        _selectedButtonIndex = Math.Clamp(_selectedButtonIndex, 0, newPositions.Count - 1);
+                        console.SetSelectingButton(newPositions[_selectedButtonIndex].Button);
+                        if (oldRow >= 0) RedrawButtonLine(oldRow);
+                        int newRow = newPositions[_selectedButtonIndex].Row;
+                        if (newRow != oldRow && _screen != null)
+                            RedrawButtonLine(newRow);
+                    }
+                }
+                else
+                {
+                    _buttonPositions = newPositions;
+                }
             }
         }
 
@@ -853,7 +913,7 @@ namespace MinorShift.Emuera.GameView
 
         protected override void OnInputRejected(string reason)
         {
-            WriteOutput($"[终端] {reason}");
+            // 与 winforms 行为一致：静默忽略无效输入，不向终端输出提示
         }
     }
 }

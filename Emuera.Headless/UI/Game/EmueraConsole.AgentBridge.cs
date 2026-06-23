@@ -166,6 +166,9 @@ namespace MinorShift.Emuera.GameView
 
             foreach (var button in line.Buttons)
             {
+                bool isSelected = ButtonIsSelected(button);
+                if (isSelected) sb.Append("\x1b[7m");
+
                 foreach (var node in button.StrArray)
                 {
                     switch (node)
@@ -178,7 +181,11 @@ namespace MinorShift.Emuera.GameView
                                 {
                                     // 若之前已有样式，先重置
                                     if (lastColor != null || lastFontStyle != FontStyle.Regular)
+                                    {
                                         sb.Append("\x1b[0m");
+                                        // 反色会被 \x1b[0m 取消，需重新追加
+                                        if (isSelected) sb.Append("\x1b[7m");
+                                    }
 
                                     // 前景色: \x1b[38;2;R;G;Bm（真彩色）
                                     sb.Append($"\x1b[38;2;{style.Color.R};{style.Color.G};{style.Color.B}m");
@@ -221,6 +228,9 @@ namespace MinorShift.Emuera.GameView
                             break;
                     }
                 }
+
+                // 取消反色，防止泄漏到下一个按钮
+                if (isSelected) sb.Append("\x1b[27m");
             }
 
             // 行尾重置样式，防止泄漏到下一行
@@ -295,6 +305,14 @@ namespace MinorShift.Emuera.GameView
                 }
             }
             return result;
+        }
+
+        /// <summary>
+        /// 设置当前选中按钮，供 headless 按钮导航模式驱动高亮显示。
+        /// </summary>
+        internal void SetSelectingButton(ConsoleButtonString button)
+        {
+            selectingButton = button;
         }
 
         private static int GetDisplayWidth(string str) => TerminalDisplayWidth.GetDisplayWidth(str);
