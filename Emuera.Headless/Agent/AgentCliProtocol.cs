@@ -19,7 +19,7 @@ namespace MinorShift.Emuera.GameView
 
         // 按钮选择模式状态
         private bool _buttonMode;
-        private List<ConsoleButtonString> _currentButtons = [];
+        private List<ButtonPos> _buttonPositions = [];
         private int _selectedButtonIndex = -1;
         private int _buttonPromptWidth;
         private int _buttonPromptRow = -1;
@@ -511,31 +511,181 @@ namespace MinorShift.Emuera.GameView
 
         #region Button mode
 
+        // 按钮位置信息：viewport 行号 + 终端列范围，用于二维方向键导航
+        private readonly record struct ButtonPos(
+            int Row,
+            int Left,
+            int Right,
+            ConsoleButtonString Button,
+            string InputKey);
+
+        /// <summary>
+        /// 遍历可见 displayLineList，按终端显示宽度计算每个按钮的 (row, left, right)。
+        /// 同一 InputKey 的分裂片段（DivideAt 产生）只保留第一个。
+        /// </summary>
+        private List<ButtonPos> RebuildButtonPositions()
+        {
+            var result = new List<ButtonPos>();
+            var lines = console.DisplayLineList;
+            if (lines == null || lines.Count == 0) return result;
+
+            int windowHeight = _screen != null
+                ? _screen.WindowHeight
+                : TerminalCursor.TryGetWindowHeight();
+            int visibleLines = Math.Min(Math.Max(windowHeight - 1, 1), lines.Count);
+            int startLine = Math.Max(0, lines.Count - visibleLines);
+
+            long currentGen = console.LastButtonGeneration;
+            var seenKeys = new HashSet<string>();
+
+            for (int i = 0; i < visibleLines; i++)
+            {
+                int lineIndex = startLine + i;
+                var line = lines[lineIndex];
+                if (line?.Buttons == null || line.Buttons.Length == 0) continue;
+
+                string formatted = console.FormatLineForTerminal(line);
+                int column = LeadingDisplayWidth(formatted);
+
+                foreach (var btn in line.Buttons)
+                {
+                    if (btn == null) continue;
+                    string btnText = btn.ToString() ?? "";
+                    int segmentWidth = TerminalDisplayWidth.GetDisplayWidth(btnText);
+
+                    if (btn.IsButton && btn.Generation == currentGen && segmentWidth > 0)
+                    {
+                        string key = btn.IsInteger ? btn.Input.ToString() : btn.Inputs;
+                        if (seenKeys.Add(key))
+                            result.Add(new ButtonPos(i, column, column + segmentWidth - 1, btn, key));
+                    }
+                    column += segmentWidth;
+                }
+            }
+            return result;
+        }
+
+        // 计算格式化行的前导空白宽度（对齐缩进），与 ButtonRegionTracker 逻辑一致
+        private static int LeadingDisplayWidth(string s)
+        {
+            int width = 0;
+            foreach (char c in s)
+            {
+                if (c == ' ') { width += 1; continue; }
+                if (c == '\u3000') { width += 2; continue; }
+                break;
+            }
+            return width;
+        }
+
         private void ProcessButtonModeKey(ConsoleKeyInfo key)
         {
-            if (_currentButtons.Count == 0) return;
+            if (_buttonPositions.Count == 0) return;
+
+            if (key.Key == ConsoleKey.Enter)
+            {
+                ConfirmButton();
+                return;
+            }
+
+            int currentIdx = (_selectedButtonIndex >= 0 && _selectedButtonIndex < _buttonPositions.Count)
+                ? _selectedButtonIndex
+                : 0;
+
+            var current = _buttonPositions[currentIdx];
+            int currentCenter = (current.Left + current.Right) / 2;
+            int newIdx = -1;
 
             switch (key.Key)
             {
                 case ConsoleKey.UpArrow:
-                    _selectedButtonIndex = (_selectedButtonIndex - 1 + _currentButtons.Count) % _currentButtons.Count;
-                    RenderButtonPrompt();
-                    break;
+                    {
+                        // 上方行中选取最接近当前行的，同行则取中心列最近
+                        int bestRow = int.MinValue;
+                        int bestDist = int.MaxValue;
+                        for (int i = 0; i < _buttonPositions.Count; i++)
+                        {
+                            var p = _buttonPositions[i];
+                            if (p.Row >= current.Row) continue;
+                            int pCenter = (p.Left + p.Right) / 2;
+                            int dist = Math.Abs(pCenter - currentCenter);
+                            if (p.Row > bestRow || (p.Row == bestRow && dist < bestDist))
+                            {
+                                bestRow = p.Row;
+                                bestDist = dist;
+                                newIdx = i;
+                            }
+                        }
+                        break;
+                    }
                 case ConsoleKey.DownArrow:
-                    _selectedButtonIndex = (_selectedButtonIndex + 1) % _currentButtons.Count;
-                    RenderButtonPrompt();
-                    break;
-                case ConsoleKey.Enter:
-                    ConfirmButton();
-                    break;
+                    {
+                        // 下方行中选取最接近当前行的，同行则取中心列最近
+                        int bestRow = int.MaxValue;
+                        int bestDist = int.MaxValue;
+                        for (int i = 0; i < _buttonPositions.Count; i++)
+                        {
+                            var p = _buttonPositions[i];
+                            if (p.Row <= current.Row) continue;
+                            int pCenter = (p.Left + p.Right) / 2;
+                            int dist = Math.Abs(pCenter - currentCenter);
+                            if (p.Row < bestRow || (p.Row == bestRow && dist < bestDist))
+                            {
+                                bestRow = p.Row;
+                                bestDist = dist;
+                                newIdx = i;
+                            }
+                        }
+                        break;
+                    }
+                case ConsoleKey.LeftArrow:
+                    {
+                        // 同行中 right < currentLeft 的最大 right
+                        int bestRight = int.MinValue;
+                        for (int i = 0; i < _buttonPositions.Count; i++)
+                        {
+                            var p = _buttonPositions[i];
+                            if (p.Row != current.Row || p.Right >= current.Left) continue;
+                            if (p.Right > bestRight)
+                            {
+                                bestRight = p.Right;
+                                newIdx = i;
+                            }
+                        }
+                        break;
+                    }
+                case ConsoleKey.RightArrow:
+                    {
+                        // 同行中 left > currentRight 的最小 left
+                        int bestLeft = int.MaxValue;
+                        for (int i = 0; i < _buttonPositions.Count; i++)
+                        {
+                            var p = _buttonPositions[i];
+                            if (p.Row != current.Row || p.Left <= current.Right) continue;
+                            if (p.Left < bestLeft)
+                            {
+                                bestLeft = p.Left;
+                                newIdx = i;
+                            }
+                        }
+                        break;
+                    }
+                default:
+                    return;
+            }
+
+            if (newIdx >= 0 && newIdx != currentIdx)
+            {
+                _selectedButtonIndex = newIdx;
+                RenderButtonPrompt();
             }
         }
 
         private void ConfirmButton()
         {
-            if (_selectedButtonIndex < 0 || _selectedButtonIndex >= _currentButtons.Count) return;
+            if (_selectedButtonIndex < 0 || _selectedButtonIndex >= _buttonPositions.Count) return;
 
-            var btn = _currentButtons[_selectedButtonIndex];
+            var btn = _buttonPositions[_selectedButtonIndex].Button;
             string input = btn.IsInteger ? btn.Input.ToString() : btn.Inputs;
             ExitButtonMode();
             DispatchInput(input);
@@ -543,10 +693,10 @@ namespace MinorShift.Emuera.GameView
 
         private void RenderButtonPrompt()
         {
-            if (_selectedButtonIndex < 0 || _selectedButtonIndex >= _currentButtons.Count) return;
+            if (_selectedButtonIndex < 0 || _selectedButtonIndex >= _buttonPositions.Count) return;
 
-            var btn = _currentButtons[_selectedButtonIndex];
-            string prompt = $"> [{_selectedButtonIndex + 1}/{_currentButtons.Count}] {btn} | [Up/Dn] Switch  [Enter] OK";
+            var btn = _buttonPositions[_selectedButtonIndex].Button;
+            string prompt = $"> [{_selectedButtonIndex + 1}/{_buttonPositions.Count}] {btn} | [↑↓←→] Switch  [Enter] OK";
 
             string padded = PadToWidth(prompt, _buttonPromptWidth, out int newWidth);
 
@@ -583,7 +733,7 @@ namespace MinorShift.Emuera.GameView
         {
             ClearButtonPrompt();
             _buttonMode = false;
-            _currentButtons = [];
+            _buttonPositions = [];
             _selectedButtonIndex = -1;
             _buttonPromptWidth = 0;
         }
@@ -600,7 +750,7 @@ namespace MinorShift.Emuera.GameView
         private void SyncButtonState()
         {
             bool shouldHaveButtons = false;
-            List<ConsoleButtonString> newButtons = [];
+            List<ButtonPos> newPositions = [];
 
             if (console.State == ConsoleState.WaitInput)
             {
@@ -613,9 +763,9 @@ namespace MinorShift.Emuera.GameView
                         return;
                     }
 
-                    newButtons = console.CollectCurrentButtons();
+                    newPositions = RebuildButtonPositions();
                     _lastButtonSyncGen = currentGen;
-                    if (newButtons.Count > 0)
+                    if (newPositions.Count > 0)
                         shouldHaveButtons = true;
                 }
             }
@@ -631,15 +781,15 @@ namespace MinorShift.Emuera.GameView
             else if (!_buttonMode)
             {
                 _buttonMode = true;
-                _currentButtons = newButtons;
+                _buttonPositions = newPositions;
                 _selectedButtonIndex = 0;
                 ClearInputBuffer();
                 RenderButtonPrompt();
             }
-            else if (!ButtonListEquals(_currentButtons, newButtons))
+            else if (!ButtonListEquals(_buttonPositions, newPositions))
             {
-                _currentButtons = newButtons;
-                _selectedButtonIndex = Math.Clamp(_selectedButtonIndex, 0, newButtons.Count - 1);
+                _buttonPositions = newPositions;
+                _selectedButtonIndex = Math.Clamp(_selectedButtonIndex, 0, newPositions.Count - 1);
                 RenderButtonPrompt();
             }
         }
@@ -675,14 +825,12 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
-        private static bool ButtonListEquals(List<ConsoleButtonString> a, List<ConsoleButtonString> b)
+        private static bool ButtonListEquals(List<ButtonPos> a, List<ButtonPos> b)
         {
             if (a.Count != b.Count) return false;
             for (int i = 0; i < a.Count; i++)
             {
-                if (a[i].Generation != b[i].Generation) return false;
-                if (a[i].IsInteger ? a[i].Input != b[i].Input : a[i].Inputs != b[i].Inputs)
-                    return false;
+                if (a[i].InputKey != b[i].InputKey) return false;
             }
             return true;
         }
