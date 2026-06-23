@@ -15,6 +15,7 @@ Emuera.Headless/bin/*
 Emuera.Headless/obj/*
 Emuera.Headless/publish/*
 docs/2026.6.16.mouse-input/spikes/*
+docs/2026.6.23.vt-input/spikes/*
 
 test_game/save/
 test_game/emuera.log
@@ -29,3 +30,4 @@ Emuera.CLI/artifacts/
 CLAUDE.md
 test_game/setting.json
 test_game/emuera.config
+.trae/rules/git-commit-message.md
