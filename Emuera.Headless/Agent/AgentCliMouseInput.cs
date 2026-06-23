@@ -5,9 +5,11 @@ using MinorShift.Emuera.UI.Game;
 namespace MinorShift.Emuera.GameView
 {
     /// <summary>
+    /// [Obsolete] v2.0 使用 AgentCliVtInput，本类不再接入主循环，保留代码供参考。
     /// CLI 鼠标输入后端：GetNumberOfConsoleInputEvents 非阻塞轮询 + ReadConsoleInput 统一分派。
     /// 仅在 Windows + 交互式 conhost 下启用；pipe / redirected stdin 不启用。
     /// </summary>
+    [Obsolete("v2.0 使用 AgentCliVtInput，本类不再接入主循环")]
     internal sealed class AgentCliMouseInput : IDisposable
     {
         private readonly AgentCliProtocol _host;

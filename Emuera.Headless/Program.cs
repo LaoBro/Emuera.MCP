@@ -219,21 +219,35 @@ static partial class Program
             int gameColumns = Config.DrawableWidth / charWidth;
             int gameRows = Config.WindowY / Config.LineHeight;
 
-            if (gameColumns > 0 && gameRows > 0)
-            {
-                // 先设置缓冲区大小（必须 >= 窗口大小）
-                if (Console.BufferWidth < gameColumns)
-                    Console.BufferWidth = gameColumns;
-                if (Console.BufferHeight < gameRows + 10)
-                    Console.BufferHeight = gameRows + 10;
+            if (gameColumns <= 0 || gameRows <= 0) return;
 
-                // 再设置窗口大小
-                Console.WindowWidth = Math.Min(gameColumns, Console.LargestWindowWidth);
-                Console.WindowHeight = Math.Min(gameRows + 4, Console.LargestWindowHeight);
+            if (IsWindowsTerminal())
+            {
+                // Windows Terminal(conpty) 不支持通过 Console.WindowWidth/Height
+                // 调整物理窗口——设置伪缓冲区视口会使其与物理窗口不同步，
+                // 渲染按伪缓冲区宽度换行但物理窗口更窄，造成错位。
+                // 改用 VT 序列 CSI 8 ; rows ; cols t（XTWINOPS）请求调整物理窗口；
+                // 若终端不支持则被忽略（无害），渲染仍基于实际 WindowWidth/Height。
+                int rows = gameRows + 4;
+                Console.Write($"\x1b[8;{rows};{gameColumns}t");
+                return;
             }
+
+            // conhost：先设置缓冲区大小（必须 >= 窗口大小），再设置窗口大小
+            if (Console.BufferWidth < gameColumns)
+                Console.BufferWidth = gameColumns;
+            if (Console.BufferHeight < gameRows + 10)
+                Console.BufferHeight = gameRows + 10;
+
+            Console.WindowWidth = Math.Min(gameColumns, Console.LargestWindowWidth);
+            Console.WindowHeight = Math.Min(gameRows + 4, Console.LargestWindowHeight);
         }
         catch { }
     }
+
+    /// <summary>检测是否运行在 Windows Terminal（conpty）下。</summary>
+    private static bool IsWindowsTerminal()
+        => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WT_SESSION"));
 
     private static AgentProtocolBase? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui)
     {
