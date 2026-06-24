@@ -26,6 +26,23 @@ internal static class TerminalDisplayWidth
     }
 
     /// <summary>
+    /// 计算字符串前导空白（对齐缩进）的显示宽度：
+    /// 半角空格 ' ' 计 1 列，全角空格 '\u3000' 计 2 列，遇到首个非空白字符停止。
+    /// 用于按格式化行计算按钮区域的起始列。
+    /// </summary>
+    internal static int LeadingDisplayWidth(string s)
+    {
+        int width = 0;
+        foreach (char c in s)
+        {
+            if (c == ' ') { width += 1; continue; }
+            if (c == '\u3000') { width += 2; continue; }
+            break;
+        }
+        return width;
+    }
+
+    /// <summary>
     /// 判断字符在游戏设计中是否为全角（占 2 列）。
     /// 此判定始终与游戏（MS Gothic 字体）的设计一致，不受终端实际渲染影响。
     /// 终端渲染差异由 ReplaceForTerminal 在输出端补偿。

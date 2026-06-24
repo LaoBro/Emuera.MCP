@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using MinorShift.Emuera.UI.Game;
@@ -127,10 +126,10 @@ namespace MinorShift.Emuera.GameView
             if (!OperatingSystem.IsWindows()) return null;
             if (Console.IsInputRedirected) return null;
 
-            IntPtr stdin = GetStdHandle(STD_INPUT_HANDLE);
-            if (stdin == IntPtr.Zero || stdin == INVALID_HANDLE_VALUE) return null;
+            IntPtr stdin = Win32ConsoleInterop.GetStdHandle(Win32ConsoleInterop.STD_INPUT_HANDLE);
+            if (stdin == IntPtr.Zero || stdin == Win32ConsoleInterop.INVALID_HANDLE_VALUE) return null;
 
-            if (!GetConsoleMode(stdin, out uint originalMode))
+            if (!Win32ConsoleInterop.GetConsoleMode(stdin, out uint originalMode))
             {
                 s_log.Write("[vt-input] GetConsoleMode failed");
                 return null;
@@ -149,16 +148,16 @@ namespace MinorShift.Emuera.GameView
 
             // 设置 VT input mode
             uint newMode = (originalMode
-                            | ENABLE_VIRTUAL_TERMINAL_INPUT
-                            | ENABLE_EXTENDED_FLAGS
-                            | ENABLE_WINDOW_INPUT
-                            | ENABLE_MOUSE_INPUT)
-                          & ~ENABLE_PROCESSED_INPUT
-                          & ~ENABLE_ECHO_INPUT
-                          & ~ENABLE_LINE_INPUT
-                          & ~ENABLE_QUICK_EDIT_MODE;
+                            | Win32ConsoleInterop.ENABLE_VIRTUAL_TERMINAL_INPUT
+                            | Win32ConsoleInterop.ENABLE_EXTENDED_FLAGS
+                            | Win32ConsoleInterop.ENABLE_WINDOW_INPUT
+                            | Win32ConsoleInterop.ENABLE_MOUSE_INPUT)
+                          & ~Win32ConsoleInterop.ENABLE_PROCESSED_INPUT
+                          & ~Win32ConsoleInterop.ENABLE_ECHO_INPUT
+                          & ~Win32ConsoleInterop.ENABLE_LINE_INPUT
+                          & ~Win32ConsoleInterop.ENABLE_QUICK_EDIT_MODE;
 
-            if (!SetConsoleMode(stdin, newMode))
+            if (!Win32ConsoleInterop.SetConsoleMode(stdin, newMode))
             {
                 s_log.Write($"[vt-input] SetConsoleMode failed, target=0x{newMode:X8}");
                 return null;
@@ -171,7 +170,7 @@ namespace MinorShift.Emuera.GameView
 
         internal override bool HasInputAvailable()
         {
-            return GetNumberOfConsoleInputEvents(_stdinHandle, out uint count) && count > 0;
+            return Win32ConsoleInterop.GetNumberOfConsoleInputEvents(_stdinHandle, out uint count) && count > 0;
         }
 
         internal override unsafe int ReadByte()
@@ -179,7 +178,7 @@ namespace MinorShift.Emuera.GameView
             byte[] buf = new byte[1];
             fixed (byte* p = buf)
             {
-                if (!ReadFile(_stdinHandle, (IntPtr)p, 1, out int read, IntPtr.Zero) || read == 0)
+                if (!Win32ConsoleInterop.ReadFile(_stdinHandle, (IntPtr)p, 1, out int read, IntPtr.Zero) || read == 0)
                     return -1;
             }
             return buf[0];
@@ -187,7 +186,7 @@ namespace MinorShift.Emuera.GameView
 
         internal override void EnableSgrMouse()
         {
-            TryWrite("\x1b[?1000h\x1b[?1006h");
+            TerminalCursor.TryWrite("\x1b[?1000h\x1b[?1006h");
             _sgrMouseEnabled = true;
             s_log.Write("[vt-input] SGR mouse enabled (1000h + 1006h)");
         }
@@ -195,7 +194,7 @@ namespace MinorShift.Emuera.GameView
         internal override void DisableSgrMouse()
         {
             if (!_sgrMouseEnabled) return;
-            TryWrite("\x1b[?1006l\x1b[?1000l");
+            TerminalCursor.TryWrite("\x1b[?1006l\x1b[?1000l");
             _sgrMouseEnabled = false;
             s_log.Write("[vt-input] SGR mouse disabled");
         }
@@ -209,9 +208,9 @@ namespace MinorShift.Emuera.GameView
             // （退出备用屏由 AgentCliVtScreen.Dispose 负责，在 VtInput 之后调用）
             DisableSgrMouse();
 
-            if (_inputModeSet && _stdinHandle != IntPtr.Zero && _stdinHandle != INVALID_HANDLE_VALUE)
+            if (_inputModeSet && _stdinHandle != IntPtr.Zero && _stdinHandle != Win32ConsoleInterop.INVALID_HANDLE_VALUE)
             {
-                SetConsoleMode(_stdinHandle, _originalInputMode);
+                Win32ConsoleInterop.SetConsoleMode(_stdinHandle, _originalInputMode);
                 _inputModeSet = false;
                 s_log.Write($"[vt-input] restored input mode: 0x{_originalInputMode:X8}");
             }
@@ -224,18 +223,18 @@ namespace MinorShift.Emuera.GameView
         private static bool ProbeDa1(IntPtr stdin, uint originalMode)
         {
             // 临时开启 VT input mode 以接收 DA1 响应（响应通过 stdin 返回）
-            uint probeMode = (originalMode | ENABLE_VIRTUAL_TERMINAL_INPUT)
-                             & ~ENABLE_PROCESSED_INPUT
-                             & ~ENABLE_ECHO_INPUT
-                             & ~ENABLE_LINE_INPUT;
-            if (!SetConsoleMode(stdin, probeMode))
+            uint probeMode = (originalMode | Win32ConsoleInterop.ENABLE_VIRTUAL_TERMINAL_INPUT)
+                             & ~Win32ConsoleInterop.ENABLE_PROCESSED_INPUT
+                             & ~Win32ConsoleInterop.ENABLE_ECHO_INPUT
+                             & ~Win32ConsoleInterop.ENABLE_LINE_INPUT;
+            if (!Win32ConsoleInterop.SetConsoleMode(stdin, probeMode))
             {
                 s_log.Write("[vt-input] failed to set probe input mode");
                 return false;
             }
 
             // 发送 DA1 查询
-            TryWrite("\x1b[c");
+            TerminalCursor.TryWrite("\x1b[c");
             s_log.Write("[vt-input] sent DA1 query ESC[c");
 
             // 轮询 200ms 等待响应
@@ -245,7 +244,7 @@ namespace MinorShift.Emuera.GameView
 
             while (DateTime.UtcNow < deadline)
             {
-                if (GetNumberOfConsoleInputEvents(stdin, out uint count) && count > 0)
+                if (Win32ConsoleInterop.GetNumberOfConsoleInputEvents(stdin, out uint count) && count > 0)
                 {
                     int n = ReadRawBytes(stdin, buffer, totalRead, buffer.Length - totalRead);
                     if (n > 0)
@@ -255,7 +254,7 @@ namespace MinorShift.Emuera.GameView
                         {
                             s_log.Write($"[vt-input] DA1 response received ({totalRead} bytes)");
                             // 恢复原始 mode，后续 SetupVtInputMode 会重新设置
-                            SetConsoleMode(stdin, originalMode);
+                            Win32ConsoleInterop.SetConsoleMode(stdin, originalMode);
                             return true;
                         }
                     }
@@ -265,7 +264,7 @@ namespace MinorShift.Emuera.GameView
 
             // 超时
             s_log.Write($"[vt-input] DA1 probe timeout (read {totalRead} bytes)");
-            SetConsoleMode(stdin, originalMode);
+            Win32ConsoleInterop.SetConsoleMode(stdin, originalMode);
             return false;
         }
 
@@ -301,51 +300,11 @@ namespace MinorShift.Emuera.GameView
             // P/Invoke 签名必须用 IntPtr lpBuffer + unsafe fixed，不能用 Span<byte>
             fixed (byte* p = &buffer[offset])
             {
-                if (!ReadFile(stdin, (IntPtr)p, count, out int read, IntPtr.Zero))
+                if (!Win32ConsoleInterop.ReadFile(stdin, (IntPtr)p, count, out int read, IntPtr.Zero))
                     return 0;
                 return read;
             }
         }
-
-        #endregion
-
-        private static void TryWrite(string text)
-        {
-            try { Console.Write(text); } catch { }
-        }
-
-        #region P/Invoke
-
-        private const int STD_INPUT_HANDLE = -10;
-        private static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
-
-        private const uint ENABLE_PROCESSED_INPUT = 0x0001;
-        private const uint ENABLE_LINE_INPUT = 0x0002;
-        private const uint ENABLE_ECHO_INPUT = 0x0004;
-        private const uint ENABLE_WINDOW_INPUT = 0x0008;
-        private const uint ENABLE_MOUSE_INPUT = 0x0010;
-        private const uint ENABLE_EXTENDED_FLAGS = 0x0080;
-        private const uint ENABLE_QUICK_EDIT_MODE = 0x0040;
-        private const uint ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200;
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern IntPtr GetStdHandle(int nStdHandle);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetNumberOfConsoleInputEvents(IntPtr hConsoleInput, out uint lpcNumberOfEvents);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool ReadFile(IntPtr hFile, IntPtr lpBuffer, int nNumberOfBytesToRead, out int lpNumberOfBytesRead, IntPtr lpOverlapped);
 
         #endregion
     }

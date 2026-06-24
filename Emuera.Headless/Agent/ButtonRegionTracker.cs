@@ -15,7 +15,7 @@ namespace MinorShift.Emuera.GameView
         {
             if (buttons == null || buttons.Length == 0 || string.IsNullOrEmpty(formattedLine)) return;
 
-            int column = LeadingDisplayWidth(formattedLine);
+            int column = TerminalDisplayWidth.LeadingDisplayWidth(formattedLine);
 
             foreach (var btn in buttons)
             {
@@ -43,18 +43,6 @@ namespace MinorShift.Emuera.GameView
                     return r.Button;
             }
             return null;
-        }
-
-        private static int LeadingDisplayWidth(string s)
-        {
-            int width = 0;
-            foreach (char c in s)
-            {
-                if (c == ' ') { width += 1; continue; }
-                if (c == '\u3000') { width += 2; continue; }
-                break;
-            }
-            return width;
         }
 
         internal readonly record struct Region(

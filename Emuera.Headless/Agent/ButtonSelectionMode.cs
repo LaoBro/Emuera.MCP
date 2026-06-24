@@ -199,7 +199,7 @@ namespace MinorShift.Emuera.GameView
                 if (line?.Buttons == null || line.Buttons.Length == 0) continue;
 
                 string formatted = _console.FormatLineForTerminal(line);
-                int column = LeadingDisplayWidth(formatted);
+                int column = TerminalDisplayWidth.LeadingDisplayWidth(formatted);
 
                 foreach (var btn in line.Buttons)
                 {
@@ -217,19 +217,6 @@ namespace MinorShift.Emuera.GameView
                 }
             }
             return result;
-        }
-
-        // 计算格式化行的前导空白宽度（对齐缩进），与 ButtonRegionTracker 逻辑一致
-        private static int LeadingDisplayWidth(string s)
-        {
-            int width = 0;
-            foreach (char c in s)
-            {
-                if (c == ' ') { width += 1; continue; }
-                if (c == '\u3000') { width += 2; continue; }
-                break;
-            }
-            return width;
         }
 
         /// <summary>
