@@ -2,21 +2,25 @@ using System;
 
 namespace MinorShift.Emuera.GameView;
 
+/// <summary>
+/// 各字符组在当前终端中的实际渲染宽度配置（全角=true / 半角=false）。
+/// 实例化以消除全局可变状态，由调用方持有并在 <see cref="TerminalDisplayWidth.ReplaceForTerminal"/> 时传入。
+///
+/// 这些值仅影响输出端的 ReplaceForTerminal，绝不影响 IsWideChar。
+/// IsWideChar 始终与游戏设计一致（Box/Geometric/Misc=全角，Block=半角）。
+/// </summary>
+internal readonly record struct TerminalCharWidthConfig(
+    bool BoxDrawingIsWide,
+    bool GeometricIsWide,
+    bool MiscSymbolsIsWide,
+    bool BlockElementsIsWide)
+{
+    /// <summary>默认配置：全部半角（非 CJK 行为）。</summary>
+    internal static TerminalCharWidthConfig Default => new(false, false, false, false);
+}
+
 internal static class TerminalDisplayWidth
 {
-    /// <summary>
-    /// 各字符组在当前终端中的实际渲染宽度（全角=true / 半角=false）。
-    /// 默认全 false（非 CJK 行为），由 DetectCharWidths() 探测实际值，
-    /// 或由 ApplyWidthHint() 根据用户提示强制覆盖。
-    ///
-    /// 这些值仅影响输出端的 ReplaceForTerminal，绝不影响 IsWideChar。
-    /// IsWideChar 始终与游戏设计一致（Box/Geometric/Misc=全角，Block=半角）。
-    /// </summary>
-    internal static bool BoxDrawingIsWide = false;
-    internal static bool GeometricIsWide = false;
-    internal static bool MiscSymbolsIsWide = false;
-    internal static bool BlockElementsIsWide = false;
-
     internal static int GetDisplayWidth(string str)
     {
         int width = 0;
@@ -77,30 +81,24 @@ internal static class TerminalDisplayWidth
     }
 
     /// <summary>
-    /// 根据用户提供的宽度提示强制覆盖各字符组的渲染宽度判定。
+    /// 根据用户提供的宽度提示生成各字符组的渲染宽度配置。
     /// 用于探测不可用（如 mintty 直连、输出重定向、非 Windows）或用户明确指定的情况。
     /// hint 取值：
     ///   "cjk"    - 4 组全部按全角（对应 MS Gothic 等 CJK 字体终端）
     ///   "latin"  - 4 组全部按半角（对应非 CJK 字体终端，概率最大）
-    ///   "auto"   - 不覆盖，由 DetectCharWidths() 探测决定
+    ///   "auto"   - 返回 Default，由 DetectCharWidths() 探测决定
     /// </summary>
-    internal static void ApplyWidthHint(string hint)
+    internal static TerminalCharWidthConfig ApplyWidthHint(string hint)
     {
         switch ((hint ?? "auto").Trim().ToLowerInvariant())
         {
             case "cjk":
-                BoxDrawingIsWide = true;
-                GeometricIsWide = true;
-                MiscSymbolsIsWide = true;
-                BlockElementsIsWide = true;
-                break;
+                return new TerminalCharWidthConfig(true, true, true, true);
             case "latin":
-                BoxDrawingIsWide = false;
-                GeometricIsWide = false;
-                MiscSymbolsIsWide = false;
-                BlockElementsIsWide = false;
-                break;
-            // "auto" 或其它值：不覆盖，保持默认或探测结果
+                return TerminalCharWidthConfig.Default;
+            // "auto" 或其它值：返回默认，由调用方决定是否探测
+            default:
+                return TerminalCharWidthConfig.Default;
         }
     }
 
@@ -110,9 +108,9 @@ internal static class TerminalDisplayWidth
     /// 在所有能交互的控制台（conhost、Windows Terminal/conpty）中可靠；
     /// 在输出重定向或探测异常时保持默认值（全 false = 非 CJK）。
     /// </summary>
-    internal static void DetectCharWidths()
+    internal static TerminalCharWidthConfig DetectCharWidths()
     {
-        if (Console.IsOutputRedirected) return;
+        if (Console.IsOutputRedirected) return TerminalCharWidthConfig.Default;
 
         // (代表字符, 输出字段引用) —— 用局部变量承接探测结果
         ProbeGroup('\u2501', out bool boxWide);       // ━ Box Drawing
@@ -120,16 +118,13 @@ internal static class TerminalDisplayWidth
         ProbeGroup('\u2605', out bool miscWide);      // ★ Miscellaneous Symbols
         ProbeGroup('\u2588', out bool blockWide);     // █ Block Elements
 
-        BoxDrawingIsWide = boxWide;
-        GeometricIsWide = geoWide;
-        MiscSymbolsIsWide = miscWide;
-        BlockElementsIsWide = blockWide;
-
         Console.Error.WriteLine(
             $"[terminal] Char widths: BoxDrawing={(boxWide ? "wide" : "half")} " +
             $"Geometric={(geoWide ? "wide" : "half")} " +
             $"MiscSymbols={(miscWide ? "wide" : "half")} " +
             $"BlockElements={(blockWide ? "wide" : "half")}");
+
+        return new TerminalCharWidthConfig(boxWide, geoWide, miscWide, blockWide);
     }
 
     /// <summary>
@@ -188,15 +183,15 @@ internal static class TerminalDisplayWidth
     ///                          在字符后补一个半角空格（字符 1 列 + 空格 1 列 = 2 列）；
     ///                          终端已为全角时不处理。
     /// </summary>
-    internal static string ReplaceForTerminal(string str)
+    internal static string ReplaceForTerminal(string str, TerminalCharWidthConfig config)
     {
         if (str.Length == 0) return str;
 
         // 快速路径：判断是否需要任何处理
-        bool padBox = !BoxDrawingIsWide;
-        bool padGeo = !GeometricIsWide;
-        bool padMisc = !MiscSymbolsIsWide;
-        bool replaceBlock = BlockElementsIsWide;
+        bool padBox = !config.BoxDrawingIsWide;
+        bool padGeo = !config.GeometricIsWide;
+        bool padMisc = !config.MiscSymbolsIsWide;
+        bool replaceBlock = config.BlockElementsIsWide;
 
         if (!padBox && !padGeo && !padMisc && !replaceBlock) return str;
 

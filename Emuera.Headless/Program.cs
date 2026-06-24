@@ -168,19 +168,24 @@ static partial class Program
 
         // 应用用户提供的字符宽度提示（cjk/latin 强制覆盖；auto 交由探测决定）
         string hint = (termWidthHint ?? "auto").Trim().ToLowerInvariant();
-        TerminalDisplayWidth.ApplyWidthHint(hint);
+        TerminalCharWidthConfig charWidthConfig;
         if (hint == "auto")
         {
             // 探测各字符组在当前终端的实际渲染宽度
             // 在 conhost、Windows Terminal(conpty) 中可靠；重定向/mintty 下保持默认
-            TerminalDisplayWidth.DetectCharWidths();
+            charWidthConfig = TerminalDisplayWidth.DetectCharWidths();
         }
+        else
+        {
+            charWidthConfig = TerminalDisplayWidth.ApplyWidthHint(hint);
+        }
+        console.CharWidthConfig = charWidthConfig;
 
         // 读取并打印当前终端字体名（仅诊断信息，不参与判断）
         DetectConsoleFont();
 
         // 基于探测结果给出字体配置建议
-        PrintTerminalGuidance();
+        PrintTerminalGuidance(charWidthConfig);
 
         AgentProtocolBase? protocol;
         try
@@ -451,12 +456,12 @@ static partial class Program
     ///   - cell=2（含补空格）但字形半角（如 WT 的 ━）→ 空白列产生线条空缺
     /// 因此仍需建议用户选择字形宽度与 cell allocation 匹配的字体。
     /// </summary>
-    private static void PrintTerminalGuidance()
+    private static void PrintTerminalGuidance(TerminalCharWidthConfig config)
     {
-        bool anySymbolHalf = !TerminalDisplayWidth.BoxDrawingIsWide
-                          || !TerminalDisplayWidth.GeometricIsWide
-                          || !TerminalDisplayWidth.MiscSymbolsIsWide;
-        bool blockReplaced = TerminalDisplayWidth.BlockElementsIsWide;
+        bool anySymbolHalf = !config.BoxDrawingIsWide
+                          || !config.GeometricIsWide
+                          || !config.MiscSymbolsIsWide;
+        bool blockReplaced = config.BlockElementsIsWide;
 
         if (anySymbolHalf)
         {

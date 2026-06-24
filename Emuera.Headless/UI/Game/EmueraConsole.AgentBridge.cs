@@ -62,6 +62,12 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>
+        /// 当前终端的字符宽度配置，由 Program.cs 在启动时探测/设置。
+        /// 供 FormatLineForTerminal / WriteAlignedLine 在输出时补偿终端渲染差异。
+        /// </summary>
+        internal TerminalCharWidthConfig CharWidthConfig = TerminalCharWidthConfig.Default;
+
+        /// <summary>
         /// 当前 TINPUT 请求是否带 DisplayTime（倒计时显示）。
         /// </summary>
         internal bool IsDisplayTimeActive =>
@@ -176,7 +182,7 @@ namespace MinorShift.Emuera.GameView
             }
 
             // 输出前替换终端不兼容字符（░▒▓ → 半角等价字符）
-            output = TerminalDisplayWidth.ReplaceForTerminal(output);
+            output = TerminalDisplayWidth.ReplaceForTerminal(output, CharWidthConfig);
 
             if (line.IsLineEnd)
                 WriteToAgentBuffer(output);
@@ -309,7 +315,7 @@ namespace MinorShift.Emuera.GameView
             }
 
             // 输出前替换终端不兼容字符
-            return TerminalDisplayWidth.ReplaceForTerminal(output);
+            return TerminalDisplayWidth.ReplaceForTerminal(output, CharWidthConfig);
         }
 
         /// <summary>

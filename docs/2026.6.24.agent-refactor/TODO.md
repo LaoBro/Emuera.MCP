@@ -65,25 +65,16 @@
 
 ---
 
-### 4. 封装 TerminalDisplayWidth 全局可变状态
+### 4. 封装 TerminalDisplayWidth 全局可变状态（已完成）
 
-**现状**：[TerminalDisplayWidth.cs#L17-L20](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Agent/TerminalDisplayWidth.cs#L17) 使用 `internal static` 可变字段：
-
-```csharp
-internal static bool BoxDrawingIsWide = false;
-internal static bool GeometricIsWide = false;
-internal static bool MiscSymbolsIsWide = false;
-internal static bool BlockElementsIsWide = false;
-```
-
-全局可变状态导致无法并发使用、测试需重置状态、隐式依赖初始化顺序。
+**状态**：4 个 `internal static` 可变字段已封装为 `TerminalCharWidthConfig` readonly record struct，由 `EmueraConsole` 持有实例，全局可变状态消除。
 
 **待办**：
 
-- [ ] 封装为 `TerminalCharWidthConfig` 实例配置对象
-- [ ] `Detect()` / `ApplyWidthHint()` 返回配置实例
-- [ ] `ReplaceForTerminal` 接收配置参数
-- [ ] 调用方（`EmueraConsole.AgentBridge` 的 `FormatLineForTerminal`）持有配置实例
+- [x] 封装为 `TerminalCharWidthConfig` 实例配置对象
+- [x] `Detect()` / `ApplyWidthHint()` 返回配置实例
+- [x] `ReplaceForTerminal` 接收配置参数
+- [x] 调用方（`EmueraConsole.AgentBridge` 的 `FormatLineForTerminal`）持有配置实例
 
 **预期收益**：消除全局可变状态，提升可测试性
 **工作量**：0.5 天
@@ -173,6 +164,7 @@ internal static bool BlockElementsIsWide = false;
 
 | 日期 | 任务 | 产出 |
 |------|------|------|
+| 2026-06-25 | 完成 P1.4 封装 TerminalDisplayWidth 全局可变状态 | 新建 `TerminalCharWidthConfig` readonly record struct；`DetectCharWidths`/`ApplyWidthHint` 返回配置实例；`ReplaceForTerminal` 接收配置参数；`EmueraConsole` 持有 `CharWidthConfig` 实例；`Program.cs` 捕获配置并设置到 console，`PrintTerminalGuidance` 改为接收配置参数 |
 | 2026-06-25 | 完成 P1.2 引入 IConsoleStateView 解耦 | 新建 `IConsoleStateView.cs`（`ConsumeNeedFullRefresh`/`ConsumePendingEraseRows`/`AppendToAgentBuffer`）；`EmueraConsole` 实现接口；`AgentCliProtocol`(3处)/`TerminalRenderer`/`AgentProtocolBase` 改用接口方法，消除全部直接 `internal` 字段访问 |
 | 2026-06-25 | 完成 P1.1 提取重复代码 | `LeadingDisplayWidth` 统一到 `TerminalDisplayWidth`；`TryWrite(string)` 统一到 `TerminalCursor`（移除 `AgentCliVtScreen`/`WindowsVtInput` 重复）；新建 `Win32ConsoleInterop.cs` 集中 P/Invoke 声明 |
 | 2026-06-24 | 删除 `AgentCliMouseInput` 废弃代码 | 移除 275 行死代码 |
