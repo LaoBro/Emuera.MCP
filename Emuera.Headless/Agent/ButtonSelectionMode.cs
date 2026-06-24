@@ -190,6 +190,13 @@ namespace MinorShift.Emuera.GameView
             int startLine = Math.Max(0, lines.Count - visibleLines);
 
             long currentGen = _console.LastButtonGeneration;
+            // 整数输入语义下（IntValue/IntButton/AnyValue），字符串按钮提交后会被
+            // DispatchInput 的 long.TryParse 拒绝、或 SelectedString 返回 null，
+            // 属于按了无反应的噪声按钮，这里统一过滤掉。
+            var reqType = _console.CurrentRequest?.InputType;
+            bool intMode = reqType == InputType.IntValue
+                || reqType == InputType.IntButton
+                || reqType == InputType.AnyValue;
             var seenKeys = new HashSet<string>();
 
             for (int i = 0; i < visibleLines; i++)
@@ -207,7 +214,8 @@ namespace MinorShift.Emuera.GameView
                     string btnText = btn.ToString() ?? "";
                     int segmentWidth = TerminalDisplayWidth.GetDisplayWidth(btnText);
 
-                    if (btn.IsButton && btn.Generation == currentGen && segmentWidth > 0)
+                    if (btn.IsButton && btn.Generation == currentGen && segmentWidth > 0
+                        && (!intMode || btn.IsInteger))
                     {
                         string key = btn.IsInteger ? btn.Input.ToString() : btn.Inputs;
                         if (seenKeys.Add(key))
