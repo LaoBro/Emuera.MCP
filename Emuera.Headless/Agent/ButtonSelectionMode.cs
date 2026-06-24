@@ -268,85 +268,27 @@ namespace MinorShift.Emuera.GameView
 
             var current = _buttonPositions[currentIdx];
             int currentCenter = (current.Left + current.Right) / 2;
-            int newIdx = -1;
 
-            switch (key.Key)
+            // 四方向导航：候选过滤 + 更优判定，统一走 FindNextButton。
+            // Up/Down：跨行选取最近行，同行取中心列最近；Left/Right：同行取最远边界。
+            int newIdx = key.Key switch
             {
-                case ConsoleKey.UpArrow:
-                    {
-                        // 上方行中选取最接近当前行的，同行则取中心列最近
-                        int bestRow = int.MinValue;
-                        int bestDist = int.MaxValue;
-                        for (int i = 0; i < _buttonPositions.Count; i++)
-                        {
-                            var p = _buttonPositions[i];
-                            if (p.Row >= current.Row) continue;
-                            int pCenter = (p.Left + p.Right) / 2;
-                            int dist = Math.Abs(pCenter - currentCenter);
-                            if (p.Row > bestRow || (p.Row == bestRow && dist < bestDist))
-                            {
-                                bestRow = p.Row;
-                                bestDist = dist;
-                                newIdx = i;
-                            }
-                        }
-                        break;
-                    }
-                case ConsoleKey.DownArrow:
-                    {
-                        // 下方行中选取最接近当前行的，同行则取中心列最近
-                        int bestRow = int.MaxValue;
-                        int bestDist = int.MaxValue;
-                        for (int i = 0; i < _buttonPositions.Count; i++)
-                        {
-                            var p = _buttonPositions[i];
-                            if (p.Row <= current.Row) continue;
-                            int pCenter = (p.Left + p.Right) / 2;
-                            int dist = Math.Abs(pCenter - currentCenter);
-                            if (p.Row < bestRow || (p.Row == bestRow && dist < bestDist))
-                            {
-                                bestRow = p.Row;
-                                bestDist = dist;
-                                newIdx = i;
-                            }
-                        }
-                        break;
-                    }
-                case ConsoleKey.LeftArrow:
-                    {
-                        // 同行中 right < currentLeft 的最大 right
-                        int bestRight = int.MinValue;
-                        for (int i = 0; i < _buttonPositions.Count; i++)
-                        {
-                            var p = _buttonPositions[i];
-                            if (p.Row != current.Row || p.Right >= current.Left) continue;
-                            if (p.Right > bestRight)
-                            {
-                                bestRight = p.Right;
-                                newIdx = i;
-                            }
-                        }
-                        break;
-                    }
-                case ConsoleKey.RightArrow:
-                    {
-                        // 同行中 left > currentRight 的最小 left
-                        int bestLeft = int.MaxValue;
-                        for (int i = 0; i < _buttonPositions.Count; i++)
-                        {
-                            var p = _buttonPositions[i];
-                            if (p.Row != current.Row || p.Left <= current.Right) continue;
-                            if (p.Left < bestLeft)
-                            {
-                                bestLeft = p.Left;
-                                newIdx = i;
-                            }
-                        }
-                        break;
-                    }
-                default:
-                    return;
-            }
+                ConsoleKey.UpArrow => FindNextButton(
+                    p => p.Row < current.Row,
+                    (a, best) => a.Row > best.Row
+                        || (a.Row == best.Row && CenterDist(a, currentCenter) < CenterDist(best, currentCenter))),
+                ConsoleKey.DownArrow => FindNextButton(
+                    p => p.Row > current.Row,
+                    (a, best) => a.Row < best.Row
+                        || (a.Row == best.Row && CenterDist(a, currentCenter) < CenterDist(best, currentCenter))),
+                ConsoleKey.LeftArrow => FindNextButton(
+                    p => p.Row == current.Row && p.Right < current.Left,
+                    (a, best) => a.Right > best.Right),
+                ConsoleKey.RightArrow => FindNextButton(
+                    p => p.Row == current.Row && p.Left > current.Right,
+                    (a, best) => a.Left < best.Left),
+                _ => -1,
+            };
 
             if (newIdx >= 0 && newIdx != currentIdx)
             {
@@ -359,6 +301,27 @@ namespace MinorShift.Emuera.GameView
                     RedrawButtonLine(newRow);
             }
         }
+
+        /// <summary>
+        /// 在按钮列表中查找下一个目标按钮。
+        /// <paramref name="isCandidate"/> 过滤候选；<paramref name="isBetter"/> 判定候选是否优于当前最优。
+        /// 返回命中索引，无候选返回 -1。
+        /// </summary>
+        private int FindNextButton(Func<ButtonPos, bool> isCandidate, Func<ButtonPos, ButtonPos, bool> isBetter)
+        {
+            int newIdx = -1;
+            for (int i = 0; i < _buttonPositions.Count; i++)
+            {
+                var p = _buttonPositions[i];
+                if (!isCandidate(p)) continue;
+                if (newIdx < 0 || isBetter(p, _buttonPositions[newIdx]))
+                    newIdx = i;
+            }
+            return newIdx;
+        }
+
+        private static int CenterDist(ButtonPos p, int center)
+            => Math.Abs((p.Left + p.Right) / 2 - center);
 
         private void ConfirmButton()
         {

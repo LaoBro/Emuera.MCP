@@ -84,14 +84,14 @@
 
 ## P2 - 中优先级
 
-### 5. 主循环逻辑模板化
+### 5. 主循环逻辑模板化（已完成）
 
-**现状**：`RunVtMainLoop` 与 `RunConsoleKeyLoop` 共享大量相同逻辑（检查 `_needFullRefresh`、超时处理、`FlushBuffer`/`SyncButtonState` 调用序列），仅输入读取方式不同。
+**状态**：`RunVtMainLoop` 与 `RunConsoleKeyLoop` 已合并为 `RunAgentLoop` 模板，差异通过 `LoopStrategy` 抽象嵌套类（`VtLoopStrategy`/`ConsoleKeyLoopStrategy`）注入；超时处理提取为共享 `HandleTimeout` 方法。
 
 **待办**：
 
-- [ ] 提取通用循环模板，仅输入读取作为策略注入
-- [ ] 验证 VT/非 VT 路径行为一致
+- [x] 提取通用循环模板，仅输入读取作为策略注入
+- [x] 验证 VT/非 VT 路径行为一致
 
 **预期收益**：减少约 30 行重复代码
 **工作量**：1 天
@@ -99,14 +99,14 @@
 
 ---
 
-### 6. 按钮导航算法重构
+### 6. 按钮导航算法重构（已完成）
 
-**现状**：`ButtonSelectionMode.ProcessButtonModeKey` 中四个方向 `case` 块结构几乎相同，仅方向判断条件不同（约 90 行）。
+**状态**：`ProcessButtonModeKey` 四个方向 `case` 块已改为 `switch` 表达式调用统一 `FindNextButton(isCandidate, isBetter)`，提取 `CenterDist` 辅助方法。
 
 **待办**：
 
-- [ ] 提取通用 `FindNextButton` 方法，通过 `isCandidate` 谓词与 `ranker` 比较器参数化方向
-- [ ] 补单元测试验证导航正确性
+- [x] 提取通用 `FindNextButton` 方法，通过 `isCandidate` 谓词与 `ranker` 比较器参数化方向
+- [ ] 补单元测试验证导航正确性（依赖 P1.3 测试项目建立）
 
 **预期收益**：90 行 → 30 行，逻辑集中可测试
 **工作量**：0.5 天
@@ -114,15 +114,15 @@
 
 ---
 
-### 7. AgentLog 缓冲优化
+### 7. AgentLog 缓冲优化（已完成）
 
-**现状**：[AgentLog.cs#L41](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Agent/AgentLog.cs#L41) 每次调用 `File.AppendAllText`，每次开关文件，在高频轮询循环中产生不必要 I/O。
+**状态**：`AgentLog` 已改为持有 `StreamWriter`（`AutoFlush=false`），`Write` 加锁写入缓冲；实现 `IDisposable`，注册 `AppDomain.ProcessExit` 钩子确保退出时 flush + dispose。
 
 **待办**：
 
-- [ ] 改用带缓冲的 `StreamWriter`（`AutoFlush=false`）
-- [ ] 实现 `IDisposable`，进程退出时 flush
-- [ ] 注册 `AppDomain.ProcessExit` 钩子确保落盘
+- [x] 改用带缓冲的 `StreamWriter`（`AutoFlush=false`）
+- [x] 实现 `IDisposable`，进程退出时 flush
+- [x] 注册 `AppDomain.ProcessExit` 钩子确保落盘
 
 **预期收益**：减少 I/O 开销
 **工作量**：1 小时
@@ -164,6 +164,9 @@
 
 | 日期 | 任务 | 产出 |
 |------|------|------|
+| 2026-06-25 | 完成 P2.5 主循环逻辑模板化 | 新建 `RunAgentLoop` 模板 + `LoopStrategy` 抽象嵌套类（`VtLoopStrategy`/`ConsoleKeyLoopStrategy`）+ `PollOutcome` 枚举；提取共享 `HandleTimeout` 方法；删除 `RunVtMainLoop`/`RunConsoleKeyLoop`；VT 路径保留 HasInput 连续处理语义，非 VT 路径保留每轮 Update/Wait 语义 |
+| 2026-06-25 | 完成 P2.6 按钮导航算法重构 | `ProcessButtonModeKey` 四方向 `case` 块改为 `switch` 表达式调用统一 `FindNextButton(isCandidate, isBetter)`；提取 `CenterDist` 辅助方法；约 90 行降至约 50 行 |
+| 2026-06-25 | 完成 P2.7 AgentLog 缓冲优化 | `AgentLog` 持有 `StreamWriter`（`AutoFlush=false`）替代 `File.AppendAllText`；`Write` 加锁写入缓冲；实现 `IDisposable`，注册 `AppDomain.ProcessExit` 钩子确保退出时 flush + dispose |
 | 2026-06-25 | 完成 P1.4 封装 TerminalDisplayWidth 全局可变状态 | 新建 `TerminalCharWidthConfig` readonly record struct；`DetectCharWidths`/`ApplyWidthHint` 返回配置实例；`ReplaceForTerminal` 接收配置参数；`EmueraConsole` 持有 `CharWidthConfig` 实例；`Program.cs` 捕获配置并设置到 console，`PrintTerminalGuidance` 改为接收配置参数 |
 | 2026-06-25 | 完成 P1.2 引入 IConsoleStateView 解耦 | 新建 `IConsoleStateView.cs`（`ConsumeNeedFullRefresh`/`ConsumePendingEraseRows`/`AppendToAgentBuffer`）；`EmueraConsole` 实现接口；`AgentCliProtocol`(3处)/`TerminalRenderer`/`AgentProtocolBase` 改用接口方法，消除全部直接 `internal` 字段访问 |
 | 2026-06-25 | 完成 P1.1 提取重复代码 | `LeadingDisplayWidth` 统一到 `TerminalDisplayWidth`；`TryWrite(string)` 统一到 `TerminalCursor`（移除 `AgentCliVtScreen`/`WindowsVtInput` 重复）；新建 `Win32ConsoleInterop.cs` 集中 P/Invoke 声明 |
