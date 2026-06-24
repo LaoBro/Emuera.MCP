@@ -100,9 +100,8 @@ namespace MinorShift.Emuera.GameView
 
             while (!token.IsCancellationRequested)
             {
-                if (console._needFullRefresh)
+                if (console.ConsumeNeedFullRefresh())
                 {
-                    console._needFullRefresh = false;
                     _renderer.FlushBuffer();
                     _renderer.FullRefresh();
                     _countdown.Reset();
@@ -153,9 +152,8 @@ namespace MinorShift.Emuera.GameView
 
             while (!token.IsCancellationRequested)
             {
-                if (console._needFullRefresh)
+                if (console.ConsumeNeedFullRefresh())
                 {
-                    console._needFullRefresh = false;
                     _renderer.FlushBuffer();
                     _renderer.FullRefresh();
                     _countdown.Reset();
@@ -192,9 +190,8 @@ namespace MinorShift.Emuera.GameView
             var token = StopToken;
             while (!token.IsCancellationRequested)
             {
-                if (console._needFullRefresh)
+                if (console.ConsumeNeedFullRefresh())
                 {
-                    console._needFullRefresh = false;
                     _renderer.FlushBuffer();
                     _renderer.FullRefresh();
                 }

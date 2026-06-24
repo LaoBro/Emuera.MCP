@@ -46,10 +46,7 @@ namespace MinorShift.Emuera.GameView
 
         internal virtual void WriteOutput(string text, bool newLine = true)
         {
-            if (newLine)
-                console._agentBuffer.AppendLine(text);
-            else
-                console._agentBuffer.Append(text);
+            console.AppendToAgentBuffer(text, newLine);
         }
 
         internal virtual void Stop() => _cts.Cancel();

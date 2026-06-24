@@ -77,7 +77,7 @@ internal enum ConsoleRedraw
 	Normal = 1,
 }
 
-internal sealed partial class EmueraConsole : IDisposable
+internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 {
 	#region EmuEra-Rikaichan
 #if !HEADLESS

@@ -81,9 +81,8 @@ namespace MinorShift.Emuera.GameView
         /// <summary>擦除 console 标记的待清理行。VT 模式用 ESC[2K，非 VT 模式用空格覆盖。</summary>
         internal void EraseTerminalRows()
         {
-            int rows = _console._pendingEraseRows;
+            int rows = _console.ConsumePendingEraseRows();
             if (rows <= 0) return;
-            _console._pendingEraseRows = 0;
 
             var screen = _getScreen();
             if (screen != null)

@@ -29,20 +29,15 @@
 
 ---
 
-### 2. 引入 IConsoleStateView 解耦
+### 2. 引入 IConsoleStateView 解耦（已完成）
 
-**现状**：`AgentCliProtocol` 及拆分出的 `TerminalRenderer`/`ButtonSelectionMode` 仍直接访问 `EmueraConsole` 的 `internal` 字段：
-- `console._needFullRefresh`（[AgentCliProtocol.cs#L106](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Agent/AgentCliProtocol.cs#L106)）
-- `console._pendingEraseRows`（[TerminalRenderer.cs](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Agent/TerminalRenderer.cs) `EraseTerminalRows`）
-- `console._agentBuffer`（通过基类 `AgentProtocolBase`）
-
-`EmueraConsole.AgentBridge.cs` 专门暴露这些 `internal` 字段供 Agent 使用。
+**状态**：已定义 `IConsoleStateView` 接口封装"读后清零"消费语义，`EmueraConsole` 实现该接口，Agent 层所有直接 `internal` 字段访问已消除。
 
 **待办**：
 
-- [ ] 定义 `IConsoleStateView` 接口，封装"读后清零"消费语义
-- [ ] `EmueraConsole` 实现该接口
-- [ ] `AgentCliProtocol`/`TerminalRenderer`/`ButtonSelectionMode` 改为依赖接口
+- [x] 定义 `IConsoleStateView` 接口，封装"读后清零"消费语义
+- [x] `EmueraConsole` 实现该接口
+- [x] `AgentCliProtocol`/`TerminalRenderer`/`ButtonSelectionMode` 改为依赖接口
 
 **预期收益**：消除对 `internal` 字段的直接依赖，便于 mock 测试
 **工作量**：1 天
@@ -178,6 +173,7 @@ internal static bool BlockElementsIsWide = false;
 
 | 日期 | 任务 | 产出 |
 |------|------|------|
+| 2026-06-25 | 完成 P1.2 引入 IConsoleStateView 解耦 | 新建 `IConsoleStateView.cs`（`ConsumeNeedFullRefresh`/`ConsumePendingEraseRows`/`AppendToAgentBuffer`）；`EmueraConsole` 实现接口；`AgentCliProtocol`(3处)/`TerminalRenderer`/`AgentProtocolBase` 改用接口方法，消除全部直接 `internal` 字段访问 |
 | 2026-06-25 | 完成 P1.1 提取重复代码 | `LeadingDisplayWidth` 统一到 `TerminalDisplayWidth`；`TryWrite(string)` 统一到 `TerminalCursor`（移除 `AgentCliVtScreen`/`WindowsVtInput` 重复）；新建 `Win32ConsoleInterop.cs` 集中 P/Invoke 声明 |
 | 2026-06-24 | 删除 `AgentCliMouseInput` 废弃代码 | 移除 275 行死代码 |
 | 2026-06-24 | 拆分 `AgentCliProtocol` God Class | 新建 `ButtonSelectionMode.cs`(367行)、`CountdownRenderer.cs`(95行)、`TerminalRenderer.cs`(120行)；`AgentCliProtocol` 从 919 行降至 329 行（-64%） |

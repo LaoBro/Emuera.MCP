@@ -28,6 +28,39 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         internal int _pendingEraseRows;
 
+        // ----- IConsoleStateView 实现：封装"读后清零"消费语义 -----
+
+        /// <summary>
+        /// 消费"需要全量刷新"标记。返回 true 表示需要刷新，并自动清零。
+        /// </summary>
+        public bool ConsumeNeedFullRefresh()
+        {
+            bool v = _needFullRefresh;
+            _needFullRefresh = false;
+            return v;
+        }
+
+        /// <summary>
+        /// 消费"待擦除行数"。返回当前待擦除行数，并自动清零计数。
+        /// </summary>
+        public int ConsumePendingEraseRows()
+        {
+            int rows = _pendingEraseRows;
+            _pendingEraseRows = 0;
+            return rows;
+        }
+
+        /// <summary>
+        /// 追加文本到 agent 缓冲区（不追踪行数，用于输入回显等非显示行）。
+        /// </summary>
+        public void AppendToAgentBuffer(string text, bool newLine)
+        {
+            if (newLine)
+                _agentBuffer.AppendLine(text);
+            else
+                _agentBuffer.Append(text);
+        }
+
         /// <summary>
         /// 当前 TINPUT 请求是否带 DisplayTime（倒计时显示）。
         /// </summary>
