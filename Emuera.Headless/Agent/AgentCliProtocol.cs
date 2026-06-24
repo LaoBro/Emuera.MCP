@@ -63,7 +63,7 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         private bool TryRunVtLoop()
         {
-            _vtInput = (AgentCliVtInput?)WindowsVtInput.TryCreate(this) ?? UnixVtInput.TryCreate(this);
+            _vtInput = WindowsVtInput.TryCreate(this);
             if (_vtInput == null)
                 return false;
 

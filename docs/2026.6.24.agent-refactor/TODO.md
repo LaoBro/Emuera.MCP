@@ -132,14 +132,14 @@
 
 ## P3 - 低优先级
 
-### 8. VtParser 独立文件
+### 8. VtParser 独立文件（已完成）
 
-**现状**：`AgentCliVtInput.cs` 共 571 行，包含 4 个类（`AgentCliVtInput`/`WindowsVtInput`/`UnixVtInput`/`VtParser`）。
+**状态**：`VtParser` 已拆分到独立文件 `VtParser.cs`；`UnixVtInput` 空桩已删除（违反 LSP，`TryCreate` 永远返回 null，对应 `?? UnixVtInput.TryCreate(this)` 死代码一并清理）。
 
 **待办**：
 
-- [ ] `VtParser` 拆分到独立文件 `VtParser.cs`
-- [ ] 评估 `UnixVtInput` 空桩是否删除（违反 LSP，`TryCreate` 永远返回 null）
+- [x] `VtParser` 拆分到独立文件 `VtParser.cs`
+- [x] 评估 `UnixVtInput` 空桩是否删除（违反 LSP，`TryCreate` 永远返回 null）
 
 **预期收益**：文件职责清晰
 **工作量**：0.5 小时
@@ -147,13 +147,15 @@
 
 ---
 
-### 9. 命名规范统一
+### 9. 命名规范统一（已完成）
+
+**状态**：`s_log` 重命名为 `Log`（PascalCase，C# 静态 readonly 字段约定）；`ButtonListEquals` 重命名为 `ButtonInputKeysEqual`；三处 `record struct`（`TerminalCharWidthConfig`/`ButtonPos`/`Region`）命名风格已统一（均为 `readonly record struct` + PascalCase 位置参数），无需调整。
 
 **待办**：
 
-- [ ] `s_log` 静态字段改为 `Log` 或 `_log`（[AgentCliVtInput.cs#L114](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Agent/AgentCliVtInput.cs#L114)）
-- [ ] `ButtonListEquals` 重命名为 `ButtonInputKeysEqual`（当前仅比较 `InputKey`，命名误导）
-- [ ] 统一 `record struct` 命名风格
+- [x] `s_log` 静态字段改为 `Log`（[AgentCliVtInput.cs](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Agent/AgentCliVtInput.cs)）
+- [x] `ButtonListEquals` 重命名为 `ButtonInputKeysEqual`（当前仅比较 `InputKey`，命名误导）
+- [x] 统一 `record struct` 命名风格（已一致，无需调整）
 
 **工作量**：0.5 小时
 **风险**：低
@@ -164,6 +166,8 @@
 
 | 日期 | 任务 | 产出 |
 |------|------|------|
+| 2026-06-25 | 完成 P3.8 VtParser 独立文件 + 删除 UnixVtInput 空桩 | 新建 `VtParser.cs`（从 `AgentCliVtInput.cs` 拆出 VT 解析状态机，移除 `System.Text` using）；删除 `UnixVtInput` 空桩类（违反 LSP，`TryCreate` 永远返回 null）；`AgentCliProtocol.TryRunVtLoop` 简化为 `_vtInput = WindowsVtInput.TryCreate(this)`，移除 `?? UnixVtInput.TryCreate(this)` 死代码 |
+| 2026-06-25 | 完成 P3.9 命名规范统一 | `AgentCliVtInput` 中 `s_log` 重命名为 `Log`（PascalCase，C# 静态 readonly 字段约定，共 18 处引用）；`ButtonSelectionMode.ButtonListEquals` 重命名为 `ButtonInputKeysEqual`（命名与实际语义一致，仅比较 `InputKey`）；三处 `record struct` 命名风格已一致，无需调整 |
 | 2026-06-25 | 完成 P2.5 主循环逻辑模板化 | 新建 `RunAgentLoop` 模板 + `LoopStrategy` 抽象嵌套类（`VtLoopStrategy`/`ConsoleKeyLoopStrategy`）+ `PollOutcome` 枚举；提取共享 `HandleTimeout` 方法；删除 `RunVtMainLoop`/`RunConsoleKeyLoop`；VT 路径保留 HasInput 连续处理语义，非 VT 路径保留每轮 Update/Wait 语义 |
 | 2026-06-25 | 完成 P2.6 按钮导航算法重构 | `ProcessButtonModeKey` 四方向 `case` 块改为 `switch` 表达式调用统一 `FindNextButton(isCandidate, isBetter)`；提取 `CenterDist` 辅助方法；约 90 行降至约 50 行 |
 | 2026-06-25 | 完成 P2.7 AgentLog 缓冲优化 | `AgentLog` 持有 `StreamWriter`（`AutoFlush=false`）替代 `File.AppendAllText`；`Write` 加锁写入缓冲；实现 `IDisposable`，注册 `AppDomain.ProcessExit` 钩子确保退出时 flush + dispose |

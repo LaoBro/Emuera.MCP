@@ -1,5 +1,4 @@
 using System;
-using System.Text;
 using System.Threading;
 using MinorShift.Emuera.UI.Game;
 
@@ -56,7 +55,7 @@ namespace MinorShift.Emuera.GameView
             // Ctrl+C：raw mode 下 Console.CancelKeyPress 不可靠，手动检测 0x03
             if (ch == '\x03')
             {
-                s_log.Write("[vt-input] Ctrl+C (0x03) detected, requesting exit");
+                Log.Write("[vt-input] Ctrl+C (0x03) detected, requesting exit");
                 _host.RequestExit();
                 return;
             }
@@ -70,7 +69,7 @@ namespace MinorShift.Emuera.GameView
             }
 
             var keyInfo = new ConsoleKeyInfo(ch, key, false, false, false);
-            s_log.Write($"[vt-input] key={key} ch=0x{(int)ch:X4}");
+            Log.Write($"[vt-input] key={key} ch=0x{(int)ch:X4}");
             _host.ProcessKeyFromVt(keyInfo);
         }
 
@@ -82,19 +81,19 @@ namespace MinorShift.Emuera.GameView
             var hit = HitTest(row, col);
             if (hit != null)
             {
-                s_log.Write($"[vt-input] mouse hit row={row} col={col}");
+                Log.Write($"[vt-input] mouse hit row={row} col={col}");
                 _host.DispatchMouseClick(hit);
             }
             else
             {
-                s_log.Write($"[vt-input] mouse miss row={row} col={col}");
+                Log.Write($"[vt-input] mouse miss row={row} col={col}");
                 _host.DispatchMouseMiss();
             }
         }
 
         #endregion
 
-        protected static readonly AgentLog s_log = AgentLog.Instance;
+        protected static readonly AgentLog Log = AgentLog.Instance;
 
         public abstract void Dispose();
     }
@@ -131,20 +130,20 @@ namespace MinorShift.Emuera.GameView
 
             if (!Win32ConsoleInterop.GetConsoleMode(stdin, out uint originalMode))
             {
-                s_log.Write("[vt-input] GetConsoleMode failed");
+                Log.Write("[vt-input] GetConsoleMode failed");
                 return null;
             }
 
-            s_log.Write($"[vt-input] original input mode: 0x{originalMode:X8}");
+            Log.Write($"[vt-input] original input mode: 0x{originalMode:X8}");
 
             // DA1 探测
             if (!ProbeDa1(stdin, originalMode))
             {
-                s_log.Write("[vt-input] DA1 probe failed, degrading");
+                Log.Write("[vt-input] DA1 probe failed, degrading");
                 return null;
             }
 
-            s_log.Write("[vt-input] DA1 probe passed, setting VT input mode");
+            Log.Write("[vt-input] DA1 probe passed, setting VT input mode");
 
             // 设置 VT input mode
             uint newMode = (originalMode
@@ -159,11 +158,11 @@ namespace MinorShift.Emuera.GameView
 
             if (!Win32ConsoleInterop.SetConsoleMode(stdin, newMode))
             {
-                s_log.Write($"[vt-input] SetConsoleMode failed, target=0x{newMode:X8}");
+                Log.Write($"[vt-input] SetConsoleMode failed, target=0x{newMode:X8}");
                 return null;
             }
 
-            s_log.Write($"[vt-input] VT input mode set: 0x{newMode:X8}");
+            Log.Write($"[vt-input] VT input mode set: 0x{newMode:X8}");
 
             return new WindowsVtInput(host, stdin, originalMode) { _inputModeSet = true };
         }
@@ -188,7 +187,7 @@ namespace MinorShift.Emuera.GameView
         {
             TerminalCursor.TryWrite("\x1b[?1000h\x1b[?1006h");
             _sgrMouseEnabled = true;
-            s_log.Write("[vt-input] SGR mouse enabled (1000h + 1006h)");
+            Log.Write("[vt-input] SGR mouse enabled (1000h + 1006h)");
         }
 
         internal override void DisableSgrMouse()
@@ -196,7 +195,7 @@ namespace MinorShift.Emuera.GameView
             if (!_sgrMouseEnabled) return;
             TerminalCursor.TryWrite("\x1b[?1006l\x1b[?1000l");
             _sgrMouseEnabled = false;
-            s_log.Write("[vt-input] SGR mouse disabled");
+            Log.Write("[vt-input] SGR mouse disabled");
         }
 
         public override void Dispose()
@@ -212,7 +211,7 @@ namespace MinorShift.Emuera.GameView
             {
                 Win32ConsoleInterop.SetConsoleMode(_stdinHandle, _originalInputMode);
                 _inputModeSet = false;
-                s_log.Write($"[vt-input] restored input mode: 0x{_originalInputMode:X8}");
+                Log.Write($"[vt-input] restored input mode: 0x{_originalInputMode:X8}");
             }
 
             ClearRegions();
@@ -229,13 +228,13 @@ namespace MinorShift.Emuera.GameView
                              & ~Win32ConsoleInterop.ENABLE_LINE_INPUT;
             if (!Win32ConsoleInterop.SetConsoleMode(stdin, probeMode))
             {
-                s_log.Write("[vt-input] failed to set probe input mode");
+                Log.Write("[vt-input] failed to set probe input mode");
                 return false;
             }
 
             // 发送 DA1 查询
             TerminalCursor.TryWrite("\x1b[c");
-            s_log.Write("[vt-input] sent DA1 query ESC[c");
+            Log.Write("[vt-input] sent DA1 query ESC[c");
 
             // 轮询 200ms 等待响应
             byte[] buffer = new byte[256];
@@ -252,7 +251,7 @@ namespace MinorShift.Emuera.GameView
                         totalRead += n;
                         if (ContainsDa1Response(buffer, totalRead))
                         {
-                            s_log.Write($"[vt-input] DA1 response received ({totalRead} bytes)");
+                            Log.Write($"[vt-input] DA1 response received ({totalRead} bytes)");
                             // 恢复原始 mode，后续 SetupVtInputMode 会重新设置
                             Win32ConsoleInterop.SetConsoleMode(stdin, originalMode);
                             return true;
@@ -263,7 +262,7 @@ namespace MinorShift.Emuera.GameView
             }
 
             // 超时
-            s_log.Write($"[vt-input] DA1 probe timeout (read {totalRead} bytes)");
+            Log.Write($"[vt-input] DA1 probe timeout (read {totalRead} bytes)");
             Win32ConsoleInterop.SetConsoleMode(stdin, originalMode);
             return false;
         }
@@ -307,224 +306,5 @@ namespace MinorShift.Emuera.GameView
         }
 
         #endregion
-    }
-
-    /// <summary>
-    /// Unix VT 输入后端：本次不实现，HasInputAvailable 返回 false 触发降级路径。
-    /// 后续版本用 poll + read 实现。
-    /// </summary>
-    internal sealed class UnixVtInput : AgentCliVtInput
-    {
-        private UnixVtInput(AgentCliProtocol host) : base(host) { }
-
-        internal static UnixVtInput? TryCreate(AgentCliProtocol host)
-        {
-            // 本次不实现 Unix termios 路径
-            return null;
-        }
-
-        internal override bool HasInputAvailable() => false;
-        internal override int ReadByte() => -1;
-        internal override void EnableSgrMouse() { }
-        internal override void DisableSgrMouse() { }
-
-        public override void Dispose() { }
-    }
-
-    /// <summary>
-    /// VT 输入解析状态机：接收 raw bytes，输出 KeyEvent / MouseEvent。
-    /// 状态：GROUND → ESC → CSI → SGR_MOUSE。
-    /// DA1 响应在探测阶段消费，主循环中若偶发到达则按 CSI 序列忽略。
-    /// </summary>
-    internal sealed class VtParser
-    {
-        private readonly AgentCliVtInput _owner;
-
-        private enum State { Ground, Esc, Csi, SgrMouse }
-
-        private State _state = State.Ground;
-        private readonly StringBuilder _params = new();
-        private readonly byte[] _utf8Buffer = new byte[4];
-        private int _utf8Len;
-
-        internal VtParser(AgentCliVtInput owner)
-        {
-            _owner = owner;
-        }
-
-        internal void Feed(byte b)
-        {
-            switch (_state)
-            {
-                case State.Ground: HandleGround(b); break;
-                case State.Esc: HandleEsc(b); break;
-                case State.Csi: HandleCsi(b); break;
-                case State.SgrMouse: HandleSgrMouse(b); break;
-            }
-        }
-
-        private void HandleGround(byte b)
-        {
-            if (b == 0x1B) // ESC
-            {
-                _state = State.Esc;
-                return;
-            }
-
-            if (b == 0x03) // Ctrl+C
-            {
-                _owner.OnKeyEvent((ConsoleKey)0, '\x03');
-                return;
-            }
-
-            // UTF-8 缓冲
-            if (_utf8Len == 0)
-            {
-                int expected = ExpectedUtf8Length(b);
-                if (expected < 0)
-                {
-                    // 无效 UTF-8 首字节，作为单字节 Latin-1 派发
-                    _owner.OnKeyEvent((ConsoleKey)0, (char)b);
-                    return;
-                }
-                _utf8Buffer[0] = b;
-                _utf8Len = 1;
-                if (expected == 1)
-                {
-                    DispatchUtf8();
-                }
-                return;
-            }
-
-            // 收集后续字节（0x80-0xBF）
-            if (b >= 0x80 && b <= 0xBF)
-            {
-                _utf8Buffer[_utf8Len++] = b;
-                int expected = ExpectedUtf8Length(_utf8Buffer[0]);
-                if (_utf8Len >= expected)
-                    DispatchUtf8();
-                return;
-            }
-
-            // 后续字节不是 continuation byte，先派发已缓冲的（可能不完整），再处理当前字节
-            DispatchUtf8();
-            Feed(b);
-        }
-
-        private void HandleEsc(byte b)
-        {
-            if (b == (byte)'[')
-            {
-                _state = State.Csi;
-                _params.Clear();
-                return;
-            }
-
-            // ESC 单独作为按键
-            _owner.OnKeyEvent(ConsoleKey.Escape, '\x1b');
-            _state = State.Ground;
-
-            // 重新处理当前字节
-            HandleGround(b);
-        }
-
-        private void HandleCsi(byte b)
-        {
-            if (b == (byte)'<')
-            {
-                _state = State.SgrMouse;
-                _params.Clear();
-                return;
-            }
-
-            // 终结字节（0x40-0x7E）
-            if (b >= 0x40 && b <= 0x7E)
-            {
-                HandleCsiTerminator(b);
-                _state = State.Ground;
-                return;
-            }
-
-            // 收集参数
-            _params.Append((char)b);
-        }
-
-        private void HandleCsiTerminator(byte b)
-        {
-            switch (b)
-            {
-                case (byte)'A': // ↑
-                    _owner.OnKeyEvent(ConsoleKey.UpArrow, '\0');
-                    break;
-                case (byte)'B': // ↓
-                    _owner.OnKeyEvent(ConsoleKey.DownArrow, '\0');
-                    break;
-                case (byte)'C': // →
-                    _owner.OnKeyEvent(ConsoleKey.RightArrow, '\0');
-                    break;
-                case (byte)'D': // ←
-                    _owner.OnKeyEvent(ConsoleKey.LeftArrow, '\0');
-                    break;
-                case (byte)'H': // Home
-                    _owner.OnKeyEvent(ConsoleKey.Home, '\0');
-                    break;
-                case (byte)'F': // End
-                    _owner.OnKeyEvent(ConsoleKey.End, '\0');
-                    break;
-                // 'c' = DA1 响应，忽略；其他 CSI 序列忽略
-            }
-        }
-
-        private void HandleSgrMouse(byte b)
-        {
-            if (b == (byte)'M' || b == (byte)'m')
-            {
-                // 解析 SGR mouse: ESC[<Cb;Cx;Cy M/m
-                string[] parts = _params.ToString().Split(';');
-                if (parts.Length == 3
-                    && int.TryParse(parts[0], out int cb)
-                    && int.TryParse(parts[1], out int cx)
-                    && int.TryParse(parts[2], out int cy))
-                {
-                    // 1-based → 0-based viewport 坐标
-                    int row = cy - 1;
-                    int col = cx - 1;
-                    bool isPress = b == (byte)'M';
-
-                    // 只报告左键（cb=0 按下, cb=2 释放）
-                    if (cb == 0 || cb == 2)
-                        _owner.OnMouseEvent(row, col, isPress);
-                }
-                _state = State.Ground;
-                return;
-            }
-
-            _params.Append((char)b);
-        }
-
-        private void DispatchUtf8()
-        {
-            if (_utf8Len == 0) return;
-            try
-            {
-                string s = Encoding.UTF8.GetString(_utf8Buffer, 0, _utf8Len);
-                if (s.Length > 0)
-                    _owner.OnKeyEvent((ConsoleKey)0, s[0]);
-            }
-            catch
-            {
-                // 解码失败，丢弃
-            }
-            _utf8Len = 0;
-        }
-
-        private static int ExpectedUtf8Length(byte first)
-        {
-            if (first < 0x80) return 1;
-            if ((first & 0xE0) == 0xC0) return 2;
-            if ((first & 0xF0) == 0xE0) return 3;
-            if ((first & 0xF8) == 0xF0) return 4;
-            return -1; // 无效首字节
-        }
     }
 }

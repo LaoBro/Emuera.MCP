@@ -117,7 +117,7 @@ namespace MinorShift.Emuera.GameView
                 // 选择模式由玩家按方向键显式触发。
                 if (_buttonMode)
                 {
-                    if (!ButtonListEquals(_buttonPositions, newPositions))
+                    if (!ButtonInputKeysEqual(_buttonPositions, newPositions))
                     {
                         int oldRow = _selectedButtonIndex >= 0 && _selectedButtonIndex < _buttonPositions.Count
                             ? _buttonPositions[_selectedButtonIndex].Row : -1;
@@ -348,7 +348,7 @@ namespace MinorShift.Emuera.GameView
                 RedrawButtonLine(highlightedRow);
         }
 
-        private static bool ButtonListEquals(List<ButtonPos> a, List<ButtonPos> b)
+        private static bool ButtonInputKeysEqual(List<ButtonPos> a, List<ButtonPos> b)
         {
             if (a.Count != b.Count) return false;
             for (int i = 0; i < a.Count; i++)
