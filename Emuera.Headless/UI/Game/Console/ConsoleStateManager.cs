@@ -1,0 +1,448 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
+using MinorShift.Emuera.GameProc;
+using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config.JSON;
+using MinorShift.Emuera.Runtime.Script.Parser;
+using MinorShift.Emuera.Runtime.Script.Statements;
+using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils.EvilMask;
+using MinorShift.Emuera.UI.Game;
+using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
+using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
+using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
+
+namespace MinorShift.Emuera.GameView;
+
+/// <summary>
+/// Lifecycle management: Initialize, Quit, ForceQuit, ThrowError, ThrowTitleError,
+/// GotoTitle, ReloadErb, ReloadPartialErb, ReloadFolder, ReloadResource, Dispose.
+/// </summary>
+internal sealed class ConsoleStateManager
+{
+    private readonly ConsoleStateData _state;
+    private readonly EmueraConsole _console;
+    private readonly IConsoleUI _ui;
+
+    internal ConsoleStateManager(ConsoleStateData state, EmueraConsole console, IConsoleUI ui)
+    {
+        _state = state;
+        _console = console;
+        _ui = ui;
+    }
+
+    public async Task Initialize()
+    {
+        var boottimeDebugStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        StreamWriter logWriter = null;
+        try
+        {
+            if (Config.DisplayReport)
+            {
+                using var fs = new FileStream(Program.ExeDir + "time.log", FileMode.OpenOrCreate);
+                logWriter = new StreamWriter(fs);
+            }
+        }
+        catch
+        {
+            ParserMediator.Warn(trerror.TimeLogFileLocked.Text, null, 0);
+        }
+        logWriter?.WriteLine("Init:Start");
+        logWriter?.WriteLine("File:Preload:Start");
+        _state._genericTimerStopwatch.Restart();
+
+        Preload.Clear();
+        await Preload.Load(Program.ErbDir);
+        await Preload.Load(Program.CsvDir);
+
+        logWriter?.WriteLine("File:Preload:End " + boottimeDebugStopwatch.ElapsedMilliseconds + "ms");
+
+        GlobalStatic.Console = _console;
+        _state.process = new Process(_console);
+        GlobalStatic.Process = _state.process;
+        if (Program.DebugMode && Config.DebugShowWindow)
+        {
+            _console.OpenDebugDialog();
+            _ui.Focus();
+        }
+        _console.ClearDisplay();
+        if (!await _state.process.Initialize(logWriter))
+        {
+            _state.State = ConsoleState.Error;
+            _console.OutputLog(null, false);
+            _console.PrintFlush(false);
+            _console.RefreshStrings(true);
+            return;
+        }
+        _console.RunEmueraProgram("");
+        _console.RefreshStrings(true);
+
+        logWriter?.WriteLine("Init:End " + boottimeDebugStopwatch.ElapsedMilliseconds + "ms");
+    }
+
+    public void Quit() => _state.State = ConsoleState.Quit;
+
+    public void ForceQuit()
+    {
+        if (GlobalStatic.ForceQuitAndRestart == true)
+        {
+            Console.Error.WriteLine(trmb.ForceQuitAndRestart.Text);
+            Program.rebootFlag = false;
+            throw new CodeEE(trerror.ForceQuitAndRestartError.Text);
+        }
+        if (Program.rebootFlag)
+            _ui.Reboot();
+        else
+            _ui.ExitApplication();
+        GlobalStatic.ForceQuitAndRestart = true;
+    }
+
+    public void ThrowTitleError(bool error)
+    {
+        _state.State = ConsoleState.Error;
+        _state.notToTitle = true;
+        _state.byError = error;
+    }
+
+    public void ThrowError(bool playSound)
+    {
+        _console.ForceUpdateGeneration();
+        _state.UseUserStyle = false;
+        _console.PrintFlush(false);
+        _console.RefreshStrings(false);
+        _state.State = ConsoleState.Error;
+    }
+
+    public void GotoTitle()
+    {
+        _console.ForceStopTimer();
+        _console.ClearDisplay();
+        _state.redraw = ConsoleRedraw.Normal;
+        _state.UseUserStyle = false;
+        _state.userStyle = new StringStyle(Config.ForeColor, System.Drawing.FontStyle.Regular, null);
+        _state.process.BeginTitle();
+        _console.ReadAnyKey(false, false);
+        _console.RunEmueraProgram("");
+        _console.RefreshStrings(true);
+    }
+
+    public void GotoTitleAndLoadAndRepeatInput()
+    {
+        if (!Config.Ctrl_Z_Enabled) return;
+        if (JSONConfig.Data.UseNewRandom)
+        {
+            Console.Error.WriteLine("CtrlZ: JSONConfig.Data.UseNewRandom not supported");
+            return;
+        }
+        if (GlobalStatic.ctrlZ.mLastSave < 0) return;
+        if (GlobalStatic.ctrlZ.mInputs.Count == 0) return;
+        if (GlobalStatic.ctrlZ.mRewindInProgress)
+        {
+            GlobalStatic.ctrlZ.mRepeatedUndoRequested = true;
+            return;
+        }
+
+    again:
+        GotoTitle();
+        GlobalStatic.ctrlZ.mRewindInProgress = true;
+        GlobalStatic.VEvaluator.Rand.SetRand(GlobalStatic.ctrlZ.mRandomSeed);
+        GlobalStatic.Process.LoadSilent();
+        _console.PressEnterKey(true, GlobalStatic.ctrlZ.mLastSave.ToString(), false);
+        var inputs = GlobalStatic.ctrlZ.mInputs;
+        if (inputs.Count > 0)
+            inputs.RemoveAt(inputs.Count - 1);
+        for (int i = 0; i < inputs.Count; i++)
+        {
+            if (GlobalStatic.ctrlZ.mRepeatedUndoRequested)
+            {
+                GlobalStatic.ctrlZ.mRepeatedUndoRequested = false;
+                goto again;
+            }
+            _console.PressEnterKey(true, inputs[i], false);
+        }
+        GlobalStatic.ctrlZ.mRewindInProgress = false;
+        GlobalStatic.ctrlZ.mRepeatedUndoRequested = false;
+    }
+
+    public async Task ReloadErb()
+    {
+        if (_state.State == ConsoleState.Error)
+        {
+            Console.Error.WriteLine(trerror.CanNotUseWhenError.Text);
+            return;
+        }
+        if (_state.State == ConsoleState.Initializing)
+        {
+            Console.Error.WriteLine(trerror.CanNotUseWhenInitialize.Text);
+            return;
+        }
+        bool notRedraw = false;
+        if (_state.redraw == ConsoleRedraw.None)
+        {
+            notRedraw = true;
+            _state.redraw = ConsoleRedraw.Normal;
+        }
+        if (_state.genericTimer.Enabled)
+        {
+            _state.genericTimer.Enabled = false;
+            _state.timer_suspended = true;
+        }
+        _state.prevState = _state.State;
+        _state.prevReq = _state.inputReq;
+        _state.State = ConsoleState.Initializing;
+        _console.PrintSingleLine(trsl.ReloadingErb.Text, true);
+        _state.force_temporary = true;
+        await _state.process.ReloadErb();
+        _state.force_temporary = false;
+        _console.PrintSingleLine(trsl.ReloadCompleted.Text, true);
+        _console.RefreshStrings(true);
+        _state.updatedGeneration = true;
+        if (notRedraw)
+            _state.redraw = ConsoleRedraw.None;
+    }
+
+    public void ReloadErbFinished()
+    {
+        _state.State = _state.prevState;
+        _state.inputReq = _state.prevReq;
+        _console.PrintSingleLine(" ");
+        if (_state.timer_suspended)
+        {
+            _state.timer_suspended = false;
+            _state.genericTimer.Enabled = true;
+        }
+    }
+
+    public async Task ReloadPartialErb(List<string> path)
+    {
+        if (_state.State == ConsoleState.Error)
+        {
+            Console.Error.WriteLine(trerror.CanNotUseWhenError.Text);
+            return;
+        }
+        if (_state.State == ConsoleState.Initializing)
+        {
+            Console.Error.WriteLine(trerror.CanNotUseWhenInitialize.Text);
+            return;
+        }
+        bool notRedraw = false;
+        if (_state.redraw == ConsoleRedraw.None)
+        {
+            notRedraw = true;
+            _state.redraw = ConsoleRedraw.Normal;
+        }
+        if (_state.genericTimer.Enabled)
+        {
+            _state.genericTimer.Enabled = false;
+            _state.timer_suspended = true;
+        }
+        _state.prevState = _state.State;
+        _state.prevReq = _state.inputReq;
+        _state.State = ConsoleState.Initializing;
+        _console.PrintSingleLine(trsl.ReloadingErb.Text, true);
+        _state.force_temporary = true;
+        await _state.process.ReloadPartialErb(path);
+        _state.force_temporary = false;
+        _console.PrintSingleLine(trsl.ReloadCompleted.Text, true);
+        _console.RefreshStrings(true);
+        _state.updatedGeneration = true;
+        if (notRedraw)
+            _state.redraw = ConsoleRedraw.None;
+    }
+
+    public async Task ReloadFolder(string erbPath)
+    {
+        if (_state.State == ConsoleState.Error)
+        {
+            Console.Error.WriteLine(trerror.CanNotUseWhenError.Text);
+            return;
+        }
+        if (_state.State == ConsoleState.Initializing)
+        {
+            Console.Error.WriteLine(trerror.CanNotUseWhenInitialize.Text);
+            return;
+        }
+        if (_state.genericTimer.Enabled)
+        {
+            _state.genericTimer.Enabled = false;
+            _state.timer_suspended = true;
+        }
+        List<string> paths = [];
+        SearchOption op = SearchOption.AllDirectories;
+        if (!Config.SearchSubdirectory)
+            op = SearchOption.TopDirectoryOnly;
+        var fnames = Directory.EnumerateFiles(erbPath, "*.ERB", op);
+        foreach (var fname in fnames)
+        {
+            if (string.Equals(Path.GetExtension(fname), ".ERB", StringComparison.OrdinalIgnoreCase))
+                paths.Add(fname);
+        }
+        bool notRedraw = false;
+        if (_state.redraw == ConsoleRedraw.None)
+        {
+            notRedraw = true;
+            _state.redraw = ConsoleRedraw.Normal;
+        }
+        _state.prevState = _state.State;
+        _state.prevReq = _state.inputReq;
+        _state.State = ConsoleState.Initializing;
+        _console.PrintSingleLine(trsl.ReloadingErb.Text, true);
+        _state.force_temporary = true;
+        await _state.process.ReloadPartialErb(paths);
+        _state.force_temporary = false;
+        _console.PrintSingleLine(trsl.ReloadCompleted.Text, true);
+        _console.RefreshStrings(true);
+        _state.updatedGeneration = true;
+        if (notRedraw)
+            _state.redraw = ConsoleRedraw.None;
+    }
+
+    public void ReloadResource()
+    {
+        _console.PrintSingleLine(trsl.ReloadResourceMessage.Text, true);
+    }
+
+    public void Dispose()
+    {
+        _state.agentBridge?.Stop();
+        if (_state.genericTimer != null)
+            _state.genericTimer.Dispose();
+    }
+
+    public void DoSystemCommand(string command)
+    {
+        if (_state.genericTimer.Enabled)
+        {
+            _console.PrintError(trerror.CanNotInputTimerWait.Text);
+            _console.PrintError("");
+            _console.RefreshStrings(true);
+            return;
+        }
+        if (_console.IsInProcess)
+        {
+            _console.PrintError(trerror.CanNotInputScriptRunning.Text);
+            _console.RefreshStrings(true);
+            return;
+        }
+        StringComparison sc = Config.StringComparison;
+        _console.Print(command);
+        _console.PrintFlush(false);
+        _console.RefreshStrings(true);
+        string com = command[1..];
+        if (com.Length == 0)
+            return;
+        if (com.Equals("REBOOT", sc))
+        {
+            _ui.Reboot();
+            return;
+        }
+        else if (com.Equals("OUTPUT", sc) || com.Equals("OUTPUTLOG", sc))
+        {
+            _console.OutputSystemLog(Program.ExeDir + "emuera.log");
+            return;
+        }
+        else if (com.Equals("QUIT", sc) || com.Equals("EXIT", sc))
+        {
+            _ui.Close();
+            return;
+        }
+        else if (com.Equals("CONFIG", sc))
+        {
+            _ui.ShowConfigDialog();
+            return;
+        }
+        else if (com.Equals("DEBUG", sc))
+        {
+            if (!Program.DebugMode)
+            {
+                _console.PrintError(trerror.CanNotUseDebugWindow.Text);
+                _console.RefreshStrings(true);
+                return;
+            }
+            _console.OpenDebugDialog();
+        }
+        else
+        {
+            if (!Config.UseDebugCommand)
+            {
+                _console.PrintError(trerror.CanNotUseDebugCommand.Text);
+                _console.RefreshStrings(true);
+                return;
+            }
+            _console.DebugCommand(com, Config.ChangeMasterNameIfDebug, false);
+            _console.PrintFlush(false);
+        }
+        _console.RefreshStrings(true);
+    }
+
+    public void Await(int time)
+    {
+        if (!_ui.Created || _state.State != ConsoleState.Running)
+        {
+            Quit();
+            return;
+        }
+        _console.RefreshStrings(true);
+        _state.State = ConsoleState.Sleep;
+        _state.process.UpdateCheckInfiniteLoopState();
+        _ui.ProcessEvents();
+        if (time > 0)
+            System.Threading.Thread.Sleep(time);
+        _state.State = ConsoleState.Running;
+    }
+
+    public void OpenErrorFile(ScriptPosition? pos)
+    {
+        var pInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = Config.TextEditor
+        };
+        var ignoreCaseCmp = StringComparison.OrdinalIgnoreCase;
+        string fname = pos.Value.Filename.ToUpper();
+        if (fname.EndsWith(".CSV", ignoreCaseCmp))
+        {
+            if (fname.Contains(Program.CsvDir, ignoreCaseCmp))
+                fname = fname.Replace(Program.CsvDir, "", ignoreCaseCmp);
+            fname = Program.CsvDir + fname;
+        }
+        else
+        {
+            if (!Program.AnalysisMode)
+            {
+                if (fname.Contains(Program.ErbDir, ignoreCaseCmp))
+                    fname = fname.Replace(Program.ErbDir, "", ignoreCaseCmp);
+                fname = Path.Combine(Program.ErbDir + fname);
+            }
+        }
+        switch (Config.EditorType)
+        {
+            case TextEditorType.SAKURA:
+                pInfo.Arguments = "-Y=" + pos.Value.LineNo.ToString() + " \"" + fname + "\"";
+                break;
+            case TextEditorType.TERAPAD:
+                pInfo.Arguments = "/jl=" + pos.Value.LineNo.ToString() + " \"" + fname + "\"";
+                break;
+            case TextEditorType.EMEDITOR:
+                pInfo.Arguments = "/l " + pos.Value.LineNo.ToString() + " \"" + fname + "\"";
+                break;
+            case TextEditorType.USER_SETTING:
+                if (!string.IsNullOrEmpty(Config.EditorArg) && Config.EditorArg != null)
+                    pInfo.Arguments = Config.EditorArg + pos.Value.LineNo.ToString() + " \"" + fname + "\"";
+                else
+                    pInfo.Arguments = fname;
+                break;
+        }
+        try
+        {
+            System.Diagnostics.Process.Start(pInfo);
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            _console.PrintError(trerror.FailedOpenEditor.Text);
+            _console.ForceUpdateGeneration();
+        }
+    }
+}

@@ -1,0 +1,162 @@
+using System;
+using System.Diagnostics;
+using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.UI.Game;
+using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
+
+namespace MinorShift.Emuera.GameView;
+
+/// <summary>
+/// TINPUT timer management: presetTimer, setTimer, tickTimer, stopTimer, endTimer,
+/// SubmitTimeout, InputTimeoutMs, and related countdown display helpers.
+/// </summary>
+internal sealed class ConsoleTimerManager
+{
+    private readonly ConsoleStateData _state;
+    private readonly EmueraConsole _console;
+    private readonly IConsoleUI _ui;
+
+    internal ConsoleTimerManager(ConsoleStateData state, EmueraConsole console, IConsoleUI ui)
+    {
+        _state = state;
+        _console = console;
+        _ui = ui;
+
+        _state.genericTimer.Elapsed += TickTimer;
+        _state.redrawTimer.Elapsed += TickRedrawTimer;
+    }
+
+    internal void PresetTimer()
+    {
+        _state.need_settimer = true;
+        if (_state.inputReq.DisplayTime)
+        {
+            var remainingMs = _state.inputReq.Timelimit - _state._genericTimerStopwatch.ElapsedMilliseconds;
+            _console.PrintSingleLine(trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}");
+            _state.timeDisplayCount = 0;
+            _state.inputed = false;
+        }
+    }
+
+    internal void SetTimer()
+    {
+        _state.isTimeout = false;
+        _state.timerID = _state.inputReq.ID;
+        _state._genericTimerStopwatch.Restart();
+        _state.timer_endTime = _state.inputReq.Timelimit;
+        _state.need_settimer = false;
+    }
+
+    private void TickTimer(object sender, EventArgs e)
+    {
+        if (!_state.genericTimer.Enabled)
+            return;
+        if (_state.State != ConsoleState.WaitInput || _state.inputReq.Timelimit <= 0 || _state.timerID != _state.inputReq.ID)
+        {
+            StopTimer();
+            return;
+        }
+        var elapsedMs = _state._genericTimerStopwatch.ElapsedMilliseconds;
+        if (elapsedMs >= _state.timer_endTime)
+        {
+            EndTimer();
+            return;
+        }
+
+        if (_state.inputReq.DisplayTime)
+        {
+            var remainingMs = _state.inputReq.Timelimit - _state._genericTimerStopwatch.ElapsedMilliseconds;
+            _state.timeDisplayCount++;
+            if (_state.timeDisplayCount % 10 == 0 && !_state.inputed)
+                _ui.Invoke(() => _console.ChangeLastLine(trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}"));
+        }
+    }
+
+    private void TickRedrawTimer(object sender, System.Timers.ElapsedEventArgs e)
+    {
+        if (!_state.redrawTimer.Enabled)
+            return;
+        if (_state.State != ConsoleState.WaitInput || _state.genericTimer.Enabled)
+            return;
+        _ui.Refresh();
+    }
+
+    internal void StopTimer()
+    {
+        _state.genericTimer.Enabled = false;
+    }
+
+    internal void SetRedrawTimer(int tickcount)
+    {
+        if (tickcount <= 0)
+        {
+            _state.redrawTimer.Enabled = false;
+            return;
+        }
+        if (tickcount < 10)
+            tickcount = 10;
+        _state.redrawTimer.Interval = tickcount;
+        _state.redrawTimer.Enabled = true;
+    }
+
+    internal void ForceStopTimer()
+    {
+        if (_state.genericTimer.Enabled)
+            _state.genericTimer.Enabled = false;
+    }
+
+    private void EndTimer()
+    {
+        EndTimerCore();
+    }
+
+    internal void EndTimerCore()
+    {
+        StopTimer();
+        _state.isTimeout = true;
+        if (_console.IsWaitingPrimitive)
+        {
+            _console.InputMouseKey(4, 0, 0, 0, 0, 0);
+            _console.RefreshStrings(true);
+            return;
+        }
+        if (_state.inputReq.DisplayTime)
+            _console.ChangeLastLine(_state.inputReq.TimeUpMes);
+        else if (_state.inputReq.TimeUpMes != null)
+            _console.PrintSingleLine(_state.inputReq.TimeUpMes);
+
+        _console.RunEmueraProgram("");
+        _console.RefreshStrings(true);
+    }
+
+    internal void SubmitTimeout()
+    {
+        if (_state.State != ConsoleState.WaitInput || _state.inputReq == null || _state.inputReq.Timelimit <= 0)
+            return;
+        EndTimerCore();
+    }
+
+    internal long? InputTimeoutMs
+    {
+        get
+        {
+            if (_state.State != ConsoleState.WaitInput || _state.inputReq == null || _state.inputReq.Timelimit <= 0)
+                return null;
+            var remaining = _state.inputReq.Timelimit - _state._genericTimerStopwatch.ElapsedMilliseconds;
+            return remaining <= 0 ? 0 : remaining;
+        }
+    }
+
+    internal bool IsDisplayTimeActive =>
+        _state.State == ConsoleState.WaitInput && _state.inputReq != null && _state.inputReq.DisplayTime && _state.inputReq.Timelimit > 0;
+
+    internal string? TimeUpMessage => _state.inputReq?.TimeUpMes;
+
+    internal string BuildCountdownText()
+    {
+        if (_state.inputReq == null) return "";
+        var remainingMs = _state.inputReq.Timelimit - _state._genericTimerStopwatch.ElapsedMilliseconds;
+        return trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}";
+    }
+}

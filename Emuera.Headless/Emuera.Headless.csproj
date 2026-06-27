@@ -32,8 +32,7 @@
   <ItemGroup>
     <Compile Include="..\Emuera\UI\Game\IConsoleUI.cs" LinkBase="UI\Game" />
     <Compile Include="..\Emuera\UI\Game\HeadlessConsole.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\EmueraConsole.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\EmueraConsole.Print.cs" LinkBase="UI\Game" />
+    <!-- EmueraConsole.cs and EmueraConsole.Print.cs: replaced by headless-native implementation -->
     <Compile Include="..\Emuera\UI\Game\PrintStringBuffer.cs" LinkBase="UI\Game" />
     <Compile Include="..\Emuera\UI\Game\ConsoleDisplayLine.cs" LinkBase="UI\Game" />
     <Compile Include="..\Emuera\UI\Game\ConsoleButtonString.cs" LinkBase="UI\Game" />
