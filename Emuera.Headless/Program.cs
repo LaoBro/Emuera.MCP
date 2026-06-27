@@ -209,8 +209,8 @@ static partial class Program
         console.SetAgentBridge(protocol);
         console.Initialize().Wait();
 
-        if (protocol is AgentJsonlProtocol)
-            RunJsonlLoop(protocol);
+        if (protocol is AgentJsonlProtocol jsonl)
+            jsonl.RunLoop(enableTimeout: false, CancellationToken.None);
         else if (protocol is AgentCliProtocol)
             RunCliLoop(protocol);
     }
@@ -286,35 +286,6 @@ static partial class Program
         }
 
         return new AgentCliProtocol(console, ui);
-    }
-
-    private static void RunJsonlLoop(AgentProtocolBase protocol)
-    {
-        var io = ConsoleOutIO.Instance;
-
-        var initialTurn = protocol.GetInitialTurn();
-        if (initialTurn != null)
-            io.WriteLine(initialTurn);
-
-        while (!protocol.IsStopped)
-        {
-            var line = io.ReadLine(-1);
-            if (line == null)
-                break;
-
-            JsonlCommand? cmd;
-            try { cmd = JsonSerializer.Deserialize<JsonlCommand>(line); }
-            catch { continue; }
-
-            if (cmd?.type != "input")
-                continue;
-
-            var turn = protocol.Step(cmd.value ?? "");
-            if (turn != null)
-                io.WriteLine(turn);
-            else
-                break;
-        }
     }
 
     private static void RunCliLoop(AgentProtocolBase protocol)

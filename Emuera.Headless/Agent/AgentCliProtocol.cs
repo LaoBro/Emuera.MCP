@@ -49,7 +49,7 @@ namespace MinorShift.Emuera.GameView
         {
             _renderer.FlushBuffer();
             if (Console.IsInputRedirected)
-                RunPipeCliLoop(Console.In);
+                RunAgentLoop(new PipeLoopStrategy(this, Console.In));
             else if (!TryRunVtLoop())
                 RunAgentLoop(new ConsoleKeyLoopStrategy(this));
             _renderer.FlushBuffer();
@@ -232,24 +232,34 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
-        private void RunPipeCliLoop(TextReader input)
+        /// <summary>stdin 管道路径策略：逐行读取并喂给 ProcessChar，EOF 时停止。
+        /// 不处理 TINPUT 超时（管道模式无可靠 timeout），与 JSONL 管道行为一致。
+        /// NeedFullRefresh 由模板统一处理；输入处理完返回 Continue，跳过模板末尾刷新。</summary>
+        private sealed class PipeLoopStrategy : LoopStrategy
         {
-            var token = StopToken;
-            while (!token.IsCancellationRequested)
+            private readonly TextReader _input;
+
+            public PipeLoopStrategy(AgentCliProtocol owner, TextReader input) : base(owner)
             {
-                if (console.ConsumeNeedFullRefresh())
+                _input = input;
+            }
+
+            public override void Initialize() { }
+
+            public override PollOutcome Poll(System.Threading.CancellationToken token)
+            {
+                string? line = _input.ReadLine();
+                if (line == null)
                 {
-                    _renderer.FlushBuffer();
-                    _renderer.FullRefresh();
+                    _owner.Stop();
+                    return PollOutcome.Continue;
                 }
 
-                string? line = input.ReadLine();
-                if (line == null) break;
-
                 foreach (char ch in line)
-                    ProcessChar(ch);
-                ProcessChar('\r');
-                _renderer.FlushBuffer();
+                    _owner.ProcessChar(ch);
+                _owner.ProcessChar('\r');
+                _owner._renderer.FlushBuffer();
+                return PollOutcome.Continue;
             }
         }
 

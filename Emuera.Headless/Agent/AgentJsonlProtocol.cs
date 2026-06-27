@@ -80,6 +80,80 @@ namespace MinorShift.Emuera.GameView
 #endif
         }
 
+        /// <summary>
+        /// JSONL 协议主循环：读 input → Step → 写 turn，可选 TINPUT 超时处理。
+        /// 由 server 模式的 Session 与 JSONL 管道模式（Program.RunHeadless）共享，
+        /// 消除两处同构循环。enableTimeout=true 启用 HEADLESS 超时分支
+        /// （依赖 SessionIO.ReadLine(timeoutMs) 可靠超时）；
+        /// enableTimeout=false 纯阻塞读取，TINPUT 不触发（管道 stdin 无可靠 timeout）。
+        /// </summary>
+        internal void RunLoop(bool enableTimeout, CancellationToken externalCt)
+        {
+            var initialTurn = GetInitialTurn();
+            if (initialTurn != null)
+                _io.WriteLine(initialTurn);
+
+            while (!externalCt.IsCancellationRequested && !IsStopped && _io.IsConnected)
+            {
+                string? line;
+                if (enableTimeout)
+                {
+#if HEADLESS
+                    long? timeoutMs = console.InputTimeoutMs;
+
+                    if (timeoutMs.HasValue && timeoutMs.Value <= 0)
+                    {
+                        var turn = SubmitTimeout();
+                        if (turn != null)
+                            _io.WriteLine(turn);
+                        continue;
+                    }
+
+                    line = timeoutMs.HasValue ? _io.ReadLine((int)timeoutMs.Value) : _io.ReadLine();
+
+                    if (line == null)
+                    {
+                        if (!_io.IsConnected)
+                            break;
+
+                        if (timeoutMs.HasValue)
+                        {
+                            var turn = SubmitTimeout();
+                            if (turn != null)
+                                _io.WriteLine(turn);
+                            continue;
+                        }
+
+                        break;
+                    }
+#else
+                    line = _io.ReadLine();
+                    if (line == null)
+                        break;
+#endif
+                }
+                else
+                {
+                    line = _io.ReadLine();
+                    if (line == null)
+                        break;
+                }
+
+                JsonlCommand? cmd;
+                try { cmd = JsonSerializer.Deserialize<JsonlCommand>(line); }
+                catch { continue; }
+
+                if (cmd?.type != "input")
+                    continue;
+
+                var stepTurn = Step(cmd.value ?? "");
+                if (stepTurn != null)
+                    _io.WriteLine(stepTurn);
+                else
+                    break;
+            }
+        }
+
         protected override void OnInputRejected(string reason)
         {
             _pendingRejectReason = reason;

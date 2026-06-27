@@ -46,64 +46,7 @@ internal sealed class Session : IDisposable
         try
         {
             _console.Initialize().Wait();
-
-            var initialTurn = _protocol.GetInitialTurn();
-            if (initialTurn != null)
-                _io.WriteLine(initialTurn);
-
-            while (!_cts.IsCancellationRequested && !_protocol.IsStopped && _io.IsConnected)
-            {
-#if HEADLESS
-                long? timeoutMs = _console.InputTimeoutMs;
-
-                if (timeoutMs.HasValue && timeoutMs.Value <= 0)
-                {
-                    var turn = _protocol.SubmitTimeout();
-                    if (turn != null)
-                        _io.WriteLine(turn);
-                    continue;
-                }
-
-                string? line;
-                if (timeoutMs.HasValue)
-                    line = _io.ReadLine((int)timeoutMs.Value);
-                else
-                    line = _io.ReadLine();
-
-                if (line == null)
-                {
-                    if (!_io.IsConnected)
-                        break;
-
-                    if (timeoutMs.HasValue)
-                    {
-                        var turn = _protocol.SubmitTimeout();
-                        if (turn != null)
-                            _io.WriteLine(turn);
-                        continue;
-                    }
-
-                    break;
-                }
-#else
-                string? line = _io.ReadLine();
-                if (line == null)
-                    break;
-#endif
-
-                JsonlCommand? cmd;
-                try { cmd = JsonSerializer.Deserialize<JsonlCommand>(line); }
-                catch { continue; }
-
-                if (cmd?.type != "input")
-                    continue;
-
-                var stepTurn = _protocol.Step(cmd.value ?? "");
-                if (stepTurn != null)
-                    _io.WriteLine(stepTurn);
-                else
-                    break;
-            }
+            _protocol.RunLoop(enableTimeout: true, _cts.Token);
         }
         catch (Exception ex)
         {
