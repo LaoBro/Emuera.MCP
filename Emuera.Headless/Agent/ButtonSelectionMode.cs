@@ -142,6 +142,15 @@ namespace MinorShift.Emuera.GameView
         {
             if (vtInput == null) return;
 
+            // 非按钮模式或无请求时清除所有区域，防止过期按钮被点击触发
+            var req = _console.CurrentRequest;
+            if (req == null || req.InputType == InputType.EnterKey || req.InputType == InputType.AnyKey)
+            {
+                vtInput.ClearRegions();
+                _lastRegionGeneration = _console.LastButtonGeneration;
+                return;
+            }
+
             long currentGen = _console.LastButtonGeneration;
             if (!force && currentGen == _lastRegionGeneration) return;
 
