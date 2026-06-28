@@ -1,4 +1,3 @@
-#if HEADLESS
 namespace MinorShift.Emuera.Runtime.Utils;
 
 internal class Sound
@@ -9,4 +8,3 @@ internal class Sound
     public void setVolume(int volume) { }
     public bool isPlaying() => false;
 }
-#endif

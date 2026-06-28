@@ -72,12 +72,8 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         internal override string? SubmitTimeout()
         {
-#if HEADLESS
             console.SubmitTimeout();
             return BuildTurn();
-#else
-            throw new NotSupportedException("TINPUT timeout is only supported in HEADLESS builds.");
-#endif
         }
 
         /// <summary>
@@ -98,7 +94,6 @@ namespace MinorShift.Emuera.GameView
                 string? line;
                 if (enableTimeout)
                 {
-#if HEADLESS
                     long? timeoutMs = console.InputTimeoutMs;
 
                     if (timeoutMs.HasValue && timeoutMs.Value <= 0)
@@ -126,11 +121,6 @@ namespace MinorShift.Emuera.GameView
 
                         break;
                     }
-#else
-                    line = _io.ReadLine();
-                    if (line == null)
-                        break;
-#endif
                 }
                 else
                 {

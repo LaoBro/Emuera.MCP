@@ -1,4 +1,3 @@
-#if HEADLESS
 using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.Runtime.Script.Statements;
@@ -20,4 +19,3 @@ internal partial class ClipboardProcessor
     public void ClearScreen() { }
     public static string StripHTML(string input) => input;
 }
-#endif
