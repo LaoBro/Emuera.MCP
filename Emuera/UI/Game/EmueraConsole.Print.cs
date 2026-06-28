@@ -11,9 +11,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
-#if !HEADLESS
 using System.Windows.Forms;
-#endif
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
@@ -61,9 +59,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		#endregion
 		lineNo = 0;
 		lastDrawnLineNo = -1;
-#if HEADLESS
-		_needFullRefresh = true;
-#endif
 		verticalScrollBarUpdate();
 		_uiAdapter.Refresh();//OnPaint発行
 	}
@@ -315,11 +310,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		#region GETDISPLAYLINE修正
 		deletedLines -= num;
 		#endregion
-#if HEADLESS
-		// 先从 _agentBuffer 移除，缓冲区空了再标记终端擦除
-		if (!RemoveLastLineFromAgentBuffer())
-			_pendingEraseRows++;
-#endif
 		//RefreshStrings(true);
 	}
 
@@ -907,10 +897,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		return printBuffer.Flush(stringMeasure, force_temporary);
 	}
 
-#if !HEADLESS
 	private void WriteAlignedLine(ConsoleDisplayLine line)
 	{
 		// WinForms 模式不采集 agent buffer，由 OnPaint 负责绘制。
 	}
-#endif
 }

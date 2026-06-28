@@ -1,7 +1,5 @@
 //using System.Drawing.Imaging;
-#if !HEADLESS
 using MinorShift.Emuera.Forms;
-#endif
 //using MinorShift.Emuera.GameData;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.Runtime;
@@ -22,16 +20,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-#if !HEADLESS
 using System.Drawing.Imaging;
-#endif
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-#if !HEADLESS
 using System.Windows.Forms;
-#endif
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
@@ -80,11 +74,7 @@ internal enum ConsoleRedraw
 internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 {
 	#region EmuEra-Rikaichan
-#if !HEADLESS
 	public Rikaichan rikaichan = new();
-#else
-	public object rikaichan;
-#endif
 	#endregion
 
 	//Bitmap Cache
@@ -93,7 +83,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	public nint bitmapCacheArrayIndex = 0;
 	public bool bitmapCacheEnabledForNextLine;
 
-#if !HEADLESS
 	public EmueraConsole(MainWindow parent)
 	{
 		_uiAdapter = new WinFormsConsole(parent);
@@ -113,9 +102,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		genericTimer.Elapsed += tickTimer;
 		genericTimer.Interval = 10;
 		genericTimer.Enabled = false;
-#if !HEADLESS
 		CBG_Clear();//文字列描画用ダミー追加
-#endif
 
 		redrawTimer = new System.Timers.Timer
 		{
@@ -124,7 +111,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		redrawTimer.Elapsed += tickRedrawTimer;
 		redrawTimer.Interval = 10;
 	}
-#endif
 
 	public EmueraConsole(IConsoleUI ui)
 	{
@@ -143,9 +129,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		genericTimer.Elapsed += tickTimer;
 		genericTimer.Interval = 10;
 		genericTimer.Enabled = false;
-#if !HEADLESS
 		CBG_Clear();//文字列描画用ダミー追加
-#endif
 
 		redrawTimer = new System.Timers.Timer
 		{
@@ -155,7 +139,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		redrawTimer.Interval = 10;
 	}
 	#region 1823 cbg関連
-#if !HEADLESS
 	private readonly List<ClientBackGroundImage> cbgList = [];
 	private GraphicsImage cbgButtonMap;
 	private int selectingCBGButtonInt = -1;
@@ -297,50 +280,22 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	}
 	public int ClientWidth { get { return _uiAdapter.ClientWidth; } }
 	public int ClientHeight { get { return _uiAdapter.ClientHeight; } }
-#endif // !HEADLESS
 	#endregion
-#if HEADLESS
-	private int selectingCBGButtonInt = -1;
-	private int lastSelectingCBGButtonInt = -1;
-	public int ClientWidth => _uiAdapter.ClientWidth;
-	public int ClientHeight => _uiAdapter.ClientHeight;
-	public void CBG_Clear() { }
-	public void CBG_ClearRange(int zmin, int zmax) { }
-	public void CBG_ClearButton() { }
-	public void CBG_ClearBMap() { }
-	public bool CBG_SetGraphics(GraphicsImage gra, int x, int y, int zdepth) => false;
-	public bool CBG_SetImage(ASprite image, int x, int y, int zdepth) => false;
-	public bool CBG_SetButtonMap(GraphicsImage gra) => false;
-	public bool CBG_SetButtonImage(int buttonValue, ASprite imageN, ASprite imageB, int x, int y, int zdepth, string tooltip = null) => false;
-	public void AddBackgroundImage(string name, long depth, float opacity) { }
-#endif
 
 	const string ErrorButtonsText = "__openFileWithDebug__";
 	private readonly IConsoleUI _uiAdapter;
-#if HEADLESS
-	private AgentProtocolBase? _agentBridge;
-#endif
-#if !HEADLESS
 	#region EE_MOUSEB
 	public MainWindow Window { get { return (_uiAdapter as WinFormsConsole)?.GetMainWindow(); } }
 	#endregion
-#endif
 	public IConsoleUI UIAdapter => _uiAdapter;
-#if HEADLESS
-	public AgentProtocolBase? AgentBridge => _agentBridge;
-
-	internal void SetAgentBridge(AgentProtocolBase protocol) => _agentBridge = protocol;
-#endif
 	#region EE_BINPUT
 	public List<ConsoleDisplayLine> DisplayLineList { get { return displayLineList; } }
 	#endregion
 	#region EE_AnchorのCB機能移植
 	public readonly ClipboardProcessor CBProc;
 	#endregion
-#if !HEADLESS
 	private List<KeyValuePair<long, ConsoleBackground>> backgroundList = [];
 	private Bitmap bakedBackground;
-#endif
 
 	GameProc.Process process;
 	// ConsoleState state = ConsoleState.Initializing;
@@ -552,11 +507,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 
 		if (GlobalStatic.ForceQuitAndRestart == true)
 		{
-#if HEADLESS
-			Console.Error.WriteLine(trmb.ForceQuitAndRestart.Text);
-			Program.rebootFlag = false;
-			throw new CodeEE(trerror.ForceQuitAndRestartError.Text);
-#else
 			var result = MessageBox.Show(trmb.ForceQuitAndRestart.Text,
 				"FORCE_QUIT_AND_RESTART",
 				MessageBoxButtons.YesNo
@@ -568,7 +518,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 				Program.rebootFlag = false;
 				throw new CodeEE(trerror.ForceQuitAndRestartError.Text);
 			}
-#endif
 		}
 		if (Program.rebootFlag)
 			_uiAdapter.Reboot();
@@ -587,10 +536,8 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	}
 	public void ThrowError(bool playSound)
 	{
-#if !HEADLESS
 		if (playSound)
 			System.Media.SystemSounds.Hand.Play();
-#endif
 		forceUpdateGeneration();
 		UseUserStyle = false;
 		PrintFlush(false);
@@ -757,7 +704,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	}
 
 
-#if !HEADLESS
 	public void AddBackgroundImage(string name, long depth, float opacity)
 	{
 		var spr = AppContents.GetSprite(name) as SpriteF;
@@ -771,9 +717,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		backgroundList.Sort((v1, v2) => (v1.Key >= v2.Key) ? -1 : 1);
 		BakeBackground();
 	}
-#endif
 
-#if !HEADLESS
 	public void ClearBackgroundImage()
 	{
 		backgroundList.Clear();
@@ -821,11 +765,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 			bg.GraphicsDraw(graph, new Rectangle(paddingX, 0, (int)newWidth, (int)newHeight), attributes);
 		}
 	}
-#else
-	public void ClearBackgroundImage() { }
-	public void RemoveBackground(string key) { }
-	public void ValidateBackground(int width, int height) { }
-#endif
 	/// <summary>
 	/// INPUT中のアニメーション用タイマー
 	/// </summary>
@@ -890,9 +829,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	{
 		isTimeout = false;
 		timerID = inputReq.ID;
-#if !HEADLESS
 		genericTimer.Enabled = true;
-#endif
 		_genericTimerStopwatch.Restart();
 		timer_endTime = inputReq.Timelimit;
 		need_settimer = false;
@@ -960,14 +897,12 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 			#region EE_INPUTMOUSEKEY拡張
 			// InputMouseKey(4, 0, 0, 0, 0);
 			InputMouseKey(4, 0, 0, 0, 0, 0);
-#if !HEADLESS
 			if (state == ConsoleState.WaitInput && inputReq.NeedValue)
 			{
 				Point point = _uiAdapter.MainPicBox.PointToClient(_uiAdapter.GetCursorPosition());
 				if (_uiAdapter.MainPicBox.ClientRectangle.Contains(point))
 					MoveMouse(point);
 			}
-#endif
 			RefreshStrings(true);
 			#endregion
 			return;
@@ -976,7 +911,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 			changeLastLine(inputReq.TimeUpMes);
 		else if (inputReq.TimeUpMes != null)
 			PrintSingleLine(inputReq.TimeUpMes);
-#if !HEADLESS
 		_uiAdapter.Invoke(() =>
 		{
 			RunEmueraProgram("");//ディフォルト入力の処理はcallEmueraProgram側で
@@ -991,16 +925,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 			}
 			RefreshStrings(true);
 		});
-#else
-		RunEmueraProgram("");
-		if (state == ConsoleState.WaitInput && inputReq.NeedValue)
-		{
-			Point point = _uiAdapter.MainPicBox.PointToClient(_uiAdapter.GetCursorPosition());
-			if (_uiAdapter.MainPicBox.ClientRectangle.Contains(point))
-				MoveMouse(point);
-		}
-		RefreshStrings(true);
-#endif
 	}
 
 	public void forceStopTimer()
@@ -1011,35 +935,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		}
 	}
 
-#if HEADLESS
-	/// <summary>
-	/// HEADLESS 下 TINPUT 超时提交，等价于原 endTimer() 的核心逻辑。
-	/// </summary>
-	internal void SubmitTimeout()
-	{
-		if (state != ConsoleState.WaitInput || inputReq == null || inputReq.Timelimit <= 0)
-			return;
-
-		EndTimerCore();
-	}
-
-	/// <summary>
-	/// HEADLESS 下获取当前 TINPUT 请求的剩余超时毫秒数。
-	/// 非 TINPUT 请求或已超时返回 null。
-	/// 剩余时间 &lt;= 0 时返回 0。
-	/// </summary>
-	internal long? InputTimeoutMs
-	{
-		get
-		{
-			if (state != ConsoleState.WaitInput || inputReq == null || inputReq.Timelimit <= 0)
-				return null;
-
-			var remaining = inputReq.Timelimit - _genericTimerStopwatch.ElapsedMilliseconds;
-			return remaining <= 0 ? 0 : remaining;
-		}
-	}
-#endif
 	#endregion
 
 	#region Call系
@@ -1260,7 +1155,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		#endregion
 	}
 
-#if !HEADLESS
 	internal void MouseDown(Point point, MouseButtons button)
 	{
 		if (!IsWaitingPrimitive)
@@ -1318,7 +1212,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		#endregion
 	}
 
-#endif // !HEADLESS
 
 	//1823 Key入力を捕まえる
 	#region EE_INPUTMOUSEKEY拡張
@@ -1517,9 +1410,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		}
 		catch (System.ComponentModel.Win32Exception)
 		{
-#if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
-#endif
 			PrintError(trerror.FailedOpenEditor.Text);
 			forceUpdateGeneration();
 		}
@@ -1772,14 +1663,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 
 			_drawStopwatch.Restart();
 		}
-#if HEADLESS
-		// HEADLESS 下 OnPaint 不执行，need_settimer 清零逻辑需要在此处执行
-		if (need_settimer)
-		{
-			need_settimer = false;
-			setTimer();
-		}
-#endif
 		_uiAdapter.Invoke(() =>
 		{
 			verticalScrollBarUpdate();
@@ -1814,9 +1697,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	/// <param name="graph"></param>
 	public void OnPaint(Graphics graph)
 	{
-#if HEADLESS
-		return;
-#else
 		//デバッグ用。描画が超重い環境を想定1
 		//System.Threading.Thread.Sleep(100);
 
@@ -1927,10 +1807,8 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 
 		}
 		#region EmuEra-Rikaichan
-#if !HEADLESS
 		if (Config.RikaiEnabled)
 			rikaichan.OnPaint(graph, stringMeasure, _uiAdapter.MainPicBox.Width);
-#endif
 		#endregion
 
 		//真のHTML描画
@@ -2026,12 +1904,10 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 			need_settimer = false;
 			setTimer();
 		}
-#endif // !HEADLESS (OnPaint)
 	}
 
 	private void ToolTip_Draw(object sender, ToolTipDrawEventArgs e)
 	{
-#if !HEADLESS
 		if (tooltip_img && int.TryParse(e.ToolTipText, out int i))
 		{
 			var g = GameData.Function.FunctionMethodCreator.ReadGraphics(i);
@@ -2058,12 +1934,10 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		{
 			TextRenderer.DrawText(e.Graphics, e.ToolTipText, f, e.Bounds, _uiAdapter.ToolTip.ForeColor, _uiAdapter.ToolTip.BackColor, tooltip_format);
 		}
-#endif
 	}
 	Size tooltip_size;
 	private void ToolTip_Popup(object sender, ToolTipPopupEventArgs e)
 	{
-#if !HEADLESS
 		if (tooltip_img && int.TryParse((sender as IToolTip).GetToolTip(), out int i))
 		{
 			var g = GameData.Function.FunctionMethodCreator.ReadGraphics(i);
@@ -2087,7 +1961,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		var size = TextRenderer.MeasureText((sender as IToolTip).GetToolTip(), f, new Size(int.MaxValue, int.MaxValue), tooltip_format);
 		e.ToolTipSize = new Size(size.Width, size.Height);
 		tooltip_size = e.ToolTipSize;
-#endif
 	}
 
 	public void CustomToolTip(bool b)
@@ -2119,9 +1992,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	int tooltip_duration;
 	string tooltip_fontname = Config.FontName;
 	long tooltip_fontsize = Config.FontSize;
-#if !HEADLESS
 	TextFormatFlags tooltip_format;
-#endif
 	bool tooltip_img;
 	public void SetToolTipDuration(int duration)
 	{
@@ -2138,9 +2009,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	}
 	public void SetToolTipFormat(long f)
 	{
-#if !HEADLESS
 		tooltip_format = (TextFormatFlags)f;
-#endif
 	}
 	public void SetToolTipImg(bool b)
 	{
@@ -2161,13 +2030,8 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	#endregion
 
 	#region DebugMode系
-#if !HEADLESS
 	DebugDialog dd;
 	public DebugDialog DebugDialog { get { return dd; } }
-#else
-	object dd;
-	public object DebugDialog => dd;
-#endif
 	StringBuilder dConsoleLog = new("");
 	public string DebugConsoleLog { get { return dConsoleLog.ToString(); } }
 	List<string> dTraceLogList = [];
@@ -2199,7 +2063,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	}
 	public void OpenDebugDialog()
 	{
-#if !HEADLESS
 		if (!Program.DebugMode)
 			return;
 		if (dd != null)
@@ -2219,7 +2082,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		dd.SetParent(this, process);
 		dd.TranslateUI();
 		dd.Show();
-#endif
 	}
 
 	public void DebugPrint(string str)
@@ -2385,7 +2247,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		int curLineY = -1;
 		#endregion
 
-#if !HEADLESS
 		if (cbgButtonMap != null && cbgButtonMap.IsCreated)
 		{
 			//pointはクライアント左上基準の座標。
@@ -2422,7 +2283,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 				return true;
 			}
 		}
-#endif
 		selectingCBGButtonInt = -1;
 		ConsoleButtonString select = null;
 		ConsoleButtonString pointing = null;
@@ -2607,7 +2467,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		pointingString = pointing;
 		selectingButton = select;
 		#region EmuEra-Rikaichan
-#if !HEADLESS
 		if (Config.RikaiEnabled && rikaichan.enabled)
 		{
 			//if (_pointingString != _lastPointingString &&
@@ -2675,7 +2534,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 			}
 		} //if rikaichan.enabled
 	rikaichan_end:
-#endif // !HEADLESS
 		#endregion
 
 		if (pointingStrings.Count!= 0)
@@ -2733,9 +2591,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		forceStopTimer();
 		ClearDisplay();
 		//動的作成の分だけは削除する
-#if !HEADLESS
 		AppContents.UnloadGraphicList();
-#endif
 		redraw = ConsoleRedraw.Normal;
 		UseUserStyle = false;
 		userStyle = new StringStyle(Config.ForeColor, FontStyle.Regular, null);
@@ -2751,11 +2607,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		if (!Config.Ctrl_Z_Enabled) return;
 		if (JSONConfig.Data.UseNewRandom)
 		{
-#if HEADLESS
-			Console.Error.WriteLine("CtrlZ: JSONConfig.Data.UseNewRandom not supported");
-#else
 			MessageBox.Show("CtrlZ: JSONConfig.Data.UseNewRandom not supported");
-#endif
 			return;
 			// It is possible to implement, but I'm not sure if it will be worth it.
 			// * Approach 1 is to implement Random class deep copy:
@@ -2783,9 +2635,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		forceStopTimer();
 		ClearDisplay();
 		//動的作成の分だけは削除する
-#if !HEADLESS
 		AppContents.UnloadGraphicList();
-#endif
 		redraw = ConsoleRedraw.Normal;
 		UseUserStyle = false;
 		userStyle = new StringStyle(Config.ForeColor, FontStyle.Regular, null);
@@ -2835,20 +2685,12 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	{
 		if (state == ConsoleState.Error)
 		{
-#if HEADLESS
-			Console.Error.WriteLine(trerror.CanNotUseWhenError.Text);
-#else
 			MessageBox.Show(trerror.CanNotUseWhenError.Text);
-#endif
 			return;
 		}
 		if (state == ConsoleState.Initializing)
 		{
-#if HEADLESS
-			Console.Error.WriteLine(trerror.CanNotUseWhenInitialize.Text);
-#else
 			MessageBox.Show(trerror.CanNotUseWhenInitialize.Text);
-#endif
 			return;
 		}
 		bool notRedraw = false;
@@ -2894,20 +2736,12 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	{
 		if (state == ConsoleState.Error)
 		{
-#if HEADLESS
-			Console.Error.WriteLine(trerror.CanNotUseWhenError.Text);
-#else
 			MessageBox.Show(trerror.CanNotUseWhenError.Text);
-#endif
 			return;
 		}
 		if (state == ConsoleState.Initializing)
 		{
-#if HEADLESS
-			Console.Error.WriteLine(trerror.CanNotUseWhenInitialize.Text);
-#else
 			MessageBox.Show(trerror.CanNotUseWhenInitialize.Text);
-#endif
 			return;
 		}
 		bool notRedraw = false;
@@ -2940,20 +2774,12 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	{
 		if (state == ConsoleState.Error)
 		{
-#if HEADLESS
-			Console.Error.WriteLine(trerror.CanNotUseWhenError.Text);
-#else
 			MessageBox.Show(trerror.CanNotUseWhenError.Text);
-#endif
 			return;
 		}
 		if (state == ConsoleState.Initializing)
 		{
-#if HEADLESS
-			Console.Error.WriteLine(trerror.CanNotUseWhenInitialize.Text);
-#else
 			MessageBox.Show(trerror.CanNotUseWhenInitialize.Text);
-#endif
 			return;
 		}
 		if (genericTimer.Enabled)
@@ -3021,9 +2847,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 		state = ConsoleState.Initializing;
 		force_temporary = true;
 		*/
-#if !HEADLESS
 		AppContents.LoadContents(true);
-#endif
 		//force_temporary = false;
 		PrintSingleLine(trsl.ReloadResourceMessage.Text, true);
 		/*
@@ -3037,9 +2861,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 
 	public void Dispose()
 	{
-#if HEADLESS
-		_agentBridge?.Stop();
-#endif
 		if (genericTimer != null)
 			genericTimer.Dispose();
 		//timer = null;
@@ -3047,7 +2868,6 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
 	}
 }
 
-#if !HEADLESS
 internal class ConsoleBackground
 {
 	public readonly SpriteF bgImage;
@@ -3070,4 +2890,3 @@ internal class ConsoleBackground
 
 	private ColorMatrix colorMatrix;
 }
-#endif
