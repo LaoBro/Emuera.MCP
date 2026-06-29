@@ -56,10 +56,8 @@
     <!-- 排除 Dialog.cs（用 HeadlessDialog 替代） -->
   </ItemGroup>
 
-  <!-- ===== 共享源码：GlobalStatic ===== -->
-  <ItemGroup>
-    <Compile Include="..\Emuera\GlobalStatic.cs" />
-  </ItemGroup>
+  <!-- ===== GlobalStatic：Headless 专用实现（不共享 Emuera/GlobalStatic.cs） ===== -->
+  <!-- I-02：单会话不可变全局硬约束 + setter 断言 + Reset 清理，见 Emuera.Headless/GlobalStatic.cs -->
 
   <!-- ===== 嵌入资源：语言文件 ===== -->
   <ItemGroup>

@@ -76,6 +76,10 @@ internal sealed class Session : IDisposable
             // 读完后返回 false；同时 Complete input Channel 防止后续 EnqueueInput。
             _io.Close();
             HasEnded = true;
+            // I-02：清理 GlobalStatic 全局状态，允许下一个 session 重新 Initialize。
+            // 放在 HasEnded 之后，确保前面步骤（如 BuildFinalTurn）可读 GlobalStatic。
+            // Reset 是幂等的（_resetCalled 防重复），Session.Dispose 再调也安全。
+            GlobalStatic.Reset();
         }
     }
 
