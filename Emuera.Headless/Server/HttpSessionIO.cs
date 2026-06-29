@@ -14,8 +14,6 @@ internal sealed class HttpSessionIO : SessionIO
     private readonly AutoResetEvent _inputEvent = new(false);
     private volatile bool _connected = true;
 
-    public string? SessionId { get; set; }
-
     public override string? ReadLine()
     {
         while (_connected)

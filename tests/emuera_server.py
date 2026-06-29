@@ -41,10 +41,19 @@ class ServerProcess:
             return e.code, e.read().decode("utf-8")
 
     def create_session(self):
-        return self.request("POST", "/sessions")
+        return self.request("POST", "/session")
 
-    def delete_session(self, session_id):
-        return self.request("DELETE", f"/sessions/{session_id}")
+    def delete_session(self):
+        return self.request("DELETE", "/session")
+
+    def get_turn(self, timeout=35):
+        return self.request("GET", "/turn", timeout=timeout)
+
+    def post_input(self, value):
+        return self.request("POST", "/input", {"value": value})
+
+    def get_state(self):
+        return self.request("GET", "/state")
 
     def close(self):
         if self.proc.poll() is None:

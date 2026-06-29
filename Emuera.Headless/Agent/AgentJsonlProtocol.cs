@@ -77,6 +77,12 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>
+        /// 生成最终 turn（Quit/Error 状态），由 Session.GameLoop 结束时调用一次，
+        /// 写入 SessionIO 供 GET /turn 取走。复用 BuildTurn 逻辑，保持 turn 结构一致。
+        /// </summary>
+        internal string? BuildFinalTurn() => BuildTurn();
+
+        /// <summary>
         /// JSONL 协议主循环：读 input → Step → 写 turn，可选 TINPUT 超时处理。
         /// 由 server 模式的 Session 与 JSONL 管道模式（Program.RunHeadless）共享，
         /// 消除两处同构循环。enableTimeout=true 启用 HEADLESS 超时分支
