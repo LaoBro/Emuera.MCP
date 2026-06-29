@@ -80,28 +80,50 @@ internal sealed class Session : IDisposable
     }
 
     /// <summary>
-    /// 原子地从 IO 队列取出 turn。若是最终 turn（_finalTurnReady），标记为已交付，
-    /// 后续调用返回 false。用于 GET /turn 实现"返回最终 turn 一次后 404"。
+    /// 异步等待一个 turn。用于 GET /turn 长轮询。
+    /// - 拿到 turn（含 finalTurn）→ 返回 Turn，finalTurn 交付后标记 _finalTurnDelivered
+    /// - 25s 超时 → 返回 Timeout（HTTP 204）
+    /// - Channel 关闭（session 结束）→ 返回 Closed（HTTP 404）
+    /// - externalCt 取消（服务器关闭）→ 抛 OperationCanceledException 向上传播
+    /// 
+    /// finalTurn 一次性交付语义：依赖 Channel 多 reader 原子性 + _turnLock 内检查 _finalTurnReady。
+    /// 与原 TryTakeTurn 语义一致：_finalTurnReady=true 时，下一个取出的 turn 标记为已交付。
     /// </summary>
-    public bool TryTakeTurn(out string? turn)
+    public async Task<TurnWaitResult> WaitForTurnAsync(int timeoutMs, CancellationToken externalCt)
     {
-        lock (_turnLock)
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
+        linkedCts.CancelAfter(timeoutMs);
+        var ct = linkedCts.Token;
+
+        while (true)
         {
-            if (_finalTurnDelivered)
+            string? turn;
+            try
             {
-                turn = null;
-                return false;
+                turn = await _io.ReadOutputAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                // 服务器关闭：向上传播，调用方不应写 response
+                if (externalCt.IsCancellationRequested)
+                    throw;
+                // 超时：返回 204
+                return new TurnWaitResult(TurnWaitStatus.Timeout, null);
             }
 
-            if (_io.TryDequeueOutput(out turn) && turn != null)
+            // Channel 关闭且队列空：session 已结束
+            if (turn == null)
+                return new TurnWaitResult(TurnWaitStatus.Closed, null);
+
+            // 拿到 turn，在 lock 内检查 finalTurn 标记
+            lock (_turnLock)
             {
+                if (_finalTurnDelivered)
+                    continue; // 防御性：已交付，丢弃多余的 turn（理论上不会发生）
                 if (_finalTurnReady)
                     _finalTurnDelivered = true;
-                return true;
+                return new TurnWaitResult(TurnWaitStatus.Turn, turn);
             }
-
-            turn = null;
-            return false;
         }
     }
 
@@ -117,3 +139,17 @@ internal sealed class Session : IDisposable
         _console?.Dispose();
     }
 }
+
+/// <summary>WaitForTurnAsync 的等待结果状态。</summary>
+internal enum TurnWaitStatus
+{
+    /// <summary>拿到一个 turn（含 finalTurn）。</summary>
+    Turn,
+    /// <summary>等待超时（HTTP 204）。</summary>
+    Timeout,
+    /// <summary>Channel 关闭，session 已结束（HTTP 404）。</summary>
+    Closed
+}
+
+/// <summary>WaitForTurnAsync 的返回值：状态 + turn 内容（仅 Status=Turn 时非 null）。</summary>
+internal readonly record struct TurnWaitResult(TurnWaitStatus Status, string? Turn);

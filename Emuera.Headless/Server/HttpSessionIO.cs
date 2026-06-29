@@ -70,14 +70,21 @@ internal sealed class HttpSessionIO : SessionIO
         _input.Writer.TryWrite(line);
     }
 
-    /// <summary>供 Session.TryTakeTurn 调用：非阻塞尝试取走一个 turn。</summary>
-    public bool TryDequeueOutput(out string? text)
+    /// <summary>
+    /// 供 Session.WaitForTurnAsync 调用：异步等待并读取一个 output turn。
+    /// Channel 关闭且队列空时返回 null（语义与同步 TryDequeueOutput 关闭后返回 false 一致）。
+    /// CancellationToken 取消时抛 OperationCanceledException，由调用方处理。
+    /// 注意：output Channel 配置为 SingleReader=false，多 reader 并发安全。
+    /// </summary>
+    public async Task<string?> ReadOutputAsync(CancellationToken ct)
     {
-        if (_closed)
+        try
         {
-            text = null;
-            return false;
+            return await _output.Reader.ReadAsync(ct);
         }
-        return _output.Reader.TryRead(out text);
+        catch (ChannelClosedException)
+        {
+            return null;
+        }
     }
 }
