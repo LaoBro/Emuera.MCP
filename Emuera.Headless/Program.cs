@@ -210,7 +210,7 @@ static partial class Program
         console.Initialize().Wait();
 
         if (protocol is AgentJsonlProtocol jsonl)
-            jsonl.RunLoop(enableTimeout: false, CancellationToken.None);
+            jsonl.RunLoopAsync(enableTimeout: false, CancellationToken.None).GetAwaiter().GetResult();
         else if (protocol is AgentCliProtocol)
             RunCliLoop(protocol);
     }

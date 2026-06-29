@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.UI.Game;
 
@@ -25,12 +26,12 @@ namespace MinorShift.Emuera.GameView
         /// <summary>
         /// 获取初始 turn JSON。等待游戏进入 WaitInput/Quit/Error 状态后返回 turn，超时或停止返回 null。
         /// </summary>
-        internal abstract string? GetInitialTurn();
+        internal abstract Task<string?> GetInitialTurnAsync();
 
         /// <summary>
         /// 提交输入并推进游戏，返回下一 turn JSON。停止或异常返回 null。
         /// </summary>
-        internal abstract string? Step(string input);
+        internal abstract Task<string?> StepAsync(string input);
 
         /// <summary>
         /// TINPUT 超时专用路径，调用 EmueraConsole 的 timer-timeout 等价逻辑。

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.UI.Game;
 
@@ -42,8 +43,8 @@ namespace MinorShift.Emuera.GameView
             _countdown = new CountdownRenderer(console, () => _screen, _cursor, _ansiEnabled);
         }
 
-        internal override string? GetInitialTurn() => null;
-        internal override string? Step(string input) => null;
+        internal override Task<string?> GetInitialTurnAsync() => Task.FromResult<string?>(null);
+        internal override Task<string?> StepAsync(string input) => Task.FromResult<string?>(null);
 
         internal void RunCliLoop()
         {

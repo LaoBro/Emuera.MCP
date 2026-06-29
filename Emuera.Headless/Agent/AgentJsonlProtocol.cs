@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Server;
@@ -26,20 +27,20 @@ namespace MinorShift.Emuera.GameView
             _io = io;
         }
 
-        internal override string? GetInitialTurn()
+        internal override async Task<string?> GetInitialTurnAsync()
         {
-            if (!WaitForInput())
+            if (!await WaitForInputAsync())
                 return null;
 
             return BuildTurn();
         }
 
-        internal override string? Step(string input)
+        internal override async Task<string?> StepAsync(string input)
         {
             if (IsStopped)
                 return null;
 
-            if (!WaitForInput())
+            if (!await WaitForInputAsync())
                 return null;
 
             if (console.State != ConsoleState.WaitInput)
@@ -83,21 +84,22 @@ namespace MinorShift.Emuera.GameView
         internal string? BuildFinalTurn() => BuildTurn();
 
         /// <summary>
-        /// JSONL 协议主循环：读 input → Step → 写 turn，可选 TINPUT 超时处理。
-        /// 由 server 模式的 Session 与 JSONL 管道模式（Program.RunHeadless）共享，
-        /// 消除两处同构循环。enableTimeout=true 启用 HEADLESS 超时分支
-        /// （依赖 SessionIO.ReadLine(timeoutMs) 可靠超时）；
+        /// JSONL 协议主循环（async）：读 input → Step → 写 turn，可选 TINPUT 超时处理。
+        /// 由 server 模式的 Session（Task.Run(GameLoopAsync)）与 JSONL 管道模式
+        /// （Program.RunHeadless，.GetAwaiter().GetResult()）共享。
+        /// enableTimeout=true 启用 TINPUT 超时分支：每轮 linked CTS + CancelAfter，
+        /// 超时抛 OperationCanceledException 后调 SubmitTimeout。
         /// enableTimeout=false 纯阻塞读取，TINPUT 不触发（管道 stdin 无可靠 timeout）。
         /// </summary>
-        internal void RunLoop(bool enableTimeout, CancellationToken externalCt)
+        internal async Task RunLoopAsync(bool enableTimeout, CancellationToken externalCt)
         {
-            var initialTurn = GetInitialTurn();
+            var initialTurn = await GetInitialTurnAsync();
             if (initialTurn != null)
                 _io.WriteLine(initialTurn);
 
             while (!externalCt.IsCancellationRequested && !IsStopped && _io.IsConnected)
             {
-                string? line;
+                string? line = null;
                 if (enableTimeout)
                 {
                     long? timeoutMs = console.InputTimeoutMs;
@@ -110,27 +112,41 @@ namespace MinorShift.Emuera.GameView
                         continue;
                     }
 
-                    line = timeoutMs.HasValue ? _io.ReadLine((int)timeoutMs.Value) : _io.ReadLine();
-
-                    if (line == null)
+                    if (timeoutMs.HasValue)
                     {
-                        if (!_io.IsConnected)
-                            break;
-
-                        if (timeoutMs.HasValue)
+                        // 每轮 linked CTS + CancelAfter，超时取消 ReadLineAsync
+                        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalCt, StopToken);
+                        linkedCts.CancelAfter((int)timeoutMs.Value);
+                        try
                         {
+                            line = await _io.ReadLineAsync(linkedCts.Token);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // 外部取消或 Stop：退出循环
+                            if (externalCt.IsCancellationRequested || IsStopped)
+                                break;
+                            // timeout 触发：调 SubmitTimeout 并继续
                             var turn = SubmitTimeout();
                             if (turn != null)
                                 _io.WriteLine(turn);
                             continue;
                         }
+                    }
+                    else
+                    {
+                        line = await _io.ReadLineAsync(externalCt);
+                    }
 
+                    if (line == null)
+                    {
+                        // ReadLineAsync 返回 null = EOF/Channel 关闭
                         break;
                     }
                 }
                 else
                 {
-                    line = _io.ReadLine();
+                    line = await _io.ReadLineAsync(externalCt);
                     if (line == null)
                         break;
                 }
@@ -142,7 +158,7 @@ namespace MinorShift.Emuera.GameView
                 if (cmd?.type != "input")
                     continue;
 
-                var stepTurn = Step(cmd.value ?? "");
+                var stepTurn = await StepAsync(cmd.value ?? "");
                 if (stepTurn != null)
                     _io.WriteLine(stepTurn);
                 else
@@ -157,7 +173,7 @@ namespace MinorShift.Emuera.GameView
 
         #region Turn helpers
 
-        private bool WaitForInput()
+        private async Task<bool> WaitForInputAsync()
         {
             var sw = Stopwatch.StartNew();
             var token = StopToken;
@@ -168,7 +184,8 @@ namespace MinorShift.Emuera.GameView
                     return true;
                 if (sw.ElapsedMilliseconds > TurnTimeoutMs)
                     return false;
-                token.WaitHandle.WaitOne(PollIntervalMs);
+                try { await Task.Delay(PollIntervalMs, token); }
+                catch (OperationCanceledException) { return false; }
             }
             return false;
         }

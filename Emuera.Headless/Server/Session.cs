@@ -11,7 +11,7 @@ internal sealed class Session : IDisposable
 {
     public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
     public DateTimeOffset CreatedAt { get; } = DateTimeOffset.UtcNow;
-    public bool IsRunning => _gameThread?.IsAlive == true;
+    public bool IsRunning => _gameTask != null && !_gameTask.IsCompleted;
     public bool HasEnded { get; private set; }
     public HttpSessionIO IO => _io;
     public string StateString => _console.State.ToString();
@@ -21,7 +21,7 @@ internal sealed class Session : IDisposable
     private readonly EmueraConsole _console;
     private readonly AgentJsonlProtocol _protocol;
     private readonly HttpSessionIO _io;
-    private Thread? _gameThread;
+    private Task? _gameTask;
     private readonly CancellationTokenSource _cts = new();
     private readonly object _turnLock = new();
     private bool _finalTurnReady;
@@ -39,20 +39,15 @@ internal sealed class Session : IDisposable
 
     public void Start()
     {
-        _gameThread = new Thread(GameLoop)
-        {
-            IsBackground = true,
-            Name = $"Session-{Id}"
-        };
-        _gameThread.Start();
+        _gameTask = Task.Run(GameLoopAsync);
     }
 
-    private void GameLoop()
+    private async Task GameLoopAsync()
     {
         try
         {
-            _console.Initialize().Wait();
-            _protocol.RunLoop(enableTimeout: true, _cts.Token);
+            await _console.Initialize();
+            await _protocol.RunLoopAsync(enableTimeout: true, _cts.Token);
         }
         catch (Exception ex)
         {
@@ -77,13 +72,16 @@ internal sealed class Session : IDisposable
             }
             _protocol.Stop();
             _console.Dispose();
+            // 关闭 IO：Complete output Channel 后 TryTakeTurn 仍能 TryRead 已写入数据，
+            // 读完后返回 false；同时 Complete input Channel 防止后续 EnqueueInput。
+            _io.Close();
             HasEnded = true;
         }
     }
 
     /// <summary>
     /// 原子地从 IO 队列取出 turn。若是最终 turn（_finalTurnReady），标记为已交付，
-    /// 后续调用返回 false。用于 GET /turn 实现“返回最终 turn 一次后 404”。
+    /// 后续调用返回 false。用于 GET /turn 实现"返回最终 turn 一次后 404"。
     /// </summary>
     public bool TryTakeTurn(out string? turn)
     {

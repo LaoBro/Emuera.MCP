@@ -1,77 +1,83 @@
 using System;
-using System.Collections.Concurrent;
 using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace MinorShift.Emuera.Server;
 
 /// <summary>
-/// 基于内存队列的 SessionIO，用于 HTTP 长轮询模式。
+/// 基于内存 Channel 的 SessionIO，用于 HTTP 长轮询模式。
+/// input/output 双 Channel，支持 async 读取与同步写入。
 /// </summary>
 internal sealed class HttpSessionIO : SessionIO
 {
-    private readonly ConcurrentQueue<string> _inputQueue = new();
-    private readonly ConcurrentQueue<string> _outputQueue = new();
-    private readonly AutoResetEvent _inputEvent = new(false);
-    private volatile bool _connected = true;
-
-    public override string? ReadLine()
+    private readonly Channel<string> _input = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
     {
-        while (_connected)
-        {
-            if (_inputQueue.TryDequeue(out var line))
-                return line;
-            _inputEvent.WaitOne(100);
-        }
-        return null;
-    }
+        SingleReader = true,
+        SingleWriter = false
+    });
+    private readonly Channel<string> _output = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+    {
+        SingleReader = false,
+        SingleWriter = false
+    });
+    private volatile bool _closed;
 
     /// <summary>
-    /// 带超时的读取行。
-    /// timeoutMs &lt; 0：无限等待，走现有 ReadLine() 逻辑。
-    /// timeoutMs == 0：只尝试 _inputQueue.TryDequeue；无数据返回 null。
-    /// timeoutMs &gt; 0：使用 _inputEvent.WaitOne(timeoutMs) 等待；超时返回 null。
-    /// Close() 后 _connected = false，后续 ReadLine() / ReadLine(timeoutMs) 必须尽快返回 null。
+    /// 异步读取一行输入。
+    /// Channel 关闭后返回 null（同步版 ReadLine 行为一致）。
+    /// CancellationToken 取消时抛 OperationCanceledException，由调用方处理。
     /// </summary>
-    public override string? ReadLine(int timeoutMs)
+    public override async Task<string?> ReadLineAsync(CancellationToken ct)
     {
-        if (timeoutMs == 0)
+        try
         {
-            if (_inputQueue.TryDequeue(out var line))
-                return line;
+            return await _input.Reader.ReadAsync(ct);
+        }
+        catch (ChannelClosedException)
+        {
             return null;
         }
-
-        if (timeoutMs > 0)
-        {
-            while (_connected)
-            {
-                if (_inputQueue.TryDequeue(out var line))
-                    return line;
-
-                if (!_inputEvent.WaitOne(timeoutMs))
-                    return null;
-            }
-
-            return null;
-        }
-
-        return ReadLine();
     }
 
     public override void WriteLine(string text)
     {
-        if (_connected)
-            _outputQueue.Enqueue(text);
+        if (_closed)
+            return;
+        _output.Writer.TryWrite(text);
     }
 
-    public override void Close() => _connected = false;
-    public override bool IsConnected => _connected;
+    /// <summary>
+    /// 关闭 IO。幂等：多次调用安全。
+    /// 调用后 ReadLineAsync 返回 null，WriteLine 丢弃数据。
+    /// </summary>
+    public override void Close()
+    {
+        if (_closed)
+            return;
+        _closed = true;
+        _input.Writer.TryComplete();
+        _output.Writer.TryComplete();
+    }
 
+    public override bool IsConnected => !_closed;
+
+    /// <summary>供 HttpGameServer.POST /input 调用：入队输入并唤醒读取方。</summary>
     public void EnqueueInput(string line)
     {
-        _inputQueue.Enqueue(line);
-        _inputEvent.Set();
+        if (_closed)
+            return;
+        _input.Writer.TryWrite(line);
     }
 
-    public bool TryDequeueOutput(out string? text) => _outputQueue.TryDequeue(out text);
+    /// <summary>供 Session.TryTakeTurn 调用：非阻塞尝试取走一个 turn。</summary>
+    public bool TryDequeueOutput(out string? text)
+    {
+        if (_closed)
+        {
+            text = null;
+            return false;
+        }
+        return _output.Reader.TryRead(out text);
+    }
 }
