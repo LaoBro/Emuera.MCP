@@ -681,7 +681,7 @@ internal sealed class ConsolePrintManager
         {
             font = new Font(Style.Fontname, Config.DefaultFont.Size, Style.FontStyle, GraphicsUnit.Pixel);
         }
-        catch { return str; }
+        catch (Exception ex) { AgentLog.Instance.Write("font creation failed, fallback: " + ex.Message); return str; }
 
         if (alignmentRight && (length < printcLength))
         {

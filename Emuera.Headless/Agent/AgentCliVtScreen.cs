@@ -76,7 +76,7 @@ namespace MinorShift.Emuera.GameView
         internal int GetCurrentRow()
         {
             try { return Console.CursorTop; }
-            catch { return 0; }
+            catch (Exception) { /* redirected console，默认 0 */ return 0; }
         }
 
         public void Dispose()

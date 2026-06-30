@@ -42,7 +42,7 @@ namespace MinorShift.Emuera.GameView
                     if (_countdownLineRow < 0)
                     {
                         try { _countdownLineRow = Console.CursorTop - 1; }
-                        catch { _countdownLineRow = -1; }
+                        catch (Exception) { /* CursorTop 探测失败，禁用行覆盖 */ _countdownLineRow = -1; }
                     }
                     Overwrite(currentText);
                 }

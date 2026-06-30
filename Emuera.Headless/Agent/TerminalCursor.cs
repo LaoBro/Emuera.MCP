@@ -14,7 +14,7 @@ namespace MinorShift.Emuera.GameView
         public void Save(out int left, out int top)
         {
             try { left = Console.CursorLeft; top = Console.CursorTop; }
-            catch { left = 0; top = 0; }
+            catch (Exception) { /* redirected console 不支持，用默认值 */ left = 0; top = 0; }
         }
 
         public void Set(int left, int top)
@@ -43,12 +43,12 @@ namespace MinorShift.Emuera.GameView
         {
             bool cleared = false;
             try { Console.Clear(); cleared = true; }
-            catch { }
+            catch (Exception) { /* Console.Clear 在 redirected 下失败，忽略 */ }
 
             if (!cleared && _ansi)
             {
                 try { Console.Write("\x1b[2J\x1b[H"); cleared = true; }
-                catch { }
+                catch (Exception) { /* ANSI clear 失败，忽略 */ }
             }
 
             if (!cleared)
@@ -67,24 +67,24 @@ namespace MinorShift.Emuera.GameView
 
         public static void TryWrite(string text)
         {
-            try { Console.Write(text); } catch { }
+            try { Console.Write(text); } catch (Exception) { /* redirected console 写入失败，忽略 */ }
         }
 
         public static void TrySetCursorPosition(int left, int top)
         {
-            try { Console.SetCursorPosition(left, top); } catch { }
+            try { Console.SetCursorPosition(left, top); } catch (Exception) { /* SetCursorPosition 越界或 redirected 失败，忽略 */ }
         }
 
         public static int TryGetWindowWidth()
         {
             try { return Console.WindowWidth; }
-            catch { return 80; }
+            catch (Exception) { /* redirected console，默认 80 */ return 80; }
         }
 
         public static int TryGetWindowHeight()
         {
             try { return Console.WindowHeight; }
-            catch { return 25; }
+            catch (Exception) { /* redirected console，默认 25 */ return 25; }
         }
     }
 }

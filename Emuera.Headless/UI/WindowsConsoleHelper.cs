@@ -31,7 +31,7 @@ internal static class WindowsConsoleHelper
             if (SetConsoleMode(hOut, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING))
                 AnsiEnabled = true;
         }
-        catch { }
+        catch (Exception) { /* P/Invoke 兜底，失败则 ANSI 不启用 */ }
     }
 
     public static void TrySetConsoleSize()
@@ -60,7 +60,7 @@ internal static class WindowsConsoleHelper
             Console.WindowWidth = Math.Min(gameColumns, Console.LargestWindowWidth);
             Console.WindowHeight = Math.Min(gameRows + 4, Console.LargestWindowHeight);
         }
-        catch { }
+        catch (Exception) { /* 控制台尺寸设置失败，忽略 */ }
     }
 
     public static bool IsWindowsTerminal()

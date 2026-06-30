@@ -158,7 +158,7 @@ namespace MinorShift.Emuera.GameView
 
                 JsonlCommand? cmd;
                 try { cmd = JsonSerializer.Deserialize<JsonlCommand>(line); }
-                catch { continue; }
+                catch (Exception ex) { AgentLog.Instance.Write("invalid jsonl input ignored: " + ex.Message); continue; }
 
                 if (cmd?.type != "input")
                     continue;

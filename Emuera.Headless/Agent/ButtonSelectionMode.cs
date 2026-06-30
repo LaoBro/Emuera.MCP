@@ -247,7 +247,7 @@ namespace MinorShift.Emuera.GameView
             {
                 int savedRow, savedCol;
                 try { savedRow = Console.CursorTop; savedCol = Console.CursorLeft; }
-                catch { savedRow = 0; savedCol = 0; }
+                catch (Exception) { /* 光标位置探测失败，用 0,0 */ savedRow = 0; savedCol = 0; }
 
                 var lines = _console.DisplayLineList;
                 int windowHeight = screen.WindowHeight;

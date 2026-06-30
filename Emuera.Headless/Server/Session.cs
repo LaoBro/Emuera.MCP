@@ -66,9 +66,10 @@ internal sealed class Session : IDisposable
                 if (finalTurn != null)
                     _io.WriteLine(finalTurn);
             }
-            catch
+            catch (Exception ex)
             {
                 // 最终 turn 生成失败不阻断 Dispose；HasEnded 会让 GET /turn 返回 404
+                AgentLog.Instance.Write("final turn build failed: " + ex.Message);
             }
             _protocol.Stop();
             _console.Dispose();

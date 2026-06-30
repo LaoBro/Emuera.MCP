@@ -301,7 +301,7 @@ namespace MinorShift.Emuera.GameView
                 AppDomain.CurrentDomain.UnhandledException += OnVtUnhandledException;
                 AppDomain.CurrentDomain.ProcessExit += OnVtProcessExit;
             }
-            catch { }
+            catch (Exception ex) { AgentLog.Instance.Write("vt cleanup hook registration failed: " + ex); }
         }
 
         private void OnVtCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
@@ -329,10 +329,10 @@ namespace MinorShift.Emuera.GameView
             _vtCleanupDone = true;
 
             try { _vtInput?.Dispose(); }
-            catch { }
+            catch (Exception ex) { AgentLog.Instance.Write("vt input dispose failed: " + ex); }
 
             try { _screen?.Dispose(); }
-            catch { }
+            catch (Exception ex) { AgentLog.Instance.Write("vt screen dispose failed: " + ex); }
 
             _vtInput = null;
             _screen = null;
