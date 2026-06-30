@@ -4,6 +4,7 @@
 .reasonix/*
 .kilo/*
 .mimocode/*
+.agents/*
 
 Emuera/artifacts/*
 Emuera/Emuera.csproj.user

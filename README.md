@@ -1,31 +1,77 @@
 # Emuera
 
-Eramaker 引擎的 C# 移植版，基于 .NET + WinForms 运行。完整支持 ERB 脚本语言，并通过 MCP 中继支持 AI 代理控制。
+Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本语言，并通过 MCP 协议支持 AI 代理控制。
+
+本项目以 **Emuera.Headless** 无头运行器为主，支持 JSONL/CLI/HTTP 服务器三种协议。另有一个 WinForms 图形界面版本（仅 Windows）。
 
 ## 环境要求
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) 或更高版本
-- Windows（依赖 WinForms）
+- Python 3.10+（用于 MCP 网关和测试）
+- Windows（跨平台支持计划中，目前仅完成 Windows）
 
 ## 构建
 
+构建无头运行器：
+
 ```bash
-dotnet build -c Debug-NAudio Emuera/Emuera.csproj
+dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug
 ```
 
-编译后的 DLL 位于 `Emuera/artifacts/bin/Emuera/debug-naudio/Emuera.dll`。
+构建 WinForms 应用（NAudio 音频后端）：
+
+```bash
+dotnet build Emuera/Emuera.csproj -c Debug-NAudio
+```
+
+`Debug-NAudio` 是常规构建配置，因为默认的非 NAudio 配置依赖 Windows Media Player COM 引用。
+
+发布无头运行器：
+
+```bash
+dotnet publish Emuera.Headless/Emuera.Headless.csproj -c Release --no-self-contained -o Emuera.Headless/bin/Release/Publish
+```
+
+> **注意：** 构建时会产生大量已有的 CS 警告（旧代码的 nullable、弃用 API 等），这些是已知且无害的，只关注 error 即可。
 
 ## 运行
+
+以 JSONL 模式运行（适合脚本和自动化）：
+
+```bash
+dotnet exec Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.dll --ExeDir <游戏目录> --protocol jsonl
+```
+
+以 CLI 模式运行（终端交互）：
+
+```bash
+dotnet exec Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.dll --ExeDir <游戏目录> --protocol cli
+```
+
+运行 HTTP 服务器（MCP 网关使用此模式）：
+
+```bash
+dotnet exec Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.dll --ExeDir <游戏目录> --server --port 8080
+```
+
+构建后运行 WinForms 应用：
 
 ```bash
 dotnet exec Emuera/artifacts/bin/Emuera/debug-naudio/Emuera.dll --ExeDir <游戏目录>
 ```
 
-stdin 被重定向时自动进入 JSONL 代理模式（无需额外参数），否则打开交互窗口。
-
 ## MCP 集成
 
-Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、VS Code、Cursor 等）控制。项目使用 Python 中继脚本管理游戏进程生命周期，仅在需要时才启动游戏，打开编辑器时不会弹出窗口。
+Emuera 通过 Model Context Protocol 被 AI 编程工具（Claude Code、VS Code、Cursor 等）控制。项目使用 Python 网关管理游戏进程生命周期，仅在需要时才启动游戏。
+
+### 架构
+
+```
+Claude Code <-- MCP over stdio --> emuera_gateway <-- HTTP --> Emuera.Headless (C# 服务器)
+```
+
+- `emuera_gateway` 对外提供 MCP 协议，对内通过 HTTP 与 C# 服务器通信。
+- 嵌入模式下由 Python 自动启动/停止 C# 服务器；独立模式下连接已运行的服务器。
 
 ### 配置（Claude Code）
 
@@ -38,7 +84,7 @@ Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、V
   "mcpServers": {
     "emuera": {
       "command": "python",
-      "args": ["mcp_relay.py"]
+      "args": ["-m", "emuera_gateway"]
     }
   }
 }
@@ -56,9 +102,9 @@ Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、V
 
 ### 路径配置
 
-首次使用前，需要通过 `emuera_set_config` 工具配置 Emuera.dll 路径和游戏目录：
+首次使用前，需要通过 `emuera_set_config` 工具配置 Emuera 二进制路径和游戏目录：
 
-> 调用 `emuera_set_config`，传入 `dllPath`（编译后的 DLL 路径）和 `gameDir`（游戏数据目录）。
+> 调用 `emuera_set_config`，传入 `binaryPath`（编译后的二进制路径，可以是 `.dll` 或 `.exe`）和 `gameDir`（游戏数据目录）。
 >
 > 路径可以是相对于项目根目录的相对路径，也可以是绝对路径。配置会自动保存到 `.emuera-mcp.json`。
 
@@ -66,12 +112,26 @@ Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、V
 
 ```json
 {
-  "dllPath": "Emuera/artifacts/bin/Emuera/debug-naudio/Emuera.dll",
+  "binaryPath": "Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe",
   "gameDir": "test_game"
 }
 ```
 
 该文件**不应提交到仓库**——每个开发者有自己的路径和构建配置。
+
+### MCP 网关运行模式
+
+嵌入模式（默认）——由 Python 启动和停止 C# 服务器：
+
+```bash
+python -m emuera_gateway --emuera-path Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+```
+
+独立模式——连接已运行的 C# 服务器：
+
+```bash
+python -m emuera_gateway --standalone --server-url http://localhost:8080
+```
 
 ### 工具
 
@@ -80,8 +140,8 @@ Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、V
 | `emuera_step` | 提交输入并等待下一回合。传 `{"value": "0"}` 发送输入，传 `{}` 读取当前状态。 |
 | `emuera_get_state` | 阻塞等待游戏进入 `WaitInput` 状态，然后返回当前状态和输出文本。 |
 | `emuera_kill` | 强制关闭游戏进程和窗口。 |
-| `emuera_set_config` | 设置 DLL 路径和/或游戏目录。传 `{"dllPath": "...", "gameDir": "..."}`（参数可选），保存前验证路径有效性。 |
-| `emuera_get_config` | 返回当前配置的 DLL 路径和游戏目录。 |
+| `emuera_set_config` | 设置二进制路径和/或游戏目录。传 `{"binaryPath": "...", "gameDir": "..."}`（参数可选），保存前验证路径有效性。 |
+| `emuera_get_config` | 返回当前配置的二进制路径和游戏目录。 |
 
 ### 响应格式
 
@@ -105,28 +165,17 @@ Emuera 可以通过 Model Context Protocol 被 AI 编程工具（Claude Code、V
 | `needValue` | 为 true 时表示需要非空输入 |
 | `buttons` | 可见区域内的按钮列表，每项含 `label`（显示文本）和 `value`（输入值） |
 
-### 中继原理
-
-```
-Claude Code <-- MCP over stdio --> mcp_relay.py <-- JSONL over stdio --> Emuera
-```
-
-- `mcp_relay.py` 常驻运行（无窗口、极低资源占用）。对外提供 MCP 协议，对内使用 JSONL 与 Emuera 通信。
-- 直接处理 `initialize`、`tools/list`、`emuera_kill`、`emuera_set_config`、`emuera_get_config` 请求（无需启动游戏）。
-- 当 `emuera_step` 或 `emuera_get_state` 被调用时，中继通过 `dotnet exec` 启动 Emuera。游戏启动后自动输出初始状态（无需额外握手）。
-- 游戏进入 `Quit` 或 `Error` 状态时，中继自动杀掉进程并清理。下次工具调用会启动全新的游戏进程。
-
 ### 其他 AI 工具
 
 任何支持 stdio 传输的 MCP 客户端均可使用：
 
-- **Claude Desktop** -- 编辑 `%APPDATA%\Claude\claude_desktop_config.json`，填入相同配置
-- **VS Code Copilot** -- 创建 `.vscode/mcp.json`，使用 `"type": "stdio"` 及相同的 command/args
-- **Cursor** -- 创建 `.cursor/mcp.json`
+- **Claude Desktop** — 编辑 `%APPDATA%\Claude\claude_desktop_config.json`，填入相同配置
+- **VS Code Copilot** — 创建 `.vscode/mcp.json`，使用 `"type": "stdio"` 及相同的 command/args
+- **Cursor** — 创建 `.cursor/mcp.json`
 
 ## JSONL 协议
 
-Emuera 在 stdin 重定向时自动进入 JSONL 代理模式，适合脚本和自动化。游戏启动后会自动输出初始 turn，之后每发送一条输入命令返回一个 turn。
+无头运行器在 `--protocol jsonl` 模式下通过 stdin/stdout 交换 JSON 行，适合脚本和自动化。游戏启动后自动输出初始 turn，之后每发送一条输入命令返回一个 turn。
 
 ```python
 # 游戏自动输出初始 turn（无需发送任何命令）：
@@ -141,13 +190,29 @@ Emuera 在 stdin 重定向时自动进入 JSONL 代理模式，适合脚本和�
 
 参考 `tests/emuera_agent.py`（Python 封装库）和 `tests/test_jsonl.py`（示例）。
 
+## 测试
+
+Python 测试使用仓库根目录的 `test_game` 作为测试游戏。Windows 环境下使用绝对路径更可靠。
+
+```bash
+python tests/test_jsonl.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+python tests/test_cli.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+python tests/test_server_single_session.py
+python tests/test_tinput_timeout.py
+python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+```
+
+`tests/README.md` 是测试的权威文档。
+
 ## 项目结构
 
 ```
-Emuera/          -- 主程序（C# / WinForms）
-tests/           -- Python 测试脚本和代理库
-test_game/       -- 开发用最小 ERB 测试游戏
-mcp_relay.py     -- MCP 中继服务器（Python，对外 MCP，对内 JSONL）
+Emuera.Headless/   -- 无头运行器（主项目，JSONL/CLI/HTTP 服务器）
+Emuera/            -- WinForms 图形界面版本
+emuera_gateway/    -- Python MCP 网关
+EmueraPluginExample/ -- 示例 C# 插件
+tests/             -- Python 测试脚本和代理库
+test_game/         -- 开发用最小 ERB 测试游戏
 ```
 
 ## 许可证
