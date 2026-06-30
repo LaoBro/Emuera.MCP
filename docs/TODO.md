@@ -37,27 +37,6 @@
   - `SKIPDISP 1` 期间终端不输出。
   - `SKIPDISP 0` 恢复后终端显示与 `displayLineList` 一致。
 
-### T-012：CLI 模式 HTML_PRINT 纯文本降级
-
-- 状态：已实现
-- 范围：`HTML_PRINT`、`HtmlManager`、`EmueraConsole.AgentBridge`
-- 说明：`HTML_PRINT` 解析 HTML 标签生成富文本行（含按钮、图片、对齐等）。CLI 下 `WriteAlignedLine()` 原先调用 `line.ToString()` 获取纯文本，非文本节点（`ConsoleImagePart`、`ConsoleSpacePart`、`ConsoleRectangleShapePart`、`ConsoleDivPart`）的 `ToString()` 返回完整 HTML 标签（如 `<img src='c1234' height='19'>`），导致文本过长、排版错位、自动换行后按钮失灵。
-- 实现方案：
-  - 新增 `BuildTerminalLine()` 方法：逐节点构建终端友好文本，同时计算正确的显示宽度。
-  - 降级规则：`ConsoleStyledString`→原样文本；`ConsoleSpacePart`→像素宽度转空格数；`ConsoleImagePart`/`ConsoleRectangleShapePart`→跳过；`ConsoleDivPart`→递归子行；其他→原文本。
-  - `WriteAlignedLine()`、`FormatLineWithAnsi()`、`FormatLineForTerminal()` 三处均改用降级逻辑。
-- 纳入范围：
-  - `WriteAlignedLine()` 已处理 `line.Align` 对齐，`<align>` 标签效果已保留。
-  - `<b>` / `<i>` 标签可结合 T-010 的 ANSI 样式输出。
-  - `<button>` 标签可结合 T-011 的按钮标记。
-- 不纳入范围：
-  - `<img>` / `<img src>` 图片标签（终端无法显示，降级为空串）。
-  - `<shape>` / `<rect>` 图形标签（降级为空串）。
-- 验收：
-  - `HTML_PRINT` 的文字内容正确显示。
-  - 对齐、粗体、斜体等样式降级但不丢失语义。
-  - 非文本节点不再输出 HTML 标签文本，行宽计算正确，不再因超长文本换行导致按钮失灵。
-
 ### T-004：server timer 数据契约暂缓
 
 - 状态：暂缓，不纳入本次实现
@@ -100,22 +79,6 @@
   - `changeLastLine()` 仍能原地替换最后一行。
   - ANSI 不可用的 Windows fallback 不残留旧文本。
 
-### T-016：JSONL/server Agent 协议清理与健壮性
-
-- 状态：未实现，需修复
-- 范围：`Emuera.Headless/Agent/AgentJsonlProtocol.cs`、`Emuera.Headless/Agent/AgentProtocolBase.cs`、`Emuera.Headless/Server/Session.cs`
-- 说明：审查发现 JSONL/server 协议存在未使用 IO 字段、超时路径假设过强、异常后协议继续运行、auto-detect 方法重复且可能释放 stdin 等问题。
-- 纳入范围：
-  - 移除 `AgentJsonlProtocol` 中未使用的 `SessionIO _io` 字段与构造函数参数，server IO 继续由 `Session.GameLoop()` 管理。
-  - `SubmitTimeout()` 调用 `console.SubmitTimeout()` 后等待 `WaitForInput()`，避免返回半运行状态 turn。
-  - `Step()` 捕获异常返回 error JSON 后停止协议，或明确标记 fatal 让调用方停止。
-  - 删除 `AgentProtocolBase.Detect()`，或保留时避免 `using var stdin = Console.OpenStandardInput()` 关闭标准输入。
-- 验收：
-  - server 单会话测试行为不变。
-  - TINPUT timeout 在超时后仍返回 `WaitInput` / `Quit` / `Error` 的稳定 turn。
-  - JSONL stdin 管道模式输入输出行为不变。
-  - auto-detect 逻辑只保留一处，且不破坏 stdin 读取。
-
 ### T-017：CLI 终端清行 fallback 边界防御
 
 - 状态：未实现，需修复
@@ -134,18 +97,3 @@
 - 范围：`Emuera.Headless/Agent/AgentCliProtocol.cs`
 - 说明：开启 XTerm 1002（按钮事件追踪）或 1003（任意事件追踪），接收鼠标移动事件。当鼠标悬浮在按钮区域上时，用 ANSI 样式（反色/下划线）高亮该按钮。鼠标离开时恢复。
 - 前置：T-019。
-
-### T-018：HEADLESS AgentBuffer 删除最后一行容错
-
-- 状态：已实现
-- 范围：`Emuera.Headless/UI/Game/EmueraConsole.AgentBuffer.cs`
-- 说明：`deleteLine()` 会调用 `RemoveLastLineFromAgentBuffer()`。若 `_agentBufferLineCount > 0` 但 `_agentBuffer` 内容为空或只有 1 个字符，当前 `LastIndexOf('\n', content.Length - 2, content.Length - 1)` 可能因负数参数抛异常。该路径会影响 CLI 下"行仍在缓冲区时被 CLEARLINE 删除"的场景。
-- 实现方案：在 `LastIndexOf` 调用前增加 `content.Length <= 1` 的前置判断，直接清空缓冲区并递减计数，避免负数参数异常。
-- 纳入范围：
-  - `RemoveLastLineFromAgentBuffer()` 对 `content.Length == 0` 直接清空并递减计数。
-  - `content.Length == 1` 时按单行处理，不调用负数 `startIndex/count`。
-  - 保持不换行行的删除逻辑：有前一行换行符时删除到上一行末尾。
-- 验收：
-  - 缓冲区只有不换行单行时调用 `deleteLine()` 不抛异常。
-  - 多行缓冲区删除最后一行后，前序内容保留正确。
-  - `_agentBufferLineCount` 与 `_agentBuffer` 内容保持一致。

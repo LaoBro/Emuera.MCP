@@ -53,3 +53,19 @@
 
 - 状态：已实现
 - 说明：提取 `SyncButtonState()` 统一管理按钮模式的进入/退出/刷新，在 `RunConsoleKeyLoop` 的三个关键点（FullRefresh 后、超时后、每轮 `FlushBuffer()` 后）调用。`ConfirmButton()` 和 Timeout 路径不再手动清除按钮状态，全部由 `SyncButtonState()` 统一处理。新增 `ButtonListEquals()` 辅助方法检测按钮列表是否变化（按 Generation + Input 值比较），新增 `ClearInputBuffer()` 提取重复的输入缓冲区清除逻辑。
+
+### T-012：CLI 模式 HTML_PRINT 纯文本降级
+
+- 状态：已实现
+- 范围：`HTML_PRINT`、`HtmlManager`、`EmueraConsole.AgentBridge`
+- 说明：`HTML_PRINT` 解析 HTML 标签生成富文本行（含按钮、图片、对齐等）。CLI 下 `WriteAlignedLine()` 原先调用 `line.ToString()` 获取纯文本，非文本节点（`ConsoleImagePart`、`ConsoleSpacePart`、`ConsoleRectangleShapePart`、`ConsoleDivPart`）的 `ToString()` 返回完整 HTML 标签，导致文本过长、排版错位、自动换行后按钮失灵。
+- 实现方案：新增 `BuildTerminalLine()` 方法逐节点构建终端友好文本，降级规则：`ConsoleStyledString`→原样文本；`ConsoleSpacePart`→像素宽度转空格数；`ConsoleImagePart`/`ConsoleRectangleShapePart`→跳过；`ConsoleDivPart`→递归子行。
+- 验收：`HTML_PRINT` 文字内容正确显示，对齐/粗体/斜体样式降级但不丢失语义，非文本节点不再输出 HTML 标签文本。
+
+### T-018：HEADLESS AgentBuffer 删除最后一行容错
+
+- 状态：已实现
+- 范围：`EmueraHeadless/UI/Game/EmueraConsole.AgentBuffer.cs`
+- 说明：`deleteLine()` 调用 `RemoveLastLineFromAgentBuffer()` 时，若 `_agentBuffer` 内容为空或只有 1 个字符，`LastIndexOf` 可能因负数参数抛异常。
+- 实现方案：在 `LastIndexOf` 调用前增加 `content.Length <= 1` 的前置判断，直接清空缓冲区并递减计数。
+- 验收：缓冲区只有不换行单行时调用 `deleteLine()` 不抛异常，多行缓冲区删除最后一行后前序内容保留正确。
