@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using System;
 using System.Collections.Generic;
@@ -14,7 +14,7 @@ internal abstract class AConfigItem
 	public AConfigItem(ConfigCode code, string text, string etext)
 	{
 		Code = code;
-		Name = EnumsNET.Enums.AsString(code);
+		Name = code.ToString();
 		// this.Text = text;
 		Text = text.ToUpper();
 		// this.EngText = etext;
