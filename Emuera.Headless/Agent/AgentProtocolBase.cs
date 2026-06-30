@@ -61,6 +61,15 @@ namespace MinorShift.Emuera.GameView
             var req = console.CurrentRequest;
             if (req == null) return;
 
+            // 系统命令（@QUIT/@REBOOT 等）绕过输入类型校验，直接走 PressEnterKey → DoSystemCommand。
+            // 与 ConsoleInputHandler.PressEnterKey 内的 @ 前缀检查对齐：IntValue/AnyValue
+            // 否则会因 long.TryParse("@QUIT") 失败而拒绝系统命令。
+            if (input.Length > 1 && !req.OneInput && input.StartsWith('@'))
+            {
+                console.PressEnterKey(false, input, false);
+                return;
+            }
+
             switch (req.InputType)
             {
                 case InputType.EnterKey:

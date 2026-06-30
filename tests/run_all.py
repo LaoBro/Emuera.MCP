@@ -144,6 +144,18 @@ def main():
         )
     )
 
+    results.append(
+        (
+            "I-11 exit survival",
+            _run_script(
+                "I-11 exit survival",
+                [sys.executable, str(TESTS_DIR / "test_force_quit_survival.py")],
+                env=env,
+                timeout=180,
+            ),
+        )
+    )
+
     print("\n=== Summary ===")
     all_passed = True
     for name, (passed, code) in results:

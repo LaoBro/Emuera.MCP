@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Data;
@@ -344,6 +344,13 @@ internal sealed partial class Process(EmueraConsole view)
 		}
 		catch (Exception ec)
 		{
+#if HEADLESS
+			// I-11：HeadlessConsole.Close()/ExitApplication() 抛 GameExitException 绕过
+			// Environment.Exit(0)。此处必须 rethrow 让异常穿透到 Session/HeadlessRunner
+			// 的 catch，否则 GameExitException 被当脚本错误处理 → Error 状态 → 僵尸 session。
+			if (ec is GameExitException)
+				throw;
+#endif
 			LogicalLine currentLine = state.ErrorLine;
 			if (currentLine != null && currentLine is NullLine)
 				currentLine = null;
