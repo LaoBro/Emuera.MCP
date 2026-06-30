@@ -68,15 +68,30 @@ namespace MinorShift.Emuera.GameView
                 else if (ch == '\x1b') key = ConsoleKey.Escape;
             }
 
+            if (_host.GameConsole.IsWaitingPrimitive)
+            {
+                int keycode = (int)key;
+                int keydata = (int)ch;
+                _host.GameConsole.PressPrimitiveKey(keycode, keydata, 0);
+                Log.Write($"[vt-input] primitive key={key} ch=0x{(int)ch:X4}");
+                return;
+            }
+
             var keyInfo = new ConsoleKeyInfo(ch, key, false, false, false);
             Log.Write($"[vt-input] key={key} ch=0x{(int)ch:X4}");
             _host.ProcessKeyFromVt(keyInfo);
         }
 
-        internal void OnMouseEvent(int row, int col, bool isPress)
+        internal void OnMouseEvent(int row, int col, int buttonCode, bool isPress)
         {
-            // 只处理左键按下（Cb==0, M 终结符）
-            if (!isPress) return;
+            if (_host.GameConsole.IsWaitingPrimitive)
+            {
+                DispatchPrimitiveMouseKey(row, col, buttonCode, isPress);
+                return;
+            }
+
+            // 按钮点击模式：只处理左键按下
+            if (!isPress || buttonCode != 0) return;
 
             var hit = HitTest(row, col);
             if (hit != null)
@@ -89,6 +104,34 @@ namespace MinorShift.Emuera.GameView
                 Log.Write($"[vt-input] mouse miss row={row} col={col}");
                 _host.DispatchMouseMiss();
             }
+        }
+
+        private void DispatchPrimitiveMouseKey(int row, int col, int buttonCode, bool isPress)
+        {
+            // VT SGR mouse wheel: cb=64 (up), cb=65 (down)
+            if (buttonCode == 64 || buttonCode == 65)
+            {
+                int delta = buttonCode == 64 ? -120 : 120;
+                _host.GameConsole.InputMouseKey(2, delta, col, row, 0, 0);
+                Log.Write($"[vt-input] primitive wheel delta={delta} row={row} col={col}");
+                return;
+            }
+
+            if (!isPress) return;
+
+            // VT SGR mouse buttons → Windows MouseButtons enum
+            int windowsButton = buttonCode switch
+            {
+                0 => 0x100000,  // MouseButtons.Left
+                1 => 0x400000,  // MouseButtons.Middle
+                2 => 0x200000,  // MouseButtons.Right
+                _ => 0
+            };
+
+            if (windowsButton == 0) return;
+
+            _host.GameConsole.InputMouseKey(1, windowsButton, col, row, 0, 0);
+            Log.Write($"[vt-input] primitive mouse btn={buttonCode} row={row} col={col}");
         }
 
         #endregion

@@ -163,9 +163,7 @@ namespace MinorShift.Emuera.GameView
                     int col = cx - 1;
                     bool isPress = b == (byte)'M';
 
-                    // 只报告左键（cb=0 按下, cb=2 释放）
-                    if (cb == 0 || cb == 2)
-                        _owner.OnMouseEvent(row, col, isPress);
+                    _owner.OnMouseEvent(row, col, cb, isPress);
                 }
                 _state = State.Ground;
                 return;

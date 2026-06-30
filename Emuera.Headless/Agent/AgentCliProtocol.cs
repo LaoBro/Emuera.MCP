@@ -28,6 +28,8 @@ namespace MinorShift.Emuera.GameView
         private readonly CountdownRenderer _countdown;
         private readonly TerminalRenderer _renderer;
 
+        internal new EmueraConsole GameConsole => console;
+
         public AgentCliProtocol(EmueraConsole console, IConsoleUI ui)
             : base(console, ui)
         {

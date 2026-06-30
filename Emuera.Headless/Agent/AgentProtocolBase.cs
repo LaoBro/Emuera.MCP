@@ -59,29 +59,19 @@ namespace MinorShift.Emuera.GameView
             var req = console.CurrentRequest;
             if (req == null) return;
 
-            switch (req.InputType)
+            Action handleInput = req.InputType switch
             {
-                case InputType.EnterKey:
-                case InputType.AnyKey:
-                case InputType.StrValue:
-                case InputType.IntButton:
-                case InputType.StrButton:
-                    console.PressEnterKey(false, input, false);
-                    break;
-                case InputType.IntValue:
-                case InputType.AnyValue:
-                    if (long.TryParse(input, out _))
-                        console.PressEnterKey(false, input, false);
-                    else
-                        OnInputRejected("当前需要整数输入，请重试");
-                    break;
-                case InputType.PrimitiveMouseKey:
-                    OnInputRejected("当前等待原始鼠标/键盘事件，终端无法模拟，请在窗口中操作");
-                    break;
-                default:
-                    OnInputRejected($"未处理的输入类型: {req.InputType}");
-                    break;
-            }
+                InputType.EnterKey or InputType.AnyKey or InputType.StrValue
+                    or InputType.IntButton or InputType.StrButton =>
+                    () => console.PressEnterKey(false, input, false),
+                InputType.IntValue or InputType.AnyValue => long.TryParse(input, out _)
+                    ? () => console.PressEnterKey(false, input, false)
+                    : () => OnInputRejected("当前需要整数输入，请重试"),
+                InputType.PrimitiveMouseKey =>
+                    () => OnInputRejected("当前等待原始鼠标/键盘事件，请通过鼠标点击或键盘输入"),
+                _ => throw new ArgumentOutOfRangeException(nameof(req), req.InputType, $"未处理的输入类型: {req.InputType}")
+            };
+            handleInput();
         }
 
         protected virtual void OnInputRejected(string reason) { }
