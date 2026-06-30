@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.UI;
 using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
@@ -33,7 +34,7 @@ namespace MinorShift.Emuera.GameView
         public AgentCliProtocol(EmueraConsole console, IConsoleUI ui)
             : base(console, ui)
         {
-            _ansiEnabled = Program.AnsiEnabled || !OperatingSystem.IsWindows();
+            _ansiEnabled = WindowsConsoleHelper.AnsiEnabled || !OperatingSystem.IsWindows();
             _cursor = new TerminalCursor(_ansiEnabled);
             _renderer = new TerminalRenderer(console, () => _screen, _cursor);
             _buttons = new ButtonSelectionMode(

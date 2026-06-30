@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Text;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.UI;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements;
@@ -657,7 +658,7 @@ internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
         return Config.DrawableWidth / charWidth;
     }
 
-    private static bool IsAnsiEnabled() => Program.AnsiEnabled || !OperatingSystem.IsWindows();
+    private static bool IsAnsiEnabled() => WindowsConsoleHelper.AnsiEnabled || !OperatingSystem.IsWindows();
 
     // ========================================
     // Agent / Bridge
