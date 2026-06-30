@@ -64,7 +64,7 @@ namespace MinorShift.Emuera.GameView
             if (key == 0)
             {
                 if (ch == '\r') key = ConsoleKey.Enter;
-                else if (ch == '\b') key = ConsoleKey.Backspace;
+                else if (ch == '\b' || ch == '\x7F') key = ConsoleKey.Backspace;
                 else if (ch == '\x1b') key = ConsoleKey.Escape;
             }
 
