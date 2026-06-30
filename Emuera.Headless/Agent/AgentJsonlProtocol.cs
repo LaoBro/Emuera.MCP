@@ -54,7 +54,11 @@ namespace MinorShift.Emuera.GameView
             }
             catch (Exception ex)
             {
-                return JsonSerializer.Serialize(new
+                // I-08：脚本运行期异常一律 fatal。Process 内部状态（指令指针/栈帧/变量表）
+                // 已被破坏，恢复无意义。Stop 让 RunLoopAsync 下一轮退出，由 Session
+                // 走 finally 路径（BuildFinalTurn + GlobalStatic.Reset）。
+                AgentLog.Instance.Write("step fatal: " + ex);
+                var errorTurn = JsonSerializer.Serialize(new
                 {
                     text = "",
                     state = console.State.ToString(),
@@ -63,17 +67,24 @@ namespace MinorShift.Emuera.GameView
                     buttons = Array.Empty<object>(),
                     error = ex.Message
                 });
+                Stop();
+                return errorTurn;
             }
         }
 
         /// <summary>
-        /// TINPUT 超时专用路径，调用 EmueraConsole.SubmitTimeout() 并返回下一 turn。
+        /// TINPUT 超时专用路径，调用 EmueraConsole.SubmitTimeout() 后等待游戏进入
+        /// WaitInput/Quit/Error 稳定状态再 BuildTurn，避免返回半运行态 turn。
         /// 仅由 server 模式的 Session 轮询线程调用；JSONL 管道模式不检查 InputTimeoutMs，
         /// 不会自动触发超时，客户端不发 input 时进程永久阻塞等待。
+        /// I-08：原先同步 BuildTurn 拿快照，绕过 WaitForInputAsync 的 30s 超时与取消保护；
+        /// 若 RunEmueraProgram 卡死整个 server 线程被阻塞。
         /// </summary>
-        internal override string? SubmitTimeout()
+        internal override async Task<string?> SubmitTimeoutAsync()
         {
             console.SubmitTimeout();
+            if (!await WaitForInputAsync())
+                return null;
             return BuildTurn();
         }
 
@@ -84,9 +95,9 @@ namespace MinorShift.Emuera.GameView
         internal string? BuildFinalTurn() => BuildTurn();
 
         /// <summary>执行超时处理并将 turn 写入 IO，返回 true。</summary>
-        private bool HandleTimeoutAndWrite()
+        private async Task<bool> HandleTimeoutAndWriteAsync()
         {
-            var turn = SubmitTimeout();
+            var turn = await SubmitTimeoutAsync();
             if (turn != null)
                 _io.WriteLine(turn);
             return true;
@@ -115,7 +126,7 @@ namespace MinorShift.Emuera.GameView
 
                     if (timeoutMs.HasValue && timeoutMs.Value <= 0)
                     {
-                        HandleTimeoutAndWrite();
+                        await HandleTimeoutAndWriteAsync();
                         continue;
                     }
 
@@ -134,7 +145,7 @@ namespace MinorShift.Emuera.GameView
                             if (externalCt.IsCancellationRequested || IsStopped)
                                 break;
                             // timeout 触发：调 SubmitTimeout 并继续
-                            HandleTimeoutAndWrite();
+                            await HandleTimeoutAndWriteAsync();
                             continue;
                         }
                     }

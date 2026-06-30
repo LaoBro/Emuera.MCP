@@ -39,8 +39,10 @@ namespace MinorShift.Emuera.GameView
         /// 仅由 server 模式的 Session 轮询线程调用；CLI 模式在自身轮询中直接检查
         /// InputTimeoutMs 并调用 console.SubmitTimeout()，不走此路径；
         /// JSONL 管道模式不检查超时，永不调用此方法。
+        /// 改为 async 是为了让子类（JSONL）能在 SubmitTimeout 后等待游戏进入
+        /// WaitInput/Quit/Error 稳定状态再 BuildTurn，避免返回半运行态 turn。
         /// </summary>
-        internal virtual string? SubmitTimeout()
+        internal virtual Task<string?> SubmitTimeoutAsync()
         {
             throw new NotSupportedException("TINPUT timeout is not supported by this protocol.");
         }
