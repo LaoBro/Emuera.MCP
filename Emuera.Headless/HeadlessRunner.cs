@@ -57,14 +57,22 @@ internal static class HeadlessRunner
         }
 
         console.SetAgentBridge(protocol);
-        console.Initialize().Wait();
 
-        if (protocol is AgentJsonlProtocol jsonl)
-            jsonl.RunLoopAsync(enableTimeout: false, CancellationToken.None).GetAwaiter().GetResult();
-        else if (protocol is AgentCliProtocol cli)
-            cli.RunCliLoop();
-        else
-            Console.Error.WriteLine("[headless] 非 CLI 协议，无法启动终端交互");
+        try
+        {
+            console.Initialize().GetAwaiter().GetResult();
+
+            if (protocol is AgentJsonlProtocol jsonl)
+                jsonl.RunLoopAsync(enableTimeout: false, CancellationToken.None).GetAwaiter().GetResult();
+            else if (protocol is AgentCliProtocol cli)
+                cli.RunCliLoop();
+            else
+                Console.Error.WriteLine("[headless] 非 CLI 协议，无法启动终端交互");
+        }
+        catch (GameExitException)
+        {
+            // 脚本 QUIT/EXIT：静默退出 0
+        }
     }
 
     private static AgentProtocolBase? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui)

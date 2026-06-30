@@ -49,6 +49,10 @@ internal sealed class Session : IDisposable
             await _console.Initialize();
             await _protocol.RunLoopAsync(enableTimeout: true, _cts.Token);
         }
+        catch (GameExitException)
+        {
+            // 脚本 QUIT/EXIT：正常终结 session，走 finally 清理（BuildFinalTurn/IO.Close/Reset）
+        }
         catch (Exception ex)
         {
             _io.WriteLine(JsonSerializer.Serialize(new { error = ex.Message, state = _console.State.ToString() }));

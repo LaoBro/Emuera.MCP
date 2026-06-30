@@ -23,7 +23,7 @@ namespace MinorShift.Emuera.UI.Game
 		public void Refresh() { }
 		public void Invoke(Action action) => action?.Invoke();
 		public void Focus() { }
-		public void Close() => Environment.Exit(0);
+		public void Close() => throw new GameExitException();
 		public void Reboot() { }
 		public void ShowConfigDialog() { }
 		public void UpdateLastInput() { }
@@ -40,7 +40,7 @@ namespace MinorShift.Emuera.UI.Game
 		public Point GetCursorPosition() => Point.Empty;
 		public int GetCursorHeight() => 0;
 		public int GetScreenWorkingAreaHeight(Point point) => 1080;
-		public void ExitApplication() => Environment.Exit(0);
+		public void ExitApplication() => throw new GameExitException();
 		public void ProcessEvents() { }
 
 		public IScrollBar ScrollBar => _scrollBar;
