@@ -1,6 +1,6 @@
 ## TODO 列表
 
-> 维护规则：TODO 列表只保留未实现或仍需推进的目标；已完成目标应从本文件删除，避免把完成项继续当作待办.
+> 维护规则：TODO 列表只保留未实现或仍需推进的目标；已完成目标应移动到 `docs/DONE.md`（补充实际实现方案与验收结论），避免把完成项继续当作待办.
 >
 > 当前目标筛选：最终目标按模式拆分——
 >
@@ -50,20 +50,6 @@
   - 定义 turn 中 timer metadata。
   - 定义前端刷新间隔或动画帧数据。
   - 保持 server worker thread 与游戏步进边界清晰。
-
-### T-014：CLI 模式游戏结束后主动退出
-
-- 状态：未实现，需修复
-- 范围：`Emuera.Headless/Agent/AgentCliProtocol.cs`、`Emuera.Headless/Program.cs`
-- 说明：`AgentCliProtocol.RunConsoleKeyLoop()` 以 `while (!IsStopped)` 运行，但游戏进入 `Quit` / `Error` 后没有代码调用 `Stop()`。pipe 测试因 stdin EOF 退出，真实交互 CLI 可能游戏结束后继续空转。
-- 纳入范围：
-  - 在 `RunConsoleKeyLoop()` 每轮 `FlushBuffer()` 后检查 `console.State`。
-  - `Quit` / `Error` 时调用 `Stop()` 并退出循环。
-  - 或让 `Program.RunCliLoop()` 在外层检测 `protocol.IsStopped` 后返回。
-- 验收：
-  - 交互 CLI 下选择退出按钮后进程自然结束。
-  - 游戏错误状态下 CLI 不继续等待输入。
-  - pipe CLI 现有行为保持不变。
 
 ### T-015：CLI CLEARLINE 擦除行避免整行空格触发换行
 

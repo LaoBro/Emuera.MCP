@@ -69,3 +69,14 @@
 - 说明：`deleteLine()` 调用 `RemoveLastLineFromAgentBuffer()` 时，若 `_agentBuffer` 内容为空或只有 1 个字符，`LastIndexOf` 可能因负数参数抛异常。
 - 实现方案：在 `LastIndexOf` 调用前增加 `content.Length <= 1` 的前置判断，直接清空缓冲区并递减计数。
 - 验收：缓冲区只有不换行单行时调用 `deleteLine()` 不抛异常，多行缓冲区删除最后一行后前序内容保留正确。
+
+### T-014：CLI 模式游戏结束后主动退出
+
+- 状态：已实现
+- 范围：`Emuera.Headless/Agent/AgentCliProtocol.cs`
+- 说明：`AgentCliProtocol.RunAgentLoop` 的 `while` 条件只看 `token.IsCancellationRequested`，从不看 `console.State`。游戏脚本同步执行完毕后 `console.State` 已被置为 `Quit` 或 `Error`，但主循环仍会继续 `Poll` 等待永远不会到来的输入：ConsoleKey 路径每轮 `WaitOne(50ms)` 忙等，VT 路径同样忙等，pipe 路径靠 stdin EOF 退出所以测试不暴露此 bug。
+- 实现方案：在 `RunAgentLoop` 的 `while` 条件追加 `&& !IsGameExited()`，新增私有 helper `IsGameExited()` 判定 `console.State is ConsoleState.Quit or ConsoleState.Error`。检查放在循环顶部而非末尾 `FlushBuffer` 后，避免游戏结束后再做一次无意义的 `Poll`，并顺带覆盖 `Initialize` 失败（state 已是 Error）的首轮退出场景。未调用 `Stop()`，让循环条件自然失败，保留 `Stop()` 给 VT Ctrl+C 和 pipe EOF 路径专用。
+- 验收：
+  - 交互 CLI 下选择退出按钮后进程自然结束。
+  - 游戏错误状态下 CLI 不继续等待输入。
+  - pipe CLI 现有行为保持不变（`run_all.py` 4 套件全绿：JSONL+buttons 30/30、CLI 8/8、server single-session 24/24、TINPUT timeout 14/14）。

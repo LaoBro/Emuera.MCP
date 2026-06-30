@@ -101,7 +101,9 @@ namespace MinorShift.Emuera.GameView
             var token = StopToken;
             strategy.Initialize();
 
-            while (!token.IsCancellationRequested)
+            // 游戏进入 Quit/Error 后立即退出循环，避免 CLI 空转等待永远不会到来的输入。
+            // 顶部检查顺带覆盖 Initialize 失败（state 已是 Error）的场景。
+            while (!token.IsCancellationRequested && !IsGameExited())
             {
                 if (console.ConsumeNeedFullRefresh())
                 {
@@ -127,6 +129,10 @@ namespace MinorShift.Emuera.GameView
                 strategy.RefreshButtonRegionsAfterRefresh(force: false);
             }
         }
+
+        /// <summary>游戏是否已进入终止状态（Quit/Error），用于主循环退出判定。</summary>
+        private bool IsGameExited() =>
+            console.State is ConsoleState.Quit or ConsoleState.Error;
 
         /// <summary>
         /// 超时处理（TINPUT）。返回 true 表示已处理（调用方 continue），false 表示未超时。
