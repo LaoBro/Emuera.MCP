@@ -21,6 +21,7 @@ docs/2026.6.23.vt-input/spikes/*
 test_game/save/
 test_game/emuera.log
 test_game/profile
+test_game/debug/
 Emuera.CLI/artifacts/
 
 *.diff
