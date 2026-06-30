@@ -104,3 +104,27 @@
   - 故意构造 `WHILE 1 \n WEND` ERB 脚本，CLI/JSONL/Server 模式都能在阈值时间内退出并给出错误信息。
   - 正常长脚本不误触上限。
 - 参考：评估报告 I-05/I-06（async 化 Session 与长轮询）。
+
+### T-022：I-12 阶段 2 — Nullable enable + TreatWarningsAsErrors
+
+- 状态：未实现（中期，依赖 I-01）
+- 范围：`Emuera.Headless/Emuera.Headless.csproj`、仓库根 `.editorconfig`
+- 说明：I-12 阶段 1（2026-07-01）已落地按路径分级的质量护栏：
+  - `Emuera.Headless.csproj` 启用 `<EnableNETAnalyzers>true</EnableNETAnalyzers>` + `<AnalysisMode>Minimum</AnalysisMode>` + `<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>`
+  - 仓库根 `.editorconfig` 对 `[Emuera/**]` 路径下的历史共享源码抑制 22 个 CA 规则与 CS8981/CS0472/CS0649/CS0162/CS0164 等编译器警告，避免 Headless 构建被历史代码噪音淹没
+  - `Emuera.Headless/**` 自有源码警告保持可见（当前基线 ~140 条，主要是 CS8632 nullable 注解、CA1822 static 成员、CA1416 平台兼容性）
+- 中期目标（依赖 I-01 抽 `Emuera.Core` 类库）：
+  - `Emuera.Core` 落地后，`Emuera.Headless.csproj` 不再通过 csproj glob 共享 `Emuera/` 源码，分析器只扫描 Headless 自有源码
+  - 此时撤销根 `.editorconfig` 中 `[Emuera/**]` 段的所有 `dotnet_diagnostic.CAxxxx.severity = none`，让 CA 规则回归到 `Emuera.Core` 自己的责任范围
+  - 把 `Emuera.Headless.csproj` 的 `<Nullable>` 从 `disable` 改为 `enable`，清零 CS8632/CS8600/CS8602 等 nullable 警告
+  - 启用 `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` + `<WarningsAsErrors>nullable</WarningsAsErrors>`，让 Headless 构建在引入新 warning 时直接失败
+- 不纳入范围（短期）：
+  - 在 I-01 完成前不启用 `TreatWarningsAsErrors`——会因 `Emuera/` 共享源码警告导致 Headless 构建失败，且修复会污染 WinForms 路径
+  - 不在 `Emuera/**` 段加 `<TreatWarningsAsErrors>`，避免影响 Emuera 主项目构建
+- 验收：
+  - `dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug` 0 warning 0 error
+  - 故意在 Headless 自有源码引入 `string? x = null;`（未启用 nullable 上下文）等典型问题，构建应失败
+  - 根 `.editorconfig` 不再包含 `[Emuera/**]` 段的 CA 抑制
+- 参考：
+  - 复评报告 [I-12 — csproj 质量护栏缺失](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性复评报告.md)
+  - 评估报告 [4.4 性能与发布配置（I-12, I-13）](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性评估报告.md)

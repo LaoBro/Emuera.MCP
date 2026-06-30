@@ -10,6 +10,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <PublishSingleFile>true</PublishSingleFile>
+    <!-- I-12 阶段 1：质量护栏对齐 Emuera 主项目（EnforceCodeStyleInBuild 用于 IDE 风格规则在构建期生效）
+         阶段 2（Nullable enable + TreatWarningsAsErrors）依赖 I-01 抽 Emuera.Core，待 I-01 落地后推进 -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>Minimum</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
   <ItemGroup>

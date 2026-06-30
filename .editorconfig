@@ -1,0 +1,65 @@
+# 仓库根 .editorconfig
+# I-12 阶段 1：质量护栏按路径分级
+# - Emuera/ 子目录是历史 WinForms 主项目源码，同时被 Emuera.Headless 通过 csproj glob 共享
+#   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Headless 构建被历史代码警告淹没
+# - Emuera.Headless/ 自有源码保持 AnalysisMode=Minimum 默认行为，新代码警告仍可见
+# - 阶段 2（I-01 抽 Emuera.Core 后）将逐步撤销本文件的抑制，把责任回归到 Emuera.Core
+#
+# 注意：.NET 的 .editorconfig 不支持 `dotnet_analyzer_diagnostic.severity = none` 全局语法，
+#       必须逐条列出 dotnet_diagnostic.<CAxxxx>.severity = none。
+
+root = true
+
+[*]
+charset = utf-8-bom
+end_of_line = crlf
+indent_style = tab
+indent_size = 4
+tab_width = 4
+
+# EvilMask 库命名风格：trerror / trmb / trsl / trmk / treer 等小写类型别名
+# 此约定跨 Emuera / Emuera.Headless 共享，全局抑制
+dotnet_diagnostic.CS8981.severity = none
+
+# ===== Emuera 历史共享源码：抑制分析器噪音 =====
+# 责任在 Emuera 主项目；Headless 通过 csproj glob 引入但无法修改
+[Emuera/**]
+# 历史代码的潜在 nullable/未赋值/不可达代码警告：阶段 2 抽 Core 时统一处理
+dotnet_diagnostic.CS0472.severity = none
+dotnet_diagnostic.CS0649.severity = none
+dotnet_diagnostic.CS0162.severity = none
+dotnet_diagnostic.CS0164.severity = none
+
+# .NET 分析器 CA 规则（按基线构建统计的 22 个 ID 显式抑制）
+# 性能类
+dotnet_diagnostic.CA1507.severity = none   # 用 nameof 代替字符串
+dotnet_diagnostic.CA1514.severity = none   # Substring 冗余长度
+dotnet_diagnostic.CA1806.severity = none   # 未使用方法返回值
+dotnet_diagnostic.CA1816.severity = none   # Dispose 调用 GC.SuppressFinalize
+dotnet_diagnostic.CA1822.severity = none   # 成员可标记 static
+dotnet_diagnostic.CA1829.severity = none   # 用 Length 代替 Count()
+dotnet_diagnostic.CA1830.severity = none   # StringBuilder 强类型重载
+dotnet_diagnostic.CA1834.severity = none   # StringBuilder.Append(char)
+dotnet_diagnostic.CA1835.severity = none   # ReadAsync(Memory<byte>)
+dotnet_diagnostic.CA1845.severity = none   # AsSpan 代替 Substring
+dotnet_diagnostic.CA1846.severity = none   # AsSpan 代替 Substring
+dotnet_diagnostic.CA1853.severity = none   # 字典 lookup 优化
+dotnet_diagnostic.CA1854.severity = none   # TryGetValue 代替 ContainsKey+indexer
+dotnet_diagnostic.CA1858.severity = none   # StartsWith 代替 IndexOf==0
+dotnet_diagnostic.CA1859.severity = none   # 变量类型收窄
+dotnet_diagnostic.CA1862.severity = none   # string.Equals(StringComparison)
+dotnet_diagnostic.CA1864.severity = none   # TryAdd
+dotnet_diagnostic.CA1875.severity = none   # Regex.Count
+dotnet_diagnostic.CA2249.severity = none   # Contains 代替 IndexOf
+# 可靠性/正确性
+dotnet_diagnostic.CA1069.severity = none   # 枚举值不应重复
+dotnet_diagnostic.CA2208.severity = none   # ArgumentException 参数名
+dotnet_diagnostic.CA2211.severity = none   # 非私有静态字段
+# 平台兼容性（Headless 路径不触发 WinForms/COM，但共享源码含 Windows 专用 API）
+dotnet_diagnostic.CA1416.severity = none
+# 用法
+dotnet_diagnostic.CA2016.severity = none   # CancellationToken 传递
+dotnet_diagnostic.CA2263.severity = none   # 优先泛型方法
+
+# ===== Emuera.Headless 自有源码：保留默认 AnalysisMode=Minimum 行为 =====
+# 不在此处抑制，让新代码警告可见，便于阶段 2 收紧
