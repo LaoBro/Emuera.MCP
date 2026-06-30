@@ -83,6 +83,15 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         internal string? BuildFinalTurn() => BuildTurn();
 
+        /// <summary>执行超时处理并将 turn 写入 IO，返回 true。</summary>
+        private bool HandleTimeoutAndWrite()
+        {
+            var turn = SubmitTimeout();
+            if (turn != null)
+                _io.WriteLine(turn);
+            return true;
+        }
+
         /// <summary>
         /// JSONL 协议主循环（async）：读 input → Step → 写 turn，可选 TINPUT 超时处理。
         /// 由 server 模式的 Session（Task.Run(GameLoopAsync)）与 JSONL 管道模式
@@ -106,9 +115,7 @@ namespace MinorShift.Emuera.GameView
 
                     if (timeoutMs.HasValue && timeoutMs.Value <= 0)
                     {
-                        var turn = SubmitTimeout();
-                        if (turn != null)
-                            _io.WriteLine(turn);
+                        HandleTimeoutAndWrite();
                         continue;
                     }
 
@@ -127,9 +134,7 @@ namespace MinorShift.Emuera.GameView
                             if (externalCt.IsCancellationRequested || IsStopped)
                                 break;
                             // timeout 触发：调 SubmitTimeout 并继续
-                            var turn = SubmitTimeout();
-                            if (turn != null)
-                                _io.WriteLine(turn);
+                            HandleTimeoutAndWrite();
                             continue;
                         }
                     }

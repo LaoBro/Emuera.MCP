@@ -346,7 +346,7 @@ namespace MinorShift.Emuera.GameView
         {
             if (ch == '\r' || ch == '\n')
             {
-                WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
+                EraseInputLine();
                 string input = _buf.ToString();
                 _buf.Clear();
                 DispatchInput(input);
@@ -361,7 +361,7 @@ namespace MinorShift.Emuera.GameView
             }
             else if (ch == 27)
             {
-                WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
+                EraseInputLine();
                 _buf.Clear();
             }
             else if (!char.IsControl(ch))
@@ -433,9 +433,15 @@ namespace MinorShift.Emuera.GameView
         {
             if (_buf.Length > 0)
             {
-                WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
+                EraseInputLine();
                 _buf.Clear();
             }
+        }
+
+        /// <summary>擦除终端上当前输入行的显示内容（不含缓冲区清除）。</summary>
+        private void EraseInputLine()
+        {
+            WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
         }
 
         protected override void OnInputRejected(string reason)
