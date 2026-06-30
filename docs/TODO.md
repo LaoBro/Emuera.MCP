@@ -83,3 +83,24 @@
 - 范围：`Emuera.Headless/Agent/AgentCliProtocol.cs`
 - 说明：开启 XTerm 1002（按钮事件追踪）或 1003（任意事件追踪），接收鼠标移动事件。当鼠标悬浮在按钮区域上时，用 ANSI 样式（反色/下划线）高亮该按钮。鼠标离开时恢复。
 - 前置：T-019。
+
+### T-021：RunEmueraProgram 脚本死循环保护
+
+- 状态：未实现（中期，依赖 I-01）
+- 范围：`Emuera/Runtime/Script/Process.cs`、`Emuera/Runtime/Script/Process.ScriptProc.cs`
+- 说明：`Process.DoScript()` 内部指令循环若遇到 ERB 死循环（如 `WHILE 1 \n WEND` 或无限递归），永不返回。所有调用 `RunEmueraProgram` 的路径（JSONL `StepAsync`/`SubmitTimeoutAsync`、CLI `HandleTimeout`/`ProcessChar`/`DispatchMouseClick`、Server `Session.GameLoopAsync`、WinForms `MainWindow`）都会卡死。
+  - JSONL 修复（I-08）的 `WaitForInputAsync` 30s 超时实际救不了死循环——`SubmitTimeoutAsync` 第一行 `console.SubmitTimeout()` 同步调 `RunEmueraProgram` 卡住，根本到不了 `await`。
+  - CLI 模式下主线程卡死，Ctrl+C 也无法响应（VT raw mode 下走 0x03 检测，主线程不读键盘）。
+  - Server 模式下工作线程被卡，长轮询 25s 后客户端拿 204，再发 input 永远拿不到 turn，session 形同僵尸；HTTP server 主线程还在跑，但 `_session` 单字段会 409 阻塞新会话。
+- 不纳入范围（短期）：
+  - 在共享源码 glob（I-01 未完成）状态下，`Process` 改动会同时影响 WinForms 主项目，风险高于收益。
+  - 隐患 B 是低频灾难场景，没有用户报告。
+- 中期目标（依赖 I-01）：
+  - 抽取 `Emuera.Core` 类库后，给 `Process.DoScript` / `Process.ScriptProc` 加 `CancellationToken` 参数。
+  - 指令循环每 N 条指令检查一次 `ct.IsCancellationRequested`，超时抛 `ScriptTimeoutException`。
+  - WinForms 模式下 token 由 `MainWindow` 的关闭事件触发；Headless 模式下由 `AgentProtocolBase.StopToken` 注入。
+  - 阈值建议：单次 `RunEmueraProgram` 默认 30s 可取消，可通过 `--script-timeout` CLI 选项覆盖。
+- 验收：
+  - 故意构造 `WHILE 1 \n WEND` ERB 脚本，CLI/JSONL/Server 模式都能在阈值时间内退出并给出错误信息。
+  - 正常长脚本不误触上限。
+- 参考：评估报告 I-05/I-06（async 化 Session 与长轮询）。

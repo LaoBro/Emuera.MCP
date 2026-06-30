@@ -51,12 +51,26 @@ namespace MinorShift.Emuera.GameView
 
         internal void RunCliLoop()
         {
-            _renderer.FlushBuffer();
-            if (Console.IsInputRedirected)
-                RunAgentLoop(new PipeLoopStrategy(this, Console.In));
-            else if (!TryRunVtLoop())
-                RunAgentLoop(new ConsoleKeyLoopStrategy(this));
-            _renderer.FlushBuffer();
+            // 顶层异常边界：覆盖 HandleTimeout / ProcessChar / DispatchMouseClick /
+            // DispatchMouseMiss / Initialize 等所有调 RunEmueraProgram 的路径。
+            // 脚本运行期异常一律 fatal——Process 内部状态不可逆，恢复无意义。
+            // VT 终端恢复由 RegisterVtCleanupHooks（AppDomain.UnhandledException /
+            // ProcessExit）的多钩子保障，finally 块只负责 VT 路径。
+            try
+            {
+                _renderer.FlushBuffer();
+                if (Console.IsInputRedirected)
+                    RunAgentLoop(new PipeLoopStrategy(this, Console.In));
+                else if (!TryRunVtLoop())
+                    RunAgentLoop(new ConsoleKeyLoopStrategy(this));
+                _renderer.FlushBuffer();
+            }
+            catch (Exception ex)
+            {
+                AgentLog.Instance.Write("cli fatal: " + ex);
+                try { Console.Error.WriteLine($"[fatal] {ex.Message}"); } catch { }
+                Stop();
+            }
         }
 
         #region Main loops
