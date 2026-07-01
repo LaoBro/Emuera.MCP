@@ -122,3 +122,35 @@
 - 参考：
   - [T-023 前置-文件结构整理方案](2026.6.30.架构健壮性重构/T-023前置-文件结构整理方案.md)
   - 解锁 T-023
+
+### T-023：I-01 简化 — 物理迁移共享源码到 Emuera.Headless/Shared
+
+- 状态：已实现（2026-07-02）
+- 范围：`Emuera/Runtime/`、`Emuera/UI/Game/`、`Emuera/UI/FontFactory.cs`、`Emuera/Properties/lang/`、`Emuera.Headless/Shared/`、`Emuera.Headless/Emuera.Headless.csproj`、`Emuera/Emuera.csproj`、根 `Emuera.sln`、根 `.editorconfig`、`CLAUDE.md`、`docs/TODO.md`
+- 说明：替代原 I-01"抽 `Emuera.Core` 类库"方案。鉴于 WinForms 项目不再维护，双向兼容约束消失，改为物理迁移共享源码到 `Emuera.Headless/Shared/` 下，与 Headless 自有源码目录隔离，便于 T-022 按路径分级。110 个文件用 `git mv` 保留历史，namespace 声明与 using 引用保持不变。
+- 实现方案：
+  - 新建 `Emuera.Headless/Shared/` 子树
+  - `git mv Emuera/Runtime/ Emuera.Headless/Shared/Runtime/`（整目录迁移），再把 5 个 WinForms/音频专用文件移回 `Emuera/` 原处：`Utils/Sound.WMP.cs`、`Utils/Sound.NAudio.cs`、`Utils/NAudio_LoopStream.cs`、`Utils/WinInput.cs`、`Script/Statements/Clipboard.cs`
+  - `git mv` 19 个 UI/Game 共享文件到 `Shared/UI/Game/`（12 个根文件 + 7 个 Image/ 文件）；`EmueraConsole.cs`/`EmueraConsole.Print.cs`/`WinFormsConsole.cs`/`StringMeasure.cs`/`HotkeyState.cs`/`Rikaichan*.cs` 留在 `Emuera/` 原处
+  - `git mv Emuera/UI/FontFactory.cs Emuera.Headless/Shared/UI/FontFactory.cs`
+  - `git mv Emuera/Properties/lang/ Emuera.Headless/Shared/Properties/lang/`（2 个 xml）
+  - 简化 `Emuera.Headless.csproj`：删除所有 `<Compile Include="..\Emuera\...">` glob 与 `<Compile Remove="...">` 排除项，改由 SDK 默认 glob（`**\*.cs`）包含；`<EmbeddedResource>` 路径改为 `Shared\Properties\lang\*.xml`（保留 `LinkBase="Properties\lang"` 维持资源名稳定，SDK 默认 glob 不含 `.xml` 必须显式包含）
+  - 根 `.editorconfig`：`[Emuera/**]` 段迁移为 `[Emuera.Headless/Shared/**]`，22 个 CA 规则与 CS0472/CS0649/CS0162/CS0164/SYSLIB0014 抑制规则不变；头部注释同步更新
+  - `git rm Emuera/Emuera.csproj`（`Emuera/Emuera.sln` 此前已在 I-17 commit `e4e6e87` 删除）
+  - 根 `Emuera.sln` 移除 Emuera 与 EmueraPluginExample 项目声明及配置段，简化为仅 `Emuera.Headless` + `Debug|Any CPU` / `Release|Any CPU`（移除 x64/x86/NAudio 等 Emuera 专属配置）
+  - `CLAUDE.md` 更新：`.editorconfig` 路径说明、删除 WinForms 构建命令（csproj 已删）、项目架构段、`Shared/` 目录描述、warning 基线 140→132
+- 不纳入范围：
+  - `Emuera/` 目录下 WinForms 专用文件（MainWindow/Forms/WinFormsConsole/Sound.WMP/Libs/Interop.WMPLib.dll 等）保留原处作只读参考
+  - 不启用 `Nullable enable`/`TreatWarningsAsErrors`（属 T-022，本任务为其解锁前置）
+  - namespace 与物理目录一致性留待后续 PR 评估
+- 验收：
+  - `dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug` 0 error，132 warnings（与迁移前基线完全一致，证明 `.editorconfig` 抑制规则正确迁移）
+  - `Emuera.Headless.csproj` 中不再出现 `..\Emuera\` 路径引用
+  - `Emuera.Headless/Shared/` 目录存在且包含迁移的历史源码（Runtime/UI/Game/FontFactory/lang）
+  - 根 `.editorconfig` 中 `[Emuera/**]` 段已迁移为 `[Emuera.Headless/Shared/**]`
+  - `run_all.py` 全部回归测试通过（JSONL+buttons、CLI、server single-session、TINPUT timeout、I-11 exit survival 5 个 suite 全 PASS，exit 0）
+  - `Emuera/` 目录下不再有 `.csproj`/`.sln`
+- 参考：
+  - [Emuera.Headless 剩余问题与行动方案 — T-023](2026.6.30.架构健壮性重构/Emuera.Headless%20剩余问题与行动方案.md#t023)
+  - [T-023 前置-文件结构整理方案](2026.6.30.架构健壮性重构/T-023前置-文件结构整理方案.md)
+  - 解决 I-01、I-17；解锁 T-022（I-12 阶段 2）、I-11、I-14

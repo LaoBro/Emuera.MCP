@@ -11,9 +11,9 @@
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <PublishSingleFile>true</PublishSingleFile>
     <!-- I-12 阶段 1：质量护栏按路径分级
-         - Emuera/** 历史共享源码警告由 .editorconfig 全局抑制
+         - Emuera.Headless/Shared/** 历史共享源码警告由 .editorconfig 全局抑制（T-023 物理迁移自 Emuera/）
          - Emuera.Headless/** 自有源码保持警告可见，便于阶段 2 逐步收紧
-         - 阶段 2（Nullable enable + TreatWarningsAsErrors）待 I-01 抽 Emuera.Core 后推进 -->
+         - 阶段 2（Nullable enable + TreatWarningsAsErrors）待 T-022 推进 -->
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisMode>Minimum</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
@@ -24,52 +24,19 @@
     <PackageReference Include="System.CommandLine" Version="2.0.9" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.9" />
   </ItemGroup>
-  <!-- ===== 共享源码：Runtime ===== -->
-  <ItemGroup>
-    <Compile Include="..\Emuera\Runtime\**\*.cs" LinkBase="Runtime" />
-    <!-- 排除 WinForms/音频 专用文件 -->
-    <Compile Remove="..\Emuera\Runtime\Utils\Sound.WMP.cs" />
-    <Compile Remove="..\Emuera\Runtime\Utils\Sound.NAudio.cs" />
-    <Compile Remove="..\Emuera\Runtime\Utils\NAudio_LoopStream.cs" />
-    <Compile Remove="..\Emuera\Runtime\Utils\WinInput.cs" />
-    <Compile Remove="..\Emuera\Runtime\Script\Statements\Clipboard.cs" />
-  </ItemGroup>
-
-  <!-- ===== 共享源码：UI/Game（核心文件） ===== -->
-  <ItemGroup>
-    <Compile Include="..\Emuera\UI\Game\IConsoleUI.cs" LinkBase="UI\Game" />
-    <!-- EmueraConsole.cs and EmueraConsole.Print.cs: replaced by headless-native implementation -->
-    <!-- HeadlessConsole.cs: 已移至 Emuera.Headless/Headless/，由 SDK 默认 glob 包含 -->
-    <Compile Include="..\Emuera\UI\Game\PrintStringBuffer.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\ConsoleDisplayLine.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\ConsoleButtonString.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\ConsoleStyledString.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\AConsoleDisplayNode.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\AConsoleDisplayPart.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\ConsoleShapePart.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\ConsoleImagePart.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\ButtonStringCreator.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\StringStyle.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\HtmlManager.cs" LinkBase="UI\Game" />
-    <Compile Include="..\Emuera\UI\Game\Image\*.cs" LinkBase="UI\Game\Image" />
-    <!-- 排除 WinForms 专用文件 -->
-    <Compile Remove="..\Emuera\UI\Game\WinFormsConsole.cs" />
-    <Compile Remove="..\Emuera\UI\Game\StringMeasure.cs" />
-  </ItemGroup>
-
-  <!-- ===== 共享源码：UI 其他 ===== -->
-  <ItemGroup>
-    <Compile Include="..\Emuera\UI\FontFactory.cs" LinkBase="UI" />
-    <!-- 排除 Dialog.cs（用 HeadlessDialog 替代） -->
-  </ItemGroup>
+  <!-- ===== 共享源码：Shared/ 子树（T-023 物理迁移自 Emuera/） ===== -->
+  <!-- 历史 Runtime/UI/Game 源码由 SDK 默认 glob（**\*.cs）自动包含 -->
+  <!-- WinForms/音频专用文件（Sound.WMP/NAudio/NAudio_LoopStream/WinInput/Clipboard、
+       WinFormsConsole/StringMeasure/EmueraConsole*.cs）留在 Emuera/ 原处作只读参考 -->
+  <!-- .editorconfig [Emuera.Headless/Shared/**] 抑制历史警告；T-022 后逐步清零并启用 nullable -->
 
   <!-- ===== GlobalStatic：Headless 专用实现（不共享 Emuera/GlobalStatic.cs） ===== -->
   <!-- I-02：单会话不可变全局硬约束 + setter 断言 + Reset 清理，见 Emuera.Headless/GlobalStatic.cs -->
 
-  <!-- ===== 嵌入资源：语言文件 ===== -->
+  <!-- ===== 嵌入资源：语言文件（SDK 默认 glob 不含 .xml，需显式包含） ===== -->
   <ItemGroup>
-    <EmbeddedResource Include="..\Emuera\Properties\lang\emuera-eng.xml" LinkBase="Properties\lang" />
-    <EmbeddedResource Include="..\Emuera\Properties\lang\emuera-zhs.xml" LinkBase="Properties\lang" />
+    <EmbeddedResource Include="Shared\Properties\lang\emuera-eng.xml" LinkBase="Properties\lang" />
+    <EmbeddedResource Include="Shared\Properties\lang\emuera-zhs.xml" LinkBase="Properties\lang" />
   </ItemGroup>
 
 </Project>

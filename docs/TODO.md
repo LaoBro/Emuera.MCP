@@ -88,13 +88,13 @@
 
 ### T-022：I-12 阶段 2 — Nullable enable + TreatWarningsAsErrors
 
-- 状态：未实现（中期，依赖 I-01）
+- 状态：未实现（中期，T-023 已解锁）
 - 范围：`Emuera.Headless/Emuera.Headless.csproj`、仓库根 `.editorconfig`
 - 说明：I-12 阶段 1（2026-07-01）已落地按路径分级的质量护栏：
   - `Emuera.Headless.csproj` 启用 `<EnableNETAnalyzers>true</EnableNETAnalyzers>` + `<AnalysisMode>Minimum</AnalysisMode>` + `<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>`
-  - 仓库根 `.editorconfig` 对 `[Emuera/**]` 路径下的历史共享源码抑制 22 个 CA 规则与 CS8981/CS0472/CS0649/CS0162/CS0164 等编译器警告，避免 Headless 构建被历史代码噪音淹没（T-023 后路径规则迁移到 `[Emuera.Headless/Shared/**]`）
-  - `Emuera.Headless/**` 自有源码警告保持可见（当前基线 ~140 条，主要是 CS8632 nullable 注解、CA1822 static 成员、CA1416 平台兼容性）
-- 中期目标（依赖 T-023 物理迁移共享源码到 `Emuera.Headless/Shared/`）：
+  - 仓库根 `.editorconfig` 对 `[Emuera.Headless/Shared/**]` 路径下的历史共享源码抑制 22 个 CA 规则与 CS8981/CS0472/CS0649/CS0162/CS0164 等编译器警告，避免 Headless 构建被历史代码噪音淹没（T-023 已完成路径规则迁移）
+  - `Emuera.Headless/**` 自有源码警告保持可见（当前基线 132 条，主要是 CS8632 nullable 注解、CA1822 static 成员、CA1416 平台兼容性）
+- 中期目标（T-023 已完成物理迁移共享源码到 `Emuera.Headless/Shared/`，前置已满足）：
   - T-023 落地后，`Emuera.Headless.csproj` 不再通过 csproj glob 共享 `Emuera/` 源码，分析器只扫描 Headless 自有源码 + `Shared/` 历史源码
   - 此时撤销根 `.editorconfig` 中 `[Emuera/**]` 段（迁移为 `[Emuera.Headless/Shared/**]`）的所有 `dotnet_diagnostic.CAxxxx.severity = none`，让 CA 规则回归到 `Shared/` 自己的责任范围
   - 把 `Emuera.Headless.csproj` 的 `<Nullable>` 从 `disable` 改为 `enable`，清零 CS8632/CS8600/CS8602 等 nullable 警告
@@ -109,34 +109,6 @@
 - 参考：
   - 复评报告 [I-12 — csproj 质量护栏缺失](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性复评报告.md)
   - 评估报告 [4.4 性能与发布配置（I-12, I-13）](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性评估报告.md)
-
-### T-023：I-01 简化 — 物理迁移共享源码到 Emuera.Headless
-
-- 状态：未实现（P1，最高优先级结构性投资；前置 T-025 文件结构整理）
-- 范围：`Emuera/Runtime/`、`Emuera/UI/Game/`、`Emuera/UI/FontFactory.cs`、`Emuera/Properties/lang/`、`Emuera.Headless/Shared/`、`Emuera.Headless/Emuera.Headless.csproj`、`Emuera/Emuera.csproj`、`Emuera/Emuera.sln`
-- 说明：原 I-01 建议"抽取 `Emuera.Core` 类库"以消除 csproj glob 共享风险。鉴于 WinForms 项目不再维护（仅留作功能参考），双向兼容约束消失，改为物理迁移共享源码到 `Emuera.Headless/Shared/` 下（与 Headless 自有源码目录隔离，便于 T-022 按路径分级），工作量降低一个量级。详见复评报告第七节 7.2 与 [T-023 前置-文件结构整理方案](2026.6.30.架构健壮性重构/T-023前置-文件结构整理方案.md)。
-- 纳入范围：
-  - `git mv Emuera/Runtime/ Emuera.Headless/Shared/Runtime/`（排除 `Sound.WMP.cs`/`Sound.NAudio.cs`/`NAudio_LoopStream.cs`/`WinInput.cs`/`Clipboard.cs`，这些 WinForms 专用文件留在 `Emuera/` 原处作只读参考）
-  - `git mv` `Emuera/UI/Game/` 下被共享的文件到 `Emuera.Headless/Shared/UI/Game/`（**不可覆盖**已有的 `EmueraConsole.cs`；`EmueraConsole.Print.cs` 不迁移，Headless 已有自有实现）
-  - `git mv Emuera/UI/FontFactory.cs Emuera.Headless/Shared/UI/FontFactory.cs`
-  - `git mv Emuera/Properties/lang/ Emuera.Headless/Shared/Properties/lang/`
-  - 简化 `Emuera.Headless.csproj`：删除所有 `<Compile Include="..\Emuera\...">` glob 与 `<Compile Remove="...">` 排除项，改由 SDK 默认 glob 包含；`<EmbeddedResource>` 路径同步更新
-  - 删除 `Emuera/Emuera.csproj`、`Emuera/Emuera.sln`（解决 I-17）
-  - 仓库根 `Emuera.sln` 移除 Emuera 项目引用，只保留 `Emuera.Headless`
-  - 同步调整根 `.editorconfig`：`[Emuera/**]` 段迁移为 `[Emuera.Headless/Shared/**]`，规则不变
-- 不纳入范围：
-  - `Emuera/` 目录下 WinForms 专用文件（MainWindow/Forms/WinFormsConsole/Sound.WMP/Libs/Interop.WMPLib.dll 等）保留原处作只读参考，不删除
-  - 不在本任务内启用 `Nullable enable`/`TreatWarningsAsErrors`（属 T-022，本任务为其解锁前置）
-- 验收：
-  - `dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug` 0 error（warning 基线不变）
-  - `Emuera.Headless.csproj` 中不再出现 `..\Emuera\` 路径引用
-  - `Emuera.Headless/Shared/` 目录存在且包含迁移的历史源码
-  - 根 `.editorconfig` 中 `[Emuera/**]` 段已迁移为 `[Emuera.Headless/Shared/**]`
-  - `run_all.py` 全部 94 项回归测试通过
-  - `Emuera/` 目录下不再有 `.csproj`/`.sln`，残留文件不被任何项目引用
-- 参考：
-  - 复评报告 [7.2 I-01 简化：物理迁移源码替代抽 Core 类库](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性复评报告.md)
-  - 解锁 T-022（I-12 阶段 2）、解决 I-17
 
 ### T-024：废弃 CLI/JSONL 管道模式入口
 
