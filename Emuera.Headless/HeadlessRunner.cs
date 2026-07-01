@@ -74,7 +74,7 @@ internal static class HeadlessRunner
         }
     }
 
-    private static AgentProtocolBase? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui)
+    private static AgentCliProtocol? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui)
     {
         return protocolArg.Trim().ToLowerInvariant() switch
         {
@@ -86,7 +86,7 @@ internal static class HeadlessRunner
         };
     }
 
-    private static AgentProtocolBase? DetectProtocol(EmueraConsole console, IConsoleUI ui)
+    private static AgentCliProtocol? DetectProtocol(EmueraConsole console, IConsoleUI ui)
     {
         // T-024：stdin 管道模式已废弃，非 server 模式仅支持交互式 CLI 终端。
         if (Console.IsInputRedirected)

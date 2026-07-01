@@ -31,6 +31,20 @@ dotnet_diagnostic.CS0162.severity = none
 dotnet_diagnostic.CS0164.severity = none
 dotnet_diagnostic.SYSLIB0014.severity = none   # WebClient 已过时（共享代码 Instraction.Child.cs 使用）
 
+# Nullable 引用类型（CS86xx）：历史代码无 nullable 标注，T-022 阶段 3 全量抑制
+# <Nullable>enable</Nullable> 保留，但 Shared/ 历史代码暂不要求 nullable-clean
+# 如后续新增历史文件触发其他 CS86xx，按需在此追加
+dotnet_diagnostic.CS8600.severity = none   # null 转换为不可为 null 类型（674）
+dotnet_diagnostic.CS8601.severity = none   # 可能赋值 null 引用（98）
+dotnet_diagnostic.CS8602.severity = none   # 解引用可能空引用（350）
+dotnet_diagnostic.CS8603.severity = none   # 可能返回 null 引用（606）
+dotnet_diagnostic.CS8604.severity = none   # 传入可能 null 实参（176）
+dotnet_diagnostic.CS8605.severity = none   # 已知 null 表达式解引用（2）
+dotnet_diagnostic.CS8618.severity = none   # 构造函数未初始化非 null 字段（686）
+dotnet_diagnostic.CS8625.severity = none   # null 字面量转非 null 引用类型（550）
+dotnet_diagnostic.CS8629.severity = none   # nullable 不可为 null 类型表达式（52）
+dotnet_diagnostic.CS8767.severity = none   # 接口实现 null 性不匹配（6）
+
 # .NET 分析器 CA 规则（按基线构建统计的 22 个 ID 显式抑制）
 # 性能类
 dotnet_diagnostic.CA1507.severity = none   # 用 nameof 代替字符串
@@ -63,4 +77,29 @@ dotnet_diagnostic.CA2016.severity = none   # CancellationToken 传递
 dotnet_diagnostic.CA2263.severity = none   # 优先泛型方法
 
 # ===== Emuera.Headless 自有源码 =====
-# 不在此处抑制，让新代码警告可见
+# T-022 阶段 3：Headless 模式固有警告抑制
+# [Emuera.Headless/**] 覆盖自有源码；[Emuera.Headless/Shared/**] 更具体，优先于本段
+[Emuera.Headless/**]
+# CA1416：Headless 必然使用 Windows 专用 API（Font/PrivateFontCollection/Console.BufferWidth）
+dotnet_diagnostic.CA1416.severity = none
+# CS0649：反射赋值或占位字段（tooltip_img/rikaichan 等）
+dotnet_diagnostic.CS0649.severity = none
+# CS0067：HeadlessToolTip 的 Draw/Popup 事件，接口契约要求声明但 Headless 不触发
+dotnet_diagnostic.CS0067.severity = none
+
+# CA1822：以下 5 个文件含实例方法空实现/ERB 函数 stub，改 static 会破坏调用约定
+# 仅对这 5 个文件抑制，新代码的 CA1822 仍可见
+[Emuera.Headless/UI/Game/EmueraConsole.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[Emuera.Headless/Headless/HeadlessClipboard.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[Emuera.Headless/Headless/HeadlessSound.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[Emuera.Headless/Terminal/AgentCliVtScreen.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[Emuera.Headless/Terminal/TerminalCursor.cs]
+dotnet_diagnostic.CA1822.severity = none
