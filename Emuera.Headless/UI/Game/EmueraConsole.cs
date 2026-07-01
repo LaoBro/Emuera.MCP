@@ -17,7 +17,7 @@ using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.GameView;
 
-internal sealed partial class EmueraConsole : IDisposable, IConsoleStateView
+internal sealed class EmueraConsole : IDisposable, IConsoleStateView
 {
     internal readonly ConsoleStateData _state;
     internal readonly ConsoleStateManager _stateManager;
