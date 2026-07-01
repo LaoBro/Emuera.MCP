@@ -27,7 +27,7 @@ I-03、I-04、I-05、I-06、I-07、I-08、I-13、I-15（JSONL + HTTP 500）、I-
 
 **已做**：[Emuera.Headless/GlobalStatic.cs](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/GlobalStatic.cs) 是 Headless 专用实现，核心字段改为 `property + internal set`，setter 加锁 + 严格断言；新增幂等 `Reset()` 方法，由 `Session.GameLoopAsync` finally 块调用。
 
-**未做**：字段仍是进程级 `static`，**无法支持并发多会话**。原报告建议的"`IGameRuntime` 上下文接口"未实施——单会话需求尚不明确，先做硬约束防误用。待 T-023 物理迁移后可一并考虑接口边界。
+**未做**：字段仍是进程级 `static`，**无法支持并发多会话**。原报告建议的"`IGameRuntime` 上下文接口"未实施——**单会话契约已确认**（server 模式只支持单会话，见 [CLAUDE.md](file:///d:/LaoBro/Emuera.MCP/CLAUDE.md) 与 [SPEC_SINGLE_THREAD.md §5.2](file:///d:/LaoBro/Emuera.MCP/docs/old/3.single-thread/SPEC_SINGLE_THREAD.md)），现有硬约束（`HttpGameServer` 单 `_session` + 409、`GlobalStatic` 锁 + 断言 + 幂等 `Reset`）足以防误用，无需再引入上下文接口。
 
 #### I-10 — AgentLog 单例
 
@@ -144,7 +144,7 @@ I-03、I-04、I-05、I-06、I-07、I-08、I-13、I-15（JSONL + HTTP 500）、I-
 2. **T-024**：废弃 CLI/JSONL 管道模式入口 —— 收窄维护面
 3. **I-09**：建立 C# xUnit 测试项目 —— 保护 Channel/Reset/WaitForTurnAsync 等纯逻辑
 4. **T-022（I-12 阶段 2）**：`Nullable enable` + `TreatWarningsAsErrors` —— 前置 T-023 满足后可推进
-5. **I-02 收尾**：评估 `IGameRuntime` 上下文接口 —— 单会话契约足够时可推迟
+5. **I-02 收尾**：~~评估 `IGameRuntime` 上下文接口~~ —— **已关闭**：单会话契约已确认（CLAUDE.md + SPEC_SINGLE_THREAD §5.2），现有硬约束（409 + 锁 + 幂等 Reset）已足够防误用，无需引入上下文接口
 
 ### P2 — 持续改进
 

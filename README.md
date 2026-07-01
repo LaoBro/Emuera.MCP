@@ -2,7 +2,7 @@
 
 Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本语言，并通过 MCP 协议支持 AI 代理控制。
 
-本项目以 **Emuera.Headless** 无头运行器为主，支持 JSONL/CLI/HTTP 服务器三种协议。另有一个 WinForms 图形界面版本（仅 Windows）。
+本项目以 **Emuera.Headless** 无头运行器为唯一维护目标，支持 **CLI 交互模式**与 **HTTP 服务器模式**两种协议入口。`Emuera/` 目录保留 WinForms 专用源码（仅 Windows）作只读参考，**不再维护，不可独立构建**。
 
 ## 环境要求
 
@@ -18,13 +18,7 @@ Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本�
 dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug
 ```
 
-构建 WinForms 应用（NAudio 音频后端）：
-
-```bash
-dotnet build Emuera/Emuera.csproj -c Debug-NAudio
-```
-
-`Debug-NAudio` 是常规构建配置，因为默认的非 NAudio 配置依赖 Windows Media Player COM 引用。
+构建 WinForms 应用：**不可用**。`Emuera/Emuera.csproj` 已在 T-023 中删除，`Emuera/` 仅保留 WinForms 专用源码（MainWindow/Forms/Sound.WMP/Libs 等）作只读参考。如需参考 WinForms 行为，直接查阅 `Emuera/UI/Game/WinFormsConsole.cs`、`Emuera/UI/Framework/Forms/` 等残留文件。
 
 发布无头运行器：
 
@@ -32,33 +26,23 @@ dotnet build Emuera/Emuera.csproj -c Debug-NAudio
 dotnet publish Emuera.Headless/Emuera.Headless.csproj -c Release --no-self-contained -o Emuera.Headless/bin/Release/Publish
 ```
 
-> **注意：** 构建时会产生大量已有的 CS 警告（旧代码的 nullable、弃用 API 等），这些是已知且无害的，只关注 error 即可。
+> **注意：** I-12 阶段 1 已落地按路径分级的质量护栏（见仓库根 [`.editorconfig`](.editorconfig)）：`Emuera.Headless/Shared/` 下的历史共享源码警告已全局抑制，不会出现在构建输出中；`Emuera.Headless/**`（排除 `Shared/`）下的自有源码警告保持可见。构建输出只关注 **error** 即可，但修改 Headless 自有源码时应顺手修复新引入的 CA/CS 警告。阶段 2（T-022）将逐步清零并启用 `TreatWarningsAsErrors`。
 
 ## 运行
 
-以 JSONL 模式运行（适合脚本和自动化）：
-
-```bash
-dotnet exec Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.dll --ExeDir <游戏目录> --protocol jsonl
-```
-
-以 CLI 模式运行（终端交互）：
+以 CLI 模式运行（终端交互，需真实 TTY）：
 
 ```bash
 dotnet exec Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.dll --ExeDir <游戏目录> --protocol cli
 ```
 
-运行 HTTP 服务器（MCP 网关使用此模式）：
+运行 HTTP 服务器（脚本/自动化与 MCP 网关使用此模式）：
 
 ```bash
 dotnet exec Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.dll --ExeDir <游戏目录> --server --port 8080
 ```
 
-构建后运行 WinForms 应用：
-
-```bash
-dotnet exec Emuera/artifacts/bin/Emuera/debug-naudio/Emuera.dll --ExeDir <游戏目录>
-```
+> T-024 后 stdin 管道模式（`--protocol cli`/`--protocol jsonl` 的 stdin pipe 路径）已移除；`--protocol jsonl` 在非 server 模式下会报错。脚本/自动化统一走 `--server`。
 
 ## MCP 集成
 
@@ -177,8 +161,6 @@ python -m emuera_gateway --standalone --server-url http://localhost:8080
 
 无头运行器的 JSONL 协议由 server 模式（`--server`）通过 HTTP 暴露，适合脚本和自动化。创建会话后游戏自动输出初始 turn，之后每发送一条输入命令返回一个 turn。
 
-> T-024 后 `--protocol jsonl` 的 stdin/stdout 管道模式已废弃；脚本/自动化统一走 `--server`。交互式终端使用 `--protocol cli`（需真实 TTY）。
-
 ```python
 # 游戏自动输出初始 turn（无需发送任何命令）：
 {"text": "标题画面...", "state": "WaitInput", "inputType": "IntValue", "needValue": true, "buttons": [...]}
@@ -209,10 +191,10 @@ python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/
 ## 项目结构
 
 ```
-Emuera.Headless/   -- 无头运行器（主项目，JSONL/CLI/HTTP 服务器）
-Emuera/            -- WinForms 图形界面版本
+Emuera.Headless/   -- 无头运行器（唯一维护目标，CLI 交互 + HTTP 服务器）
+Emuera/            -- WinForms 残留源码（不再维护，仅作只读参考，不可独立构建）
 emuera_gateway/    -- Python MCP 网关
-EmueraPluginExample/ -- 示例 C# 插件
+EmueraPluginExample/ -- 示例 C# 插件（已从根 sln 移除，不可独立构建）
 tests/             -- Python 测试脚本和代理库
 test_game/         -- 开发用最小 ERB 测试游戏
 ```
