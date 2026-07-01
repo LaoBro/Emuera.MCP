@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using MinorShift.Emuera.GameView;
 
 namespace MinorShift.Emuera.Server;
 
@@ -76,8 +77,8 @@ internal sealed class HttpGameServer : IDisposable
         }
         catch (Exception ex)
         {
-            // serverCt 可能已取消（导致异常），用 CancellationToken.None 确保错误响应能写出
-            try { await WriteJsonAsync(resp, 500, new { error = ex.Message }, CancellationToken.None); }
+            AgentLog.Instance.Write($"http 500: {ex}");
+            try { await WriteJsonAsync(resp, 500, new { error = "internal error" }, CancellationToken.None); }
             catch { /* 响应已断开，忽略 */ }
         }
     }
