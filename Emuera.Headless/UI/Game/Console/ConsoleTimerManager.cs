@@ -48,7 +48,7 @@ internal sealed class ConsoleTimerManager
         _state.need_settimer = false;
     }
 
-    private void TickTimer(object sender, EventArgs e)
+    private void TickTimer(object? sender, EventArgs e)
     {
         if (!_state.genericTimer.Enabled)
             return;
@@ -73,7 +73,7 @@ internal sealed class ConsoleTimerManager
         }
     }
 
-    private void TickRedrawTimer(object sender, System.Timers.ElapsedEventArgs e)
+    private void TickRedrawTimer(object? sender, System.Timers.ElapsedEventArgs e)
     {
         if (!_state.redrawTimer.Enabled)
             return;
