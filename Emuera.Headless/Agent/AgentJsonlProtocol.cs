@@ -18,9 +18,6 @@ namespace MinorShift.Emuera.GameView
         private int VisibleLineCount => Math.Max(1, ui.ClientHeight / Config.LineHeight);
         private string? _pendingRejectReason;
 
-        public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui)
-            : this(console, ui, ConsoleOutIO.Instance) { }
-
         public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui, SessionIO io)
             : base(console, ui)
         {

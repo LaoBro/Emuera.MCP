@@ -154,3 +154,38 @@
   - [Emuera.Headless 剩余问题与行动方案 — T-023](2026.6.30.架构健壮性重构/Emuera.Headless%20剩余问题与行动方案.md#t023)
   - [T-023 前置-文件结构整理方案](2026.6.30.架构健壮性重构/T-023前置-文件结构整理方案.md)
   - 解决 I-01、I-17；解锁 T-022（I-12 阶段 2）、I-11、I-14
+
+### T-024：废弃 CLI/JSONL 管道模式入口
+
+- 状态：已实现（2026-07-02）
+- 范围：`Emuera.Headless/Server/ConsoleOutIO.cs`、`Emuera.Headless/Agent/AgentJsonlProtocol.cs`、`Emuera.Headless/Agent/AgentCliProtocol.cs`、`Emuera.Headless/HeadlessRunner.cs`、`Emuera.Headless/HeadlessOptions.cs`、`tests/test_jsonl.py`、`tests/test_cli.py`、`tests/emuera_agent.py`、`tests/emuera_server.py`、`tests/run_all.py`、`tests/README.md`、`CLAUDE.md`、根 `README.md`、`docs/TODO.md`
+- 说明：CLI 管道模式（stdin pipe）与 JSONL 管道模式（stdin/stdout）在实际使用中无用途。移除管道入口与 `ConsoleOutIO`，收窄维护与测试矩阵。`AgentJsonlProtocol` 保留（Server 模式通过 `HttpSessionIO` 仍依赖它），仅删除依赖 `ConsoleOutIO` 的默认构造函数。
+- 实现方案：
+  - 删除 `Emuera.Headless/Server/ConsoleOutIO.cs`（stdin/stdout 封装，仅管道模式使用）
+  - `AgentJsonlProtocol.cs`：删除依赖 `ConsoleOutIO.Instance` 的默认构造函数 `(console, ui)`，仅保留 `(console, ui, SessionIO io)` 三参构造函数（Server 模式 `Session.cs` 使用）
+  - `HeadlessRunner.cs`：
+    - `SelectProtocol` 移除 `"jsonl"` 分支（改为抛 `ArgumentException` 提示已废弃）
+    - `DetectProtocol` 移除 `Console.IsInputRedirected` 的 stdin 管道检测分支，改为检测到 stdin 重定向时输出废弃提示并返回 null
+    - `RunAsync` 移除 `AgentJsonlProtocol.RunLoopAsync` 调用分支，仅保留 `AgentCliProtocol.RunCliLoop`
+    - 错误提示更新为指向 `--server` 或 `--protocol cli`
+  - `HeadlessOptions.cs`：`ProtocolOption` 描述更新为 `auto(默认,检测终端), cli`，提示 stdin 管道已废弃
+  - `AgentCliProtocol.cs`：
+    - `RunCliLoop` 移除 `Console.IsInputRedirected` 分支与 `PipeLoopStrategy` 调用，仅保留 `TryRunVtLoop()` → `ConsoleKeyLoopStrategy` 降级路径
+    - 删除 `PipeLoopStrategy` 内部类（stdin 逐行读取策略）
+  - 测试矩阵收窄：
+    - `tests/test_jsonl.py` 改为通过 `emuera_server.start_server` 驱动，断言逻辑（buttons schema、stale 按钮排除、状态流转）保持不变
+    - 删除 `tests/test_cli.py`（stdin 管道 CLI 模式已移除；交互式 CLI 无法在无 TTY 的 CI 环境自动化）
+    - 删除 `tests/emuera_agent.py`（`EmueraAgent` 类依赖 stdin 管道 JSONL），`find_binary` 函数迁移到 `tests/emuera_server.py`
+    - `tests/run_all.py` 移除 CLI protocol suite 与 `--skip-cli-protocol` 选项，更新 `find_binary` 导入源
+  - 文档更新：`tests/README.md`、`CLAUDE.md`、根 `README.md` 同步反映 stdin 管道废弃、测试矩阵变化、运行命令更新
+- 不纳入范围：
+  - `AgentJsonlProtocol` 核心协议逻辑（`RunLoopAsync`/`StepAsync`/`BuildTurn` 等，Server 模式依赖，不改动）
+  - `HttpSessionIO`（Server 模式专用，不改动）
+  - `enableTimeout: false` 调用路径虽已无调用方（原由 HeadlessRunner stdin 管道使用），但为保持 `RunLoopAsync` 签名稳定未删除（死代码，后续可清理）
+- 验收：
+  - `dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug` 0 error，131 warnings（基线范围）
+  - `ConsoleOutIO.cs` 已删除，`Emuera.Headless/` 中无 `ConsoleOutIO`/`PipeLoopStrategy` 引用
+  - `run_all.py` 回归测试全绿（JSONL+buttons、server single-session、TINPUT timeout、I-11 exit survival 4 个 suite 全 PASS）
+- 参考：
+  - [Emuera.Headless 剩余问题与行动方案 — T-024](2026.6.30.架构健壮性重构/Emuera.Headless%20剩余问题与行动方案.md)
+  - 收窄测试矩阵，为 I-09 单测项目减负

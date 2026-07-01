@@ -19,7 +19,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 ROOT_DIR = TESTS_DIR.parent
 
 sys.path.insert(0, str(TESTS_DIR))
-from emuera_agent import find_binary
+from emuera_server import find_binary
 
 
 def _resolve_path(value, base_dir):
@@ -70,27 +70,10 @@ def _safe_print(text):
         print(line.encode(encoding, errors="replace").decode(encoding, errors="replace"))
 
 
-def _run_cli_protocol(binary_path, game_dir):
-    print(f"\n=== CLI protocol ===")
-    return _run_script(
-        "CLI protocol",
-        [
-            sys.executable,
-            str(TESTS_DIR / "test_cli.py"),
-            "--binary",
-            str(binary_path),
-            "--game-dir",
-            str(game_dir),
-        ],
-        timeout=120,
-    )
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", help="Path to Emuera.Headless binary (exe or dll)")
     parser.add_argument("--game-dir", default="test_game", help="Path to game directory")
-    parser.add_argument("--skip-cli-protocol", action="store_true", help="Skip CLI protocol test")
     args = parser.parse_args()
 
     binary_path = _resolve_path(args.binary, Path.cwd()) if args.binary else find_binary(str(ROOT_DIR))[0]
@@ -116,9 +99,6 @@ def main():
             ),
         )
     )
-
-    if not args.skip_cli_protocol:
-        results.append(("CLI protocol", _run_cli_protocol(str(binary_path), str(game_dir))))
 
     results.append(
         (

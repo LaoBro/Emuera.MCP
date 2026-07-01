@@ -10,11 +10,48 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from emuera_agent import find_binary
-
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 TEST_GAME_DIR = PROJECT_DIR / "test_game"
+
+
+def find_binary(project_dir=None):
+    """Auto-detect Emuera binary. Search order:
+    1. EMUERA_BINARY environment variable
+    2. Emuera.Headless/bin/Debug/.../Emuera.Headless.exe
+    3. Emuera.Headless/bin/Release/.../Emuera.Headless.exe
+    Returns (path, use_dotnet) tuple.
+    """
+    if project_dir is None:
+        project_dir = PROJECT_DIR
+
+    # 1. Environment variable
+    env_binary = os.environ.get("EMUERA_BINARY")
+    if env_binary and os.path.isfile(env_binary):
+        use_dotnet = env_binary.endswith(".dll")
+        return env_binary, use_dotnet
+
+    # 2. Headless Debug
+    headless_debug = os.path.join(
+        project_dir, "Emuera.Headless", "bin", "Debug", "net10.0", "Emuera.Headless.exe"
+    )
+    if os.path.isfile(headless_debug):
+        return headless_debug, False
+
+    # 3. Headless Release
+    headless_release = os.path.join(
+        project_dir, "Emuera.Headless", "bin", "Release", "net10.0", "Emuera.Headless.exe"
+    )
+    if os.path.isfile(headless_release):
+        return headless_release, False
+
+    raise FileNotFoundError(
+        f"Cannot find Emuera binary. Searched:\n"
+        f"  - EMUERA_BINARY env var\n"
+        f"  - {headless_debug}\n"
+        f"  - {headless_release}\n"
+        f"Set EMUERA_BINARY or build the project first."
+    )
 
 
 class ServerProcess:

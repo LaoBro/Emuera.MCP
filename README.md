@@ -175,7 +175,9 @@ python -m emuera_gateway --standalone --server-url http://localhost:8080
 
 ## JSONL 协议
 
-无头运行器在 `--protocol jsonl` 模式下通过 stdin/stdout 交换 JSON 行，适合脚本和自动化。游戏启动后自动输出初始 turn，之后每发送一条输入命令返回一个 turn。
+无头运行器的 JSONL 协议由 server 模式（`--server`）通过 HTTP 暴露，适合脚本和自动化。创建会话后游戏自动输出初始 turn，之后每发送一条输入命令返回一个 turn。
+
+> T-024 后 `--protocol jsonl` 的 stdin/stdout 管道模式已废弃；脚本/自动化统一走 `--server`。交互式终端使用 `--protocol cli`（需真实 TTY）。
 
 ```python
 # 游戏自动输出初始 turn（无需发送任何命令）：
@@ -188,7 +190,7 @@ python -m emuera_gateway --standalone --server-url http://localhost:8080
 {"text": "输出文本...", "state": "WaitInput", "inputType": "IntValue", "needValue": true, "buttons": [...]}
 ```
 
-参考 `tests/emuera_agent.py`（Python 封装库）和 `tests/test_jsonl.py`（示例）。
+参考 `tests/emuera_server.py`（server 模式测试 helper）和 `tests/test_jsonl.py`（示例）。
 
 ## 测试
 
@@ -196,9 +198,9 @@ Python 测试使用仓库根目录的 `test_game` 作为测试游戏。Windows �
 
 ```bash
 python tests/test_jsonl.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
-python tests/test_cli.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 python tests/test_server_single_session.py
 python tests/test_tinput_timeout.py
+python tests/test_force_quit_survival.py
 python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 ```
 

@@ -2,12 +2,11 @@
 
 > 维护规则：TODO 列表只保留未实现或仍需推进的目标；已完成目标应移动到 `docs/DONE.md`（补充实际实现方案与验收结论），避免把完成项继续当作待办.
 >
-> **维护范围**：本项目**只维护 `Emuera.Headless`**（无头运行器）。`Emuera/` WinForms 项目仅留作功能参考，不再维护。实际使用入口为 CLI 交互模式与 Server 模式；CLI/JSONL 管道模式无实际用途，T-024 将废弃。
+> **维护范围**：本项目**只维护 `Emuera.Headless`**（无头运行器）。`Emuera/` WinForms 项目仅留作功能参考，不再维护。实际使用入口为 CLI 交互模式与 Server 模式；CLI/JSONL 管道模式已由 T-024 废弃。
 >
 > 当前目标筛选：最终目标按模式拆分——
 >
 > - CLI 模式：只实现文字相关 timer。
-> - JSONL stdin 管道模式：忽视所有 timer，直接阻塞等待输入。
 > - server 模式：未来应为前端提供足够数据以实现接近 WinForms 窗口的功能；本次暂不实现 server 相关 timer 功能。
 
 ### T-007：CLI 模式 REDRAW 输出抑制与强制刷新
@@ -109,25 +108,3 @@
 - 参考：
   - 复评报告 [I-12 — csproj 质量护栏缺失](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性复评报告.md)
   - 评估报告 [4.4 性能与发布配置（I-12, I-13）](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性评估报告.md)
-
-### T-024：废弃 CLI/JSONL 管道模式入口
-
-- 状态：未实现（P1，收窄维护面）
-- 范围：`Emuera.Headless/HeadlessOptions.cs`、`Emuera.Headless/HeadlessRunner.cs`、`Emuera.Headless/Server/ConsoleOutIO.cs`、`Emuera.Headless/Agent/AgentCliProtocol.cs`、`tests/test_cli.py`、`tests/test_jsonl.py`、`tests/README.md`
-- 说明：CLI 管道模式（stdin pipe）与 JSONL 管道模式（stdin/stdout）在实际使用中无用途。CLI 交互模式与 Server 模式是唯一使用入口。移除管道入口可收窄维护与测试矩阵。详见复评报告第七节 7.3。
-- 纳入范围：
-  - 删除 `Emuera.Headless/Server/ConsoleOutIO.cs`（stdin/stdout 封装，仅管道模式使用）
-  - `HeadlessOptions.cs`/`HeadlessRunner.cs` 中移除 `--protocol cli`/`--protocol jsonl` 的 stdin 管道分支；`--protocol` 参数保留以兼容交互 CLI（或直接简化为无参数，默认交互式）
-  - `AgentCliProtocol` 改为只支持交互式终端（移除 stdin pipe 读路径）
-  - `AgentJsonlProtocol` **保留**（Server 模式通过 `HttpSessionIO` 仍依赖它，不改动）
-  - 精简 `tests/test_cli.py`、`tests/test_jsonl.py` 中针对 stdin 管道的用例
-  - 更新 `tests/README.md` 测试矩阵与 `CLAUDE.md` 运行命令
-- 不纳入范围：
-  - `AgentJsonlProtocol` 核心逻辑（Server 模式依赖）
-  - `HttpSessionIO`（Server 模式专用，不改动）
-- 验收：
-  - `dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug` 0 error
-  - 交互 CLI 模式与 Server 模式回归测试全绿
-  - `ConsoleOutIO.cs` 已删除，代码中无 stdin 管道引用
-- 参考：
-  - 复评报告 [7.3 管道模式废弃](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性复评报告.md)

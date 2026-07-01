@@ -31,7 +31,7 @@ internal sealed class HeadlessOptions
     internal static readonly Option<string> ProtocolOption = new(
         "--protocol", "-protocol", "-PROTOCOL")
     {
-        Description = "协议模式：auto(默认,自动检测 stdin), jsonl, cli",
+        Description = "协议模式：auto(默认,检测终端), cli。stdin 管道模式已废弃（T-024），脚本/自动化请使用 --server",
         DefaultValueFactory = _ => "auto"
     };
 

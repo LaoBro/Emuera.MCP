@@ -56,12 +56,11 @@ namespace MinorShift.Emuera.GameView
             // 脚本运行期异常一律 fatal——Process 内部状态不可逆，恢复无意义。
             // VT 终端恢复由 RegisterVtCleanupHooks（AppDomain.UnhandledException /
             // ProcessExit）的多钩子保障，finally 块只负责 VT 路径。
+            // T-024：stdin 管道路径已移除，仅支持交互式终端（VT 或 ConsoleKey 降级）。
             try
             {
                 _renderer.FlushBuffer();
-                if (Console.IsInputRedirected)
-                    RunAgentLoop(new PipeLoopStrategy(this, Console.In));
-                else if (!TryRunVtLoop())
+                if (!TryRunVtLoop())
                     RunAgentLoop(new ConsoleKeyLoopStrategy(this));
                 _renderer.FlushBuffer();
             }
@@ -252,37 +251,6 @@ namespace MinorShift.Emuera.GameView
                 _owner._renderer.FlushBuffer();
                 _owner._buttons.SyncButtonState();
                 token.WaitHandle.WaitOne(PollIntervalMs);
-                return PollOutcome.Continue;
-            }
-        }
-
-        /// <summary>stdin 管道路径策略：逐行读取并喂给 ProcessChar，EOF 时停止。
-        /// 不处理 TINPUT 超时（管道模式无可靠 timeout），与 JSONL 管道行为一致。
-        /// NeedFullRefresh 由模板统一处理；输入处理完返回 Continue，跳过模板末尾刷新。</summary>
-        private sealed class PipeLoopStrategy : LoopStrategy
-        {
-            private readonly TextReader _input;
-
-            public PipeLoopStrategy(AgentCliProtocol owner, TextReader input) : base(owner)
-            {
-                _input = input;
-            }
-
-            public override void Initialize() { }
-
-            public override PollOutcome Poll(System.Threading.CancellationToken token)
-            {
-                string? line = _input.ReadLine();
-                if (line == null)
-                {
-                    _owner.Stop();
-                    return PollOutcome.Continue;
-                }
-
-                foreach (char ch in line)
-                    _owner.ProcessChar(ch);
-                _owner.ProcessChar('\r');
-                _owner._renderer.FlushBuffer();
                 return PollOutcome.Continue;
             }
         }

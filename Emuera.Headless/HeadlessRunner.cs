@@ -52,7 +52,7 @@ internal static class HeadlessRunner
 
         if (protocol == null)
         {
-            Console.Error.WriteLine("[headless] 无法确定协议模式；请使用 --protocol jsonl 或 --protocol cli");
+            Console.Error.WriteLine("[headless] 无法确定协议模式；请使用 --protocol cli 或 --server 模式");
             Environment.Exit(1);
             return;
         }
@@ -63,12 +63,10 @@ internal static class HeadlessRunner
         {
             await console.Initialize();
 
-            if (protocol is AgentJsonlProtocol jsonl)
-                await jsonl.RunLoopAsync(enableTimeout: false, CancellationToken.None);
-            else if (protocol is AgentCliProtocol cli)
+            if (protocol is AgentCliProtocol cli)
                 cli.RunCliLoop();
             else
-                Console.Error.WriteLine("[headless] 非 CLI 协议，无法启动终端交互");
+                Console.Error.WriteLine("[headless] 无法启动终端交互；请使用 --protocol cli 或 --server 模式");
         }
         catch (GameExitException)
         {
@@ -81,21 +79,20 @@ internal static class HeadlessRunner
         return protocolArg.Trim().ToLowerInvariant() switch
         {
             "auto" => DetectProtocol(console, ui),
-            "jsonl" => new AgentJsonlProtocol(console, ui),
             "cli" => new AgentCliProtocol(console, ui),
+            "jsonl" => throw new ArgumentException(
+                "stdin 管道 JSONL 模式已废弃（T-024），请使用 --server 模式", nameof(protocolArg)),
             _ => throw new ArgumentException($"未知协议模式: {protocolArg}", nameof(protocolArg))
         };
     }
 
     private static AgentProtocolBase? DetectProtocol(EmueraConsole console, IConsoleUI ui)
     {
+        // T-024：stdin 管道模式已废弃，非 server 模式仅支持交互式 CLI 终端。
         if (Console.IsInputRedirected)
         {
-            using var stdin = Console.OpenStandardInput();
-            if (stdin.CanSeek)
-                return null;
-
-            return new AgentJsonlProtocol(console, ui);
+            Console.Error.WriteLine("[headless] stdin 管道模式已废弃（T-024），请使用 --server 模式或交互式终端");
+            return null;
         }
 
         try

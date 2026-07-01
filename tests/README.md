@@ -4,16 +4,16 @@
 
 当前测试覆盖：
 
-- JSONL 协议流程与 buttons schema。
-- CLI 协议 redirected stdin/stdout 自动测试。
+- JSONL 协议流程与 buttons schema（经 server 模式驱动，T-024 后 stdin 管道已废弃）。
 - server 单会话 HTTP API。
 - TINPUT timeout server 场景。
+- I-11 脚本退出后 server 存活。
 
 ## 测试游戏目录
 
 新增或修订回归测试时，应使用仓库根目录的 `test_game` 文件夹作为测试游戏来源：
 
-- 直接运行 JSONL / CLI 测试时，使用 `--game-dir test_game`。
+- 直接运行测试时，使用 `--game-dir test_game`。
 - 不建议依赖开发者本机安装的其他 Emuera 游戏资源。
 - 如 `test_game` 当前 ERB/CSV 场景不足以覆盖新增行为，应先补充 `test_game` 的测试资源，再扩展测试脚本。
 - `test_game` 目前保留在仓库根目录，作为项目级 fixture；`tests/` 内的脚本通过 `PROJECT_DIR / "test_game"` 或 `--game-dir` 引用它。TINPUT timeout 测试会复制一份临时游戏目录，避免修改原始 `test_game`。
@@ -21,9 +21,9 @@
 当前测试与 `test_game` 的耦合点：
 
 - `test_jsonl.py` 依赖 `test_game/erb/TEST.ERB` 中的菜单文本和按钮值。
-- `test_cli.py` 依赖 `test_game/erb/TEST.ERB` 中的 CLI 输出文本和按钮文本。
 - `test_server_single_session.py` 通过 `tests/emuera_server.py` 固定使用根目录 `test_game`。
 - `test_tinput_timeout.py` 会从根目录 `test_game` 复制临时副本，再覆盖 `erb/TEST.ERB` 构造 TINPUT 场景。
+- `test_force_quit_survival.py` 通过 `tests/emuera_server.py` 启动 server，分别用根目录 `test_game` 与临时副本覆盖 ERB。
 
 因此，这些测试确实与 `test_game` 强相关；目前没有必要把整个 `test_game` 移进 `tests/`，更适合保持根目录 fixture，并在测试 helper 中集中管理路径。
 
@@ -33,9 +33,9 @@
 
 ```bash
 python tests/test_jsonl.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
-python tests/test_cli.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 python tests/test_server_single_session.py
 python tests/test_tinput_timeout.py
+python tests/test_force_quit_survival.py
 ```
 
 也可以用一个入口运行常规回归：
@@ -46,16 +46,10 @@ python tests/run_all.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headle
 
 `run_all.py` 会顺序执行：
 
-1. JSONL 流程 + buttons schema 测试。
-2. CLI protocol redirected stdin/stdout 测试。
-3. server 单会话测试。
-4. TINPUT timeout 测试。
-
-如需跳过 CLI protocol 测试：
-
-```bash
-python tests/run_all.py --skip-cli-protocol --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
-```
+1. JSONL 流程 + buttons schema 测试（经 server 模式驱动）。
+2. server 单会话测试。
+3. TINPUT timeout 测试。
+4. I-11 exit survival 测试。
 
 在 Windows 命令行中，如果相对路径启动失败，请使用绝对路径，例如：
 
@@ -65,47 +59,26 @@ D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe
 
 ## JSONL 协议测试
 
-`test_jsonl.py` 通过 `tests/emuera_agent.py` 启动：
+`test_jsonl.py` 通过 `tests/emuera_server.py` 的 `start_server` 启动 server 模式：
 
 ```bash
-Emuera.Headless.exe --ExeDir <game-dir> --protocol jsonl
+Emuera.Headless.exe --server --port <port> --ExeDir <game-dir>
 ```
+
+T-024 后 stdin 管道 JSONL 模式已废弃，`AgentJsonlProtocol` 仅由 server 模式的 `Session` 通过 `HttpSessionIO` 驱动。turn 结构（`text`/`state`/`inputType`/`needValue`/`buttons`）与原 stdin 管道完全一致，断言逻辑不变。
 
 测试流程：
 
-1. 读取初始 JSONL turn。
-2. 校验 `state`、`text`、`inputType`、`needValue`、`buttons` 字段。
-3. 校验按钮包含 `label` 和整数 `value`。
-4. 发送 `{"type":"input","value":"0"}` 推进游戏。
-5. 验证第二轮菜单和最终 `Quit` 状态。
+1. `POST /session` 创建会话。
+2. `GET /turn` 读取初始 JSONL turn。
+3. 校验 `state`、`text`、`inputType`、`needValue`、`buttons` 字段。
+4. 校验按钮包含 `label` 和整数 `value`。
+5. `POST /input {"value":"0"}` 推进游戏。
+6. 验证第二轮菜单和最终 `Quit` 状态。
 
-`emuera_agent.py` 已显式传入 `--protocol jsonl`，因此 JSONL 测试不再依赖 `stdin=PIPE` 自动检测。
+## CLI 交互模式
 
-## CLI protocol 测试
-
-`test_cli.py` 使用 redirected stdin/stdout 测试 CLI 协议：
-
-```bash
-Emuera.Headless.exe --ExeDir <game-dir> --protocol cli
-```
-
-测试流程：
-
-1. 启动 `Emuera.Headless.exe --protocol cli`。
-2. 从 stdout 读取初始 CLI 输出。
-3. 校验输出包含 `Agent Test Start`、`[0] Hello`、`[1] Quit`。
-4. 向 stdin 写入 `0\n`。
-5. 校验 CLI 输出包含 `You entered: 0`、`[0] World`、`[1] Exit`。
-6. 再次向 stdin 写入 `0\n`。
-7. 校验 CLI 输出包含 `Agent Test End` 并进入结束状态。
-
-该测试不依赖真实 TTY，也不需要 ConPTY/WinPTY。真实终端交互仍由 `AgentCliProtocol` 的 `Console.KeyAvailable` / `Console.ReadKey(true)` 路径覆盖；CI 自动测试使用 redirected stdin 路径。
-
-旧的 TTY-only CLI smoke 已移除：
-
-- 不再使用 `--force-cli-smoke`。
-- 不再使用 `--skip-cli-smoke`。
-- 不再根据 `sys.stdin.isatty()` 跳过 CLI 测试。
+T-024 后 stdin 管道 CLI 模式已废弃，`AgentCliProtocol` 仅支持交互式终端（VT 路径或 `ConsoleKey` 降级路径）。交互式 CLI 无法在无 TTY 的 CI 环境中自动化，协议层覆盖由 server 模式测试承担；终端渲染与按键处理需在真实终端中手动验证。
 
 ## TINPUT timeout 测试
 
@@ -120,3 +93,4 @@ Emuera.Headless.exe --ExeDir <game-dir> --protocol cli
 - 输入、turn 拉取、删除会话和删除后重建会话正常。
 
 `test_tinput_timeout.py` 同样通过 server 模式验证 timeout turn 不会吞掉后续输入。
+`test_force_quit_survival.py` 验证 `@QUIT` / `FORCE_QUIT` 后 server 存活并能重启 session。
