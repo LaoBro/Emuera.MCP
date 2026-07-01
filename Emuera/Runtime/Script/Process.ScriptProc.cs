@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script;
@@ -18,12 +18,14 @@ internal sealed partial class Process
 {
 	private void runScriptProc()
 	{
+		int loopIterCount = 0;
 		while (true)
 		{
 			//bool sequential = state.Sequential;
 			state.ShiftNextLine();
-			//WinmmTimerから時間を取得するのはそれ自体結構なコストがかかるので10000行に一回くらいで。
-			if (Config.InfiniteLoopAlertTime > 0 && (state.lineCount % 10000 == 0))
+			// 每 10000 次迭代检查一次超时。用独立计数器避免 JumpTo 额外
+			// 递增 lineCount 导致 % 10000 永不为 0 的问题。
+			if (Config.InfiniteLoopAlertTime > 0 && (++loopIterCount % 10000 == 0))
 				checkInfiniteLoop();
 			LogicalLine line = state.CurrentLine;
 			//これがNULLになる様な処理は現状ないはず

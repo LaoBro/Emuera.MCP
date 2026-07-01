@@ -376,17 +376,6 @@ internal sealed partial class Process(EmueraConsole view)
 
 	private void checkInfiniteLoop()
 	{
-		//うまく動かない。BEEP音が鳴るのを止められないのでこの処理なかったことに（1.51）
-		////フリーズ防止。処理中でも履歴を見たりできる
-		//System.Windows.Forms.Application.DoEvents();
-		////System.Threading.Thread.Sleep(0);
-
-		//if (!console.Enabled)
-		//{
-		//    //DoEvents()の間にウインドウが閉じられたらおしまい。
-		//    console.ReadAnyKey();
-		//    return;
-		//}
 		var elapsedTime = startTime.ElapsedMilliseconds;
 		if (elapsedTime < Config.InfiniteLoopAlertTime)
 			return;
@@ -394,11 +383,18 @@ internal sealed partial class Process(EmueraConsole view)
 		if ((currentLine == null) || (currentLine is NullLine))
 			return;//現在の行が特殊な状態ならスルー
 		if (!console.Enabled)
-			return;//クローズしてるとMessageBox.Showができないので。
-		string caption = string.Format(trmb.InfiniteLoop.Text);
+			return;
 		string text = string.Format(
 			trmb.TooLongLoop.Text,
 			currentLine.Position.Value.Filename, currentLine.Position.Value.LineNo, state.lineCount, elapsedTime);
+#if HEADLESS
+		// T-021：Headless/Server 模式无交互对话框，超时即终止脚本。
+		// GameExitException 穿透 DoScript → RunEmueraProgram → 协议层 → Session/HeadlessRunner
+		// 的 catch + finally，触发正常清理（BuildFinalTurn / IO.Close / GlobalStatic.Reset）。
+		Console.Error.WriteLine($"[script-timeout] {text}");
+		throw new GameExitException();
+#else
+		string caption = string.Format(trmb.InfiniteLoop.Text);
 		if (Dialog.ShowPrompt(text, caption))
 		{
 			throw new CodeEE(trerror.SelectExitInfiniteLoopMB.Text);
@@ -408,6 +404,7 @@ internal sealed partial class Process(EmueraConsole view)
 			state.lineCount = 0;
 			startTime.Restart();
 		}
+#endif
 	}
 
 	int methodStack;

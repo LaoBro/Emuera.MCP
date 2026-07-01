@@ -80,3 +80,19 @@
   - 交互 CLI 下选择退出按钮后进程自然结束。
   - 游戏错误状态下 CLI 不继续等待输入。
   - pipe CLI 现有行为保持不变（`run_all.py` 4 套件全绿：JSONL+buttons 30/30、CLI 8/8、server single-session 24/24、TINPUT timeout 14/14）。
+
+### T-021：RunEmueraProgram 脚本死循环保护
+
+- 状态：已实现
+- 范围：`Emuera/Runtime/Script/Process.cs`、`Emuera/Runtime/Script/Process.ScriptProc.cs`
+- 说明：`Process.DoScript()` 内部指令循环遇到 ERB 死循环（如 `WHILE 1 \n WEND`）永不返回，所有调用 `RunEmueraProgram` 的路径卡死。原 `checkInfiniteLoop()` 依赖 `state.lineCount % 10000 == 0` 触发，但 `JumpTo()` 额外递增 `lineCount` 导致该条件永不成立；且 Headless 模式下 `HeadlessDialog.ShowPrompt()` 始终返回 false（auto-select: No），脚本无限继续。
+- 实现方案：
+  - `runScriptProc()` 中新增独立迭代计数器 `loopIterCount` 替代 `state.lineCount % 10000`，每 10000 次迭代调用 `checkInfiniteLoop()`
+  - `checkInfiniteLoop()` 增加 `#if HEADLESS` 分支：超时后输出 `[script-timeout]` 日志到 stderr，抛出 `GameExitException` 终止脚本
+  - `GameExitException` 沿已有传播链穿透至 `Session.GameLoopAsync`/`HeadlessRunner.RunAsync` 的 catch + finally，触发正常清理（BuildFinalTurn / IO.Close / GlobalStatic.Reset）
+  - WinForms 路径保持原有 `Dialog.ShowPrompt()` 交互行为不变
+- 超时阈值：`Config.InfiniteLoopAlertTime`（默认 5000ms），可通过 emuera.config 配置，设为 0 禁用
+- 验收：
+  - `WHILE 1 \n WEND` ERB 脚本在 Server 模式 ~5.6s 内终止，stderr 输出 `[script-timeout]` 日志
+  - 全部 94 项回归测试通过（JSONL/CLI/Server/TINPUT/I-11）
+  - WinForms 构建不受影响（`#if HEADLESS` 条件编译隔离）
