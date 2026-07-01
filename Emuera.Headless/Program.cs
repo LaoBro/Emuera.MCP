@@ -10,13 +10,14 @@ using System.CommandLine;
 using System.Globalization;
 using System.IO;
 using System.Runtime;
+using System.Threading.Tasks;
 
 namespace MinorShift.Emuera;
 
 static partial class Program
 {
     [STAThread]
-    static void Main(string[] args)
+    static async Task Main(string[] args)
     {
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
         Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -52,7 +53,7 @@ static partial class Program
         if (options.Server)
             ServerRunner.Run(options.Port);
         else
-            HeadlessRunner.Run(paths, options.Protocol, options.TermWidthHint);
+            await HeadlessRunner.RunAsync(paths, options.Protocol, options.TermWidthHint);
     }
 
     // === 路径属性转发（保持共享文件零改动）===

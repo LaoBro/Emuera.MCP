@@ -5,12 +5,13 @@ using MinorShift.Emuera.UI;
 using MinorShift.Emuera.UI.Game;
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace MinorShift.Emuera;
 
 internal static class HeadlessRunner
 {
-    public static void Run(GamePaths paths, string protocolArg, string termWidthHint)
+    public static async Task RunAsync(GamePaths paths, string protocolArg, string termWidthHint)
     {
         Console.Error.WriteLine($"[headless] Emuera {AssemblyData.EmueraVersionText} 无头模式启动");
         Console.Error.WriteLine($"[headless] 工作目录: {paths.ExeDir}");
@@ -60,10 +61,10 @@ internal static class HeadlessRunner
 
         try
         {
-            console.Initialize().GetAwaiter().GetResult();
+            await console.Initialize();
 
             if (protocol is AgentJsonlProtocol jsonl)
-                jsonl.RunLoopAsync(enableTimeout: false, CancellationToken.None).GetAwaiter().GetResult();
+                await jsonl.RunLoopAsync(enableTimeout: false, CancellationToken.None);
             else if (protocol is AgentCliProtocol cli)
                 cli.RunCliLoop();
             else
