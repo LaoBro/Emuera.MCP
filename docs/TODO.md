@@ -107,3 +107,50 @@
 - 参考：
   - 复评报告 [I-12 — csproj 质量护栏缺失](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性复评报告.md)
   - 评估报告 [4.4 性能与发布配置（I-12, I-13）](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性评估报告.md)
+
+### T-023：I-01 简化 — 物理迁移共享源码到 Emuera.Headless
+
+- 状态：未实现（P1，最高优先级结构性投资）
+- 范围：`Emuera/Runtime/`、`Emuera/UI/Game/`、`Emuera/UI/FontFactory.cs`、`Emuera/Properties/lang/`、`Emuera.Headless/Emuera.Headless.csproj`、`Emuera/Emuera.csproj`、`Emuera/Emuera.sln`
+- 说明：原 I-01 建议"抽取 `Emuera.Core` 类库"以消除 csproj glob 共享风险。鉴于 WinForms 项目不再维护（仅留作功能参考），双向兼容约束消失，改为物理迁移共享源码到 `Emuera.Headless/` 下，工作量降低一个量级。详见复评报告第七节 7.2。
+- 纳入范围：
+  - `git mv Emuera/Runtime/ Emuera.Headless/Runtime/`（排除 `Sound.WMP.cs`/`Sound.NAudio.cs`/`NAudio_LoopStream.cs`/`WinInput.cs`/`Clipboard.cs`，这些 WinForms 专用文件留在 `Emuera/` 原处作只读参考）
+  - `git mv` `Emuera/UI/Game/` 下被共享的文件到 `Emuera.Headless/UI/Game/`（**不可覆盖**已有的 `EmueraConsole.cs`；`EmueraConsole.Print.cs` 不迁移，Headless 已有自有实现）
+  - `git mv Emuera/UI/FontFactory.cs Emuera.Headless/UI/FontFactory.cs`
+  - `git mv Emuera/Properties/lang/ Emuera.Headless/Properties/lang/`
+  - 简化 `Emuera.Headless.csproj`：删除所有 `<Compile Include="..\Emuera\...">` glob 与 `<Compile Remove="...">` 排除项，改由 SDK 默认 glob 包含；`<EmbeddedResource>` 路径同步更新
+  - 删除 `Emuera/Emuera.csproj`、`Emuera/Emuera.sln`（解决 I-17）
+  - 仓库根 `Emuera.sln` 移除 Emuera 项目引用，只保留 `Emuera.Headless`
+- 不纳入范围：
+  - `Emuera/` 目录下 WinForms 专用文件（MainWindow/Forms/WinFormsConsole/Sound.WMP/Libs/Interop.WMPLib.dll 等）保留原处作只读参考，不删除
+  - 不在本任务内启用 `Nullable enable`/`TreatWarningsAsErrors`（属 T-022，本任务为其解锁前置）
+- 验收：
+  - `dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug` 0 error（warning 基线不变）
+  - `Emuera.Headless.csproj` 中不再出现 `..\Emuera\` 路径引用
+  - `run_all.py` 全部 94 项回归测试通过
+  - `Emuera/` 目录下不再有 `.csproj`/`.sln`，残留文件不被任何项目引用
+- 参考：
+  - 复评报告 [7.2 I-01 简化：物理迁移源码替代抽 Core 类库](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性复评报告.md)
+  - 解锁 T-022（I-12 阶段 2）、解决 I-17
+
+### T-024：废弃 CLI/JSONL 管道模式入口
+
+- 状态：未实现（P1，收窄维护面）
+- 范围：`Emuera.Headless/HeadlessOptions.cs`、`Emuera.Headless/HeadlessRunner.cs`、`Emuera.Headless/Server/ConsoleOutIO.cs`、`Emuera.Headless/Agent/AgentCliProtocol.cs`、`tests/test_cli.py`、`tests/test_jsonl.py`、`tests/README.md`
+- 说明：CLI 管道模式（stdin pipe）与 JSONL 管道模式（stdin/stdout）在实际使用中无用途。CLI 交互模式与 Server 模式是唯一使用入口。移除管道入口可收窄维护与测试矩阵。详见复评报告第七节 7.3。
+- 纳入范围：
+  - 删除 `Emuera.Headless/Server/ConsoleOutIO.cs`（stdin/stdout 封装，仅管道模式使用）
+  - `HeadlessOptions.cs`/`HeadlessRunner.cs` 中移除 `--protocol cli`/`--protocol jsonl` 的 stdin 管道分支；`--protocol` 参数保留以兼容交互 CLI（或直接简化为无参数，默认交互式）
+  - `AgentCliProtocol` 改为只支持交互式终端（移除 stdin pipe 读路径）
+  - `AgentJsonlProtocol` **保留**（Server 模式通过 `HttpSessionIO` 仍依赖它，不改动）
+  - 精简 `tests/test_cli.py`、`tests/test_jsonl.py` 中针对 stdin 管道的用例
+  - 更新 `tests/README.md` 测试矩阵与 `CLAUDE.md` 运行命令
+- 不纳入范围：
+  - `AgentJsonlProtocol` 核心逻辑（Server 模式依赖）
+  - `HttpSessionIO`（Server 模式专用，不改动）
+- 验收：
+  - `dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug` 0 error
+  - 交互 CLI 模式与 Server 模式回归测试全绿
+  - `ConsoleOutIO.cs` 已删除，代码中无 stdin 管道引用
+- 参考：
+  - 复评报告 [7.3 管道模式废弃](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性复评报告.md)
