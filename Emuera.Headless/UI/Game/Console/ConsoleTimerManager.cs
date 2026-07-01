@@ -30,7 +30,7 @@ internal sealed class ConsoleTimerManager
     internal void PresetTimer()
     {
         _state.need_settimer = true;
-        if (_state.inputReq.DisplayTime)
+        if (_state.inputReq!.DisplayTime)
         {
             var remainingMs = _state.inputReq.Timelimit - _state._genericTimerStopwatch.ElapsedMilliseconds;
             _console.PrintSingleLine(trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}");
@@ -42,7 +42,7 @@ internal sealed class ConsoleTimerManager
     internal void SetTimer()
     {
         _state.isTimeout = false;
-        _state.timerID = _state.inputReq.ID;
+        _state.timerID = _state.inputReq!.ID;
         _state._genericTimerStopwatch.Restart();
         _state.timer_endTime = _state.inputReq.Timelimit;
         _state.need_settimer = false;
@@ -52,7 +52,7 @@ internal sealed class ConsoleTimerManager
     {
         if (!_state.genericTimer.Enabled)
             return;
-        if (_state.State != ConsoleState.WaitInput || _state.inputReq.Timelimit <= 0 || _state.timerID != _state.inputReq.ID)
+        if (_state.State != ConsoleState.WaitInput || _state.inputReq!.Timelimit <= 0 || _state.timerID != _state.inputReq!.ID)
         {
             StopTimer();
             return;
@@ -64,9 +64,9 @@ internal sealed class ConsoleTimerManager
             return;
         }
 
-        if (_state.inputReq.DisplayTime)
+        if (_state.inputReq!.DisplayTime)
         {
-            var remainingMs = _state.inputReq.Timelimit - _state._genericTimerStopwatch.ElapsedMilliseconds;
+            var remainingMs = _state.inputReq!.Timelimit - _state._genericTimerStopwatch.ElapsedMilliseconds;
             _state.timeDisplayCount++;
             if (_state.timeDisplayCount % 10 == 0 && !_state.inputed)
                 _ui.Invoke(() => _console.ChangeLastLine(trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}"));
@@ -121,10 +121,10 @@ internal sealed class ConsoleTimerManager
             _console.RefreshStrings(true);
             return;
         }
-        if (_state.inputReq.DisplayTime)
-            _console.ChangeLastLine(_state.inputReq.TimeUpMes);
-        else if (_state.inputReq.TimeUpMes != null)
-            _console.PrintSingleLine(_state.inputReq.TimeUpMes);
+        if (_state.inputReq!.DisplayTime)
+            _console.ChangeLastLine(_state.inputReq!.TimeUpMes);
+        else if (_state.inputReq!.TimeUpMes != null)
+            _console.PrintSingleLine(_state.inputReq!.TimeUpMes);
 
         _console.RunEmueraProgram("");
         _console.RefreshStrings(true);

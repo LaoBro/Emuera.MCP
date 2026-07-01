@@ -37,7 +37,7 @@ internal sealed class ConsoleStateManager
     public async Task Initialize()
     {
         var boottimeDebugStopwatch = System.Diagnostics.Stopwatch.StartNew();
-        StreamWriter logWriter = null;
+        StreamWriter? logWriter = null;
         try
         {
             if (Config.DisplayReport)
@@ -62,17 +62,17 @@ internal sealed class ConsoleStateManager
 
         GlobalStatic.Console = _console;
         _state.process = new Process(_console);
-        GlobalStatic.Process = _state.process;
+        GlobalStatic.Process = _state.process!;
         if (Program.DebugMode && Config.DebugShowWindow)
         {
             _console.OpenDebugDialog();
             _ui.Focus();
         }
         _console.ClearDisplay();
-        if (!await _state.process.Initialize(logWriter))
+        if (!await _state.process!.Initialize(logWriter!))
         {
             _state.State = ConsoleState.Error;
-            _console.OutputLog(null, false);
+            _console.OutputLog(null!, false);
             _console.PrintFlush(false);
             _console.RefreshStrings(true);
             return;
@@ -123,7 +123,7 @@ internal sealed class ConsoleStateManager
         _state.redraw = ConsoleRedraw.Normal;
         _state.UseUserStyle = false;
         _state.userStyle = new StringStyle(Config.ForeColor, System.Drawing.FontStyle.Regular, null);
-        _state.process.BeginTitle();
+        _state.process!.BeginTitle();
         _console.ReadAnyKey(false, false);
         _console.RunEmueraProgram("");
         _console.RefreshStrings(true);
@@ -195,7 +195,7 @@ internal sealed class ConsoleStateManager
         _state.State = ConsoleState.Initializing;
         _console.PrintSingleLine(trsl.ReloadingErb.Text, true);
         _state.force_temporary = true;
-        await _state.process.ReloadErb();
+        await _state.process!.ReloadErb();
         _state.force_temporary = false;
         _console.PrintSingleLine(trsl.ReloadCompleted.Text, true);
         _console.RefreshStrings(true);
@@ -244,7 +244,7 @@ internal sealed class ConsoleStateManager
         _state.State = ConsoleState.Initializing;
         _console.PrintSingleLine(trsl.ReloadingErb.Text, true);
         _state.force_temporary = true;
-        await _state.process.ReloadPartialErb(path);
+        await _state.process!.ReloadPartialErb(path);
         _state.force_temporary = false;
         _console.PrintSingleLine(trsl.ReloadCompleted.Text, true);
         _console.RefreshStrings(true);
@@ -291,7 +291,7 @@ internal sealed class ConsoleStateManager
         _state.State = ConsoleState.Initializing;
         _console.PrintSingleLine(trsl.ReloadingErb.Text, true);
         _state.force_temporary = true;
-        await _state.process.ReloadPartialErb(paths);
+        await _state.process!.ReloadPartialErb(paths);
         _state.force_temporary = false;
         _console.PrintSingleLine(trsl.ReloadCompleted.Text, true);
         _console.RefreshStrings(true);
@@ -387,7 +387,7 @@ internal sealed class ConsoleStateManager
         }
         _console.RefreshStrings(true);
         _state.State = ConsoleState.Sleep;
-        _state.process.UpdateCheckInfiniteLoopState();
+        _state.process!.UpdateCheckInfiniteLoopState();
         _ui.ProcessEvents();
         if (time > 0)
             System.Threading.Thread.Sleep(time);
@@ -401,7 +401,7 @@ internal sealed class ConsoleStateManager
             FileName = Config.TextEditor
         };
         var ignoreCaseCmp = StringComparison.OrdinalIgnoreCase;
-        string fname = pos.Value.Filename.ToUpper();
+        string fname = pos!.Value.Filename.ToUpper();
         if (fname.EndsWith(".CSV", ignoreCaseCmp))
         {
             if (fname.Contains(Program.CsvDir, ignoreCaseCmp))

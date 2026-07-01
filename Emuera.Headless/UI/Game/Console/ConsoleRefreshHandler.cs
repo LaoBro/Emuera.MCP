@@ -33,7 +33,7 @@ internal sealed class ConsoleRefreshHandler
         {
             if (_state.State != ConsoleState.Error && _state.State != ConsoleState.WaitInput)
                 _state.selectingButton = null;
-            else if ((_state.State == ConsoleState.WaitInput) && !_state.inputReq.NeedValue)
+            else if ((_state.State == ConsoleState.WaitInput) && !_state.inputReq!.NeedValue)
                 _state.selectingButton = null;
             else if (_state.selectingButton.Generation != _state.lastButtonGeneration)
                 _state.selectingButton = null;

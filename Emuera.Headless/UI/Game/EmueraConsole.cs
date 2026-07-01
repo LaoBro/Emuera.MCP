@@ -52,22 +52,22 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // ========================================
 
     internal ConsoleState State => _state.State;
-    internal InputRequest CurrentRequest => _state.inputReq;
+    internal InputRequest? CurrentRequest => _state.inputReq;
     public IConsoleUI UIAdapter => _uiAdapter;
     public bool Enabled => _uiAdapter.Created;
     internal bool IsActive => _uiAdapter.IsActive;
     public bool MesSkip { get => _state.MesSkip; set => _state.MesSkip = value; }
-    public InputRequest inputReq { get => _state.inputReq; set => _state.inputReq = value; }
+    public InputRequest? inputReq { get => _state.inputReq; set => _state.inputReq = value; }
     public bool IsTimeOut => _state.isTimeout;
-    public InputType NowInputType => _state.inputReq.InputType;
+    public InputType NowInputType => _state.inputReq!.InputType;
     public List<ConsoleDisplayLine> DisplayLineList => _state.displayLineList;
     public PrintStringBuffer PrintBuffer => printBuffer;
-    public Dictionary<int, List<AConsoleDisplayNode>> EscapedParts => _state.escapedParts;
+    public Dictionary<int, List<AConsoleDisplayNode>>? EscapedParts => _state.escapedParts;
     public int GetLineNo => _state.lineNo;
     public long LineCount => _state.logicalLineCount;
     public long DeletedLines => _state.deletedLines;
-    public ConsoleButtonString SelectingButton => _state.selectingButton;
-    public ConsoleButtonString PointingSring => _state.pointingString;
+    public ConsoleButtonString? SelectingButton => _state.selectingButton;
+    public ConsoleButtonString? PointingSring => _state.pointingString;
     public bool AlwaysRefresh { get => _state.AlwaysRefresh; set => _state.AlwaysRefresh = value; }
     public bool RunERBFromMemory { get => _state.runningERBfromMemory; set => _state.runningERBfromMemory = value; }
     public bool LastLineIsTemporary => _printManager.LastLineIsTemporary;
@@ -115,7 +115,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
             if (_state.State == ConsoleState.WaitInput)
             {
                 GlobalStatic.ForceQuitAndRestart = false;
-                return _state.inputReq.InputType == InputType.AnyKey || _state.inputReq.InputType == InputType.EnterKey;
+                return _state.inputReq!.InputType == InputType.AnyKey || _state.inputReq!.InputType == InputType.EnterKey;
             }
             return false;
         }
@@ -125,31 +125,31 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
         get
         {
             GlobalStatic.ForceQuitAndRestart = false;
-            return _state.State == ConsoleState.WaitInput && _state.inputReq.InputType == InputType.AnyKey;
+            return _state.State == ConsoleState.WaitInput && _state.inputReq?.InputType == InputType.AnyKey;
         }
     }
-    public bool IsWaintingOnePhrase => _state.State == ConsoleState.WaitInput && _state.inputReq.OneInput;
-    public bool IsWaintingInputWithMouse => _state.State == ConsoleState.WaitInput && _state.inputReq.MouseInput;
-    public bool IsRunningTimer => _state.State == ConsoleState.WaitInput && _state.inputReq.Timelimit > 0 && !_state.isTimeout;
-    public bool IsWaitingPrimitive => _state.State == ConsoleState.WaitInput && _state.inputReq.InputType == InputType.PrimitiveMouseKey;
+    public bool IsWaintingOnePhrase => _state.State == ConsoleState.WaitInput && _state.inputReq?.OneInput == true;
+    public bool IsWaintingInputWithMouse => _state.State == ConsoleState.WaitInput && _state.inputReq?.MouseInput == true;
+    public bool IsRunningTimer => _state.State == ConsoleState.WaitInput && (_state.inputReq?.Timelimit ?? 0) > 0 && !_state.isTimeout;
+    public bool IsWaitingPrimitive => _state.State == ConsoleState.WaitInput && _state.inputReq?.InputType == InputType.PrimitiveMouseKey;
     public bool ButtonIsSelected(ConsoleButtonString button) => _state.selectingButton == button;
     public bool ButtonIsPointing(ConsoleButtonString button) => _state.pointingStrings.Contains(button);
     public int ClientWidth => _uiAdapter.ClientWidth;
     public int ClientHeight => _uiAdapter.ClientHeight;
-    public string SelectedString
+    public string? SelectedString
     {
         get
         {
             if (_state.selectingButton == null) return null;
             if (_state.State == ConsoleState.Error) return _state.selectingButton.Inputs;
             if (_state.State != ConsoleState.WaitInput) return null;
-            if ((_state.inputReq.InputType == InputType.IntValue || _state.inputReq.InputType == InputType.IntButton) && _state.selectingButton.IsInteger)
+            if ((_state.inputReq!.InputType == InputType.IntValue || _state.inputReq!.InputType == InputType.IntButton) && _state.selectingButton.IsInteger)
                 return _state.selectingButton.Input.ToString();
-            if (_state.inputReq.InputType == InputType.StrValue || _state.inputReq.InputType == InputType.StrButton)
+            if (_state.inputReq!.InputType == InputType.StrValue || _state.inputReq!.InputType == InputType.StrButton)
                 return _state.selectingButton.Inputs;
-            if (_state.inputReq.InputType == InputType.AnyValue && _state.selectingButton.IsInteger)
+            if (_state.inputReq!.InputType == InputType.AnyValue && _state.selectingButton.IsInteger)
                 return _state.selectingButton.Input.ToString();
-            if (_state.inputReq.InputType == InputType.AnyValue)
+            if (_state.inputReq!.InputType == InputType.AnyValue)
                 return _state.selectingButton.Inputs;
             return null;
         }
@@ -186,7 +186,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     public void PressPrimitiveKey(int keycode, int keydata, int keymod) => _inputHandler.PressPrimitiveKey(keycode, keydata, keymod);
     public bool MoveMouse(System.Drawing.Point point) => _inputHandler.MoveMouse(point);
     public void LeaveMouse() => _inputHandler.LeaveMouse();
-    internal void SetSelectingButton(ConsoleButtonString button) => _inputHandler.SetSelectingButton(button);
+    internal void SetSelectingButton(ConsoleButtonString? button) => _inputHandler.SetSelectingButton(button);
     internal List<ConsoleButtonString> CollectCurrentButtons()
     {
         var result = new List<ConsoleButtonString>();
@@ -220,11 +220,11 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     public void ClearHTMLIsland() => _printManager.ClearHTMLIsland();
     public void PrintImg(string name, string nameb, string namem, Utils.MixedNum height, Utils.MixedNum width, Utils.MixedNum ypos) => _printManager.PrintImg(name, nameb, namem, height, width, ypos);
     public void PrintShape(string type, Utils.MixedNum[] param) => _printManager.PrintShape(type, param);
-    public ConsoleDisplayLine[] GetDisplayLines(long lineNo) => _printManager.GetDisplayLines(lineNo);
-    public ConsoleDisplayLine[] PopDisplayingLines() => _printManager.PopDisplayingLines();
-    internal ConsoleDisplayLine PrintPlainwithSingleLine(string str) => _printManager.PrintPlainwithSingleLine(str);
+    public ConsoleDisplayLine[]? GetDisplayLines(long lineNo) => _printManager.GetDisplayLines(lineNo);
+    public ConsoleDisplayLine[]? PopDisplayingLines() => _printManager.PopDisplayingLines();
+    internal ConsoleDisplayLine? PrintPlainwithSingleLine(string str) => _printManager.PrintPlainwithSingleLine(str);
     public void PrintPlainWithSingleLineFix(string str) => _printManager.PrintPlainWithSingleLineFix(str);
-    public ConsoleDisplayLine BufferToSingleLine(bool force, bool temporary) => _printManager.BufferToSingleLine(force, temporary);
+    public ConsoleDisplayLine? BufferToSingleLine(bool force, bool temporary) => _printManager.BufferToSingleLine(force, temporary);
     public void ClearText() => _printManager.ClearText();
 
     // ========================================
@@ -253,14 +253,14 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // ========================================
 
     public string getStBar(string barStr) => _printManager.GetStBar(barStr);
-    public string getDefStBar() => _printManager.GetDefStBar();
+    public string? getDefStBar() => _printManager.GetDefStBar();
     public void setStBar(string barStr) => _printManager.SetStBar(barStr);
 
     // ========================================
     // Log delegation
     // ========================================
 
-    public bool OutputLog(string filename, bool hideInfo) => _printManager.OutputLog(filename, hideInfo);
+    public bool OutputLog(string? filename, bool hideInfo) => _printManager.OutputLog(filename, hideInfo);
     public bool OutputSystemLog(string filename) => _printManager.OutputSystemLog(filename);
     public string GetLog(bool hideInfo) => _printManager.GetLog(hideInfo);
 
@@ -288,7 +288,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // RunEmueraProgram / newGeneration (core game loop)
     // ========================================
 
-    internal void RunEmueraProgram(string input)
+    internal void RunEmueraProgram(string? input)
     {
         if (input != null)
         {
@@ -298,7 +298,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
                 return;
         }
         _state.State = ConsoleState.Running;
-        _state.process.DoScript();
+        _state.process!.DoScript();
         if (_state.State == ConsoleState.Running)
         {
             _state.State = ConsoleState.Error;
@@ -330,7 +330,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     }
     public string DebugConsoleLog => _state.dConsoleLog.ToString();
     public void OpenDebugDialog() { } // headless stub
-    public string DebugTitle => _state.debugTitle;
+    public string? DebugTitle => _state.debugTitle;
     public void DebugCommand(string com, bool munchkin, bool outputDebugConsole) { } // headless stub
     public void DebugAddTraceLog(string str)
     {
@@ -388,7 +388,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     public bool CBG_SetGraphics(GraphicsImage gra, int x, int y, int zdepth) => false;
     public bool CBG_SetImage(ASprite image, int x, int y, int zdepth) => false;
     public bool CBG_SetButtonMap(GraphicsImage gra) => false;
-    public bool CBG_SetButtonImage(int buttonValue, ASprite imageN, ASprite imageB, int x, int y, int zdepth, string tooltip = null) => false;
+    public bool CBG_SetButtonImage(int buttonValue, ASprite imageN, ASprite imageB, int x, int y, int zdepth, string? tooltip = null) => false;
     public void AddBackgroundImage(string name, long depth, float opacity) { }
     public void ClearBackgroundImage() { }
     public void RemoveBackground(string key) { }
@@ -409,10 +409,10 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     public bool bitmapCacheEnabledForNextNextLine { get => _state.bitmapCacheEnabledForNextLine; set => _state.bitmapCacheEnabledForNextLine = value; }
 
     // Rikaichan stub
-    public object rikaichan;
+    public object? rikaichan;
 
     // Clipboard stub
-    public readonly ClipboardProcessor CBProc = null;
+    public readonly ClipboardProcessor? CBProc = null;
 
     // ========================================
     // Terminal rendering (from AgentBridge.cs partial)
@@ -664,7 +664,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // Agent / Bridge
     // ========================================
 
-    internal AgentProtocolBase AgentBridge => _state.agentBridge;
+    internal AgentProtocolBase? AgentBridge => _state.agentBridge;
     internal void SetAgentBridge(AgentProtocolBase protocol) => _state.agentBridge = protocol;
 
     // ========================================

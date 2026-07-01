@@ -58,7 +58,7 @@ internal sealed class ConsoleInputHandler
         req.StopMesskip = stopMesskip;
         _state.inputReq = req;
         _state.State = ConsoleState.WaitInput;
-        _state.process.NeedWaitToEventComEnd = false;
+        _state.process!.NeedWaitToEventComEnd = false;
     }
 
     public void PressEnterKey(bool keySkip, string input, bool changedByMouse)
@@ -98,15 +98,15 @@ internal sealed class ConsoleInputHandler
             { text = [input]; }
             else
             {
-                if (input.Length > 1 && !_state.inputReq.OneInput && input.StartsWith('@'))
+                if (input.Length > 1 && !_state.inputReq!.OneInput && input.StartsWith('@'))
                 {
                     _console._stateManager.DoSystemCommand(input);
                     return;
                 }
-                if (_state.inputReq.InputType == InputType.Void)
+                if (_state.inputReq!.InputType == InputType.Void)
                     return;
                 if (_state.genericTimer.Enabled &&
-                        (_state.inputReq.InputType == InputType.AnyKey || _state.inputReq.InputType == InputType.EnterKey))
+                        (_state.inputReq!.InputType == InputType.AnyKey || _state.inputReq!.InputType == InputType.EnterKey))
                     _console._timer.StopTimer();
                 if (input.Contains('(', StringComparison.Ordinal))
                     input = ParseInput(new CharStream(input), false);
@@ -122,9 +122,9 @@ internal sealed class ConsoleInputHandler
                     inputs = inputs.Replace("\\e", "", StringComparison.Ordinal);
                     _state.MesSkip = true;
                 }
-                if (_state.inputReq.OneInput && (!_ui.Created || !changedByMouse) && inputs.Length > 1)
+                if (_state.inputReq!.OneInput && (!_ui.Created || !changedByMouse) && inputs.Length > 1)
                     inputs = inputs.Remove(1);
-                if (_state.inputReq.InputType == InputType.Void)
+                if (_state.inputReq!.InputType == InputType.Void)
                 {
                     i--;
                     inputs = "";
@@ -133,9 +133,9 @@ internal sealed class ConsoleInputHandler
                 _console.RefreshStrings(false);
                 while (_state.MesSkip && _state.State == ConsoleState.WaitInput)
                 {
-                    if (_state.inputReq.NeedValue)
+                    if (_state.inputReq!.NeedValue)
                         break;
-                    if (_state.inputReq.StopMesskip)
+                    if (_state.inputReq!.StopMesskip)
                         break;
                     _console.RunEmueraProgram("");
                     _console.RefreshStrings(false);
@@ -163,7 +163,7 @@ internal sealed class ConsoleInputHandler
 
         void EndMacro()
         {
-            if (_state.State == ConsoleState.WaitInput && _state.inputReq.NeedValue)
+            if (_state.State == ConsoleState.WaitInput && _state.inputReq!.NeedValue)
             {
                 Point point = _ui.MainPicBox.PointToClient(_ui.GetCursorPosition());
                 if (_ui.MainPicBox.ClientRectangle.Contains(point))
@@ -180,25 +180,25 @@ internal sealed class ConsoleInputHandler
             long inputValue;
             List<AConsoleDisplayNode> ep;
 
-            switch (_state.inputReq.InputType)
+            switch (_state.inputReq!.InputType)
             {
                 case InputType.IntValue:
-                    if (string.IsNullOrEmpty(str) && _state.inputReq.HasDefValue && !_console._timer.IsDisplayTimeActive)
+                    if (string.IsNullOrEmpty(str) && _state.inputReq!.HasDefValue && !_console._timer.IsDisplayTimeActive)
                     {
-                        inputValue = _state.inputReq.DefIntValue;
+                        inputValue = _state.inputReq!.DefIntValue;
                         str = inputValue.ToString();
                     }
                     else if (!long.TryParse(str, out inputValue))
                         return false;
-                    if (_state.inputReq.IsSystemInput)
-                        _state.process.InputSystemInteger(inputValue);
+                    if (_state.inputReq!.IsSystemInput)
+                        _state.process!.InputSystemInteger(inputValue);
                     else
-                        _state.process.InputInteger(inputValue);
+                        _state.process!.InputInteger(inputValue);
                     break;
                 case InputType.IntButton:
-                    if (string.IsNullOrEmpty(str) && _state.inputReq.HasDefValue && !_console._timer.IsDisplayTimeActive)
+                    if (string.IsNullOrEmpty(str) && _state.inputReq!.HasDefValue && !_console._timer.IsDisplayTimeActive)
                     {
-                        inputValue = _state.inputReq.DefIntValue;
+                        inputValue = _state.inputReq!.DefIntValue;
                         str = inputValue.ToString();
                     }
                     else if (!long.TryParse(str, out inputValue))
@@ -209,7 +209,7 @@ internal sealed class ConsoleInputHandler
                         {
                             if (button.IsInteger && button.Generation == _state.lastButtonGeneration && button.Input == inputValue)
                             {
-                                _state.process.InputInteger(inputValue);
+                                _state.process!.InputInteger(inputValue);
                                 goto loopendint;
                             }
                             else if (button.Generation != 0 && button.Generation != _state.lastButtonGeneration)
@@ -217,7 +217,7 @@ internal sealed class ConsoleInputHandler
                         }
                     }
                 loopepint:
-                    foreach (var value in _state.escapedParts)
+                    foreach (var value in _state.escapedParts!)
                     {
                         ep = value.Value;
                         foreach (var part in ep)
@@ -230,7 +230,7 @@ internal sealed class ConsoleInputHandler
                                     {
                                         if (button.IsInteger && button.Input == inputValue)
                                         {
-                                            _state.process.InputInteger(inputValue);
+                                            _state.process!.InputInteger(inputValue);
                                             goto loopendint;
                                         }
                                     }
@@ -242,17 +242,17 @@ internal sealed class ConsoleInputHandler
                 loopendint:
                     break;
                 case InputType.StrValue:
-                    if (string.IsNullOrEmpty(str) && _state.inputReq.HasDefValue && !_console._timer.IsDisplayTimeActive)
-                        str = _state.inputReq.DefStrValue;
+                    if (string.IsNullOrEmpty(str) && _state.inputReq!.HasDefValue && !_console._timer.IsDisplayTimeActive)
+                        str = _state.inputReq!.DefStrValue;
                     if (str == null)
                         str = "";
-                    if (_state.inputReq.IsSystemInput)
-                        _state.process.InputSystemInteger(_state.inputReq.DefIntValue);
-                    _state.process.InputString(str);
+                    if (_state.inputReq!.IsSystemInput)
+                        _state.process!.InputSystemInteger(_state.inputReq!.DefIntValue);
+                    _state.process!.InputString(str);
                     break;
                 case InputType.StrButton:
-                    if (string.IsNullOrEmpty(str) && _state.inputReq.HasDefValue && !_console._timer.IsDisplayTimeActive)
-                        str = _state.inputReq.DefStrValue;
+                    if (string.IsNullOrEmpty(str) && _state.inputReq!.HasDefValue && !_console._timer.IsDisplayTimeActive)
+                        str = _state.inputReq!.DefStrValue;
                     if (str == null)
                         str = "";
                     foreach (ConsoleDisplayLine line in Enumerable.Reverse(_state.displayLineList).ToList())
@@ -261,7 +261,7 @@ internal sealed class ConsoleInputHandler
                         {
                             if (button.Generation == _state.lastButtonGeneration && ((button.IsInteger && button.Input.ToString() == str) || button.Inputs == str))
                             {
-                                _state.process.InputString(str);
+                                _state.process!.InputString(str);
                                 goto loopendstr;
                             }
                             else if (button.Generation != 0 && button.Generation != _state.lastButtonGeneration)
@@ -269,7 +269,7 @@ internal sealed class ConsoleInputHandler
                         }
                     }
                 loopepstr:
-                    foreach (var value in _state.escapedParts)
+                    foreach (var value in _state.escapedParts!)
                     {
                         ep = value.Value;
                         foreach (var part in ep)
@@ -282,7 +282,7 @@ internal sealed class ConsoleInputHandler
                                     {
                                         if ((button.IsInteger && button.Input.ToString() == str) || button.Inputs == str)
                                         {
-                            _state.process.InputString(str);
+                            _state.process!.InputString(str);
                             goto loopendstr;
                                         }
                                     }
@@ -296,13 +296,13 @@ internal sealed class ConsoleInputHandler
                 case InputType.AnyValue:
                     if (long.TryParse(str, out inputValue))
                     {
-                        if (_state.inputReq.IsSystemInput)
-                            _state.process.InputSystemInteger(inputValue);
+                        if (_state.inputReq!.IsSystemInput)
+                            _state.process!.InputSystemInteger(inputValue);
                         else
-                            _state.process.InputInteger(inputValue);
+                            _state.process!.InputInteger(inputValue);
                     }
                     else
-                        _state.process.InputString(str);
+                        _state.process!.InputString(str);
                     break;
             }
             _console._timer.StopTimer();
@@ -317,12 +317,12 @@ internal sealed class ConsoleInputHandler
 
     public void InputMouseKey(int type, int result1, int result2, int result3, int result4, long result5)
     {
-        _state.process.InputResult5(type, result1, result2, result3, result4, result5);
+        _state.process!.InputResult5(type, result1, result2, result3, result4, result5);
         _state.inProcess = true;
         try
         {
             _console.RunEmueraProgram(null);
-            if (_state.State == ConsoleState.WaitInput && _state.inputReq.NeedValue)
+            if (_state.State == ConsoleState.WaitInput && _state.inputReq!.NeedValue)
             {
                 Point point = _ui.MainPicBox.PointToClient(_ui.GetCursorPosition());
                 if (_ui.MainPicBox.ClientRectangle.Contains(point))
@@ -375,8 +375,8 @@ internal sealed class ConsoleInputHandler
     public bool MoveMouse(Point point)
     {
         _state.selectingCBGButtonInt = -1;
-        ConsoleButtonString select = null;
-        ConsoleButtonString pointing = null;
+        ConsoleButtonString? select = null;
+        ConsoleButtonString? pointing = null;
         int prevPointingStringsLen = _state.pointingStrings.Count;
         _state.pointingStrings.Clear();
         bool firstPointngSelected = false;
@@ -384,7 +384,7 @@ internal sealed class ConsoleInputHandler
 
         if (_state.State == ConsoleState.Error)
             canSelect = true;
-        else if (_state.State == ConsoleState.WaitInput && _state.inputReq.NeedValue)
+        else if (_state.State == ConsoleState.WaitInput && _state.inputReq!.NeedValue)
             canSelect = true;
         if (_state.inProcess && _state.AlwaysRefresh == false)
             goto end;
@@ -402,7 +402,7 @@ internal sealed class ConsoleInputHandler
         int relPointY = pointY - _ui.MainPicBox.Height;
 
         if (_state.escapedParts == null || _state.escapedParts.Count == 0)
-            ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, (int)_state.lastButtonGeneration, _state.escapedParts);
+            ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, (int)_state.lastButtonGeneration, _state.escapedParts!);
 
         var edepth = _state.escapedParts == null || _state.escapedParts.Keys.Count == 0 ? [0] : _state.escapedParts.Keys.ToArray();
         Array.Sort(edepth);
@@ -492,7 +492,7 @@ internal sealed class ConsoleInputHandler
                     continue;
                 else if (_state.State == ConsoleState.WaitInput && !p.IsInteger)
                 {
-                    if ((_state.inputReq.InputType == InputType.IntValue) || (_state.inputReq.InputType == InputType.IntButton))
+                    if ((_state.inputReq!.InputType == InputType.IntValue) || (_state.inputReq!.InputType == InputType.IntButton))
                         continue;
                 }
                 pointing = p;
@@ -508,7 +508,7 @@ internal sealed class ConsoleInputHandler
                 canSelect = false;
             else if (_state.State == ConsoleState.WaitInput && !pointing.IsInteger)
             {
-                if ((_state.inputReq.InputType == InputType.IntValue) || (_state.inputReq.InputType == InputType.IntButton))
+                if ((_state.inputReq!.InputType == InputType.IntValue) || (_state.inputReq!.InputType == InputType.IntButton))
                     canSelect = false;
             }
         }
@@ -533,14 +533,14 @@ internal sealed class ConsoleInputHandler
 
     public void NewGeneration()
     {
-        if (_state.State != ConsoleState.WaitInput || !_state.inputReq.NeedValue)
+        if (_state.State != ConsoleState.WaitInput || !_state.inputReq!.NeedValue)
             return;
-        if (!_state.updatedGeneration && _state.process.getCurrentLine != _state.lastInputLine)
+        if (!_state.updatedGeneration && _state.process!.getCurrentLine != _state.lastInputLine)
             _state.lastButtonGeneration = _state.newButtonGeneration;
         else
             _state.updatedGeneration = false;
-        _state.lastInputLine = _state.process.getCurrentLine;
-        switch (_state.inputReq.InputType)
+        _state.lastInputLine = _state.process!.getCurrentLine;
+        switch (_state.inputReq!.InputType)
         {
             case InputType.IntValue:
             case InputType.IntButton:
@@ -593,7 +593,7 @@ internal sealed class ConsoleInputHandler
         }
     }
 
-    public void SetSelectingButton(ConsoleButtonString button) => _state.selectingButton = button;
+    public void SetSelectingButton(ConsoleButtonString? button) => _state.selectingButton = button;
 
     // --- Static helpers ---
 

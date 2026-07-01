@@ -44,8 +44,8 @@ internal sealed class ConsoleStateData
 {
     // --- Core game state ---
     internal ConsoleState State;
-    internal InputRequest inputReq;
-    internal GameProcProcess process;
+    internal InputRequest? inputReq;
+    internal GameProcProcess? process;
     internal bool isTimeout;
     internal long timerID = -1;
     internal long timer_endTime;
@@ -53,7 +53,7 @@ internal sealed class ConsoleStateData
     internal bool force_temporary;
     internal bool timer_suspended;
     internal ConsoleState prevState;
-    internal InputRequest prevReq;
+    internal InputRequest? prevReq;
     internal bool inProcess;
     internal volatile bool KillMacro;
     internal bool MesSkip;
@@ -64,20 +64,20 @@ internal sealed class ConsoleStateData
     internal int lastDrawnLineNo = -1;
     internal long logicalLineCount;
     internal long deletedLines;
-    internal Dictionary<int, List<AConsoleDisplayNode>> escapedParts;
+    internal Dictionary<int, List<AConsoleDisplayNode>>? escapedParts;
     internal List<ConsoleDisplayLine> _htmlElementList = new(10);
 
     // --- Button / selection state ---
-    internal ConsoleButtonString selectingButton;
-    internal ConsoleButtonString lastSelectingButton;
-    internal ConsoleButtonString pointingString;
-    internal ConsoleButtonString lastPointingString;
+    internal ConsoleButtonString? selectingButton;
+    internal ConsoleButtonString? lastSelectingButton;
+    internal ConsoleButtonString? pointingString;
+    internal ConsoleButtonString? lastPointingString;
     internal HashSet<ConsoleButtonString> pointingStrings = [];
     internal long lastButtonGeneration;
     internal long newButtonGeneration;
     internal bool lastButtonIsInput = true;
     internal bool updatedGeneration;
-    internal LogicalLine lastInputLine;
+    internal LogicalLine? lastInputLine;
 
     // --- Style ---
     internal StringStyle defaultStyle = new(Config.ForeColor, FontStyle.Regular, null);
@@ -86,7 +86,7 @@ internal sealed class ConsoleStateData
     internal Color bgColor = Config.BackColor;
     internal bool UseUserStyle;
     internal bool UseSetColorStyle;
-    internal string stBar;
+    internal string? stBar;
 
     // --- Timer ---
     internal readonly Stopwatch _genericTimerStopwatch = new();
@@ -98,7 +98,7 @@ internal sealed class ConsoleStateData
     // --- Draw state ---
     internal Stopwatch _frameDeltaTimer = Stopwatch.StartNew();
     internal uint msPerFrame = 1000 / 60;
-    internal Stopwatch _drawStopwatch;
+    internal Stopwatch? _drawStopwatch;
     internal bool forceTextBoxColor;
     internal ConsoleRedraw redraw = ConsoleRedraw.Normal;
 
@@ -108,7 +108,7 @@ internal sealed class ConsoleStateData
     internal bool notToTitle;
     internal bool byError;
     internal bool AlwaysRefresh;
-    internal string debugTitle;
+    internal string? debugTitle;
     internal readonly StringBuilder dConsoleLog = new("");
     internal List<string> dTraceLogList = [];
     internal bool tooltipUsed;
@@ -116,14 +116,14 @@ internal sealed class ConsoleStateData
     internal string tooltip_fontname = Config.FontName;
     internal long tooltip_fontsize = Config.FontSize;
     internal bool tooltip_img;
-    internal readonly ClipboardProcessor CBProc;
+    internal readonly ClipboardProcessor? CBProc;
 
     // --- WinForms-only (stubs in headless) ---
     internal int selectingCBGButtonInt = -1;
     internal int lastSelectingCBGButtonInt = -1;
 
     // --- Agent / Headless ---
-    internal AgentProtocolBase agentBridge;
+    internal AgentProtocolBase? agentBridge;
     internal readonly StringBuilder _agentBuffer = new();
     internal int _agentBufferLineCount;
     internal bool _needFullRefresh;

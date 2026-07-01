@@ -90,11 +90,11 @@ internal sealed class ConsolePrintManager
     internal void AddDisplayLine(ConsoleDisplayLine line, bool force_LEFT)
     {
         if (Config.CBUseClipboard)
-            _state.CBProc.AddLine(line, force_LEFT);
+            _state.CBProc!.AddLine(line, force_LEFT);
         if (LastLineIsTemporary)
             DeleteLine(1);
 
-        AConsoleDisplayNode errorStr = null;
+        AConsoleDisplayNode? errorStr = null;
         foreach (ConsoleButtonString button in line.Buttons)
         {
             foreach (AConsoleDisplayNode css in button.StrArray)
@@ -168,7 +168,7 @@ internal sealed class ConsolePrintManager
     public void DeleteLine(int argNum)
     {
         if (Config.CBUseClipboard)
-            _state.CBProc.DelLine(Math.Min(argNum, _state.displayLineList.Count));
+            _state.CBProc!.DelLine(Math.Min(argNum, _state.displayLineList.Count));
         int delNum = 0;
         int num = argNum;
         bool deleted = false;
@@ -190,7 +190,7 @@ internal sealed class ConsolePrintManager
                 _state.deletedLines++;
             if (_state.displayLineList.Count == Config.MaxLog - 2 && _state.lineNo > _state.displayLineList.Count)
             {
-                ConsoleDisplayLine dummyline = BufferToSingleLine(true, false);
+                ConsoleDisplayLine dummyline = BufferToSingleLine(true, false)!;
                 _state.displayLineList.Insert(0, dummyline);
             }
         }
@@ -212,7 +212,7 @@ internal sealed class ConsolePrintManager
             _state._pendingEraseRows++;
     }
 
-    public ConsoleDisplayLine BufferToSingleLine(bool force, bool temporary)
+    public ConsoleDisplayLine? BufferToSingleLine(bool force, bool temporary)
     {
         if (!Enabled)
             return null;
@@ -228,7 +228,7 @@ internal sealed class ConsolePrintManager
 
     // --- Print methods ---
 
-    public void Print(string str, bool lineEnd = true)
+    public void Print(string? str, bool lineEnd = true)
     {
         if (string.IsNullOrEmpty(str))
             return;
@@ -256,7 +256,7 @@ internal sealed class ConsolePrintManager
             return;
         PrintFlush(false);
         _console.printBuffer.Append(str, Style);
-        ConsoleDisplayLine dispLine = BufferToSingleLine(true, temporary);
+        ConsoleDisplayLine? dispLine = BufferToSingleLine(true, temporary);
         if (dispLine == null)
             return;
         AddDisplayLine(dispLine, false);
@@ -300,7 +300,7 @@ internal sealed class ConsolePrintManager
         }
         PrintFlush(false);
         _state.UseUserStyle = false;
-        ConsoleDisplayLine dispLine = PrintPlainwithSingleLine(str);
+        ConsoleDisplayLine? dispLine = PrintPlainwithSingleLine(str);
         if (dispLine == null)
             return;
         AddDisplayLine(dispLine, true);
@@ -446,7 +446,7 @@ internal sealed class ConsolePrintManager
         _console.printBuffer.Append(part);
     }
 
-    internal ConsoleDisplayLine PrintPlainwithSingleLine(string str)
+    internal ConsoleDisplayLine? PrintPlainwithSingleLine(string str)
     {
         if (!Enabled || string.IsNullOrEmpty(str))
             return null;
@@ -456,13 +456,13 @@ internal sealed class ConsolePrintManager
 
     public void PrintPlainWithSingleLineFix(string str)
     {
-        ConsoleDisplayLine dispLine = PrintPlainwithSingleLine(str);
+        ConsoleDisplayLine? dispLine = PrintPlainwithSingleLine(str);
         if (dispLine == null) return;
         AddDisplayLine(dispLine, false);
         _console.RefreshStrings(false);
     }
 
-    public ConsoleDisplayLine[] GetDisplayLines(long lineNo)
+    public ConsoleDisplayLine[]? GetDisplayLines(long lineNo)
     {
         if (lineNo < 0 || lineNo > _state.displayLineList.Count)
             return null;
@@ -484,7 +484,7 @@ internal sealed class ConsolePrintManager
         return ret;
     }
 
-    public ConsoleDisplayLine[] PopDisplayingLines()
+    public ConsoleDisplayLine[]? PopDisplayingLines()
     {
         if (!Enabled || _console.printBuffer.IsEmpty)
             return null;
@@ -493,7 +493,7 @@ internal sealed class ConsolePrintManager
 
     // --- Bar helpers ---
 
-    public string GetDefStBar() => _state.stBar;
+    public string? GetDefStBar() => _state.stBar;
 
     public string GetStBar(string barStr)
     {
@@ -574,7 +574,7 @@ internal sealed class ConsolePrintManager
         return true;
     }
 
-    public bool OutputLog(string filename, bool hideInfo)
+    public bool OutputLog(string? filename, bool hideInfo)
     {
         if (filename == "" || filename == null)
             filename = Program.ExeDir + "emuera.log";
@@ -632,10 +632,10 @@ internal sealed class ConsolePrintManager
             builder.AppendLine(AssemblyData.EmueraVersionText);
             builder.AppendLine();
             builder.AppendLine(trsl.Variant.Text);
-            if (string.IsNullOrEmpty(_state.process.gameBase.ScriptTitle))
+            if (string.IsNullOrEmpty(_state.process!.gameBase.ScriptTitle))
                 builder.AppendLine(trsl.NotDefinedGameBase.Text);
             else
-                builder.AppendLine(_state.process.gameBase.ScriptTitle + " " + _state.process.gameBase.ScriptVersionText);
+                builder.AppendLine(_state.process!.gameBase.ScriptTitle + " " + _state.process!.gameBase.ScriptVersionText);
             var patchVersionsPath = Path.Combine(Program.ExeDir, "patch_versions");
             if (Directory.Exists(patchVersionsPath))
             {
@@ -670,10 +670,8 @@ internal sealed class ConsolePrintManager
     {
         if (printCWidth == -1)
             CalcPrintCWidth(_console.stringMeasure);
-        int length = 0;
+        int length = Encoding.GetEncoding("Shift-JIS").GetByteCount(str);
         int width;
-        if (str != null)
-            length = Encoding.GetEncoding("Shift-JIS").GetByteCount(str);
         int printcLength = Config.PrintCLength;
         Font font;
         try

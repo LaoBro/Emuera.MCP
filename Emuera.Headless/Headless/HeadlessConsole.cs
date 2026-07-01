@@ -70,8 +70,8 @@ namespace MinorShift.Emuera.UI.Game
 		public Color ForeColor { get; set; } = Color.Black;
 		public Color BackColor { get; set; } = Color.White;
 
-		public event EventHandler<ToolTipDrawEventArgs> Draw;
-		public event EventHandler<ToolTipPopupEventArgs> Popup;
+		public event EventHandler<ToolTipDrawEventArgs>? Draw;
+		public event EventHandler<ToolTipPopupEventArgs>? Popup;
 
 		public void RemoveAll() { }
 		public void Show(string text, Point point) { }

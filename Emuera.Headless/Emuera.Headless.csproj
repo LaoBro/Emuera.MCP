@@ -6,7 +6,7 @@
     <RootNamespace>MinorShift.Emuera</RootNamespace>
     <AssemblyName>Emuera.Headless</AssemblyName>
     <DefineConstants>HEADLESS</DefineConstants>
-    <Nullable>disable</Nullable>
+    <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <PublishSingleFile>true</PublishSingleFile>

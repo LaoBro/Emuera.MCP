@@ -31,7 +31,7 @@ internal static class GlobalStatic
 
     // ===== 核心 9 字段：property + internal set + 严格断言（非 null 即拒）=====
 
-    private static EmueraConsole _console;
+    private static EmueraConsole _console = null!;
     public static EmueraConsole Console
     {
         get => _console;
@@ -39,7 +39,7 @@ internal static class GlobalStatic
         {
             lock (_lock)
             {
-                if (_console != null && value != null)
+                if (_console != null)
                     throw new InvalidOperationException(
                         "GlobalStatic.Console 已被赋值且未释放，拒绝覆盖。请先调用 Reset()。");
                 _console = value;
@@ -48,7 +48,7 @@ internal static class GlobalStatic
         }
     }
 
-    private static Process _process;
+    private static Process _process = null!;
     public static Process Process
     {
         get => _process;
@@ -56,7 +56,7 @@ internal static class GlobalStatic
         {
             lock (_lock)
             {
-                if (_process != null && value != null)
+                if (_process != null)
                     throw new InvalidOperationException(
                         "GlobalStatic.Process 已被赋值且未释放，拒绝覆盖。请先调用 Reset()。");
                 _process = value;
@@ -65,7 +65,7 @@ internal static class GlobalStatic
         }
     }
 
-    private static GameBase _gameBaseData;
+    private static GameBase _gameBaseData = null!;
     public static GameBase GameBaseData
     {
         get => _gameBaseData;
@@ -73,7 +73,7 @@ internal static class GlobalStatic
         {
             lock (_lock)
             {
-                if (_gameBaseData != null && value != null)
+                if (_gameBaseData != null)
                     throw new InvalidOperationException(
                         "GlobalStatic.GameBaseData 已被赋值且未释放，拒绝覆盖。请先调用 Reset()。");
                 _gameBaseData = value;
@@ -82,7 +82,7 @@ internal static class GlobalStatic
         }
     }
 
-    private static ConstantData _constantData;
+    private static ConstantData _constantData = null!;
     public static ConstantData ConstantData
     {
         get => _constantData;
@@ -90,7 +90,7 @@ internal static class GlobalStatic
         {
             lock (_lock)
             {
-                if (_constantData != null && value != null)
+                if (_constantData != null)
                     throw new InvalidOperationException(
                         "GlobalStatic.ConstantData 已被赋值且未释放，拒绝覆盖。请先调用 Reset()。");
                 _constantData = value;
@@ -99,7 +99,7 @@ internal static class GlobalStatic
         }
     }
 
-    private static VariableData _variableData;
+    private static VariableData _variableData = null!;
     public static VariableData VariableData
     {
         get => _variableData;
@@ -107,7 +107,7 @@ internal static class GlobalStatic
         {
             lock (_lock)
             {
-                if (_variableData != null && value != null)
+                if (_variableData != null)
                     throw new InvalidOperationException(
                         "GlobalStatic.VariableData 已被赋值且未释放，拒绝覆盖。请先调用 Reset()。");
                 _variableData = value;
@@ -116,7 +116,7 @@ internal static class GlobalStatic
         }
     }
 
-    private static VariableEvaluator _vEvaluator;
+    private static VariableEvaluator _vEvaluator = null!;
     public static VariableEvaluator VEvaluator
     {
         get => _vEvaluator;
@@ -124,7 +124,7 @@ internal static class GlobalStatic
         {
             lock (_lock)
             {
-                if (_vEvaluator != null && value != null)
+                if (_vEvaluator != null)
                     throw new InvalidOperationException(
                         "GlobalStatic.VEvaluator 已被赋值且未释放，拒绝覆盖。请先调用 Reset()。");
                 _vEvaluator = value;
@@ -133,7 +133,7 @@ internal static class GlobalStatic
         }
     }
 
-    private static IdentifierDictionary _identifierDictionary;
+    private static IdentifierDictionary _identifierDictionary = null!;
     public static IdentifierDictionary IdentifierDictionary
     {
         get => _identifierDictionary;
@@ -141,7 +141,7 @@ internal static class GlobalStatic
         {
             lock (_lock)
             {
-                if (_identifierDictionary != null && value != null)
+                if (_identifierDictionary != null)
                     throw new InvalidOperationException(
                         "GlobalStatic.IdentifierDictionary 已被赋值且未释放，拒绝覆盖。请先调用 Reset()。");
                 _identifierDictionary = value;
@@ -150,7 +150,7 @@ internal static class GlobalStatic
         }
     }
 
-    private static ExpressionMediator _eMediator;
+    private static ExpressionMediator _eMediator = null!;
     public static ExpressionMediator EMediator
     {
         get => _eMediator;
@@ -158,7 +158,7 @@ internal static class GlobalStatic
         {
             lock (_lock)
             {
-                if (_eMediator != null && value != null)
+                if (_eMediator != null)
                     throw new InvalidOperationException(
                         "GlobalStatic.EMediator 已被赋值且未释放，拒绝覆盖。请先调用 Reset()。");
                 _eMediator = value;
@@ -167,7 +167,7 @@ internal static class GlobalStatic
         }
     }
 
-    private static LabelDictionary _labelDictionary;
+    private static LabelDictionary _labelDictionary = null!;
     public static LabelDictionary LabelDictionary
     {
         get => _labelDictionary;
@@ -175,7 +175,7 @@ internal static class GlobalStatic
         {
             lock (_lock)
             {
-                if (_labelDictionary != null && value != null)
+                if (_labelDictionary != null)
                     throw new InvalidOperationException(
                         "GlobalStatic.LabelDictionary 已被赋值且未释放，拒绝覆盖。请先调用 Reset()。");
                 _labelDictionary = value;
@@ -216,15 +216,15 @@ internal static class GlobalStatic
             _resetCalled = true;
 
             // 核心 9 字段置 null（直接操作 backing field，绕过 setter 断言）
-            _console = null;
-            _process = null;
-            _gameBaseData = null;
-            _constantData = null;
-            _variableData = null;
-            _vEvaluator = null;
-            _identifierDictionary = null;
-            _eMediator = null;
-            _labelDictionary = null;
+            _console = null!;
+            _process = null!;
+            _gameBaseData = null!;
+            _constantData = null!;
+            _variableData = null!;
+            _vEvaluator = null!;
+            _identifierDictionary = null!;
+            _eMediator = null!;
+            _labelDictionary = null!;
 
             // 辅助字段重新初始化（通过 private set，在 Reset 的 lock 内安全）
             tempDic = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
