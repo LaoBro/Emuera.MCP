@@ -96,3 +96,29 @@
   - `WHILE 1 \n WEND` ERB 脚本在 Server 模式 ~5.6s 内终止，stderr 输出 `[script-timeout]` 日志
   - 全部 94 项回归测试通过（JSONL/CLI/Server/TINPUT/I-11）
   - WinForms 构建不受影响（`#if HEADLESS` 条件编译隔离）
+
+### T-025：T-023 前置 — Emuera.Headless 文件结构整理
+
+- 状态：已实现（2026-07-02）
+- 范围：`Emuera.Headless/` 自有源码目录结构整理（13 个文件移动 + csproj 注释更新）
+- 说明：T-023 物理迁移共享源码前的前置整理 PR，理顺 `Emuera.Headless/` 自有源码目录结构，为 T-023 的 `Shared/` 隔离方案预留边界。详见 [T-023 前置-文件结构整理方案](2026.6.30.架构健壮性重构/T-023前置-文件结构整理方案.md)。
+- 实现方案：
+  - 新建 `Emuera.Headless/Headless/` 目录，从根目录移入 `HeadlessClipboard.cs`/`HeadlessDialog.cs`/`HeadlessSound.cs`/`HeadlessStringMeasure.cs`，从 `UI/Game/` 移入 `HeadlessConsole.cs`（5 个 Headless 替换实现）
+  - 新建 `Emuera.Headless/Terminal/` 目录，从 `Agent/` 移入 8 个终端渲染文件：`AgentCliVtInput.cs`、`AgentCliVtScreen.cs`、`CountdownRenderer.cs`、`TerminalCursor.cs`、`TerminalDisplayWidth.cs`、`TerminalRenderer.cs`、`VtParser.cs`、`Win32ConsoleInterop.cs`
+  - 全部用 `git mv` 保留文件历史；namespace 声明与 using 引用保持不变（物理目录与 namespace 不完全一致，长期一致性留待 T-023 后统一评估）
+  - `Emuera.Headless.csproj` 第 42 行注释更新：`UI/Game/` → `Headless/`，并去掉 `（I-11）` 标记
+  - 13 个文件原本都由 SDK 默认 glob 包含，移动后仍由 SDK 默认 glob 包含，无 csproj 结构性变更
+  - `CLAUDE.md` 已预先描述目标态目录结构（line 96-106），无需修改；`docs/TODO.md` 中 T-025 状态字段更新为已实现
+- 不纳入范围：
+  - `Server/`（T-024 处理 `ConsoleOutIO.cs`）
+  - `UI/Game/Console/`、`UI/Game/EmueraConsole.cs`（留原处）
+  - `Shared/` 目录创建（属 T-023）
+  - `.editorconfig` 调整（属 T-023）
+- 验收：
+  - `dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug` 0 error，132 warnings（基线范围，警告源为已存在代码，路径变为新位置但无新增警告）
+  - `run_all.py` 全部回归测试通过（JSONL+buttons、CLI、server single-session、TINPUT timeout、I-11 exit survival 5 个 suite 全 PASS）
+  - `git diff --stat -M` 显示 13 个文件 100% rename 检测、0 行逻辑改动；仅 csproj 注释 1 处 + TODO.md 状态字段
+  - build 警告输出已包含新路径（`Emuera.Headless/Headless/HeadlessClipboard.cs`、`Emuera.Headless/Terminal/AgentCliVtScreen.cs` 等），证明 13 个文件在新位置被正确编译
+- 参考：
+  - [T-023 前置-文件结构整理方案](2026.6.30.架构健壮性重构/T-023前置-文件结构整理方案.md)
+  - 解锁 T-023

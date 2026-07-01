@@ -39,7 +39,7 @@
   <ItemGroup>
     <Compile Include="..\Emuera\UI\Game\IConsoleUI.cs" LinkBase="UI\Game" />
     <!-- EmueraConsole.cs and EmueraConsole.Print.cs: replaced by headless-native implementation -->
-    <!-- HeadlessConsole.cs: 已移至 Emuera.Headless/UI/Game/，由 SDK 默认 glob 包含（I-11） -->
+    <!-- HeadlessConsole.cs: 已移至 Emuera.Headless/Headless/，由 SDK 默认 glob 包含 -->
     <Compile Include="..\Emuera\UI\Game\PrintStringBuffer.cs" LinkBase="UI\Game" />
     <Compile Include="..\Emuera\UI\Game\ConsoleDisplayLine.cs" LinkBase="UI\Game" />
     <Compile Include="..\Emuera\UI\Game\ConsoleButtonString.cs" LinkBase="UI\Game" />
