@@ -2,7 +2,7 @@
 # I-12 阶段 1：质量护栏按路径分级
 # - Emuera/ 子目录是历史 WinForms 主项目源码，同时被 Emuera.Headless 通过 csproj glob 共享
 #   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Headless 构建被历史代码警告淹没
-# - Emuera.Headless/ 自有源码保持 AnalysisMode=Minimum 默认行为，新代码警告仍可见
+# - Emuera.Headless/ 自有源码保持默认 AnalysisMode=Minimum 行为，新代码警告仍可见
 # - 阶段 2（I-01 抽 Emuera.Core 后）将逐步撤销本文件的抑制，把责任回归到 Emuera.Core
 #
 # 注意：.NET 的 .editorconfig 不支持 `dotnet_analyzer_diagnostic.severity = none` 全局语法，
@@ -29,6 +29,7 @@ dotnet_diagnostic.CS0472.severity = none
 dotnet_diagnostic.CS0649.severity = none
 dotnet_diagnostic.CS0162.severity = none
 dotnet_diagnostic.CS0164.severity = none
+dotnet_diagnostic.SYSLIB0014.severity = none   # WebClient 已过时（共享代码 Instraction.Child.cs 使用）
 
 # .NET 分析器 CA 规则（按基线构建统计的 22 个 ID 显式抑制）
 # 性能类
@@ -61,5 +62,5 @@ dotnet_diagnostic.CA1416.severity = none
 dotnet_diagnostic.CA2016.severity = none   # CancellationToken 传递
 dotnet_diagnostic.CA2263.severity = none   # 优先泛型方法
 
-# ===== Emuera.Headless 自有源码：保留默认 AnalysisMode=Minimum 行为 =====
-# 不在此处抑制，让新代码警告可见，便于阶段 2 收紧
+# ===== Emuera.Headless 自有源码 =====
+# 不在此处抑制，让新代码警告可见

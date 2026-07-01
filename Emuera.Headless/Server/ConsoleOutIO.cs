@@ -19,7 +19,7 @@ internal sealed class ConsoleOutIO : SessionIO
     public override async Task<string?> ReadLineAsync(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        return await Console.In.ReadLineAsync();
+        return await Console.In.ReadLineAsync(ct);
     }
 
     public override void WriteLine(string text) => Console.WriteLine(text);

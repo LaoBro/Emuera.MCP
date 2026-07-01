@@ -90,7 +90,7 @@ namespace MinorShift.Emuera.GameView
                     OnInputRejected("当前等待原始鼠标/键盘事件，请通过鼠标点击或键盘输入");
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(req), req.InputType, $"未处理的输入类型: {req.InputType}");
+                    throw new ArgumentOutOfRangeException(nameof(input), req.InputType, $"未处理的输入类型: {req.InputType}");
             }
         }
 

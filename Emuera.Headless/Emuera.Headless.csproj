@@ -10,11 +10,14 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <PublishSingleFile>true</PublishSingleFile>
-    <!-- I-12 阶段 1：质量护栏对齐 Emuera 主项目（EnforceCodeStyleInBuild 用于 IDE 风格规则在构建期生效）
-         阶段 2（Nullable enable + TreatWarningsAsErrors）依赖 I-01 抽 Emuera.Core，待 I-01 落地后推进 -->
+    <!-- I-12 阶段 1：质量护栏按路径分级
+         - Emuera/** 历史共享源码警告由 .editorconfig 全局抑制
+         - Emuera.Headless/** 自有源码保持警告可见，便于阶段 2 逐步收紧
+         - 阶段 2（Nullable enable + TreatWarningsAsErrors）待 I-01 抽 Emuera.Core 后推进 -->
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisMode>Minimum</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
   </PropertyGroup>
 
   <ItemGroup>

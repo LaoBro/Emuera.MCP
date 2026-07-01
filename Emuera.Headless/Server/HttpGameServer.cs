@@ -251,7 +251,7 @@ internal sealed class HttpGameServer : IDisposable
         resp.StatusCode = status;
         resp.ContentType = "application/json; charset=utf-8";
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(obj));
-        await resp.OutputStream.WriteAsync(bytes, 0, bytes.Length, ct);
+        await resp.OutputStream.WriteAsync(bytes.AsMemory(), ct);
         resp.Close();
     }
 
@@ -261,7 +261,7 @@ internal sealed class HttpGameServer : IDisposable
         resp.StatusCode = status;
         resp.ContentType = "application/json; charset=utf-8";
         var bytes = Encoding.UTF8.GetBytes(json);
-        await resp.OutputStream.WriteAsync(bytes, 0, bytes.Length, ct);
+        await resp.OutputStream.WriteAsync(bytes.AsMemory(), ct);
         resp.Close();
     }
 

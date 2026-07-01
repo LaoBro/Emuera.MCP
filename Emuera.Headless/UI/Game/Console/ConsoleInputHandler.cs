@@ -624,7 +624,8 @@ internal sealed class ConsoleInputHandler
                         }
                         if (num.Length > 0)
                         {
-                            int.TryParse(num.ToString(), out res);
+                            if (!int.TryParse(num.ToString(), out res))
+                                res = 0;
                             for (int i = 0; i < res; i++)
                                 sb.Append(tstr);
                             num.Remove(0, num.Length);

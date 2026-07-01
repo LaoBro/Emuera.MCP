@@ -12,7 +12,6 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 using MinorShift.Emuera.UI.Game;
-using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
@@ -581,7 +580,7 @@ internal sealed class ConsolePrintManager
             filename = Program.ExeDir + "emuera.log";
         else
             filename = Program.ExeDir + filename;
-        if (filename.IndexOf("../", StringComparison.Ordinal) >= 0)
+        if (filename.Contains("../", StringComparison.Ordinal))
         {
             Dialog.Show(trmb.FailedOutputLog.Text, trmb.CanNotOutputToParentDirectory.Text);
             return false;
