@@ -1,4 +1,97 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+#if HEADLESS
+using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Runtime.Config;
+using System;
+using System.Collections.Generic;
+
+namespace MinorShift.Emuera.UI.Game.Image;
+
+/// <summary>
+/// Headless 模式下的 GraphicsImage 存根。所有渲染操作为空实现，
+/// 脚本系统（GCREATE/GDRAWTEXT 等）可正常调用但不产生实际输出。
+/// </summary>
+internal sealed class GraphicsImage : AbstractImage
+{
+	public GraphicsImage(int id) { ID = id; }
+	public readonly int ID;
+
+	// 状态存储
+	private EmuSize _size;
+	private EmuFont _font;
+	private bool _created;
+	private EmuFontStyle _fontStyle;
+	private string _fontname = "";
+
+	public bool useImgList => false;
+	public List<Tuple<ASprite, System.Drawing.Rectangle>> drawImgList => null;
+
+	public override int Width => _size.Width;
+	public override int Height => _size.Height;
+	public override bool IsCreated => _created;
+
+	public string Fontname => _fontname;
+	public int Fontsize => _font.Size > 0 ? (int)_font.Size : 0;
+	public int Fontstyle
+	{
+		get
+		{
+			int ret = 0;
+			if ((_fontStyle & EmuFontStyle.Bold) == EmuFontStyle.Bold) ret |= 1;
+			if ((_fontStyle & EmuFontStyle.Italic) == EmuFontStyle.Italic) ret |= 2;
+			if ((_fontStyle & EmuFontStyle.Strikeout) == EmuFontStyle.Strikeout) ret |= 4;
+			if ((_fontStyle & EmuFontStyle.Underline) == EmuFontStyle.Underline) ret |= 8;
+			return ret;
+		}
+	}
+
+	public EmuFont Fnt => _font;
+
+	public void GCreate(int x, int y, bool useGDI)
+	{
+		GDispose();
+		_size = new EmuSize(x, y);
+		_created = true;
+	}
+
+	internal void GCreateFromF(object bmp, bool useGDI)
+	{
+		GDispose();
+		_created = true;
+	}
+
+	public void GClear(EmuColor c) { }
+	public void GClear(EmuColor c, int x, int y, int w, int h) { }
+	public void GDrawString(string text, int x, int y) { }
+	public void GDrawString(string text, int x, int y, int width, int height) { }
+	public void GDrawRectangle(System.Drawing.Rectangle rect) { }
+	public void GFillRectangle(System.Drawing.Rectangle rect) { }
+	public void GDrawCImg(ASprite img, System.Drawing.Rectangle destRect) { }
+	public void GDrawCImg(ASprite img, System.Drawing.Rectangle destRect, float[][] cm) { }
+	public void GDrawG(GraphicsImage srcGra, System.Drawing.Rectangle destRect, System.Drawing.Rectangle srcRect) { }
+	public void GDrawG(GraphicsImage srcGra, System.Drawing.Rectangle destRect, System.Drawing.Rectangle srcRect, float[][] cm) { }
+	public void GDrawGWithMask(GraphicsImage srcGra, GraphicsImage maskGra, EmuPoint destPoint) { }
+	public void GRotate(long a, int x, int y) { }
+	public void GDrawGWithRotate(GraphicsImage srcGra, long a, int x, int y) { }
+	public void GDrawLine(int fromX, int fromY, int forX, int forY) { }
+	public void GDashStyle(long style, long cap) { }
+	public void GSetFont(EmuFont r, EmuFontStyle fs) { _font = r; _fontStyle = fs; _fontname = r.Name; }
+	public void GSetBrush(IBrush r) { }
+	public void GSetPen(object r) { }
+	public object GetBitmap() => null;
+	// 调用方（CBGSETGRAPHG 等）会用 g.Bitmap == null 判断，headless 下恒为 null
+	public System.Drawing.Bitmap Bitmap => null;
+	public void GSetColor(EmuColor c, int x, int y) { }
+	public EmuColor GGetColor(int x, int y) => EmuColor.Black;
+	public bool GBitmapToInt64Array(long[,] array, int xstart, int ystart) => false;
+	public bool GByteArrayToBitmap(long[,] array, int xstart, int ystart) => false;
+	public void Load() { }
+	public void UnLoad() { _created = false; }
+	public void GDispose() { _size = default; _created = false; }
+	public override void Dispose() { GDispose(); GC.SuppressFinalize(this); }
+	~GraphicsImage() { Dispose(); }
+}
+#else
+using MinorShift.Emuera.Runtime.Config;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -10,54 +103,21 @@ namespace MinorShift.Emuera.UI.Game.Image;
 
 internal sealed class GraphicsImage : AbstractImage
 {
-	//public Bitmap Bitmap;
-	//public IntPtr GDIhDC { get; protected set; }
-	//protected Graphics g;
-	//protected IntPtr hBitmap;
-	//protected IntPtr hDefaultImg;
-
 	public GraphicsImage(int id)
 	{
 		ID = id;
 		g = null;
 		Bitmap = null;
-		//created = false;
-		//locked = false;
 	}
 	public readonly int ID;
 	Size size;
 	Brush brush;
 	Pen pen;
 	Font font;
-	#region EE_GDRAWTEXT
 	FontStyle style;
-	#endregion
 
-	//Bitmap b;
-	//Graphics g;
-	// 当GraphicsImage是完全由图像拼接而成时，此处记录拼接图案的列表。
-	// 可清理图片来减少内存使用。在使用时按照此列表组合
 	public bool useImgList { get { return drawImgList != null; } }
 	public List<Tuple<ASprite, Rectangle>> drawImgList;
-
-
-	////bool created;
-	////bool locked;
-	//public void LockGraphics()
-	//{
-	//	//if (locked)
-	//	//	return;
-	//	//g = Graphics.FromImage(b);
-	//	//locked = true;
-	//}
-	//public void UnlockGraphics()
-	//{
-	//	//if (!locked)
-	//	//	return;
-	//	//g.Dispose();
-	//	//g = null;
-	//	//locked = false;
-	//}
 
 	public Bitmap RealBitmap;
 	public override Bitmap Bitmap
@@ -72,10 +132,6 @@ internal sealed class GraphicsImage : AbstractImage
 
 	#region Bitmap書き込み・作成
 
-	/// <summary>
-	/// GCREATE(int ID, int width, int height)
-	/// Graphicsの基礎となるBitmapを作成する。エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GCreate(int x, int y, bool useGDI)
 	{
 		if (useGDI)
@@ -99,10 +155,6 @@ internal sealed class GraphicsImage : AbstractImage
 		g.DrawImage(bmp, 0, 0, bmp.Width, bmp.Height);
 	}
 
-	/// <summary>
-	/// GCLEAR(int ID, int cARGB)
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GClear(Color c)
 	{
 		if (g == null)
@@ -110,7 +162,6 @@ internal sealed class GraphicsImage : AbstractImage
 		g.Clear(c);
 	}
 
-	#region EM_私家版_GCLEAR拡張
 	public void GClear(Color c, int x, int y, int w, int h)
 	{
 		Load();
@@ -121,13 +172,8 @@ internal sealed class GraphicsImage : AbstractImage
 		g.ResetClip();
 		drawImgList = null;
 	}
-	#endregion
 
-	/// <summary>
-	/// GDRAWTEXTGDRAWTEXT int ID, str text, int x, int y
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
-	#region EE_GDRAWTEXT 元のソースコードにあったものを改良
+	#region EE_GDRAWTEXT
 	public void GDrawString(string text, int x, int y)
 	{
 		Load();
@@ -140,9 +186,7 @@ internal sealed class GraphicsImage : AbstractImage
 		var format = new StringFormat(StringFormat.GenericTypographic);
 		if (usingFont == null)
 			usingFont = new(Config.FontName, 100, GlobalStatic.Console.StringStyle.FontStyle, GraphicsUnit.Pixel);
-		GraphicsPath gp =
-			new();
-		//一部のフォントで描画がずれる問題修正
+		GraphicsPath gp = new();
 		float emSize = (float)usingFont.Height * usingFont.FontFamily.GetEmHeight(usingFont.Style) / usingFont.FontFamily.GetLineSpacing(usingFont.Style);
 		gp.AddString(text, usingFont.FontFamily, (int)usingFont.Style, emSize, new Point(x, y), format);
 		g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -155,14 +199,9 @@ internal sealed class GraphicsImage : AbstractImage
 			g.DrawPath(pen, gp);
 		else
 			g.DrawPath(new Pen(Config.ForeColor), gp);
-
 	}
 	#endregion
 
-	/// <summary>
-	/// GDRAWTEXT int ID, str text, int x, int y, int width, int height
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GDrawString(string text, int x, int y, int width, int height)
 	{
 		Load();
@@ -185,10 +224,6 @@ internal sealed class GraphicsImage : AbstractImage
 		}
 	}
 
-	/// <summary>
-	/// GDRAWRECTANGLE(int ID, int x, int y, int width, int height)
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GDrawRectangle(Rectangle rect)
 	{
 		Load();
@@ -198,9 +233,7 @@ internal sealed class GraphicsImage : AbstractImage
 		drawImgList = null;
 
 		if (pen != null)
-		{
 			g.DrawRectangle(pen, rect);
-		}
 		else
 		{
 			using var p = new Pen(Config.ForeColor);
@@ -208,10 +241,6 @@ internal sealed class GraphicsImage : AbstractImage
 		}
 	}
 
-	/// <summary>
-	/// GFILLRECTANGLE(int ID, int x, int y, int width, int height)
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GFillRectangle(Rectangle rect)
 	{
 		Load();
@@ -221,9 +250,7 @@ internal sealed class GraphicsImage : AbstractImage
 		drawImgList = null;
 
 		if (brush != null)
-		{
 			g.FillRectangle(brush, rect);
-		}
 		else
 		{
 			using var b = new SolidBrush(Config.BackColor);
@@ -231,10 +258,6 @@ internal sealed class GraphicsImage : AbstractImage
 		}
 	}
 
-	/// <summary>
-	/// GDRAWCIMG(int ID, str imgName, int destX, int destY, int destWidth, int destHeight)
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GDrawCImg(ASprite img, Rectangle destRect)
 	{
 		Load();
@@ -266,33 +289,20 @@ internal sealed class GraphicsImage : AbstractImage
 					}
 				}
 				else
-				{
 					drawImgList = null;
-				}
 			}
 			else if (img as SpriteF != null)
 			{
-				drawImgList.Add(
-					new Tuple<ASprite, Rectangle>(img, destRect)
-				);
-
+				drawImgList.Add(new Tuple<ASprite, Rectangle>(img, destRect));
 				if (drawImgList.Count > 50)
-				{
 					drawImgList = null;
-				}
 			}
 			else
-			{
 				drawImgList = null;
-			}
 		}
 		img.GraphicsDraw(g, destRect);
 	}
 
-	/// <summary>
-	/// GDRAWCIMG(int ID, str imgName, int destX, int destY, int destWidth, int destHeight, float[][] cm)
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GDrawCImg(ASprite img, Rectangle destRect, float[][] cm)
 	{
 		Load();
@@ -304,14 +314,9 @@ internal sealed class GraphicsImage : AbstractImage
 		ImageAttributes imageAttributes = new();
 		ColorMatrix colorMatrix = new(cm);
 		imageAttributes.SetColorMatrix(colorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
-
 		img.GraphicsDraw(g, destRect, imageAttributes);
 	}
 
-	/// <summary>
-	/// GDRAWG(int ID, int srcID, int destX, int destY, int destWidth, int destHeight, int srcX, int srcY, int srcWidth, int srcHeight)
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GDrawG(GraphicsImage srcGra, Rectangle destRect, Rectangle srcRect)
 	{
 		Load();
@@ -324,11 +329,6 @@ internal sealed class GraphicsImage : AbstractImage
 		g.DrawImage(src, destRect, srcRect, GraphicsUnit.Pixel);
 	}
 
-
-	/// <summary>
-	/// GDRAWG(int ID, int srcID, int destX, int destY, int destWidth, int destHeight, int srcX, int srcY, int srcWidth, int srcHeight, float[][] cm)
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GDrawG(GraphicsImage srcGra, Rectangle destRect, Rectangle srcRect, float[][] cm)
 	{
 		Load();
@@ -341,16 +341,9 @@ internal sealed class GraphicsImage : AbstractImage
 		ImageAttributes imageAttributes = new();
 		ColorMatrix colorMatrix = new(cm);
 		imageAttributes.SetColorMatrix(colorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
-		//g.DrawImage(img.Bitmap, destRect, srcRect, GraphicsUnit.Pixel, imageAttributes);なんでこのパターンないのさ
 		g.DrawImage(src, destRect, srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height, GraphicsUnit.Pixel, imageAttributes);
-
 	}
 
-
-	/// <summary>
-	/// GDRAWGWITHMASK(int ID, int srcID, int maskID, int destX, int destY)
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GDrawGWithMask(GraphicsImage srcGra, GraphicsImage maskGra, Point destPoint)
 	{
 		Load();
@@ -374,27 +367,25 @@ internal sealed class GraphicsImage : AbstractImage
 			byte[] pixels = new byte[bmpData.Stride * destImg.Height];
 			Marshal.Copy(ptr, pixels, 0, pixels.Length);
 
-
 			for (int y = 0; y < srcGra.Height; y++)
 			{
-
 				int destIndex = ((destPoint.Y + y) * destImg.Width + destPoint.X) * 4;
-				int srcIndex = ((0 + y) * srcGra.Width + 0) * 4;
+				int srcIndex = y * srcGra.Width * 4;
 				for (int x = 0; x < srcGra.Width; x++)
 				{
-					if (srcMaskBytes[srcIndex] == 255)//完全不透明
+					if (srcMaskBytes[srcIndex] == 255)
 					{
 						pixels[destIndex++] = srcBytes[srcIndex++];
 						pixels[destIndex++] = srcBytes[srcIndex++];
 						pixels[destIndex++] = srcBytes[srcIndex++];
 						pixels[destIndex++] = srcBytes[srcIndex++];
 					}
-					else if (srcMaskBytes[srcIndex] == 0)//完全透明
+					else if (srcMaskBytes[srcIndex] == 0)
 					{
 						destIndex += 4;
 						srcIndex += 4;
 					}
-					else//半透明 alpha/255ではなく（alpha+1）/256で計算しているがたぶん誤差
+					else
 					{
 						int mask = srcMaskBytes[srcIndex]; mask++;
 						pixels[destIndex] = (byte)(srcBytes[srcIndex] * mask + pixels[destIndex] * (256 - mask) >> 8); srcIndex++; destIndex++;
@@ -405,7 +396,6 @@ internal sealed class GraphicsImage : AbstractImage
 				}
 			}
 
-			// Bitmapへコピー
 			Marshal.Copy(pixels, 0, ptr, pixels.Length);
 		}
 		finally
@@ -415,9 +405,6 @@ internal sealed class GraphicsImage : AbstractImage
 	}
 
 	#region EE_GDRAWGWITHROTATE
-	/// <summary>
-	/// GROTATE(int ID, int angle, int x, int y)
-	/// </summary>
 	public void GRotate(long a, int x, int y)
 	{
 		if (g == null)
@@ -426,13 +413,8 @@ internal sealed class GraphicsImage : AbstractImage
 		g.TranslateTransform(-x, -y, MatrixOrder.Append);
 		g.RotateTransform(angle, MatrixOrder.Append);
 		g.TranslateTransform(x, y, MatrixOrder.Append);
-
 		g.DrawImageUnscaled(Bitmap, 0, 0);
-		//g.DrawImage(Bitmap, new Rectangle(Bitmap.Width, Bitmap.Height, Bitmap.Width, Bitmap.Height));
 	}
-	/// <summary>
-	/// GDRAWGWITHROTATE
-	/// </summary>
 	public void GDrawGWithRotate(GraphicsImage srcGra, long a, int x, int y)
 	{
 		if (g == null || srcGra == null)
@@ -445,6 +427,7 @@ internal sealed class GraphicsImage : AbstractImage
 		g.DrawImage(src, 0, 0);
 	}
 	#endregion
+
 	#region EE_GDRAWLINE
 	public void GDrawLine(int fromX, int fromY, int forX, int forY)
 	{
@@ -452,9 +435,7 @@ internal sealed class GraphicsImage : AbstractImage
 			throw new NullReferenceException();
 
 		if (pen != null)
-		{
 			g.DrawLine(pen, fromX, fromY, forX, forY);
-		}
 		else
 		{
 			using (Pen p = new(Config.ForeColor))
@@ -470,14 +451,12 @@ internal sealed class GraphicsImage : AbstractImage
 			throw new NullReferenceException();
 		if (pen == null)
 			pen = new Pen(Config.ForeColor);
-
 		pen.DashStyle = (DashStyle)style;
 		pen.DashCap = (DashCap)cap;
 	}
 	#endregion
 
-	#region EE_GDRAWTEXT フォントスタイルも指定できるように
-	// public void GSetFont(Font r)
+	#region EE_GDRAWTEXT
 	public void GSetFont(Font r, FontStyle fs)
 	{
 		if (font != null)
@@ -509,37 +488,22 @@ internal sealed class GraphicsImage : AbstractImage
 	}
 
 	#region Bitmap読み込み・削除
-	/// <summary>
-	/// 未作成ならエラー
-	/// </summary>
 	public Bitmap GetBitmap()
 	{
 		if (Bitmap == null)
 			throw new NullReferenceException();
-		//UnlockGraphics();
 		return Bitmap;
 	}
-	/// <summary>
-	/// GSETCOLOR(int ID, int cARGB, int x, int y)
-	/// エラーチェックは呼び出し元でのみ行う
-	/// </summary>
 	public void GSetColor(Color c, int x, int y)
 	{
 		if (Bitmap == null)
 			throw new NullReferenceException();
-		//UnlockGraphics();
 		Bitmap.SetPixel(x, y, c);
 	}
-
-	/// <summary>
-	/// GGETCOLOR(int ID, int x, int y)
-	/// エラーチェックは呼び出し元でのみ行う。特に画像範囲内であるかどうかチェックすること
-	/// </summary>
 	public Color GGetColor(int x, int y)
 	{
 		if (Bitmap == null)
 			throw new NullReferenceException();
-		//UnlockGraphics();
 		return Bitmap.GetPixel(x, y);
 	}
 
@@ -547,7 +511,6 @@ internal sealed class GraphicsImage : AbstractImage
 	{
 		if (RealBitmap == null)
 			return;
-
 		if (g != null)
 			g.Dispose();
 		if (RealBitmap != null)
@@ -556,9 +519,6 @@ internal sealed class GraphicsImage : AbstractImage
 		RealBitmap = null;
 	}
 
-	/// <summary>
-	/// GDISPOSE(int ID)
-	/// </summary>
 	public void GDispose()
 	{
 		size = new Size(0, 0);
@@ -594,34 +554,23 @@ internal sealed class GraphicsImage : AbstractImage
 	}
 	#endregion
 
-	#region 状態判定（Bitmap読み書きを伴わない）
+	#region 状態判定
 	public override bool IsCreated { get { return g != null || useImgList; } }
-	/// <summary>
-	/// int GWIDTH(int ID)
-	/// </summary>
 	public int Width { get { return size.Width; } }
-	/// <summary>
-	/// int GHEIGHT(int ID)
-	/// </summary>
 	public int Height { get { return size.Height; } }
 
 	#region EE_GDRAWTEXTに付随する様々な要素
 	public string Fontname { get { return font.Name; } }
 	public int Fontsize { get { return (int)font.Size; } }
-
 	public int Fontstyle
 	{
 		get
 		{
 			int ret = 0;
-			if ((style & FontStyle.Bold) == FontStyle.Bold)
-				ret |= 1;
-			if ((style & FontStyle.Italic) == FontStyle.Italic)
-				ret |= 2;
-			if ((style & FontStyle.Strikeout) == FontStyle.Strikeout)
-				ret |= 4;
-			if ((style & FontStyle.Underline) == FontStyle.Underline)
-				ret |= 8;
+			if ((style & FontStyle.Bold) == FontStyle.Bold) ret |= 1;
+			if ((style & FontStyle.Italic) == FontStyle.Italic) ret |= 2;
+			if ((style & FontStyle.Strikeout) == FontStyle.Strikeout) ret |= 4;
+			if ((style & FontStyle.Underline) == FontStyle.Underline) ret |= 8;
 			return ret;
 		}
 	}
@@ -633,16 +582,15 @@ internal sealed class GraphicsImage : AbstractImage
 
 	#endregion
 
-
 	private static byte[] BytesFromBitmap(Bitmap bmp)
 	{
 		BitmapData bmpData = bmp.LockBits(
 		  new Rectangle(0, 0, bmp.Width, bmp.Height),
-		  ImageLockMode.ReadOnly,  // 書き込むときはReadAndWriteで
+		  ImageLockMode.ReadOnly,
 		  PixelFormat.Format32bppArgb
 		);
 		if (bmpData.Stride < 0)
-			throw new Exception();//変な形式のが送られてくることはありえないはずだが一応
+			throw new Exception();
 		byte[] pixels = new byte[bmpData.Stride * bmp.Height];
 		try
 		{
@@ -652,15 +600,10 @@ internal sealed class GraphicsImage : AbstractImage
 		finally
 		{
 			bmp.UnlockBits(bmpData);
-
 		}
 		return pixels;
 	}
 
-	/// <summary>
-	/// GTOARRAY int ID, var array
-	/// エラーチェックは呼び出し元でのみ行う
-	/// <returns></returns>
 	public bool GBitmapToInt64Array(long[,] array, int xstart, int ystart)
 	{
 		if (g == null || Bitmap == null)
@@ -670,9 +613,7 @@ internal sealed class GraphicsImage : AbstractImage
 		if (xstart + w > array.GetLength(0) || ystart + h > array.GetLength(1))
 			return false;
 		Rectangle rect = new(0, 0, w, h);
-		BitmapData bmpData =
-			Bitmap.LockBits(rect, ImageLockMode.ReadOnly,
-			PixelFormat.Format32bppArgb);
+		BitmapData bmpData = Bitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
 		nint ptr = bmpData.Scan0;
 		byte[] rgbValues = new byte[w * h * 4];
 		Marshal.Copy(ptr, rgbValues, 0, rgbValues.Length);
@@ -683,20 +624,12 @@ internal sealed class GraphicsImage : AbstractImage
 			for (int x = 0; x < w; x++)
 			{
 				array[x + xstart, y + ystart] =
-				rgbValues[i++] + //B
-				((long)rgbValues[i++] << 8) + //G
-				((long)rgbValues[i++] << 16) + //R
-				((long)rgbValues[i++] << 24);  //A
+				rgbValues[i++] + ((long)rgbValues[i++] << 8) + ((long)rgbValues[i++] << 16) + ((long)rgbValues[i++] << 24);
 			}
 		}
 		return true;
 	}
 
-
-	/// <summary>
-	/// GFROMARRAY int ID, var array
-	/// エラーチェックは呼び出し元でのみ行う
-	/// <returns></returns>
 	public bool GByteArrayToBitmap(long[,] array, int xstart, int ystart)
 	{
 		if (g == null || Bitmap == null)
@@ -713,16 +646,14 @@ internal sealed class GraphicsImage : AbstractImage
 			for (int x = 0; x < w; x++)
 			{
 				long c = array[x + xstart, y + ystart];
-				rgbValues[i++] = (byte)(c & 0xFF);//B
-				rgbValues[i++] = (byte)(c >> 8 & 0xFF);//G
-				rgbValues[i++] = (byte)(c >> 16 & 0xFF);//R
-				rgbValues[i++] = (byte)(c >> 24 & 0xFF);//A
+				rgbValues[i++] = (byte)(c & 0xFF);
+				rgbValues[i++] = (byte)(c >> 8 & 0xFF);
+				rgbValues[i++] = (byte)(c >> 16 & 0xFF);
+				rgbValues[i++] = (byte)(c >> 24 & 0xFF);
 			}
 		}
 		Rectangle rect = new(0, 0, w, h);
-		BitmapData bmpData =
-			Bitmap.LockBits(rect, ImageLockMode.WriteOnly,
-			PixelFormat.Format32bppArgb);
+		BitmapData bmpData = Bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
 		nint ptr = bmpData.Scan0;
 		Marshal.Copy(rgbValues, 0, ptr, rgbValues.Length);
 		Bitmap.UnlockBits(bmpData);
@@ -734,7 +665,6 @@ internal sealed class GraphicsImage : AbstractImage
 	{
 		if (RealBitmap != null)
 			return;
-
 		if (drawImgList == null)
 			return;
 
@@ -746,7 +676,6 @@ internal sealed class GraphicsImage : AbstractImage
 
 		lock (AppContents.tempLoadedGraphicsImages)
 			AppContents.tempLoadedGraphicsImages.Add(this);
-		return;
 	}
-
 }
+#endif

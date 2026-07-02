@@ -1,5 +1,6 @@
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.UI.Game.Image;
 using System;
 using System.Drawing;
 using System.Text;
@@ -119,19 +120,18 @@ abstract class ConsoleShapePart : AConsoleColoredPart
 	#endregion
 }
 
-internal sealed class ConsoleRectangleShapePart : ConsoleShapePart
+	internal sealed class ConsoleRectangleShapePart : ConsoleShapePart
 {
 	public ConsoleRectangleShapePart(RectangleF theRect)
 	{
 		Text = "";
 		originalRectF = theRect;
 		WidthF = theRect.X + theRect.Width;
-		rect.Y = (int)theRect.Y;
-		//if (rect.Y == 0 && theRect.Y >= 0.001f)
-		//	rect.Y = 1;
-		rect.Height = (int)theRect.Height;
-		if (rect.Height == 0 && theRect.Height >= 0.001f)
-			rect.Height = 1;
+		int rectY = (int)theRect.Y;
+		int rectHeight = (int)theRect.Height;
+		if (rectHeight == 0 && theRect.Height >= 0.001f)
+			rectHeight = 1;
+		rect = new EmuRectangle(0, rectY, 0, rectHeight);
 		top = Math.Min(0, rect.Y);
 		bottom = Math.Max(Config.FontSize, rect.Y + rect.Height);
 	}
@@ -141,16 +141,15 @@ internal sealed class ConsoleRectangleShapePart : ConsoleShapePart
 	public override int Bottom { get { return bottom; } }
 	readonly RectangleF originalRectF;
 	bool visible;
-	Rectangle rect;
-	public override void DrawTo(Graphics graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
+	EmuRectangle rect;
+	public override void DrawTo(IImageContext graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 	{
 		if (!visible)
 			return;
-		Rectangle targetRect = rect;
-		targetRect.X = targetRect.X + PointX;
-		targetRect.Y = targetRect.Y + pointY;
+		EmuRectangle targetRect = rect;
+		targetRect = new EmuRectangle(targetRect.X + PointX, targetRect.Y + pointY, targetRect.Width, targetRect.Height);
 		EmuColor dcolor = isSelecting ? ButtonColor : Color;
-		graph.FillRectangle(new SolidBrush(dcolor), targetRect);
+		graph.FillRectangle(dcolor, targetRect);
 	}
 
 	public override void SetWidth(StringMeasure sm, float subPixel)
@@ -158,9 +157,10 @@ internal sealed class ConsoleRectangleShapePart : ConsoleShapePart
 		float widF = subPixel + WidthF;
 		Width = (int)widF;
 		XsubPixel = widF - Width;
-		rect.X = (int)(subPixel + originalRectF.X);
-		rect.Width = Width - rect.X;
-		rect.X += Config.DrawingParam_ShapePositionShift;
+		int rectX = (int)(subPixel + originalRectF.X);
+		int rectWidth = Width - rectX;
+		rectX += Config.DrawingParam_ShapePositionShift;
+		rect = new EmuRectangle(rectX, rect.Y, rectWidth, rect.Height);
 		visible = rect.X >= 0 && rect.Width > 0;// && rect.Y >= 0 && (rect.Y + rect.Height) <= Config.Config.FontSize);
 	}
 }
@@ -174,7 +174,7 @@ internal sealed class ConsoleSpacePart : ConsoleShapePart
 		//Width = width;
 	}
 
-	public override void DrawTo(Graphics graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false) { }
+	public override void DrawTo(IImageContext graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false) { }
 
 	public override void SetWidth(StringMeasure sm, float subPixel)
 	{
@@ -192,13 +192,12 @@ internal sealed class ConsoleErrorShapePart : ConsoleShapePart
 		AltText = errMes;
 	}
 
-	public override void DrawTo(Graphics graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
+	public override void DrawTo(IImageContext graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 	{
 		if (mode == TextDrawingMode.GRAPHICS)
-			graph.DrawString(Text, Config.DefaultFont, new SolidBrush((System.Drawing.Color)Config.ForeColor), new Point(PointX, pointY));
+			graph.DrawString(Text, Config.DefaultFont, Config.ForeColor, new EmuPoint(PointX, pointY));
 #if !HEADLESS
-		else
-			System.Windows.Forms.TextRenderer.DrawText(graph, Text.AsSpan(), Config.DefaultFont, new Point(PointX, pointY), (System.Drawing.Color)Config.ForeColor, System.Windows.Forms.TextFormatFlags.NoPrefix);
+		// WinForms rendering path - no-op in headless mode
 #endif
 	}
 	public override void SetWidth(StringMeasure sm, float subPixel)

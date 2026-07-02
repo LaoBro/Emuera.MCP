@@ -1,6 +1,6 @@
 using System;
-using System.Drawing;
 using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 
 namespace MinorShift.Emuera.UI.Game;
@@ -17,12 +17,12 @@ internal sealed class StringMeasure : IDisposable
         _charWidth = Config.FontSize / 2f;
     }
 
-    public int GetDisplayLength(ReadOnlySpan<char> chars, Font f)
+    public int GetDisplayLength(ReadOnlySpan<char> chars, EmuFont f)
     {
         return GetDisplayLength(chars.ToString(), f);
     }
 
-    public int GetDisplayLength(string s, Font font)
+    public int GetDisplayLength(string s, EmuFont font)
     {
         if (string.IsNullOrEmpty(s))
             return 0;

@@ -1,9 +1,10 @@
 ﻿using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
+using MinorShift.Emuera.UI.Game.Image;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Text;
 
@@ -107,7 +108,7 @@ internal sealed class ConsoleButtonString
 	}
 
 	//Bitmap Cache
-	public Bitmap bitmapCache;
+	public IBitmapImage bitmapCache;
 
 	ConsoleImagePart mask;
 	#endregion
@@ -273,7 +274,7 @@ internal sealed class ConsoleButtonString
 			css.PointX += shiftX;
 	}
 
-	public void DrawTo(Graphics graph, int pointY, bool isBackLog, TextDrawingMode mode)
+	public void DrawTo(IImageContext graph, int pointY, bool isBackLog, TextDrawingMode mode)
 	{
 		bool isFocus = IsButton && parent.ButtonIsSelected(this);
 		bool isSelecting = IsButton && parent.ButtonIsPointing(this);
@@ -281,43 +282,12 @@ internal sealed class ConsoleButtonString
 		//foreach (AConsoleDisplayNode css in strArray)
 		//	css.DrawTo(graph, pointY, isSelecting, isBackLog, mode);
 
-		//Bitmap Cache
-		if (ParentLine.bitmapCacheEnabled && strArray.Length > 1)
-		{
-			if (bitmapCache == null)
-			{
-				int width = Width + 1;
-				//^ Without +1, some things get cropped. I don't know why, probably a bug somewhere.
-				//TODO
-				int height = Config.FontSize;
-				bitmapCache = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-				Graphics g = Graphics.FromImage(bitmapCache);
-
-				int xOffset = 0;
-				foreach (AConsoleDisplayNode css in strArray)
-				{
-					if (css is not ConsoleStyledString) continue;
-					ConsoleStyledString willDrawHere = css as ConsoleStyledString;
-					willDrawHere.DrawToBitmap(g, isSelecting, isBackLog, mode, xOffset);
-					xOffset += css.Width;
-				}
-
-				nint index = GlobalStatic.Console.bitmapCacheArrayIndex;
-				ConsoleButtonString last = GlobalStatic.Console.bitmapCacheArray[index];
-				if (last != null)
-				{
-					last.bitmapCache.Dispose();
-					last.bitmapCache = null;
-				}
-				GlobalStatic.Console.bitmapCacheArray[index] = this;
-				index++;
-				if (index >= EmueraConsole.bitmapCacheArrayCap) index = 0;
-				GlobalStatic.Console.bitmapCacheArrayIndex = index;
-
-			}
-			graph.DrawImageUnscaled(bitmapCache, PointX, pointY);
-			return;
-		}
+		//Bitmap Cache - disabled in headless mode
+		//if (ParentLine.bitmapCacheEnabled && strArray.Length > 1)
+		//{
+		//    // Bitmap cache logic requires System.Drawing.Bitmap - not available in headless mode
+		//    // This code path is only for WinForms UI mode
+		//}
 
 		foreach (AConsoleDisplayNode css in strArray)
 		{
@@ -328,7 +298,7 @@ internal sealed class ConsoleButtonString
 	}
 
 	#region EM_私家版_描画拡張
-	public void DrawPartTo(Graphics graph, AConsoleDisplayNode css, int pointY, bool isBackLog, TextDrawingMode mode)
+	public void DrawPartTo(IImageContext graph, AConsoleDisplayNode css, int pointY, bool isBackLog, TextDrawingMode mode)
 	{
 		bool isFocus = IsButton && parent.ButtonIsSelected(this);
 		bool isSelecting = IsButton && parent.ButtonIsPointing(this);

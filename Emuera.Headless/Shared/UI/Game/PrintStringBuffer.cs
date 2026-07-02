@@ -1,4 +1,5 @@
-﻿using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
@@ -548,7 +549,7 @@ internal sealed class PrintStringBuffer
 		int widthLimit = divWidth - css.PointX;
 		#endregion
 		string str = css.Text;
-		Font font = css.Font;
+		EmuFont font = css.Font;
 
 		//最適なサイズを二分探索する
 		var span = str.AsSpan();

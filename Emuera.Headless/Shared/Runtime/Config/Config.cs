@@ -256,7 +256,7 @@ internal static class Config
 	}
 	#endregion
 
-	public static Font DefaultFont { get { return FontFactory.GetFont("", FontStyle.Regular); } }
+	public static EmuFont DefaultFont { get { return FontFactory.GetFont("", FontStyle.Regular); } }
 
 
 	/// <summary>

@@ -5333,12 +5333,24 @@ internal static partial class FunctionMethodCreator
 				case "GGETFONTSTYLE":
 					return g.Fontstyle;
 				case "GGETPEN":
-					return g.Pen.Color.ToArgb() & 0xffffffffL;
-				case "GGETPENWIDTH":
-					return (long)g.Pen.Width;
-				case "GGETBRUSH":
-					SolidBrush b = (SolidBrush)g.Brush;
-					return b.Color.ToArgb() & 0xffffffffL;
+#if HEADLESS
+				return 0;
+#else
+				return g.Pen.Color.ToArgb() & 0xffffffffL;
+#endif
+			case "GGETPENWIDTH":
+#if HEADLESS
+				return 0;
+#else
+				return (long)g.Pen.Width;
+#endif
+			case "GGETBRUSH":
+#if HEADLESS
+				return 0;
+#else
+				SolidBrush b = (SolidBrush)g.Brush;
+				return b.Color.ToArgb() & 0xffffffffL;
+#endif
 					#endregion
 			}
 			throw new ExeEE("GraphicsState:" + Name + ":異常な分岐");
@@ -5439,7 +5451,11 @@ internal static partial class FunctionMethodCreator
 			if (!g.IsCreated)
 				return 0;
 			Color c = ReadColor(Name, exm, arguments, 1);
+#if HEADLESS
+			g.GSetBrush(null);
+#else
 			g.GSetBrush(new SolidBrush(c));
+#endif
 			return 1;
 		}
 	}
@@ -5877,7 +5893,11 @@ internal static partial class FunctionMethodCreator
 			switch (Name)
 			{
 				case "SPRITEMOVE":
+#if HEADLESS
+					// headless: sprite 无实际渲染，位置偏移无意义
+#else
 					img.DestBasePosition.Offset(p);
+#endif
 					return 1;
 				case "SPRITESETPOS":
 					img.DestBasePosition = p;
@@ -7132,7 +7152,11 @@ internal static partial class FunctionMethodCreator
 			try
 			{
 				Config.CreateSavDir();
+#if HEADLESS
+				// headless: 无实际位图可保存
+#else
 				g.Bitmap.Save(filepath);
+#endif
 			}
 			catch
 			{

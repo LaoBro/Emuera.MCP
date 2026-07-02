@@ -1,7 +1,32 @@
-﻿using System;
+#if HEADLESS
+using System;
+
+namespace MinorShift.Emuera.UI.Game.Image;
+
+internal sealed class ConstImage : AbstractImage
+{
+	public ConstImage(string name) { Name = name; }
+	public readonly string Name;
+	public int ImageWidth;
+	public int ImageHeight;
+	public bool RealIsCreated;
+
+	internal void CreateFrom(object bmp, string filepath, bool useGDI)
+	{
+		RealIsCreated = true;
+	}
+
+	public void Load() { }
+
+	public override int Width => ImageWidth;
+	public override int Height => ImageHeight;
+	public override bool IsCreated => RealIsCreated;
+	public override void Dispose() { }
+}
+#else
+using System;
 using System.Drawing;
 using System.IO;
-using System.Text.Json;
 
 namespace MinorShift.Emuera.UI.Game.Image;
 
@@ -48,9 +73,7 @@ internal sealed class ConstImage : AbstractImage
 		{
 			RealBitmap = ImgUtils.LoadImage(Filepath);
 			if (RealBitmap == null)
-			{
 				return;
-			}
 			lock (AppContents.tempLoadedConstImages)
 				AppContents.tempLoadedConstImages.Add(this);
 		}
@@ -58,31 +81,7 @@ internal sealed class ConstImage : AbstractImage
 		{
 			return;
 		}
-		return;
 	}
-	//public void Load(bool useGDI)
-	//{
-	//	if (Loaded)
-	//		return;
-	//	try
-	//	{
-	//		Bitmap = new Bitmap(Filepath);
-	//		if (useGDI)
-	//		{
-	//			hBitmap = Bitmap.GetHbitmap();
-	//			g = Graphics.FromImage(Bitmap);
-	//			GDIhDC = g.GetHdc();
-	//			hDefaultImg = GDI.SelectObject(GDIhDC, hBitmap);
-	//		}
-	//		Loaded = true;
-	//		Enabled = true;
-	//	}
-	//	catch
-	//	{
-	//		return;
-	//	}
-	//	return;
-	//}
 
 	public override void Dispose()
 	{
@@ -100,30 +99,14 @@ internal sealed class ConstImage : AbstractImage
 		}
 	}
 
-	~ConstImage()
-	{
-		Dispose();
-	}
+	~ConstImage() { Dispose(); }
 
-
-	public override bool IsCreated
-	{
-		get
-		{
-			return RealIsCreated;
-		}
-	}
+	public override bool IsCreated => RealIsCreated;
 
 	public override Bitmap Bitmap
 	{
-		set
-		{
-			RealBitmap = value;
-		}
-		get
-		{
-			Load();
-			return RealBitmap;
-		}
+		set { RealBitmap = value; }
+		get { Load(); return RealBitmap; }
 	}
 }
+#endif

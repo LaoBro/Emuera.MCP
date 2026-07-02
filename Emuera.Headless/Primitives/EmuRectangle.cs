@@ -8,6 +8,8 @@ internal readonly record struct EmuRectangle(int X, int Y, int Width, int Height
 {
     public static readonly EmuRectangle Empty = new(0, 0, 0, 0);
 
+    public EmuSize Size => new(Width, Height);
+
     public bool Contains(EmuPoint point)
         => point.X >= X && point.X < X + Width && point.Y >= Y && point.Y < Y + Height;
 

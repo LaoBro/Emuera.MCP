@@ -501,7 +501,7 @@ internal sealed class ConsolePrintManager
         var builder = new StringBuilder();
         builder.Append(barStr);
         int width = 0;
-        Font font = Config.DefaultFont;
+        EmuFont font = Config.DefaultFont;
         while (width < Config.DrawableWidth)
         {
             builder.Append(barStr);
@@ -661,7 +661,7 @@ internal sealed class ConsolePrintManager
     private void CalcPrintCWidth(StringMeasure sm)
     {
         string str = new(' ', Config.PrintCLength);
-        Font font = Config.DefaultFont;
+        EmuFont font = Config.DefaultFont;
         printCWidth = sm.GetDisplayLength(str, font);
         printCWidthL = sm.GetDisplayLength(str, font);
         printCWidthL2 = sm.GetDisplayLength(str, font);
@@ -674,10 +674,10 @@ internal sealed class ConsolePrintManager
         int length = Encoding.GetEncoding("Shift-JIS").GetByteCount(str);
         int width;
         int printcLength = Config.PrintCLength;
-        Font font;
+        EmuFont font;
         try
         {
-            font = new Font(Style.Fontname, Config.DefaultFont.Size, Style.FontStyle, GraphicsUnit.Pixel);
+            font = new EmuFont(Style.Fontname, Config.DefaultFont.Size, Style.FontStyle);
         }
         catch (Exception ex) { AgentLog.Instance.Write("font creation failed, fallback: " + ex.Message); return str; }
 

@@ -1,8 +1,9 @@
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.UI.Game.Image;
 using System;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Text;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Shape;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
@@ -63,7 +64,7 @@ class ConsoleDivPart : AConsoleDisplayNode
 		children = childs;
 		Depth = depth;
 		IsRelative = isRelative;
-		
+
 		ShiftChildrenX(PointX + xOffset + divXOffset);
 	}
 	int pointX;
@@ -142,11 +143,13 @@ class ConsoleDivPart : AConsoleDisplayNode
 		}
 		return pointing;
 	}
-	public override void DrawTo(Graphics graph, int pointY, bool isSelecting, bool isBackLog, bool isFocus, TextDrawingMode mode, bool isButton = false)
+	public override void DrawTo(IImageContext graph, int pointY, bool isSelecting, bool isBackLog, bool isFocus, TextDrawingMode mode, bool isButton = false)
 	{
+#if !HEADLESS
+		// WinForms rendering path - uses Graphics, SetClip, CombineMode, PixelOffsetMode
 		if (GlobalStatic.EMediator.Console.UIAdapter == null) return;
 		var rect = IsRelative ? new Rectangle(PointX + xOffset, pointY + PointY, width + 2, Height)
-			: new Rectangle(xOffset, GlobalStatic.EMediator.Console.UIAdapter.MainPicBox.Height - PointY - Height, width + 2, Height); // 何故か+2pxが必要，なぞ
+			: new Rectangle(xOffset, GlobalStatic.EMediator.Console.UIAdapter.MainPicBox.Height - PointY - Height, width + 2, Height);
 
 		if (margin != null)
 			rect = new Rectangle(rect.X + margin[Direction.Left], rect.Y + margin[Direction.Top],
@@ -154,7 +157,7 @@ class ConsoleDivPart : AConsoleDisplayNode
 		graph.SetClip(rect, CombineMode.Replace);
 
 		var pxMode = graph.PixelOffsetMode;
-		graph.PixelOffsetMode = PixelOffsetMode.HighQuality; // ここを高品質にしておく、全体的高品質してもいいかな？
+		graph.PixelOffsetMode = PixelOffsetMode.HighQuality;
 		BoxBorder.DrawBorder(graph, rect, border, radius, borderColors, backgroundColor);
 		graph.PixelOffsetMode = pxMode;
 
@@ -175,6 +178,8 @@ class ConsoleDivPart : AConsoleDisplayNode
 			pointY += Config.Config.LineHeight;
 		}
 		graph.ResetClip();
+#endif
+		// Headless mode: no rendering
 	}
 
     private void ShiftChildrenX(int diff)

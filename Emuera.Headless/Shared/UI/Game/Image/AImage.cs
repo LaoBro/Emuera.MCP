@@ -1,14 +1,18 @@
 ﻿using System;
-using System.Drawing;
 
 namespace MinorShift.Emuera.UI.Game.Image;
 
 internal abstract class AbstractImage : IDisposable
 {
 	public const int MAX_IMAGESIZE = 8192;
-	public abstract Bitmap Bitmap { get; set; }
+#if HEADLESS
+	public abstract int Width { get; }
+	public abstract int Height { get; }
+#else
+	public abstract System.Drawing.Bitmap Bitmap { get; set; }
 	public nint GDIhDC { get; protected set; }
-	protected Graphics g;
+	protected System.Drawing.Graphics g;
+#endif
 
 	public abstract bool IsCreated { get; }
 

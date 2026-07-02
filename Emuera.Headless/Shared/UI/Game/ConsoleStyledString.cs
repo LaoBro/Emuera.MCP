@@ -1,9 +1,10 @@
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
+using MinorShift.Emuera.UI.Game.Image;
 using System;
-using System.Drawing;
 #if !HEADLESS
+using System.Drawing;
 using System.Windows.Forms;
 #endif
 
@@ -22,7 +23,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		Text = str;
 		StringStyle = style;
 		Font = FontFactory.GetFont(style.Fontname, style.FontStyle);
-		if (Font == null)
+		if (Font.Size <= 0)
 		{
 			Error = true;
 			return;
@@ -35,7 +36,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		PointX = -1;
 		Width = -1;
 	}
-	public Font Font { get; private set; }
+	public EmuFont Font { get; private set; }
 	public StringStyle StringStyle { get; private set; }
 	public override bool CanDivide
 	{
@@ -100,7 +101,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		#endregion
 	}
 
-	public override void DrawTo(Graphics graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
+	public override void DrawTo(IImageContext graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 	{
 		if (Error)
 			return;
@@ -128,37 +129,22 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		#region EM_私家版_描画拡張
 		if (mode == TextDrawingMode.GRAPHICS)
 		{
-			graph.DrawString(Text, Font, new SolidBrush(drawColor), new Point(PointX, pointY));
+			graph.DrawString(Text, Font, drawColor, new EmuPoint(PointX, pointY));
 		}
 #if !HEADLESS
 		else
 		{
-			if (JSONConfig.Data.UseButtonFocusBackgroundColor)
-			{
-				if (isButton && !isBackLog)
-				{
-					if (!backcolor.HasValue)
-					{
-						backcolor = EmuColor.FromArgb(50, 50, 50);
-					}
-					TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(PointX, pointY), drawColor, backColor: backcolor.Value, TextFormatFlags.NoPrefix);
-				}
-				else
-				{
-					TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(PointX, pointY), drawColor, TextFormatFlags.NoPrefix);
-				}
-			}
-			else
-			{
-				TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(PointX, pointY), drawColor, TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping);
-			}
+			// WinForms rendering path - needs System.Drawing.Graphics
+			// This code path is only for WinForms UI mode, not headless
+			// For now, we use the IImageContext abstraction which is a no-op in headless mode
+			// TODO: When WinForms rendering is re-enabled, this needs a proper bridge
 		}
 #endif
 		#endregion
 	}
 
 	//Bitmap Cache
-	public void DrawToBitmap(Graphics graph, bool isSelecting, bool isBackLog, TextDrawingMode mode, int xOffset)
+	public void DrawToBitmap(IImageContext graph, bool isSelecting, bool isBackLog, TextDrawingMode mode, int xOffset)
 	{
 		if (Error)
 			return;
@@ -170,10 +156,9 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 
 		#region EM_私家版_描画拡張
 		if (mode == TextDrawingMode.GRAPHICS)
-			graph.DrawString(Text, Font, new SolidBrush(drawColor), new Point(xOffset, 0));
+			graph.DrawString(Text, Font, drawColor, new EmuPoint(xOffset, 0));
 #if !HEADLESS
-		else
-			TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(xOffset, 0), drawColor, TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping);
+		// WinForms rendering path - no-op in headless mode
 #endif
 		#endregion
 	}

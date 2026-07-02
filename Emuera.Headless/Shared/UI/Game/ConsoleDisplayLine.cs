@@ -1,5 +1,6 @@
-﻿using MinorShift.Emuera.Runtime.Config;
-using System.Drawing;
+﻿using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.UI.Game.Image;
 using System.Text;
 
 namespace MinorShift.Emuera.UI.Game;
@@ -115,10 +116,10 @@ internal sealed class ConsoleDisplayLine
 		buttons = newButtons;
 	}
 
-	public static void Clear(Brush brush, Graphics graph, int pointY)
+	public static void Clear(IImageContext graph, EmuColor color, int pointY)
 	{
-		Rectangle rect = new(0, pointY, Config.WindowX, Config.LineHeight);
-		graph.FillRectangle(brush, rect);
+		EmuRectangle rect = new(0, pointY, Config.WindowX, Config.LineHeight);
+		graph.FillRectangle(color, rect);
 	}
 
 	//public ConsoleButtonString GetPointingButton(int pointX)
@@ -139,7 +140,7 @@ internal sealed class ConsoleDisplayLine
 	//	return null;
 	//}
 
-	public void DrawTo(Graphics graph, int pointY, bool isBackLog, bool force, TextDrawingMode mode)
+	public void DrawTo(IImageContext graph, int pointY, bool isBackLog, bool force, TextDrawingMode mode)
 	{
 		foreach (ConsoleButtonString button in buttons)
 			button.DrawTo(graph, pointY, isBackLog, mode);

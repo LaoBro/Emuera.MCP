@@ -55,7 +55,8 @@ internal sealed class Session : IDisposable
         }
         catch (Exception ex)
         {
-            _io.WriteLine(JsonSerializer.Serialize(new { error = ex.Message, state = _console.State.ToString() }));
+            AgentLog.Instance.Write("session game loop exception: " + ex);
+            _io.WriteLine(JsonSerializer.Serialize(new { error = ex.ToString(), state = _console.State.ToString() }));
         }
         finally
         {

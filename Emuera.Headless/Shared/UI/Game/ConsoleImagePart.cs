@@ -1,3 +1,4 @@
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game.Image;
 using System;
@@ -192,7 +193,7 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 		return 0;
 	}
 	#endregion
-	public override void DrawTo(Graphics graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
+	public override void DrawTo(IImageContext graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 	{
 		if (Error)
 			return;
@@ -202,19 +203,16 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 
 		if (img != null && img.IsCreated)
 		{
-			Rectangle rect = destRect;
-			//PointX微調整
-			rect.X = destRect.X + PointX + Config.DrawingParam_ShapePositionShift;
-			rect.Y = destRect.Y + pointY;
-			img.GraphicsDraw(graph, rect);
+			// Headless mode: no actual rendering
+			// In WinForms mode, this would call img.GraphicsDraw(graph, rect)
+			// For now, we just skip rendering in headless mode
 		}
 		else
 		{
 			if (mode == TextDrawingMode.GRAPHICS)
-				graph.DrawString(AltText, Config.DefaultFont, new SolidBrush(Config.ForeColor), new Point(PointX, pointY));
+				graph.DrawString(AltText, Config.DefaultFont, Config.ForeColor, new EmuPoint(PointX, pointY));
 #if !HEADLESS
-			else
-				System.Windows.Forms.TextRenderer.DrawText(graph, AltText.AsSpan(), Config.DefaultFont, new Point(PointX, pointY), Config.ForeColor, System.Windows.Forms.TextFormatFlags.NoPrefix);
+			// WinForms rendering path - no-op in headless mode
 #endif
 		}
 	}
