@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
@@ -520,7 +521,7 @@ internal sealed class ConsolePrintManager
 
     public void SetStringStyle(FontStyle fs) => _state.userStyle.FontStyle = fs;
 
-    public void SetStringStyle(Color color)
+    public void SetStringStyle(EmuColor color)
     {
         _state.userStyle.Color = color;
         _state.userStyle.ColorChanged = color != Config.ForeColor;

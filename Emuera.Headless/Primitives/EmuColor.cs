@@ -33,6 +33,9 @@ internal readonly record struct EmuColor(byte R, byte G, byte B, byte A = 255)
                (byte)(argb & 0xFF),
                (byte)((argb >> 24) & 0xFF));
 
+    public int ToArgb()
+        => (A << 24) | (R << 16) | (G << 8) | B;
+
     public static EmuColor FromName(string name)
         => ColorNameMap.GetValueOrDefault(name.ToLowerInvariant(), Black);
 

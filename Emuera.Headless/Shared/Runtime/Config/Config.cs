@@ -1,4 +1,5 @@
-﻿﻿using MinorShift.Emuera.Runtime.Utils;
+﻿﻿using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.UI;
 using System;
 using System.Collections.Generic;
@@ -473,10 +474,10 @@ internal static class Config
 	public static int MaxLog { get; private set; }
 	public static int PrintCPerLine { get; private set; }
 	public static int PrintCLength { get; private set; }
-	public static Color ForeColor { get; private set; }
-	public static Color BackColor { get; private set; }
-	public static Color FocusColor { get; private set; }
-	public static Color LogColor { get; private set; }
+	public static EmuColor ForeColor { get; private set; }
+	public static EmuColor BackColor { get; private set; }
+	public static EmuColor FocusColor { get; private set; }
+	public static EmuColor LogColor { get; private set; }
 	public static int FontSize { get; private set; }
 	public static string FontName { get; private set; }
 	public static int LineHeight { get; private set; }

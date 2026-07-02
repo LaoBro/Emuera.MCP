@@ -1,5 +1,5 @@
-﻿using MinorShift.Emuera.Runtime.Config;
-using System.Drawing;
+using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Runtime.Config;
 
 namespace MinorShift.Emuera.UI.Game;
 
@@ -9,11 +9,11 @@ namespace MinorShift.Emuera.UI.Game;
 /// </summary>
 internal struct StringStyle
 {
-	public StringStyle(Color color, FontStyle fontStyle, string? fontname)
+	public StringStyle(EmuColor color, EmuFontStyle fontStyle, string? fontname)
 	{
 		Color = color;
 		ButtonColor = Config.FocusColor;
-		ColorChanged = false;//こっちのパターンでは色変更を後で検知
+		ColorChanged = false;
 		FontStyle = fontStyle;
 		if (string.IsNullOrEmpty(fontname))
 			Fontname = Config.FontName;
@@ -24,7 +24,7 @@ internal struct StringStyle
 	/// <summary>
 	/// HTML用。ColorChangedを固定する。
 	/// </summary>
-	public StringStyle(Color color, bool colorChanged, Color buttonColor, FontStyle fontStyle, string fontname)
+	public StringStyle(EmuColor color, bool colorChanged, EmuColor buttonColor, EmuFontStyle fontStyle, string fontname)
 	{
 		Color = color;
 		ButtonColor = buttonColor;
@@ -36,14 +36,14 @@ internal struct StringStyle
 			Fontname = fontname;
 	}
 
-	public Color Color;
-	public Color ButtonColor;
+	public EmuColor Color;
+	public EmuColor ButtonColor;
 	public bool ColorChanged;
-	public FontStyle FontStyle;
+	public EmuFontStyle FontStyle;
 	public string Fontname;
 	public override bool Equals(object? obj)
 	{
-		if (obj == null || obj is not StringStyle ss)
+		if (obj is not StringStyle ss)
 			return false;
 		return Color == ss.Color && ButtonColor == ss.ButtonColor && ColorChanged == ss.ColorChanged && FontStyle == ss.FontStyle && Fontname.Equals(ss.Fontname, Config.SCIgnoreCase);
 	}

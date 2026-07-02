@@ -1,4 +1,5 @@
-﻿using System.Drawing;
+﻿using MinorShift.Emuera.Primitives;
+using System.Drawing;
 using System.Text;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
@@ -57,7 +58,7 @@ abstract class AConsoleDisplayPart
 /// </summary>
 abstract class AConsoleColoredPart : AConsoleDisplayPart
 {
-	protected Color Color { get; set; }
-	protected Color ButtonColor { get; set; }
+	protected EmuColor Color { get; set; }
+	protected EmuColor ButtonColor { get; set; }
 	protected bool colorChanged;
 }

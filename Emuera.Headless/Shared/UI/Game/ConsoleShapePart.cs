@@ -1,3 +1,4 @@
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using System;
 using System.Drawing;
@@ -9,8 +10,8 @@ namespace MinorShift.Emuera.UI.Game;
 abstract class ConsoleShapePart : AConsoleColoredPart
 {
 	#region EM_私家版_HTMLパラメータ拡張
-	static public ConsoleShapePart CreateShape(string shapeType, MixedNum[] param, Color color, Color bcolor, bool colorchanged)
-	// static public ConsoleShapePart CreateShape(string shapeType, int[] param, Color color, Color bcolor, bool colorchanged)
+	static public ConsoleShapePart CreateShape(string shapeType, MixedNum[] param, EmuColor color, EmuColor bcolor, bool colorchanged)
+	// static public ConsoleShapePart CreateShape(string shapeType, int[] param, EmuColor color, EmuColor bcolor, bool colorchanged)
 	{
 		string type = shapeType.ToLower();
 		colorchanged = colorchanged || color != Config.ForeColor;
@@ -148,7 +149,7 @@ internal sealed class ConsoleRectangleShapePart : ConsoleShapePart
 		Rectangle targetRect = rect;
 		targetRect.X = targetRect.X + PointX;
 		targetRect.Y = targetRect.Y + pointY;
-		Color dcolor = isSelecting ? ButtonColor : Color;
+		EmuColor dcolor = isSelecting ? ButtonColor : Color;
 		graph.FillRectangle(new SolidBrush(dcolor), targetRect);
 	}
 
@@ -194,10 +195,10 @@ internal sealed class ConsoleErrorShapePart : ConsoleShapePart
 	public override void DrawTo(Graphics graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 	{
 		if (mode == TextDrawingMode.GRAPHICS)
-			graph.DrawString(Text, Config.DefaultFont, new SolidBrush(Config.ForeColor), new Point(PointX, pointY));
+			graph.DrawString(Text, Config.DefaultFont, new SolidBrush((System.Drawing.Color)Config.ForeColor), new Point(PointX, pointY));
 #if !HEADLESS
 		else
-			System.Windows.Forms.TextRenderer.DrawText(graph, Text.AsSpan(), Config.DefaultFont, new Point(PointX, pointY), Config.ForeColor, System.Windows.Forms.TextFormatFlags.NoPrefix);
+			System.Windows.Forms.TextRenderer.DrawText(graph, Text.AsSpan(), Config.DefaultFont, new Point(PointX, pointY), (System.Drawing.Color)Config.ForeColor, System.Windows.Forms.TextFormatFlags.NoPrefix);
 #endif
 	}
 	public override void SetWidth(StringMeasure sm, float subPixel)

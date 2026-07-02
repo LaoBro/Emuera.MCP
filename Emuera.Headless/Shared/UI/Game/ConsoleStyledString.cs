@@ -1,3 +1,4 @@
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
 using System;
@@ -103,35 +104,34 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 	{
 		if (Error)
 			return;
-		Color color = Color;
-		Color? backcolor = null;
+		EmuColor drawColor = Color;
+		EmuColor? backcolor = null;
 		if (isFocus)
 		{
 			if (JSONConfig.Data.UseButtonFocusBackgroundColor)
 			{
-				if (!(Color.Yellow.R == color.R &&
-					Color.Yellow.G == color.G &&
-					Color.Yellow.B == color.B) &&
+				if (!(EmuColor.Yellow.R == drawColor.R &&
+					EmuColor.Yellow.G == drawColor.G &&
+					EmuColor.Yellow.B == drawColor.B) &&
 					!string.IsNullOrWhiteSpace(Text))
 				{
-					backcolor = Color.Gray;
+					backcolor = EmuColor.Gray;
 				}
 			}
-			color = ButtonColor;
+			drawColor = ButtonColor;
 		}
 		else if (isBackLog && !colorChanged)
 		{
-			color = Config.LogColor;
+			drawColor = Config.LogColor;
 		}
 
 		#region EM_私家版_描画拡張
 		if (mode == TextDrawingMode.GRAPHICS)
 		{
-			graph.DrawString(Text, Font, new SolidBrush(color), new Point(PointX, pointY));
+			graph.DrawString(Text, Font, new SolidBrush(drawColor), new Point(PointX, pointY));
 		}
 #if !HEADLESS
 		else
-		// TextRenderer.DrawText(graph, Text, Font, new Point(PointX, pointY), color, TextFormatFlags.NoPrefix);
 		{
 			if (JSONConfig.Data.UseButtonFocusBackgroundColor)
 			{
@@ -139,18 +139,18 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 				{
 					if (!backcolor.HasValue)
 					{
-						backcolor = Color.FromArgb(50, 50, 50);
+						backcolor = EmuColor.FromArgb(50, 50, 50);
 					}
-					TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(PointX, pointY), color, backColor: backcolor.Value, TextFormatFlags.NoPrefix);
+					TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(PointX, pointY), drawColor, backColor: backcolor.Value, TextFormatFlags.NoPrefix);
 				}
 				else
 				{
-					TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(PointX, pointY), color, TextFormatFlags.NoPrefix);
+					TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(PointX, pointY), drawColor, TextFormatFlags.NoPrefix);
 				}
 			}
 			else
 			{
-				TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(PointX, pointY), color, TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping);
+				TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(PointX, pointY), drawColor, TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping);
 			}
 		}
 #endif
@@ -162,19 +162,18 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 	{
 		if (Error)
 			return;
-		Color color = Color;
+		EmuColor drawColor = Color;
 		if (isSelecting)
-			color = ButtonColor;
+			drawColor = ButtonColor;
 		else if (isBackLog && !colorChanged)
-			color = Config.LogColor;
+			drawColor = Config.LogColor;
 
 		#region EM_私家版_描画拡張
 		if (mode == TextDrawingMode.GRAPHICS)
-			graph.DrawString(Text, Font, new SolidBrush(color), new Point(xOffset, 0));
+			graph.DrawString(Text, Font, new SolidBrush(drawColor), new Point(xOffset, 0));
 #if !HEADLESS
 		else
-			// TextRenderer.DrawText(graph, Text, Font, new Point(PointX, pointY), color, TextFormatFlags.NoPrefix);
-			TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(xOffset, 0), color, TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping);
+			TextRenderer.DrawText(graph, Text.AsSpan(), Font, new Point(xOffset, 0), drawColor, TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping);
 #endif
 		#endregion
 	}
