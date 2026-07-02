@@ -1,4 +1,5 @@
-﻿using MinorShift.Emuera.Runtime.Config.JSON;
+﻿using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Runtime.Config.JSON;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Sub;
@@ -66,10 +67,10 @@ internal sealed class ConfigData
 		configArray.Add(new ConfigItem<string>(ConfigCode.FontName, "フォント名", "Font name", "ＭＳ ゴシック"));
 		configArray.Add(new ConfigItem<int>(ConfigCode.FontSize, "フォントサイズ", "Font size", 18));
 		configArray.Add(new ConfigItem<int>(ConfigCode.LineHeight, "一行の高さ", "Line height", 19));
-		configArray.Add(new ConfigItem<Color>(ConfigCode.ForeColor, "文字色", "Text color", Color.FromArgb(192, 192, 192)));//LIGHTGRAY
-		configArray.Add(new ConfigItem<Color>(ConfigCode.BackColor, "背景色", "Background color", Color.FromArgb(0, 0, 0)));//BLACK
-		configArray.Add(new ConfigItem<Color>(ConfigCode.FocusColor, "選択中文字色", "Highlight color", Color.FromArgb(255, 255, 0)));//YELLOW
-		configArray.Add(new ConfigItem<Color>(ConfigCode.LogColor, "履歴文字色", "History log color", Color.FromArgb(192, 192, 192)));//LIGHTGRAY//Color.FromArgb(128, 128, 128));//GRAY
+		configArray.Add(new ConfigItem<EmuColor>(ConfigCode.ForeColor, "文字色", "Text color", EmuColor.FromArgb(192, 192, 192)));//LIGHTGRAY
+		configArray.Add(new ConfigItem<EmuColor>(ConfigCode.BackColor, "背景色", "Background color", EmuColor.FromArgb(0, 0, 0)));//BLACK
+		configArray.Add(new ConfigItem<EmuColor>(ConfigCode.FocusColor, "選択中文字色", "Highlight color", EmuColor.FromArgb(255, 255, 0)));//YELLOW
+		configArray.Add(new ConfigItem<EmuColor>(ConfigCode.LogColor, "履歴文字色", "History log color", EmuColor.FromArgb(192, 192, 192)));//LIGHTGRAY//EmuColor.FromArgb(128, 128, 128));//GRAY
 		configArray.Add(new ConfigItem<int>(ConfigCode.FPS, "フレーム毎秒", "FPS", 5));
 		configArray.Add(new ConfigItem<int>(ConfigCode.SkipFrame, "最大スキップフレーム数", "Skip frames", 3));
 		configArray.Add(new ConfigItem<int>(ConfigCode.ScrollHeight, "スクロール行数", "Lines per scroll", 1));
@@ -165,8 +166,8 @@ internal sealed class ConfigData
 		#region EmuEra-Rikaichan related settings
 		configArray.Add(new ConfigItem<bool>(ConfigCode.RikaiEnabled, "Rikaichanを使用する", "Rikai- Enabled", false));
 		configArray.Add(new ConfigItem<string>(ConfigCode.RikaiFilename, "Rikaichanのファイルパス", "Rikai- Dictionary Filename", "Emuera-Rikai-edict.txt-eucjp"));
-		configArray.Add(new ConfigItem<Color>(ConfigCode.RikaiColorBack, "ポップアップの背景色", "Rikai- Back Color", Color.FromArgb(0, 0, 0x8B))); ////Color.DarkBlue
-		configArray.Add(new ConfigItem<Color>(ConfigCode.RikaiColorText, "ポップアップの文字色", "Rikai- Text Color", Color.FromArgb(0xFF, 0xFF, 0xFF))); ////Color.White
+		configArray.Add(new ConfigItem<EmuColor>(ConfigCode.RikaiColorBack, "ポップアップの背景色", "Rikai- Back Color", EmuColor.FromArgb(0, 0, 0x8B))); ////Color.DarkBlue
+		configArray.Add(new ConfigItem<EmuColor>(ConfigCode.RikaiColorText, "ポップアップの文字色", "Rikai- Text Color", EmuColor.FromArgb(0xFF, 0xFF, 0xFF))); ////Color.White
 		configArray.Add(new ConfigItem<bool>(ConfigCode.RikaiUseSeparateBoxes, "翻訳中の語句を強調表示する", "Rikai- Use Separate Boxes", true));
 		#endregion
 
@@ -227,10 +228,10 @@ internal sealed class ConfigData
 		configArray[i++] = new ConfigItem<string>(ConfigCode.FontName, "フォント名", "ＭＳ ゴシック");
 		configArray[i++] = new ConfigItem<int>(ConfigCode.FontSize, "フォントサイズ", 18);
 		configArray[i++] = new ConfigItem<int>(ConfigCode.LineHeight, "一行の高さ", 19);
-		configArray[i++] = new ConfigItem<Color>(ConfigCode.ForeColor, "文字色", Color.FromArgb(192, 192, 192));//LIGHTGRAY
-		configArray[i++] = new ConfigItem<Color>(ConfigCode.BackColor, "背景色", Color.FromArgb(0, 0, 0));//BLACK
-		configArray[i++] = new ConfigItem<Color>(ConfigCode.FocusColor, "選択中文字色", Color.FromArgb(255, 255, 0));//YELLOW
-		configArray[i++] = new ConfigItem<Color>(ConfigCode.LogColor, "履歴文字色", Color.FromArgb(192, 192, 192));//LIGHTGRAY//Color.FromArgb(128, 128, 128);//GRAY
+		configArray[i++] = new ConfigItem<EmuColor>(ConfigCode.ForeColor, "文字色", EmuColor.FromArgb(192, 192, 192));//LIGHTGRAY
+		configArray[i++] = new ConfigItem<EmuColor>(ConfigCode.BackColor, "背景色", EmuColor.FromArgb(0, 0, 0));//BLACK
+		configArray[i++] = new ConfigItem<EmuColor>(ConfigCode.FocusColor, "選択中文字色", EmuColor.FromArgb(255, 255, 0));//YELLOW
+		configArray[i++] = new ConfigItem<EmuColor>(ConfigCode.LogColor, "履歴文字色", EmuColor.FromArgb(192, 192, 192));//LIGHTGRAY//EmuColor.FromArgb(128, 128, 128);//GRAY
 		configArray[i++] = new ConfigItem<int>(ConfigCode.FPS, "フレーム毎秒", 5);
 		configArray[i++] = new ConfigItem<int>(ConfigCode.SkipFrame, "最大スキップフレーム数", 3);
 		configArray[i++] = new ConfigItem<int>(ConfigCode.ScrollHeight, "スクロール行数", 1);
@@ -515,8 +516,8 @@ internal sealed class ConfigData
 			case ConfigCode.FocusColor://"選択中文字色"
 			case ConfigCode.LogColor://"履歴文字色"
 				{
-					Color color = item.GetValue<Color>();
-					term = new SingleLongTerm(((color.R * 256) + color.G) * 256 + color.B);
+					EmuColor color = item.GetValue<EmuColor>();
+				term = new SingleLongTerm(((color.R * 256) + color.G) * 256 + color.B);
 				}
 				break;
 

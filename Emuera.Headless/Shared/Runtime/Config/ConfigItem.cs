@@ -1,3 +1,4 @@
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using System;
@@ -108,9 +109,9 @@ internal sealed class ConfigItem<T> : AConfigItem
 				return "YES";
 			return "NO";
 		}
-		if (this is ConfigItem<Color>)
+		if (this is ConfigItem<EmuColor>)
 		{
-			Color c = ((ConfigItem<Color>)(AConfigItem)this).Value;
+			EmuColor c = ((ConfigItem<EmuColor>)(AConfigItem)this).Value;
 			return string.Format("{0},{1},{2}", c.R, c.G, c.B);
 		}
 
@@ -157,12 +158,12 @@ internal sealed class ConfigItem<T> : AConfigItem
 			if (ret)//ConfigItem<T>をConfigItem<bool>に直接キャストすることはできない
 				((ConfigItem<bool>)(AConfigItem)this).Value = b;
 		}
-		else if (this is ConfigItem<Color>)
+		else if (this is ConfigItem<EmuColor>)
 		{
-			Color c;
+			EmuColor c;
 			ret = tryStringsToColor(str, out c);
 			if (ret)
-				((ConfigItem<Color>)(AConfigItem)this).Value = c;
+				((ConfigItem<EmuColor>)(AConfigItem)this).Value = c;
 			else
 				throw new CodeEE(Lang.Error.NotExistColorSpecifier.Text);
 		}
@@ -314,10 +315,10 @@ internal sealed class ConfigItem<T> : AConfigItem
 		throw new CodeEE(Lang.Error.InvalidSpecification.Text);
 	}
 
-	private static bool tryStringsToColor(string str, out Color c)
+	private static bool tryStringsToColor(string str, out EmuColor c)
 	{
 		string[] tokens = str.Split(',');
-		c = Color.Black;
+		c = EmuColor.Black;
 		int r, g, b;
 		if (tokens.Length < 3)
 			return false;
@@ -327,7 +328,7 @@ internal sealed class ConfigItem<T> : AConfigItem
 			return false;
 		if (!int.TryParse(tokens[2].Trim(), out b) || b < 0 || b > 255)
 			return false;
-		c = Color.FromArgb(r, g, b);
+		c = EmuColor.FromArgb(r, g, b);
 		return true;
 	}
 }

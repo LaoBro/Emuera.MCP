@@ -58,10 +58,10 @@ internal static class Config
 		MaxLog = instance.GetConfigValue<int>(ConfigCode.MaxLog);
 		PrintCPerLine = instance.GetConfigValue<int>(ConfigCode.PrintCPerLine);
 		PrintCLength = instance.GetConfigValue<int>(ConfigCode.PrintCLength);
-		ForeColor = instance.GetConfigValue<Color>(ConfigCode.ForeColor);
-		BackColor = instance.GetConfigValue<Color>(ConfigCode.BackColor);
-		FocusColor = instance.GetConfigValue<Color>(ConfigCode.FocusColor);
-		LogColor = instance.GetConfigValue<Color>(ConfigCode.LogColor);
+		ForeColor = instance.GetConfigValue<EmuColor>(ConfigCode.ForeColor);
+		BackColor = instance.GetConfigValue<EmuColor>(ConfigCode.BackColor);
+		FocusColor = instance.GetConfigValue<EmuColor>(ConfigCode.FocusColor);
+		LogColor = instance.GetConfigValue<EmuColor>(ConfigCode.LogColor);
 		FontSize = instance.GetConfigValue<int>(ConfigCode.FontSize);
 		FontName = instance.GetConfigValue<string>(ConfigCode.FontName);
 		LineHeight = instance.GetConfigValue<int>(ConfigCode.LineHeight);
@@ -169,8 +169,8 @@ internal static class Config
 		#region EmuEra-Rikaichan related settings
 		RikaiEnabled = instance.GetConfigValue<bool>(ConfigCode.RikaiEnabled);
 		RikaiFilename = instance.GetConfigValue<string>(ConfigCode.RikaiFilename);
-		RikaiColorBack = instance.GetConfigValue<Color>(ConfigCode.RikaiColorBack);
-		RikaiColorText = instance.GetConfigValue<Color>(ConfigCode.RikaiColorText);
+		RikaiColorBack = instance.GetConfigValue<EmuColor>(ConfigCode.RikaiColorBack);
+		RikaiColorText = instance.GetConfigValue<EmuColor>(ConfigCode.RikaiColorText);
 		RikaiUseSeparateBoxes = instance.GetConfigValue<bool>(ConfigCode.RikaiUseSeparateBoxes);
 		#endregion
 
@@ -256,7 +256,7 @@ internal static class Config
 	}
 	#endregion
 
-	public static EmuFont DefaultFont { get { return FontFactory.GetFont("", FontStyle.Regular); } }
+	public static EmuFont DefaultFont { get { return FontFactory.GetFont("", EmuFontStyle.Regular); } }
 
 
 	/// <summary>
