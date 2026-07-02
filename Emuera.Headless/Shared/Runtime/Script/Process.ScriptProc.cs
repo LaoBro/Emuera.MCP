@@ -10,7 +10,6 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.UI.Game;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.GameProc;

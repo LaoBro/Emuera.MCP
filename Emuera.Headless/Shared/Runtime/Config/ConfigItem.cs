@@ -3,7 +3,6 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Text;
 
 namespace MinorShift.Emuera.Runtime.Config;

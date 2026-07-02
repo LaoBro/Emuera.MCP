@@ -4,7 +4,6 @@ using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Text;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 

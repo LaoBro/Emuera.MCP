@@ -3,7 +3,6 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.UI;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Text;
 #if !HEADLESS

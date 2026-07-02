@@ -2,7 +2,6 @@
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
 using System.Diagnostics;
-using System.Drawing;
 using MinorShift.Emuera.GameView;
 using System.Collections.Generic;
 using MinorShift.Emuera.Runtime.Script.Statements;
