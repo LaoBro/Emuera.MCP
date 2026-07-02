@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Function;
+using MinorShift.Emuera.GameData.Function;
 using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.Runtime.Config;
@@ -93,7 +93,7 @@ internal sealed class CalledFunction
 			FunctionLabelLine line = parent.LabelDictionary.GetNonEventLabel(label);
 			if (parent.LabelDictionary.GetNonEventLabel(label) != null)
 			{
-				throw new CodeEE(string.Format(trerror.CalleventToNonEventFunc.Text, label, line.Position.Value.Filename, line.Position.Value.LineNo));
+				throw new CodeEE(string.Format(trerror.CalleventToNonEventFunc.Text, label, line.Position!.Value.Filename, line.Position!.Value.LineNo));
 			}
 			return null;
 		}
@@ -123,7 +123,7 @@ internal sealed class CalledFunction
 		}
 		else if (labelline.IsMethod)
 		{
-			throw new CodeEE(string.Format(trerror.CallToUserFunc.Text, labelline.LabelName, labelline.Position.Value.Filename, labelline.Position.Value.LineNo.ToString()));
+			throw new CodeEE(string.Format(trerror.CallToUserFunc.Text, labelline.LabelName, labelline.Position!.Value.Filename, labelline.Position!.Value.LineNo.ToString()));
 		}
 		called.TopLabel = labelline;
 		called.CurrentLabel = labelline;

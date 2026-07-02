@@ -386,7 +386,7 @@ internal sealed partial class Process(EmueraConsole view)
 			return;
 		string text = string.Format(
 			trmb.TooLongLoop.Text,
-			currentLine.Position.Value.Filename, currentLine.Position.Value.LineNo, state.lineCount, elapsedTime);
+			currentLine.Position!.Value.Filename, currentLine.Position!.Value.LineNo, state.lineCount, elapsedTime);
 #if HEADLESS
 		// T-021：Headless/Server 模式无交互对话框，超时即终止脚本。
 		// GameExitException 穿透 DoScript → RunEmueraProgram → 协议层 → Session/HeadlessRunner
@@ -536,7 +536,7 @@ internal sealed partial class Process(EmueraConsole view)
 					printRawLine(position);
 					console.PrintError(string.Format(trerror.ErrorMessage.Text, exc.Message));
 				}
-				console.PrintError(string.Format(trerror.ErrorInFunc.Text, current.ParentLabelLine.LabelName, current.ParentLabelLine.Position.Value.Filename, current.ParentLabelLine.Position.Value.LineNo.ToString()));
+				console.PrintError(string.Format(trerror.ErrorInFunc.Text, current.ParentLabelLine.LabelName, current.ParentLabelLine.Position!.Value.Filename, current.ParentLabelLine.Position!.Value.LineNo.ToString()));
 				console.PrintError(trerror.FuncCallStack.Text);
 				LogicalLine parent;
 				int depth = 0;
@@ -544,7 +544,7 @@ internal sealed partial class Process(EmueraConsole view)
 				{
 					if (parent.Position != null)
 					{
-						console.PrintErrorButton(string.Format(trerror.ErrorFuncStack.Text, parent.Position.Value.Filename, parent.Position.Value.LineNo.ToString(), parent.ParentLabelLine.LabelName), parent.Position);
+						console.PrintErrorButton(string.Format(trerror.ErrorFuncStack.Text, parent.Position!.Value.Filename, parent.Position!.Value.LineNo.ToString(), parent.ParentLabelLine.LabelName), parent.Position);
 					}
 				}
 			}
@@ -580,17 +580,17 @@ internal sealed partial class Process(EmueraConsole view)
 
 	public static string getRawTextFormFilewithLine(ScriptPosition? position)
 	{
-		string extents = position.Value.Filename[^4..].ToLower();
+		string extents = position!.Value.Filename[^4..].ToLower();
 		if (extents == ".erb")
 		{
-			return File.Exists(Program.ErbDir + position.Value.Filename)
-				? position.Value.LineNo > 0 ? File.ReadLines(Program.ErbDir + position.Value.Filename, EncodingHandler.DetectEncoding(Program.ErbDir + position.Value.Filename)).Skip(position.Value.LineNo - 1).First() : ""
+			return File.Exists(Program.ErbDir + position!.Value.Filename)
+				? position!.Value.LineNo > 0 ? File.ReadLines(Program.ErbDir + position!.Value.Filename, EncodingHandler.DetectEncoding(Program.ErbDir + position!.Value.Filename)).Skip(position!.Value.LineNo - 1).First() : ""
 				: "";
 		}
 		else if (extents == ".csv")
 		{
-			return File.Exists(Program.CsvDir + position.Value.Filename)
-				? position.Value.LineNo > 0 ? File.ReadLines(Program.CsvDir + position.Value.Filename, EncodingHandler.DetectEncoding(Program.ErbDir + position.Value.Filename)).Skip(position.Value.LineNo - 1).First() : ""
+			return File.Exists(Program.CsvDir + position!.Value.Filename)
+				? position!.Value.LineNo > 0 ? File.ReadLines(Program.CsvDir + position!.Value.Filename, EncodingHandler.DetectEncoding(Program.ErbDir + position!.Value.Filename)).Skip(position!.Value.LineNo - 1).First() : ""
 				: "";
 		}
 		else

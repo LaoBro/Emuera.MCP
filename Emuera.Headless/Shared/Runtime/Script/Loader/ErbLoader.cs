@@ -418,7 +418,7 @@ internal sealed class ErbLoader
 							if (seniorLabel != null)
 							{
 								//output.NewLine();
-								ParserMediator.Warn(string.Format(trerror.FuncIsAlreadyDefined.Text, label.LabelName, seniorLabel.Position.Value.Filename, seniorLabel.Position.Value.LineNo.ToString()), position, 1);
+								ParserMediator.Warn(string.Format(trerror.FuncIsAlreadyDefined.Text, label.LabelName, seniorLabel.Position!.Value.Filename, seniorLabel.Position!.Value.LineNo.ToString()), position, 1);
 								funcCount = -1;
 							}
 						}
@@ -438,7 +438,7 @@ internal sealed class ErbLoader
 						if (lastLabelLine != null && !labelDic.AddLabelDollar(gotoLabel))
 						{
 							ScriptPosition? pos = labelDic.GetLabelDollar(gotoLabel.LabelName, lastLabelLine).Position;
-							ParserMediator.Warn(string.Format(trerror.LabelIsAlreadyDefined.Text, gotoLabel.LabelName, pos.Value.Filename, pos.Value.LineNo.ToString()), position, 2);
+							ParserMediator.Warn(string.Format(trerror.LabelIsAlreadyDefined.Text, gotoLabel.LabelName, pos!.Value.Filename, pos!.Value.LineNo.ToString()), position, 2);
 						}
 					}
 				}
@@ -745,7 +745,7 @@ internal sealed class ErbLoader
 				bool ignore = false;
 				if (notCalledWarning == DisplayWarningFlag.ONCE)
 				{
-					string filename = label.Position.Value.Filename;
+					string filename = label.Position!.Value.Filename;
 
 					if (!string.IsNullOrEmpty(filename))
 					{
@@ -860,7 +860,7 @@ internal sealed class ErbLoader
 		else if (warnFlag == DisplayWarningFlag.ONCE)
 		{
 
-			string filename = line.Position.Value.Filename;
+			string filename = line.Position!.Value.Filename;
 			if (!string.IsNullOrEmpty(filename))
 			{
 				if (ignoredFNFWarningFiles.Contains(filename))

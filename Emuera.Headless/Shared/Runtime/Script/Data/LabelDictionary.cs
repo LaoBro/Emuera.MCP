@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Script.Statements;
+using MinorShift.Emuera.Runtime.Script.Statements;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -166,7 +166,7 @@ internal sealed class LabelDictionary
 
 		static bool IsMatch(string fname, FunctionLabelLine line)
 		{
-			return string.Equals(line.Position.Value.Filename, fname, Config.Config.SCIgnoreCase);
+			return string.Equals(line.Position!.Value.Filename, fname, Config.Config.SCIgnoreCase);
 		}
 	}
 

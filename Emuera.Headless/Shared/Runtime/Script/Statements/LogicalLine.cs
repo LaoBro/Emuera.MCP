@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.Runtime.Script.Data;
@@ -273,13 +273,15 @@ internal class FunctionLabelLine : LogicalLine, IComparable<FunctionLabelLine>
 	//ソート用情報
 	public int Index { get; set; }
 	public int FileIndex { get; set; }
-	public int CompareTo(FunctionLabelLine other)
+	public int CompareTo(FunctionLabelLine? other)
 	{
+		// IComparable<T> 契约：null 视为最小（排在非 null 之前）
+		if (other is null) return 1;
 		if (FileIndex != other.FileIndex)
 			return FileIndex.CompareTo(other.FileIndex);
 		//position == nullであるLine(デバッグコマンドなど)をSortすることはないはず
-		if (Position.Value.LineNo != other.Position.Value.LineNo)
-			return Position.Value.LineNo.CompareTo(other.Position.Value.LineNo);
+		if (Position!.Value.LineNo != other.Position!.Value.LineNo)
+			return Position!.Value.LineNo.CompareTo(other.Position!.Value.LineNo);
 		return Index.CompareTo(other.Index);
 	}
 	#endregion
@@ -345,7 +347,7 @@ internal sealed class GotoLabelLine : LogicalLine, IEqualityComparer<GotoLabelLi
 
 	#region IEqualityComparer<GotoLabelLine> メンバ
 
-	public bool Equals(GotoLabelLine x, GotoLabelLine y)
+	public bool Equals(GotoLabelLine? x, GotoLabelLine? y)
 	{
 		if (x == null || y == null)
 			return false;

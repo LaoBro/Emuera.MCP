@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Function;
+using MinorShift.Emuera.GameData.Function;
 using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.Runtime.Config;
@@ -608,7 +608,7 @@ internal partial class IdentifierDictionary
 				}
 				//1.721 #FUNCTIONが定義されていない関数は組み込み関数を上書きしない方向に。 PANCTION.ERBのRANDとか。
 				if (!methodDic.ContainsKey(codeStr))
-					throw new CodeEE(string.Format(treer.UsedNonMethodFunc.Text, func.Position.Value.Filename, func.Position.Value.LineNo));
+					throw new CodeEE(string.Format(treer.UsedNonMethodFunc.Text, func.Position!.Value.Filename, func.Position!.Value.LineNo));
 			}
 		}
 		if (userDefinedOnly)

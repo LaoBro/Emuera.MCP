@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
 using System.Diagnostics;
@@ -434,8 +434,8 @@ internal sealed class ProcessState
 		else if (Program.DebugMode)
 		{
 			FunctionLabelLine label = called.CurrentLabel;
-			long line = currentLine.Position.Value.LineNo;
-			console.DebugAddTraceLog(string.Format(trsl.DebugTraceCall.Text, label.LabelName, label.Position.Value.Filename, label.Position.Value.LineNo, line));
+			long line = currentLine.Position!.Value.LineNo;
+			console.DebugAddTraceLog(string.Format(trsl.DebugTraceCall.Text, label.LabelName, label.Position!.Value.Filename, label.Position!.Value.LineNo, line));
 		}
 		lineCount++;
 		//ShfitNextLine();
@@ -458,21 +458,21 @@ internal sealed class ProcessState
 			FunctionLabelLine label = call.CurrentLabel;
 			if (exm != null)
 			{
-				long line = exm.Process.getCurrentLine.Position.Value.LineNo;
+				long line = exm.Process.getCurrentLine.Position!.Value.LineNo;
 				if (call.IsJump)
-					console.DebugAddTraceLog(string.Format(trsl.DebugTraceJump2.Text, label.LabelName, label.Position.Value.Filename, label.Position.Value.LineNo, line));
+					console.DebugAddTraceLog(string.Format(trsl.DebugTraceJump2.Text, label.LabelName, label.Position!.Value.Filename, label.Position!.Value.LineNo, line));
 				else
-					console.DebugAddTraceLog(string.Format(trsl.DebugTraceCall2.Text, label.LabelName, label.Position.Value.Filename, label.Position.Value.LineNo, line));
+					console.DebugAddTraceLog(string.Format(trsl.DebugTraceCall2.Text, label.LabelName, label.Position!.Value.Filename, label.Position!.Value.LineNo, line));
 			}
 			else
 			{
 				if (call.IsJump)
-					console.DebugAddTraceLog(string.Format(trsl.DebugTraceJump.Text, label.LabelName, label.Position.Value.Filename, label.Position.Value.LineNo));
+					console.DebugAddTraceLog(string.Format(trsl.DebugTraceJump.Text, label.LabelName, label.Position!.Value.Filename, label.Position!.Value.LineNo));
 				else
 				{
-					string trace = $"CALL @{label.LabelName}:{label.Position.Value.Filename}:{label.Position.Value.LineNo}";
+					string trace = $"CALL @{label.LabelName}:{label.Position!.Value.Filename}:{label.Position!.Value.LineNo}";
 					if (call.ReturnAddress != null)
-						trace += $" at @{call.ReturnAddress.ParentLabelLine.LabelName}:{call.ReturnAddress.ParentLabelLine.Position.Value.Filename}:{call.ReturnAddress.Position.Value.LineNo}";
+						trace += $" at @{call.ReturnAddress.ParentLabelLine.LabelName}:{call.ReturnAddress.ParentLabelLine.Position!.Value.Filename}:{call.ReturnAddress.Position!.Value.LineNo}";
 					console.DebugAddTraceLog(trace);
 				}
 			}

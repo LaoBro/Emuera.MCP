@@ -39,11 +39,8 @@ dotnet_diagnostic.CS8601.severity = none   # 可能赋值 null 引用（98）
 dotnet_diagnostic.CS8602.severity = none   # 解引用可能空引用（350）
 dotnet_diagnostic.CS8603.severity = none   # 可能返回 null 引用（606）
 dotnet_diagnostic.CS8604.severity = none   # 传入可能 null 实参（176）
-dotnet_diagnostic.CS8605.severity = none   # 已知 null 表达式解引用（2）
 dotnet_diagnostic.CS8618.severity = none   # 构造函数未初始化非 null 字段（686）
 dotnet_diagnostic.CS8625.severity = none   # null 字面量转非 null 引用类型（550）
-dotnet_diagnostic.CS8629.severity = none   # nullable 不可为 null 类型表达式（52）
-dotnet_diagnostic.CS8767.severity = none   # 接口实现 null 性不匹配（6）
 
 # .NET 分析器 CA 规则（按基线构建统计的 22 个 ID 显式抑制）
 # 性能类

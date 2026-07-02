@@ -4704,10 +4704,10 @@ internal static partial class FunctionMethodCreator
 			{
 				//コード実行中の場合
 				if (GlobalStatic.Process.getCurrentLine != null)
-					// GlobalStatic.Console.PrintSystemLine("注意:" + GlobalStatic.Process.getCurrentLine.Position.Value.Filename + "の" + GlobalStatic.Process.getCurrentLine.Position.Value.LineNo.ToString() + "行目でUNICODE関数に制御文字に対応する値(0x" + String.Format("{0:X}", i) + ")が渡されました");
+					// GlobalStatic.Console.PrintSystemLine("注意:" + GlobalStatic.Process.getCurrentLine.Position!.Value.Filename + "の" + GlobalStatic.Process.getCurrentLine.Position!.Value.LineNo.ToString() + "行目でUNICODE関数に制御文字に対応する値(0x" + String.Format("{0:X}", i) + ")が渡されました");
 					GlobalStatic.Console.PrintSystemLine(string.Format(trerror.WarnPrefix.Text,
-						GlobalStatic.Process.getCurrentLine.Position.Value.Filename,
-						GlobalStatic.Process.getCurrentLine.Position.Value.LineNo,
+						GlobalStatic.Process.getCurrentLine.Position!.Value.Filename,
+						GlobalStatic.Process.getCurrentLine.Position!.Value.LineNo,
 						string.Format(trerror.InvalidUnicode.Text, Name, i)));
 				else
 					//ParserMediator.Warn("UNICODE関数に制御文字に対応する値(0x" + String.Format("{0:X}", i) + ")が渡されました", GlobalStatic.Process.scaningLine, 1, false, false, null);

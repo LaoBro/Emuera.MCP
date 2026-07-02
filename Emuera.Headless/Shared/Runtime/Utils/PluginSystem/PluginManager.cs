@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameProc;
+using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Script;
@@ -251,7 +251,7 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 			int depth = 0;
 
 			// add initial caller
-			stackTraceCollecter.Add(this.processState.CurrentLine.Position.Value.Filename + ":" + this.processState.CurrentLine.Position.Value.LineNo.ToString() + "@" +  this.processState.CurrentLine.ParentLabelLine.LabelName);
+			stackTraceCollecter.Add(this.processState.CurrentLine.Position!.Value.Filename + ":" + this.processState.CurrentLine.Position!.Value.LineNo.ToString() + "@" +  this.processState.CurrentLine.ParentLabelLine.LabelName);
 			// loop call stack
 			while ((parent = this.processState.GetReturnAddressSequensial(depth++)) != null)
 			{
