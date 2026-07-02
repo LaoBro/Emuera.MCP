@@ -47,13 +47,40 @@ I-03、I-04、I-05、I-06、I-07、I-08、I-13、I-15（JSONL + HTTP 500）、I-
 
 ***
 
-### ❌ 未解决
+### ✅ 已解决
 
 #### I-01 — 共享源码 glob（结构性风险）
 
-**状态**：未解决（已调整为物理迁移方案，见 [T-023](#t023)）
+**状态**：已解决（T-023 物理迁移完成）
 
-[Emuera.Headless.csproj:22-51](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Emuera.Headless.csproj#L22-L51) 仍用 `<Compile Include="..\Emuera\...">` glob 共享 Runtime/UI/Game 源码。鉴于 WinForms 不再维护，原"抽 `Emuera.Core` 类库"方案改为**物理迁移源码**到 `Emuera.Headless/` 下，工作量降低一个量级。
+[Emuera.Headless.csproj](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Emuera.Headless.csproj) 不再有 `<Compile Include="..\Emuera\...">` glob。T-023 已将共享源码物理迁移到 `Emuera.Headless/Shared/`，由 SDK 默认 glob 自动包含。
+
+#### I-11 — HeadlessConsole.Environment.Exit 绕过 Dispose
+
+**状态**：已解决
+
+[HeadlessConsole.cs](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Headless/HeadlessConsole.cs) 的 `Close()` / `ExitApplication()` 已改为抛 `GameExitException`。`GameExitException` 类已创建，异常处理链完整：
+- `HeadlessRunner.cs:71-74`：catch 后静默退出
+- `Session.cs:52`：Server 模式正确 catch
+- `Process.cs:351-395`：脚本层特殊处理，避免被当作错误
+
+#### I-12（阶段 2）— csproj 质量护栏
+
+**状态**：已解决
+
+[Emuera.Headless.csproj](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Emuera.Headless.csproj) 已启用：
+- `<Nullable>enable</Nullable>`（第 9 行）
+- `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`（第 10 行）
+- `.editorconfig` 按路径分级抑制历史警告，Headless 自有源码警告可见
+
+#### I-17 — 两份 .sln + partial 修饰符多余
+
+**状态**：已解决
+
+- `Emuera/Emuera.sln` 已删除，只保留根目录 [Emuera.sln](file:///d:/LaoBro/Emuera.MCP/Emuera.sln)
+- [EmueraConsole.cs:20](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/UI/Game/EmueraConsole.cs#L20) `partial` 修饰符已移除
+
+### ❌ 未解决
 
 #### I-09 — 零 C# 单元测试
 
@@ -61,34 +88,21 @@ I-03、I-04、I-05、I-06、I-07、I-08、I-13、I-15（JSONL + HTTP 500）、I-
 
 `tests/` 目录全是 Python 端到端测试，**没有任何 xUnit/NUnit 项目**。`AgentJsonlProtocol.BuildTurn`、`HttpSessionIO` 队列语义、`ButtonRegionTracker` 坐标计算等纯逻辑无法隔离测试，每次 C# 改动仍需 `dotnet build` + Python 才能验证。
 
-#### I-11 — HeadlessConsole.Environment.Exit 绕过 Dispose
-
-**状态**：未解决
-
-[HeadlessConsole.cs](file:///d:/LaoBro/Emuera.MCP/Emuera/UI/Game/HeadlessConsole.cs) 的 `Close()` / `ExitApplication()` 仍 `Environment.Exit(0)`。该文件由 Emuera 主项目共享，改动会同时影响 WinForms——这是未修复的合理顾虑。**T-023 物理迁移后**该文件归 Headless 独占，可直接改为抛 `GameExitException`，无 WinForms 顾虑。
-
-#### I-12（阶段 2）— csproj 质量护栏
-
-**状态**：阶段 1 已落地，阶段 2 未实现
-
-[Emuera.Headless.csproj](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Emuera.Headless.csproj) 已启用 `EnableNETAnalyzers` + `AnalysisMode>Minimum` + `EnforceCodeStyleInBuild`，按路径分级的 `.editorconfig` 抑制 `Emuera/**` 历史警告。
-
-**阶段 2 未做**：`<Nullable>` 仍 `disable`，未启用 `<TreatWarningsAsErrors>`。原因：会因 `Emuera/` 共享源码警告导致 Headless 构建失败。**T-023 物理迁移后**可撤销 `.editorconfig` 中 `[Emuera/**]` 段的 CA 抑制，统一启用 nullable + warnings as errors。详见 [docs/TODO.md](file:///d:/LaoBro/Emuera.MCP/docs/TODO.md) T-022。
-
 #### I-14 — IConsoleUI 抽象泄漏 System.Drawing
 
-**状态**：未解决
+**状态**：部分解决（阶段 A 已完成）
 
-[IConsoleUI.cs:86](file:///d:/LaoBro/Emuera.MCP/Emuera/UI/Game/IConsoleUI.cs#L86) `ToolTipDrawEventArgs.Graphics` 仍暴露 `System.Drawing.Graphics`。`IConsoleUI` 也仍用 `System.Drawing.Point/Rectangle/Color`。HeadlessConsole 实现仍需引用 `System.Drawing.Common`（虽然 Headless 路径不触发 ToolTip Draw 事件）。**T-023 物理迁移后**可逐步替换为不依赖 System.Drawing 的抽象类型。
+**已做**：
+- `ToolTipDrawEventArgs.Graphics` 已移除（Headless 模式下 Draw 事件从未触发）
+- `ToolTipPopupEventArgs.Size` 已移除（Popup 事件从未触发）
+- 自定义值类型已创建：`EmuPoint`/`EmuRectangle`/`EmuColor`/`EmuSize`（`Primitives/` 目录）
+- 隐式转换兼容现有代码，无需修改任何使用处
 
-#### I-17 — 两份 .sln + partial 修饰符多余
+**未做**（阶段 B/C）：
+- 渐进式移除 37 个文件的 `using System.Drawing`（可逐文件进行）
+- 从 csproj 移除 `System.Drawing.Common` 依赖
 
-**状态**：未解决
-
-- [Emuera/Emuera.sln](file:///d:/LaoBro/Emuera.MCP/Emuera/Emuera.sln) 仍存在（仅含 Emuera 单项目），与根 [Emuera.sln](file:///d:/LaoBro/Emuera.MCP/Emuera.sln) 易混淆。
-- [EmueraConsole.cs:20](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/UI/Game/EmueraConsole.cs#L20) `internal sealed partial class` 但全项目只有这一个文件，`partial` 多余。
-
-**T-023 物理迁移**会删除 `Emuera/Emuera.sln` 与 `Emuera/Emuera.csproj`，顺带解决此问题。
+详见 [I-14阶段2-自定义值类型实施方案.md](file:///d:/LaoBro/Emuera.MCP/docs/2026.6.30.架构健壮性重构/I-14阶段2-自定义值类型实施方案.md)
 
 ***
 
@@ -140,28 +154,27 @@ I-03、I-04、I-05、I-06、I-07、I-08、I-13、I-15（JSONL + HTTP 500）、I-
 
 ### P1 — 新功能开发期间应完成
 
-1. **T-023**：物理迁移共享源码到 `Emuera.Headless/` —— 替代原"抽 `Emuera.Core`"，是后续所有质量护栏的前置，顺带解决 I-01、I-17
+1. ~~**T-023**：物理迁移共享源码到 `Emuera.Headless/`~~ —— ✅ 已完成，顺带解决 I-01、I-17
 2. **T-024**：废弃 CLI/JSONL 管道模式入口 —— 收窄维护面
 3. **I-09**：建立 C# xUnit 测试项目 —— 保护 Channel/Reset/WaitForTurnAsync 等纯逻辑
-4. **T-022（I-12 阶段 2）**：`Nullable enable` + `TreatWarningsAsErrors` —— 前置 T-023 满足后可推进
-5. **I-02 收尾**：~~评估 `IGameRuntime` 上下文接口~~ —— **已关闭**：单会话契约已确认（CLAUDE.md + SPEC_SINGLE_THREAD §5.2），现有硬约束（409 + 锁 + 幂等 Reset）已足够防误用，无需引入上下文接口
+4. ~~**T-022（I-12 阶段 2）**：`Nullable enable` + `TreatWarningsAsErrors`~~ —— ✅ 已完成
+5. ~~**I-02 收尾**：评估 `IGameRuntime` 上下文接口~~ —— ✅ 已关闭：单会话契约已确认，无需引入上下文接口
 
 ### P2 — 持续改进
 
-1. **I-11**：HeadlessConsole 改抛 `GameExitException`（T-023 后可直接改，无 WinForms 顾虑）
-2. **I-14**：`IConsoleUI` 抽象去 `System.Drawing`（与 T-023 协同推进）
+1. ~~**I-11**：HeadlessConsole 改抛 `GameExitException`~~ —— ✅ 已完成
+2. **I-14**：`IConsoleUI` 抽象去 `System.Drawing` —— 🟡 阶段 A 完成（自定义类型已创建，隐式转换兼容）
 3. **I-10**：可注入 `ILogger`（Server 多会话前置）
-4. **I-17 收尾**：清理 `EmueraConsole.cs` 多余 `partial` 修饰符
 
 ### 关键路径依赖
 
 ```
-T-023 (物理迁移) ──┬─→ T-022 (Nullable + WarningsAsErrors)
-                   ├─→ I-11 (HeadlessConsole Exit)
-                   ├─→ I-14 (IConsoleUI 去 System.Drawing)
-                   └─→ I-17 (sln/partial 清理)
+T-023 (物理迁移) ──┬─→ ✅ T-022 (Nullable + WarningsAsErrors) 已完成
+                   ├─→ ✅ I-11 (HeadlessConsole Exit) 已完成
+                   ├─→ 🟡 I-14 (IConsoleUI 去 System.Drawing) 阶段 A 完成
+                   └─→ ✅ I-17 (sln/partial 清理) 已完成
 
 T-024 (管道废弃) ──→ 收窄测试矩阵，为 I-09 单测项目减负
 ```
 
-**建议下一步**：以 T-023 作为独立 PR 启动（纯文件移动 + csproj 简化，diff 体积大但逻辑改动小）。落地后即可并行推进 T-024 与 I-09。
+**当前状态**：T-023 已完成，解锁了 I-11、I-17、I-12 阶段 2（均已落地）。I-14 阶段 A 已完成（自定义类型 + 隐式转换），阶段 B/C 可根据需要逐步推进。下一步建议推进 T-024（废弃管道模式）与 I-09（建立 C# 单测项目）。

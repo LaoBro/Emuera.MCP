@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Text;
 using System.Timers;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
@@ -79,14 +80,14 @@ internal sealed class ConsoleStateData
     internal bool updatedGeneration;
     internal LogicalLine? lastInputLine;
 
-    // --- Style ---
-    internal StringStyle defaultStyle = new(Config.ForeColor, FontStyle.Regular, null);
-    internal StringStyle userStyle = new(Config.ForeColor, FontStyle.Regular, null);
-    internal DisplayLineAlignment alignment = DisplayLineAlignment.LEFT;
-    internal Color bgColor = Config.BackColor;
-    internal bool UseUserStyle;
-    internal bool UseSetColorStyle;
-    internal string? stBar;
+	// --- Style ---
+	internal StringStyle defaultStyle = new(Config.ForeColor, FontStyle.Regular, null);
+	internal StringStyle userStyle = new(Config.ForeColor, FontStyle.Regular, null);
+	internal DisplayLineAlignment alignment = DisplayLineAlignment.LEFT;
+	internal EmuColor bgColor = Config.BackColor;
+	internal bool UseUserStyle;
+	internal bool UseSetColorStyle;
+	internal string? stBar;
 
     // --- Timer ---
     internal readonly Stopwatch _genericTimerStopwatch = new();

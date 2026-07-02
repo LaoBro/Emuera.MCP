@@ -1,5 +1,5 @@
 using System;
-using System.Drawing;
+using MinorShift.Emuera.Primitives;
 
 namespace MinorShift.Emuera.UI.Game
 {
@@ -30,10 +30,10 @@ namespace MinorShift.Emuera.UI.Game
 		bool TextBoxPosChanged { get; }
 		bool TextBoxIgnoreScrollBarChanges { get; set; }
 
-		Point GetMousePosition();
-		Point GetCursorPosition();
+		EmuPoint GetMousePosition();
+		EmuPoint GetCursorPosition();
 		int GetCursorHeight();
-		int GetScreenWorkingAreaHeight(Point point);
+		int GetScreenWorkingAreaHeight(EmuPoint point);
 		void ExitApplication();
 		void ProcessEvents();
 
@@ -53,19 +53,19 @@ namespace MinorShift.Emuera.UI.Game
 	internal interface ITextBox
 	{
 		string Text { get; set; }
-		Color BackColor { get; set; }
+		EmuColor BackColor { get; set; }
 	}
 
 	internal interface IToolTip
 	{
 		void RemoveAll();
-		void Show(string text, Point point);
-		void Show(string text, Point point, int duration);
+		void Show(string text, EmuPoint point);
+		void Show(string text, EmuPoint point, int duration);
 		int InitialDelay { get; set; }
 		int AutoPopDelay { get; set; }
 		bool OwnerDraw { get; set; }
-		Color ForeColor { get; set; }
-		Color BackColor { get; set; }
+		EmuColor ForeColor { get; set; }
+		EmuColor BackColor { get; set; }
 		string GetToolTip();
 
 		event EventHandler<ToolTipDrawEventArgs> Draw;
@@ -76,20 +76,19 @@ namespace MinorShift.Emuera.UI.Game
 	{
 		int Width { get; }
 		int Height { get; }
-		Point PointToClient(Point point);
-		Rectangle ClientRectangle { get; }
+		EmuPoint PointToClient(EmuPoint point);
+		EmuRectangle ClientRectangle { get; }
 	}
 
 	// 简化的事件参数，避免直接引用 System.Windows.Forms
+	// I-14：移除 Graphics 和 ToolTipSize，Headless 模式下 Draw/Popup 事件从未触发
 	internal class ToolTipDrawEventArgs : EventArgs
 	{
-		public Graphics Graphics { get; set; }
 		public string ToolTipText { get; set; }
-		public Rectangle Bounds { get; set; }
+		public EmuRectangle Bounds { get; set; }
 	}
 
 	internal class ToolTipPopupEventArgs : EventArgs
 	{
-		public Size ToolTipSize { get; set; }
 	}
 }

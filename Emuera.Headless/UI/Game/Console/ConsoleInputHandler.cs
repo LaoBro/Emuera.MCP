@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Text;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -165,7 +165,7 @@ internal sealed class ConsoleInputHandler
         {
             if (_state.State == ConsoleState.WaitInput && _state.inputReq!.NeedValue)
             {
-                Point point = _ui.MainPicBox.PointToClient(_ui.GetCursorPosition());
+                EmuPoint point = _ui.MainPicBox.PointToClient(_ui.GetCursorPosition());
                 if (_ui.MainPicBox.ClientRectangle.Contains(point))
                     _console.MoveMouse(point);
             }
@@ -324,7 +324,7 @@ internal sealed class ConsoleInputHandler
             _console.RunEmueraProgram(null);
             if (_state.State == ConsoleState.WaitInput && _state.inputReq!.NeedValue)
             {
-                Point point = _ui.MainPicBox.PointToClient(_ui.GetCursorPosition());
+                EmuPoint point = _ui.MainPicBox.PointToClient(_ui.GetCursorPosition());
                 if (_ui.MainPicBox.ClientRectangle.Contains(point))
                     _console.MoveMouse(point);
             }
@@ -336,21 +336,19 @@ internal sealed class ConsoleInputHandler
         _console.RefreshStrings(true);
     }
 
-    public void MouseWheel(Point point, int delta)
+    public void MouseWheel(EmuPoint point, int delta)
     {
         if (!_console.IsWaitingPrimitive)
             return;
-        Point clientPoint = point;
-        clientPoint.Y = point.Y - _ui.ClientHeight;
+        EmuPoint clientPoint = new(point.X, point.Y - _ui.ClientHeight);
         InputMouseKey(2, delta, clientPoint.X, clientPoint.Y, 0, 0);
     }
 
-    public void MouseDown(Point point, int button)
+    public void MouseDown(EmuPoint point, int button)
     {
         if (!_console.IsWaitingPrimitive)
             return;
-        Point clientPoint = point;
-        clientPoint.Y = point.Y - _ui.ClientHeight;
+        EmuPoint clientPoint = new(point.X, point.Y - _ui.ClientHeight);
         int buttonNum = -1;
         if (_state.selectingButton != null)
         {
@@ -372,7 +370,7 @@ internal sealed class ConsoleInputHandler
             InputMouseKey(3, (int)keycode, (int)keydata, 0, 0, 0);
     }
 
-    public bool MoveMouse(Point point)
+    public bool MoveMouse(EmuPoint point)
     {
         _state.selectingCBGButtonInt = -1;
         ConsoleButtonString? select = null;

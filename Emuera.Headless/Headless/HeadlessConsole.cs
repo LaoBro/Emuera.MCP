@@ -1,5 +1,5 @@
 using System;
-using System.Drawing;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 
 namespace MinorShift.Emuera.UI.Game
@@ -36,10 +36,10 @@ namespace MinorShift.Emuera.UI.Game
 		public bool TextBoxPosChanged => false;
 		public bool TextBoxIgnoreScrollBarChanges { get; set; } = false;
 
-		public Point GetMousePosition() => Point.Empty;
-		public Point GetCursorPosition() => Point.Empty;
+		public EmuPoint GetMousePosition() => EmuPoint.Empty;
+		public EmuPoint GetCursorPosition() => EmuPoint.Empty;
 		public int GetCursorHeight() => 0;
-		public int GetScreenWorkingAreaHeight(Point point) => 1080;
+		public int GetScreenWorkingAreaHeight(EmuPoint point) => 1080;
 		public void ExitApplication() => throw new GameExitException();
 		public void ProcessEvents() { }
 
@@ -59,7 +59,7 @@ namespace MinorShift.Emuera.UI.Game
 	internal sealed class HeadlessTextBox : ITextBox
 	{
 		public string Text { get; set; } = string.Empty;
-		public Color BackColor { get; set; } = Config.BackColor;
+		public EmuColor BackColor { get; set; } = Config.BackColor;
 	}
 
 	internal sealed class HeadlessToolTip : IToolTip
@@ -67,15 +67,15 @@ namespace MinorShift.Emuera.UI.Game
 		public int InitialDelay { get; set; } = 0;
 		public int AutoPopDelay { get; set; } = 0;
 		public bool OwnerDraw { get; set; } = false;
-		public Color ForeColor { get; set; } = Color.Black;
-		public Color BackColor { get; set; } = Color.White;
+		public EmuColor ForeColor { get; set; } = EmuColor.Black;
+		public EmuColor BackColor { get; set; } = EmuColor.White;
 
 		public event EventHandler<ToolTipDrawEventArgs>? Draw;
 		public event EventHandler<ToolTipPopupEventArgs>? Popup;
 
 		public void RemoveAll() { }
-		public void Show(string text, Point point) { }
-		public void Show(string text, Point point, int duration) { }
+		public void Show(string text, EmuPoint point) { }
+		public void Show(string text, EmuPoint point, int duration) { }
 		public string GetToolTip() => string.Empty;
 	}
 
@@ -83,7 +83,7 @@ namespace MinorShift.Emuera.UI.Game
 	{
 		public int Width => Config.WindowX;
 		public int Height => Config.WindowY;
-		public Point PointToClient(Point point) => point;
-		public Rectangle ClientRectangle => new(0, 0, Width, Height);
+		public EmuPoint PointToClient(EmuPoint point) => point;
+		public EmuRectangle ClientRectangle => new(0, 0, Width, Height);
 	}
 }
