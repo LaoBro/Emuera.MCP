@@ -1,93 +1,32 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Runtime.Config;
 using System.Collections.Generic;
-using System.Drawing;
 
 namespace MinorShift.Emuera.UI;
 
+/// <summary>
+/// 字体工厂。Headless 模式下返回 EmuFont 值类型，不依赖 GDI/GDI+。
+/// 未来跨平台 UI 可替换为实际字体解析。
+/// </summary>
 internal class FontFactory
 {
+	static readonly Dictionary<(string fontname, int fontSize, EmuFontStyle fontStyle), EmuFont> fontDic = [];
 
-	static readonly Dictionary<(string fontname, int fontSize, FontStyle fontStyle), Font> fontDic = [];
-
-	public static Font GetFont(string requestFontName, FontStyle style)
+	public static EmuFont GetFont(string requestFontName, EmuFontStyle style)
 	{
-		/*
-		string fontname = requestFontName;
-		if (string.IsNullOrEmpty(requestFontName))
-			fontname = Config.FontName;
-		if (!fontDic.ContainsKey((fontname, Config.FontSize, style)))
-		{
-			var font = new Font(fontname, Config.FontSize, style, GraphicsUnit.Pixel);
-			if (font == null)
-			{
-				return null;
-			}
-			else
-			{
-				fontDic.Add((fontname, Config.FontSize, style), font);
-			}
+		string fn = string.IsNullOrEmpty(requestFontName) ? Config.FontName : requestFontName;
+		var key = (fn, Config.FontSize, style);
 
-		}
-		#region EE_フォントファイル対応
-		int fontsize = Config.FontSize;
-		Font styledFont;
-		foreach (FontFamily ff in GlobalStatic.Pfc.Families)
+		if (!fontDic.TryGetValue(key, out var font))
 		{
-			if (ff.Name == fontname)
-			{
-				styledFont = new Font(ff, fontsize, style, GraphicsUnit.Pixel);
-				break;
-			}
+			font = new EmuFont(fn, Config.FontSize, style);
+			fontDic[key] = font;
 		}
-		#endregion
-		return fontDic[(fontname, Config.FontSize, style)];
-		*/
-
-		string fn = requestFontName;
-		if (string.IsNullOrEmpty(requestFontName))
-			fn = Config.FontName;
-		if (!fontDic.ContainsKey((fn, Config.FontSize, style)))
-		{
-			var font = new Font(fn, Config.FontSize, style, GraphicsUnit.Pixel);
-			if (font != null)
-				fontDic.Add((fn, Config.FontSize, style), font);
-
-		}
-		Dictionary<FontStyle, Font> fontStyleDic = [];
-		if (!fontStyleDic.ContainsKey(style))
-		{
-			int fontsize = Config.FontSize;
-			Font styledFont;
-			try
-			{
-				#region EE_フォントファイル対応
-				foreach (FontFamily ff in GlobalStatic.Pfc.Families)
-				{
-					if (ff.Name == fn)
-					{
-						styledFont = new Font(ff, fontsize, style, GraphicsUnit.Pixel);
-						goto foundfont;
-					}
-				}
-				styledFont = new Font(fn, fontsize, style, GraphicsUnit.Pixel);
-			}
-			catch
-			{
-				return null;
-			}
-		foundfont:
-			#endregion
-			fontStyleDic.Add(style, styledFont);
-		}
-		return fontStyleDic[style];
+		return font;
 	}
 
 	public static void ClearFont()
 	{
-		foreach (var font in fontDic)
-		{
-			font.Value.Dispose();
-		}
 		fontDic.Clear();
 	}
 }
