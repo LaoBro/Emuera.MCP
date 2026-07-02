@@ -1,5 +1,6 @@
 using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameProc.Function;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Statements;
@@ -418,20 +419,14 @@ internal sealed partial class Process
 						if ((colorR > 255) || (colorG > 255) || (colorB > 255))
 							throw new CodeEE(trerror.SetcolorArgOver255.Text);
 					}
-					Color c = Color.FromArgb((int)colorR, (int)colorG, (int)colorB);
+					EmuColor c = EmuColor.FromArgb((int)colorR, (int)colorG, (int)colorB);
 					exm.Console.SetStringStyle(c);
 				}
 				break;
 			case FunctionCode.SETCOLORBYNAME:
 				{
 					string colorName = func.Argument.ConstStr;
-					Color c = Color.FromName(colorName);
-					if (c.A == 0)
-					{
-						if (str.Equals("transparent", StringComparison.OrdinalIgnoreCase))
-							throw new CodeEE(trerror.TransparentUnsupported.Text);
-						throw new CodeEE(string.Format(trerror.InvalidColorName.Text, colorName));
-					}
+					EmuColor c = EmuColor.FromName(colorName);
 					exm.Console.SetStringStyle(c);
 				}
 				break;
@@ -465,38 +460,32 @@ internal sealed partial class Process
 						if ((colorR > 255) || (colorG > 255) || (colorB > 255))
 							throw new CodeEE(trerror.SetcolorArgOver255.Text);
 					}
-					Color c = Color.FromArgb((int)colorR, (int)colorG, (int)colorB);
+					EmuColor c = EmuColor.FromArgb((int)colorR, (int)colorG, (int)colorB);
 					exm.Console.SetBgColor(c);
 				}
 				break;
 			case FunctionCode.SETBGCOLORBYNAME:
 				{
 					string colorName = func.Argument.ConstStr;
-					Color c = Color.FromName(colorName);
-					if (c.A == 0)
-					{
-						if (str.Equals("transparent", StringComparison.OrdinalIgnoreCase))
-							throw new CodeEE(trerror.TransparentUnsupported.Text);
-						throw new CodeEE(string.Format(trerror.InvalidColorName.Text, colorName));
-					}
+					EmuColor c = EmuColor.FromName(colorName);
 					exm.Console.SetBgColor(c);
 				}
 				break;
 			case FunctionCode.FONTSTYLE:
 				{
-					FontStyle fs = FontStyle.Regular;
+					EmuFontStyle fs = EmuFontStyle.Regular;
 					if (func.Argument.IsConst)
 						iValue = func.Argument.ConstInt;
 					else
 						iValue = ((ExpressionArgument)func.Argument).Term.GetIntValue(exm);
 					if ((iValue & 1) != 0)
-						fs |= FontStyle.Bold;
+						fs |= EmuFontStyle.Bold;
 					if ((iValue & 2) != 0)
-						fs |= FontStyle.Italic;
+						fs |= EmuFontStyle.Italic;
 					if ((iValue & 4) != 0)
-						fs |= FontStyle.Strikeout;
+						fs |= EmuFontStyle.Strikeout;
 					if ((iValue & 8) != 0)
-						fs |= FontStyle.Underline;
+						fs |= EmuFontStyle.Underline;
 					exm.Console.SetStringStyle(fs);
 				}
 				break;

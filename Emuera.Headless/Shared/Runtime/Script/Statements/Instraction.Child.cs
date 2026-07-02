@@ -1,5 +1,6 @@
 using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
@@ -16,7 +17,6 @@ using MinorShift.Emuera.Runtime.Utils.PluginSystem;
 using MinorShift.Emuera.UI.Game;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -1629,7 +1629,7 @@ internal sealed partial class FunctionIdentifier
 		{
 			if (!OperatingSystem.IsWindows())
 				return;
-			exm.Console.SetStringStyle(exm.Console.StringStyle.FontStyle | FontStyle.Bold);
+			exm.Console.SetStringStyle(exm.Console.StringStyle.FontStyle | EmuFontStyle.Bold);
 		}
 	}
 	private sealed class FONTITALIC_Instruction : AInstruction
@@ -1644,7 +1644,7 @@ internal sealed partial class FunctionIdentifier
 		{
 			if (!OperatingSystem.IsWindows())
 				return;
-			exm.Console.SetStringStyle(exm.Console.StringStyle.FontStyle | FontStyle.Italic);
+			exm.Console.SetStringStyle(exm.Console.StringStyle.FontStyle | EmuFontStyle.Italic);
 		}
 	}
 	private sealed class FONTREGULAR_Instruction : AInstruction
@@ -1659,7 +1659,7 @@ internal sealed partial class FunctionIdentifier
 		{
 			if (!OperatingSystem.IsWindows())
 				return;
-			exm.Console.SetStringStyle(FontStyle.Regular);
+			exm.Console.SetStringStyle(EmuFontStyle.Regular);
 		}
 	}
 
@@ -2128,8 +2128,8 @@ internal sealed partial class FunctionIdentifier
 				throw new CodeEE(string.Format(trerror.ArgIsOoRColorCode.Text, "1"));
 			if (backColor < 0 || backColor > 0xFFFFFF)
 				throw new CodeEE(string.Format(trerror.ArgIsOoRColorCode.Text, "2"));
-			Color fc = Color.FromArgb((int)foreColor >> 16, (int)foreColor >> 8 & 0xFF, (int)foreColor & 0xFF);
-			Color bc = Color.FromArgb((int)backColor >> 16, (int)backColor >> 8 & 0xFF, (int)backColor & 0xFF);
+			EmuColor fc = EmuColor.FromArgb((int)foreColor >> 16, (int)foreColor >> 8 & 0xFF, (int)foreColor & 0xFF);
+			EmuColor bc = EmuColor.FromArgb((int)backColor >> 16, (int)backColor >> 8 & 0xFF, (int)backColor & 0xFF);
 			exm.Console.SetToolTipColor(fc, bc);
 			return;
 		}

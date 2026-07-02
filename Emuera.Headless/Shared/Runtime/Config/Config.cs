@@ -1,4 +1,4 @@
-﻿﻿using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.UI;
 using System;
@@ -648,12 +648,11 @@ internal static class Config
 	public static int CBBufferSize { get; private set; }
 	public static int CBScrollCount { get; private set; }
 	public static int CBMinTimer { get; private set; }
-	#endregion
-	#region EmuEra-Rikaichan related settings
+
 	public static bool RikaiEnabled { get; private set; }
 	public static string RikaiFilename { get; private set; }
-	public static Color RikaiColorBack { get; private set; }
-	public static Color RikaiColorText { get; private set; }
+	public static EmuColor RikaiColorBack { get; private set; }
+	public static EmuColor RikaiColorText { get; private set; }
 	public static bool RikaiUseSeparateBoxes { get; private set; }
 	#endregion
 
