@@ -16,9 +16,11 @@ public readonly record struct EmuRectangleF(float X, float Y, float Width, float
     public bool Contains(float x, float y)
         => x >= X && x < X + Width && y >= Y && y < Y + Height;
 
+#if !HEADLESS
     public static implicit operator EmuRectangleF(System.Drawing.RectangleF r)
         => new(r.X, r.Y, r.Width, r.Height);
 
     public static implicit operator System.Drawing.RectangleF(EmuRectangleF r)
         => new(r.X, r.Y, r.Width, r.Height);
+#endif
 }

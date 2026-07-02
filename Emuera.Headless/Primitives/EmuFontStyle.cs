@@ -34,10 +34,12 @@ public readonly record struct EmuFontStyle(int Value)
 	public static bool operator ==(int a, EmuFontStyle b) => a == b.Value;
 	public static bool operator !=(int a, EmuFontStyle b) => a != b.Value;
 
+#if !HEADLESS
 	// 隐式转换：与 System.Drawing.FontStyle 数值完全一致
 	public static implicit operator EmuFontStyle(System.Drawing.FontStyle fs)
 		=> new((int)fs);
 
 	public static implicit operator System.Drawing.FontStyle(EmuFontStyle fs)
 		=> (System.Drawing.FontStyle)fs.Value;
+#endif
 }

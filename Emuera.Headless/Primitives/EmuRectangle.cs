@@ -20,9 +20,11 @@ public readonly record struct EmuRectangle(int X, int Y, int Width, int Height)
         => X < other.X + other.Width && other.X < X + Width
         && Y < other.Y + other.Height && other.Y < Y + Height;
 
+#if !HEADLESS
     public static implicit operator EmuRectangle(System.Drawing.Rectangle r)
         => new(r.X, r.Y, r.Width, r.Height);
 
     public static implicit operator System.Drawing.Rectangle(EmuRectangle r)
         => new(r.X, r.Y, r.Width, r.Height);
+#endif
 }

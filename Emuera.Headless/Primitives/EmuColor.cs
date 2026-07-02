@@ -84,10 +84,12 @@ public readonly record struct EmuColor(byte R, byte G, byte B, byte A = 255)
         ["magenta"] = new(255, 0, 255),
     };
 
+#if !HEADLESS
     // 隐式转换
     public static implicit operator EmuColor(System.Drawing.Color c)
         => new(c.R, c.G, c.B, c.A);
 
     public static implicit operator System.Drawing.Color(EmuColor c)
         => System.Drawing.Color.FromArgb(c.A, c.R, c.G, c.B);
+#endif
 }

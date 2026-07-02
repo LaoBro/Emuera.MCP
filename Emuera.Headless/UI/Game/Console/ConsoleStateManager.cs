@@ -122,7 +122,7 @@ internal sealed class ConsoleStateManager
         _console.ClearDisplay();
         _state.redraw = ConsoleRedraw.Normal;
         _state.UseUserStyle = false;
-        _state.userStyle = new StringStyle(Config.ForeColor, System.Drawing.FontStyle.Regular, null);
+        _state.userStyle = new StringStyle(Config.ForeColor, MinorShift.Emuera.Primitives.EmuFontStyle.Regular, null);
         _state.process!.BeginTitle();
         _console.ReadAnyKey(false, false);
         _console.RunEmueraProgram("");

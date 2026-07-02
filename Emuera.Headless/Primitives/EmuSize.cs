@@ -8,6 +8,8 @@ public readonly record struct EmuSize(int Width, int Height)
 {
     public static readonly EmuSize Empty = new(0, 0);
 
+#if !HEADLESS
     public static implicit operator EmuSize(System.Drawing.Size s) => new(s.Width, s.Height);
     public static implicit operator System.Drawing.Size(EmuSize s) => new(s.Width, s.Height);
+#endif
 }

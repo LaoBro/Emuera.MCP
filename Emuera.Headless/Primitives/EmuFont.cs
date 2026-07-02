@@ -18,6 +18,7 @@ public readonly record struct EmuFont(string Name, float Size, EmuFontStyle Styl
 	/// </summary>
 	public string FontFamilyName => Name;
 
+#if !HEADLESS
 	/// <summary>
 	/// 从 System.Drawing.Font 创建 EmuFont（隐式转换）。
 	/// </summary>
@@ -29,4 +30,5 @@ public readonly record struct EmuFont(string Name, float Size, EmuFontStyle Styl
 	/// </summary>
 	public static implicit operator System.Drawing.Font(EmuFont f)
 		=> new(f.Name, f.Size, f.Style, System.Drawing.GraphicsUnit.Pixel);
+#endif
 }
