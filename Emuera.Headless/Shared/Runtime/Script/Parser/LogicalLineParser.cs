@@ -526,7 +526,7 @@ internal static class LogicalLineParser
 							};
 							parentLine.AddPrivateVariable(varData);
 
-							line.Argument = new StrAsignArgument(varName, varData.Lengths, value);
+							line.Argument = new StrAsignArgument(varName, varData.Lengths, value!);
 							return line;
 						}
 					}

@@ -355,9 +355,9 @@ internal sealed partial class Process(EmueraConsole view)
 			if (currentLine != null && currentLine is NullLine)
 				currentLine = null;
 			if (systemProcRunning)
-				handleExceptionInSystemProc(ec, currentLine, true);
+				handleExceptionInSystemProc(ec, currentLine!, true);
 			else
-				handleException(ec, currentLine, true);
+				handleException(ec, currentLine!, true);
 		}
 	}
 

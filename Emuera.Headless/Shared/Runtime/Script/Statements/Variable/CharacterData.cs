@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
@@ -534,7 +534,7 @@ internal sealed class CharacterData : IDisposable
 					break;
 				case EraSaveDataType.IntArray:
 					if (userDefineData && array != null)
-						reader.ReadIntArray(array as long[], true);
+						reader.ReadIntArray((array as long[])!, true);
 					else if (vToken == null || !vToken.IsInteger || vToken.Dimension != 1)
 						reader.ReadIntArray(null, true);
 					else
@@ -542,7 +542,7 @@ internal sealed class CharacterData : IDisposable
 					break;
 				case EraSaveDataType.StrArray:
 					if (userDefineData && array != null)
-						reader.ReadStrArray(array as string[], true);
+						reader.ReadStrArray((array as string[])!, true);
 					else if (vToken == null || !vToken.IsString || vToken.Dimension != 1)
 						reader.ReadStrArray(null, true);
 					else
@@ -550,7 +550,7 @@ internal sealed class CharacterData : IDisposable
 					break;
 				case EraSaveDataType.IntArray2D:
 					if (userDefineData && array != null)
-						reader.ReadIntArray2D(array as long[,], true);
+						reader.ReadIntArray2D((array as long[,])!, true);
 					else if (vToken == null || !vToken.IsInteger || vToken.Dimension != 2)
 						reader.ReadIntArray2D(null, true);
 					else
@@ -558,7 +558,7 @@ internal sealed class CharacterData : IDisposable
 					break;
 				case EraSaveDataType.StrArray2D:
 					if (userDefineData && array != null)
-						reader.ReadStrArray2D(array as string[,], true);
+						reader.ReadStrArray2D((array as string[,])!, true);
 					else if (vToken == null || !vToken.IsString || vToken.Dimension != 2)
 						reader.ReadStrArray2D(null, true);
 					else

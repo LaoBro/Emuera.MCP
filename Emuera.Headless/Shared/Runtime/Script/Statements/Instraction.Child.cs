@@ -431,11 +431,11 @@ internal sealed partial class FunctionIdentifier
 			if (strb == string.Empty) strb = null;
 			exm.Console.PrintImg(
 				arg.Name.GetStrValue(exm),
-				strb,
-				strm,
-				arg.Param != null && arg.Param.Length > 1 ? new MixedNum { num = (int)arg.Param[1].num.GetIntValue(exm), isPx = arg.Param[1].isPx } : null,
-				arg.Param != null && arg.Param.Length > 0 ? new MixedNum { num = (int)arg.Param[0].num.GetIntValue(exm), isPx = arg.Param[0].isPx } : null,
-				arg.Param != null && arg.Param.Length > 2 ? new MixedNum { num = (int)arg.Param[2].num.GetIntValue(exm), isPx = arg.Param[2].isPx } : null);
+				strb!,
+				strm!,
+				(arg.Param != null && arg.Param.Length > 1 ? new MixedNum { num = (int)arg.Param[1].num.GetIntValue(exm), isPx = arg.Param[1].isPx } : null)!,
+				(arg.Param != null && arg.Param.Length > 0 ? new MixedNum { num = (int)arg.Param[0].num.GetIntValue(exm), isPx = arg.Param[0].isPx } : null)!,
+				(arg.Param != null && arg.Param.Length > 2 ? new MixedNum { num = (int)arg.Param[2].num.GetIntValue(exm), isPx = arg.Param[2].isPx } : null)!);
 			#endregion
 		}
 	}
@@ -3320,7 +3320,7 @@ internal sealed partial class FunctionIdentifier
 					long Is = iValue;
 					foreach (CaseExpression caseExp in caseArg.CaseExps)
 					{
-						if (caseExp.GetBool(Is, exm))
+						if (caseExp.GetBool(Is!, exm))
 						{
 							caseJumpto = line;
 							goto casefound;
@@ -3332,7 +3332,7 @@ internal sealed partial class FunctionIdentifier
 					string Is = sValue;
 					foreach (CaseExpression caseExp in caseArg.CaseExps)
 					{
-						if (caseExp.GetBool(Is, exm))
+						if (caseExp.GetBool(Is!, exm))
 						{
 							caseJumpto = line;
 							goto casefound;
@@ -3626,7 +3626,7 @@ internal sealed partial class FunctionIdentifier
 			{
 				ret = term.GetValue(exm);
 			}
-			state.ReturnF(ret);
+			state.ReturnF(ret!);
 		}
 	}
 

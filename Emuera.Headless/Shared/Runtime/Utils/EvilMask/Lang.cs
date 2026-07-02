@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -1531,7 +1531,7 @@ internal sealed partial class Lang
 						{
 							if (pattr is Managed)
 							{
-								trItems.Add(addr + nt.Name + '.' + prop.Name, prop.GetValue(null, null) as TranslatableString);
+								trItems.Add(addr + nt.Name + '.' + prop.Name, (prop.GetValue(null, null) as TranslatableString)!);
 							}
 						}
 					}

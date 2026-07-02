@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils;
 using System;
 using System.Collections.Generic;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
@@ -133,9 +133,9 @@ internal sealed class VariableIdentifier
 	{
 		var array = Enum.GetValues<VariableCode>();
 
-		nameDic.Add(Enum.GetName(VariableCode.__FILE__), VariableCode.__FILE__);
-		nameDic.Add(Enum.GetName(VariableCode.__LINE__), VariableCode.__LINE__);
-		nameDic.Add(Enum.GetName(VariableCode.__FUNCTION__), VariableCode.__FUNCTION__);
+		nameDic.Add(Enum.GetName(VariableCode.__FILE__)!, VariableCode.__FILE__);
+		nameDic.Add(Enum.GetName(VariableCode.__LINE__)!, VariableCode.__LINE__);
+		nameDic.Add(Enum.GetName(VariableCode.__FUNCTION__)!, VariableCode.__FUNCTION__);
 		foreach (var code in array)
 		{
 			var key = Enum.GetName(code);

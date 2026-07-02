@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
@@ -223,7 +223,7 @@ internal static class ExpressionParser
 			wc.ShiftNext();
 			subId = subidWT.Code;
 		}
-		return GlobalStatic.IdentifierDictionary.GetVariableToken(idStr, subId, true);
+		return GlobalStatic.IdentifierDictionary.GetVariableToken(idStr, subId!, true);
 	}
 
 
@@ -399,7 +399,7 @@ internal static class ExpressionParser
 					stack.Add((token as LiteralIntegerWord).Int);
 					break;
 				case 'F'://FormattedStringWT
-					stack.Add(ToStrFormTerm(token as StrFormWord));
+					stack.Add(ToStrFormTerm((token as StrFormWord)!));
 					break;
 				case 'A'://IdentifierWT
 					{

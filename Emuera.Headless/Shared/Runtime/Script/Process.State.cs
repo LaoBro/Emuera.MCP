@@ -480,7 +480,7 @@ internal sealed class ProcessState
 		if (srcArgs != null)
 		{
 			//引数の値を確定させる
-			srcArgs.SetTransporter(exm);
+			srcArgs.SetTransporter(exm!);
 			//プライベート変数更新
 			if (call.TopLabel.hasPrivDynamicVar)
 				call.TopLabel.ScopeIn();
@@ -492,9 +492,9 @@ internal sealed class ProcessState
 					if (call.TopLabel.Arg[i].Identifier.IsReference)
 						((ReferenceToken)call.TopLabel.Arg[i].Identifier).SetRef(srcArgs.TransporterRef[i]);
 					else if (srcArgs.Arguments[i].GetOperandType() == typeof(long))
-						call.TopLabel.Arg[i].SetValue(srcArgs.TransporterInt[i], exm);
+						call.TopLabel.Arg[i].SetValue(srcArgs.TransporterInt[i], exm!);
 					else
-						call.TopLabel.Arg[i].SetValue(srcArgs.TransporterStr[i], exm);
+						call.TopLabel.Arg[i].SetValue(srcArgs.TransporterStr[i], exm!);
 				}
 			}
 		}

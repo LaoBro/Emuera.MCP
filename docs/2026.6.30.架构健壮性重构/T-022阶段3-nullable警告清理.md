@@ -55,6 +55,23 @@
 
 **分布**（13 文件）：`HtmlManager.cs`(17)、`WordCollection.cs`(12)、`ErbLoader.cs`(5)、`Sys.cs`(4)、`LexicalAnalyzer.cs`(2)、`Creator.Method.cs`(2)、`JSONConfig.cs`(1)、`Process.CalledFunction.cs`(1)、`DefineMacro.cs`(1)、`Instraction.Child.cs`(1)、`CircularBuffer.cs`(1)、`VariableParser.cs`(1)、`ConsoleDivPart.cs`(1)。
 
+### 2.5 CS8604（标注 176，实际 81 位置 / 162 诊断）
+**模式**：传入可能 null 引用实参——`T?` 表达式作为 `T` 形参传入。分四类：
+1. **BCL API 返回 `T?`**：`Enum.GetName`、`Exception.StackTrace`、`PropertyInfo.GetValue` 等，加 `!`。
+2. **`as` 表达式**：`(array as long[])!`、`(token as StrFormWord)!`，整体加 `!`。
+3. **三元表达式**：`(cond ? value : null)!`，整体加 `!`（值类型 `MixedNum?` 同模式）。
+4. **局部变量/字段传参**：`exm`、`currentLine`、`lastLabelLine`、`lastLine`、`filename`、`subId`、`name`、`term3/4/5/6` 等，加 `!`。
+
+**修复**（19 文件 81 位置）：全部用 `!`（null-forgiving）在调用点断言非 null，保持运行时行为不变。
+
+**要点**：
+- `as` 表达式须整体加 `!`：`(expr as Type)!`，而非 `expr as Type!`。
+- 三元表达式同理：`(cond ? value : null)!`，整体包裹。
+- 同一调用点多参数分别加 `!`（如 `new SpTInputsArgument(terms[0], terms[1], term3!, term4!, term5!, term6!)`）。
+- **首遍修复后可能有遗漏**：v1 构建日志 grep 到 79 位置，修复后 v2 构建又暴露 2 位置（`Process.State.cs` 495/497，首遍 grep 漏数）。按 SOP 步骤 5 "修复一批 → 重建 → 看是否还有"迭代，v3 构建确认 0。
+
+**分布**（19 文件，按位置数降序）：`ArgumentBuilder.cs`(22)、`Creator.Method.cs`(11)、`Instraction.Child.cs`(7)、`ErbLoader.cs`(6)、`CharacterData.cs`(4)、`VariableParser.cs`(3)、`Process.State.cs`(3)、`VariableIdentifier.cs`(3)、`ConfigData.cs`(3)、`HtmlManager.cs`(3)、`StrForm.cs`(2)、`VariableEvaluator.cs`(2)、`ExpressionParser.cs`(2)、`Process.cs`(2)、`VariableData.cs`(1)、`LogicalLineParser.cs`(1)、`Lang.cs`(1)、`LexicalAnalyzer.cs`(1)、`Process.ScriptProc.cs`(1)。
+
 ## 3. 标准操作流程（SOP）
 
 每批一个 CS ID，按以下步骤：
@@ -93,14 +110,13 @@
 
 | 序 | CS ID | 标注数 | 模式（预估） | 难度 | 备注 |
 |---|---|---|---|---|---|
-| 1 | CS8604 | 176 | 传入可能 null 实参 | 中 | 跨文件调用点，按文件分组修复 |
-| 2 | CS8602 | 350 | 解引用可能空引用 | 高 | 数量大，需逐处判断 null 防护是否充分 |
-| 3 | CS8600 | 674 | null 转 non-null 类型 | 高 | 多为 `(T)x` 显式转换或赋值，`!` 可解大部分 |
-| 4 | CS8603 | 606 | 可能返回 null 引用 | 高 | 返回类型标注与实现不符，需调整签名或加 `?` |
-| 5 | CS8618 | 686 | 构造函数未初始化非 null 字段 | 高 | 多为字段初始化，`= null!` 或 `= default!` 过渡 |
-| 6 | CS8625 | 550 | null 字面量转非 null 引用 | 高 | 多为 `= null` 赋值，改 `= null!` 或调整类型 |
+| 1 | CS8602 | 350 | 解引用可能空引用 | 高 | 数量大，需逐处判断 null 防护是否充分 |
+| 2 | CS8600 | 674 | null 转 non-null 类型 | 高 | 多为 `(T)x` 显式转换或赋值，`!` 可解大部分 |
+| 3 | CS8603 | 606 | 可能返回 null 引用 | 高 | 返回类型标注与实现不符，需调整签名或加 `?` |
+| 4 | CS8618 | 686 | 构造函数未初始化非 null 字段 | 高 | 多为字段初始化，`= null!` 或 `= default!` 过渡 |
+| 5 | CS8625 | 550 | null 字面量转非 null 引用 | 高 | 多为 `= null` 赋值，改 `= null!` 或调整类型 |
 
-总剩余约 3042 条。建议每批一个 CS ID，按上表顺序推进。
+总剩余约 2866 条。建议每批一个 CS ID，按上表顺序推进。
 
 ### 大批量批次策略
 - 单批 >200 条时，先用 Grep log 按文件聚合，识别 top-N 高频文件。
@@ -126,7 +142,7 @@
 | CS8767 | 6 | 3 | ✅ 已完成 | 2026-07-03 |
 | CS8629 | 52 | 26 | ✅ 已完成 | 2026-07-03 |
 | CS8601 | 98 | 49 | ✅ 已完成 | 2026-07-03 |
-| CS8604 | 176 | — | ⬜ 待清理 | — |
+| CS8604 | 176 | 81 | ✅ 已完成 | 2026-07-03 |
 | CS8602 | 350 | — | ⬜ 待清理 | — |
 | CS8600 | 674 | — | ⬜ 待清理 | — |
 | CS8603 | 606 | — | ⬜ 待清理 | — |
@@ -167,5 +183,26 @@
 - [`VariableParser.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Variable/VariableParser.cs)（1 处：`terms = [op1!, op2]`）
 - [`ConsoleDivPart.cs`](../../Emuera.Headless/Shared/Runtime/Utils/EvilMask/ConsoleDivPart.cs)（1 处：`int[] margin = null!, padding = null!, radius = null!, border = null!` 字段传 `ref`）
 
+**CS8604**（19 文件）：
+- [`ArgumentBuilder.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/ArgumentBuilder.cs)（22 处：`SpPrintImgArgument`/`SpHtmlPrint`/`SpArraySortArgument`/`SpTInputsArgument`/`SpVarSetArgument`/`SpCVarSetArgument`/`SpArrayShiftArgument`/`RefArgument` 构造调用点加 `!`）
+- [`Creator.Method.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Function/Creator.Method.cs)（11 处：`OutPutNode`/`Output`/`Remove`/`Insert`/`SetNode`/`Replace` 调用点 `nodes[i]!`/`nodes[0]!`/`(array as string[])!`）
+- [`Instraction.Child.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Instraction.Child.cs)（7 处：`PrintImg` 的 `strb!`/`strm!`/三元 `!`、`caseExp.GetBool(Is!, exm)`、`state.ReturnF(ret!)`）
+- [`ErbLoader.cs`](../../Emuera.Headless/Shared/Runtime/Script/Loader/ErbLoader.cs)（6 处：`labelDic.AddLabel(label!)`、`LogicalLineParser.ParseLine(..., lastLabelLine!)`、`addLine(nextLine, lastLine!)`、`(exc ... as ...)!`/`null)!`、`ParserMediator.Warn(..., func!)`）
+- [`CharacterData.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Variable/CharacterData.cs)（4 处：`reader.ReadIntArray((array as long[])!, true)` 等 `as` 转换加 `!`）
+- [`VariableParser.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Variable/VariableParser.cs)（3 处：`ReduceVariable(id, op1!, op2!, op3!)`）
+- [`Process.State.cs`](../../Emuera.Headless/Shared/Runtime/Script/Process.State.cs)（3 处：`srcArgs.SetTransporter(exm!)`、`call.TopLabel.Arg[i].SetValue(..., exm!)` x2）
+- [`VariableIdentifier.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Variable/VariableIdentifier.cs)（3 处：`nameDic.Add(..., Enum.GetName(...)!)` x3）
+- [`ConfigData.cs`](../../Emuera.Headless/Shared/Runtime/Config/ConfigData.cs)（3 处：`ConfigWarn(..., exc.StackTrace!)` x2、`Warn(..., exc.StackTrace!)`）
+- [`HtmlManager.cs`](../../Emuera.Headless/Shared/UI/Game/HtmlManager.cs)（3 处：`new StringStyle(..., fontname!)`、`ConsoleDivPart(..., tagInfo.StyledBox!)`、`new ConsoleImagePart(src, srcb!, srcm!, ...)`）
+- [`StrForm.cs`](../../Emuera.Headless/Shared/Runtime/Script/Data/StrForm.cs)（2 处：`[operand, second!, third!]` x2）
+- [`VariableEvaluator.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Variable/VariableEvaluator.cs)（2 处：`CheckDataByFilename(filename!, type)` x2）
+- [`ExpressionParser.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Expression/ExpressionParser.cs)（2 处：`GetVariableToken(idStr, subId!, true)`、`stack.Add(ToStrFormTerm((token as StrFormWord)!))`）
+- [`Process.cs`](../../Emuera.Headless/Shared/Runtime/Script/Process.cs)（2 处：`handleExceptionInSystemProc(ec, currentLine!, true)`、`handleException(ec, currentLine!, true)`）
+- [`VariableData.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Variable/VariableData.cs)（1 处：`UserDefinedCharaVarList.Add(ret!)`）
+- [`LogicalLineParser.cs`](../../Emuera.Headless/Shared/Runtime/Script/Parser/LogicalLineParser.cs)（1 处：`new StrAsignArgument(varName, varData.Lengths, value!)`）
+- [`Lang.cs`](../../Emuera.Headless/Shared/Runtime/Utils/EvilMask/Lang.cs)（1 处：`(prop.GetValue(null, null) as TranslatableString)!`）
+- [`LexicalAnalyzer.cs`](../../Emuera.Headless/Shared/Runtime/Script/Parser/LexicalAnalyzer.cs)（1 处：`wc.Collection.Remove(wc.Pointer.Previous!)`）
+- [`Process.ScriptProc.cs`](../../Emuera.Headless/Shared/Runtime/Script/Process.ScriptProc.cs)（1 处：`((StrDataArgument)func.Argument).Var.SetValue(str!, exm)`）
+
 **配置**：
-- [`.editorconfig`](../../.editorconfig)：删除 `CS8605`、`CS8767`、`CS8629`、`CS8601` 四条抑制规则
+- [`.editorconfig`](../../.editorconfig)：删除 `CS8605`、`CS8767`、`CS8629`、`CS8601`、`CS8604` 五条抑制规则

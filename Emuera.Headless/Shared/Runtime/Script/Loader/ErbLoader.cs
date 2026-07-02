@@ -411,7 +411,7 @@ internal sealed class ErbLoader
 					}
 					else// if (label is FunctionLabelLine)
 					{
-						labelDic.AddLabel(label);
+						labelDic.AddLabel(label!);
 						if (!label.IsEvent && (Config.Config.WarnNormalFunctionOverloading || Program.AnalysisMode))
 						{
 							FunctionLabelLine seniorLabel = labelDic.GetSameNameLabel(label);
@@ -462,7 +462,7 @@ internal sealed class ErbLoader
 				//}
 				if (lastLabelLine == null)
 					ParserMediator.Warn(trerror.LineBeforeFunc.Text, position, 1);
-				nextLine = LogicalLineParser.ParseLine(st, position, output, lastLabelLine);
+				nextLine = LogicalLineParser.ParseLine(st, position, output, lastLabelLine!);
 
 
 				if (nextLine == null)
@@ -493,9 +493,9 @@ internal sealed class ErbLoader
 			}
 			nextLine.ParentLabelLine = lastLabelLine!;
 
-			lastLine = addLine(nextLine, lastLine);
+			lastLine = addLine(nextLine, lastLine!);
 		}
-		addLine(new NullLine(), lastLine);
+		addLine(new NullLine(), lastLine!);
 		position = new ScriptPosition(eReader.Filename, -1);
 		ppstate.FileEnd(position);
 		return;
@@ -897,7 +897,7 @@ internal sealed class ErbLoader
 #endif
 			//1756beta2+v6.1 修正の効率化のために何かパース関係でハンドリングできてないエラーが出た場合はスタックトレースを投げるようにした
 			string errmes = exc is EmueraException ? exc.Message : exc.GetType().ToString() + ":" + exc.Message;
-			ParserMediator.Warn(string.Format(trerror.FuncAnalysisError.Text, label.LabelName, errmes), label, 2, true, false, exc is not EmueraException ? exc.StackTrace : null);
+			ParserMediator.Warn(string.Format(trerror.FuncAnalysisError.Text, label.LabelName, errmes), label, 2, true, false, (exc is not EmueraException ? exc.StackTrace : null)!);
 			label.ErrMes = trerror.CalledFailedFunc.Text;
 #if HEADLESS
 			// 无头模式下无需处理 UI 消息队列
@@ -1483,7 +1483,7 @@ internal sealed class ErbLoader
 			if (func != null)
 				ParserMediator.Warn(string.Format(trerror.MissingCorresponding.Text, funcMatch, funcName), func, 2, true, false);
 			else
-				ParserMediator.Warn(trerror.DefaultError.Text, func, 2, true, false);
+				ParserMediator.Warn(trerror.DefaultError.Text, func!, 2, true, false);
 		}
 		//使ったスタックをクリア
 		SelectcaseStack.Clear();

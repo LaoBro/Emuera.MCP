@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config.JSON;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Utils;
@@ -789,7 +789,7 @@ internal sealed class ConfigData
 		}
 		catch (Exception exc)
 		{
-			ParserMediator.ConfigWarn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace);
+			ParserMediator.ConfigWarn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace!);
 		}
 		finally { eReader.Dispose(); }
 		return true;
@@ -832,7 +832,7 @@ internal sealed class ConfigData
 		}
 		catch (Exception exc)
 		{
-			ParserMediator.Warn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace);
+			ParserMediator.Warn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace!);
 		}
 		finally { eReader.Dispose(); }
 	}
@@ -910,7 +910,7 @@ internal sealed class ConfigData
 		}
 		catch (Exception exc)
 		{
-			ParserMediator.ConfigWarn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace);
+			ParserMediator.ConfigWarn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace!);
 			goto err;
 		}
 		finally { eReader.Dispose(); }

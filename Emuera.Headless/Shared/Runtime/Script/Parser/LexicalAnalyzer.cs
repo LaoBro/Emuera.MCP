@@ -1126,7 +1126,7 @@ internal static partial class LexicalAnalyzer
 		while (macroEnd == wc.Pointer)
 		{
 			wc.Pointer = wc.Pointer.Next!;
-			wc.Collection.Remove(wc.Pointer.Previous);
+			wc.Collection.Remove(wc.Pointer.Previous!);
 		}
 		while (!macroWC.EOL)
 		{

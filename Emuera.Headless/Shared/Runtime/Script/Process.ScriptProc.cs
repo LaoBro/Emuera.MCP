@@ -765,7 +765,7 @@ internal sealed partial class Process
 						if (++i < iList.Count)
 							str += "\n";
 					}
-					((StrDataArgument)func.Argument).Var.SetValue(str, exm);
+					((StrDataArgument)func.Argument).Var.SetValue(str!, exm);
 					//ジャンプするが、流れが連続であることを保証。
 					state.JumpTo(func.JumpTo);
 					break;

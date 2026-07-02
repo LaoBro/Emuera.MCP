@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
@@ -141,12 +141,12 @@ internal sealed class StrForm
 			{
 				if (operand.GetOperandType() != typeof(long))
 					throw new CodeEE(trerror.IsNotNumericBrace.Text);
-				termArray[i] = new FunctionMethodTerm(formatCurlyBrace, [operand, second, third]);
+				termArray[i] = new FunctionMethodTerm(formatCurlyBrace, [operand, second!, third!]);
 				continue;
 			}
 			if (operand.GetOperandType() != typeof(string))
 				throw new CodeEE(trerror.IsNotStringPer.Text);
-			termArray[i] = new FunctionMethodTerm(formatPercent, [operand, second, third]);
+			termArray[i] = new FunctionMethodTerm(formatPercent, [operand, second!, third!]);
 		}
 		ret.terms = termArray;
 		return ret;

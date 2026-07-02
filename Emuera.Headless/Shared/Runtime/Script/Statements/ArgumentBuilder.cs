@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script;
@@ -306,7 +306,7 @@ internal static partial class ArgumentParser
 				argCount++;
 			}
 
-			return new SpPrintImgArgument(name, nameb, namem, param.Count > 0 ? param.ToArray() : null);
+			return new SpPrintImgArgument(name, nameb!, namem!, (param.Count > 0 ? param.ToArray() : null)!);
 		}
 	}
 	private sealed class SP_PRINT_SHAPE_ArgumentBuilder : ArgumentBuilder
@@ -388,7 +388,7 @@ internal static partial class ArgumentParser
 				if (i == 0 && args[i] is SingleTerm) constStr = true;
 				if (i == 1 && !(args[i] is SingleTerm)) constInt = false;
 			}
-			var ret = new SpHtmlPrint(args[0], args.Count > 1 ? args[1] : null);
+			var ret = new SpHtmlPrint(args[0], (args.Count > 1 ? args[1] : null)!);
 			if (constStr && constInt)
 			{
 				ret.ConstInt = args.Count > 1 ? args[1].GetIntValue(exm) : 0;
@@ -835,7 +835,7 @@ internal static partial class ArgumentParser
 					}
 				}
 			}
-			return new SpArraySortArgument(varTerm, order, term3, term4);
+			return new SpArraySortArgument(varTerm, order, term3, term4!);
 		}
 	}
 
@@ -1577,7 +1577,7 @@ internal static partial class ArgumentParser
 			if (terms.Count > 5)
 				term6 = terms[5];
 
-			return new SpTInputsArgument(terms[0], terms[1], term3, term4, term5, term6);
+			return new SpTInputsArgument(terms[0], terms[1], term3!, term4!, term5!, term6!);
 		}
 	}
 
@@ -1602,7 +1602,7 @@ internal static partial class ArgumentParser
 				term5 = terms[4];
 			if (terms.Count > 5)
 				term6 = terms[5];
-			return new SpTInputsArgument(terms[0], terms[1], term3, term4, term5, term6);
+			return new SpTInputsArgument(terms[0], terms[1], term3!, term4!, term5!, term6!);
 		}
 	}
 	//private sealed class SP_TINPUT_ArgumentBuilder : ArgumentBuilder
@@ -1862,7 +1862,7 @@ internal static partial class ArgumentParser
 				warn(trerror.NotMatchTwoArg.Text, line, 2, false);
 				return null;
 			}
-			return new SpVarSetArgument(varTerm, term, term3, term4);
+			return new SpVarSetArgument(varTerm, term, term3!, term4!);
 		}
 	}
 
@@ -1917,7 +1917,7 @@ internal static partial class ArgumentParser
 				warn(trerror.NotMatchTwoArg.Text, line, 2, false);
 				return null;
 			}
-			return new SpCVarSetArgument(varTerm, index, term, term4, term5);
+			return new SpCVarSetArgument(varTerm, index, term, term4!, term5!);
 		}
 	}
 
@@ -2098,7 +2098,7 @@ internal static partial class ArgumentParser
 			}
 			AExpression term4 = terms.Count >= 4 ? terms[3] : new SingleLongTerm(0);
 			AExpression term5 = terms.Count >= 5 ? terms[4] : null;
-			return new SpArrayShiftArgument(x, terms[1], terms[2], term4, term5);
+			return new SpArrayShiftArgument(x, terms[1], terms[2], term4, term5!);
 		}
 	}
 
@@ -2243,7 +2243,7 @@ internal static partial class ArgumentParser
 			if (refm != null)
 			{
 				if (srcCode == null)
-					return new RefArgument(refm, name);
+					return new RefArgument(refm, name!);
 				UserDefinedRefMethod srcRef = GlobalStatic.IdentifierDictionary.GetRefMethod(srcCode);
 				if (srcRef != null)
 				{
@@ -2260,11 +2260,11 @@ internal static partial class ArgumentParser
 			else
 			{
 				if (srcCode == null)
-					return new RefArgument(refVar, name);
+					return new RefArgument(refVar!, name!);
 				VariableToken srcVar = GlobalStatic.IdentifierDictionary.GetVariableToken(srcCode, null, true);
 				if (srcVar == null)
 				{ warn(string.Format(trerror.NotDefinedVar.Text, srcCode), line, 2, false); return null; }
-				return new RefArgument(refVar, srcVar);
+				return new RefArgument(refVar!, srcVar);
 			}
 		}
 	}

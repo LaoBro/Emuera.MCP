@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -296,7 +296,7 @@ internal static class HtmlManager
 					b = EmuColor.FromArgb(font.BColor >> 16, font.BColor >> 8 & 0xFF, font.BColor & 0xFF);
 				}
 			}
-			return new StringStyle(c, colorChanged, b, FontStyle, fontname);
+			return new StringStyle(c, colorChanged, b, FontStyle, fontname!);
 		}
 	}
 
@@ -584,7 +584,7 @@ internal static class HtmlManager
 							var tagInfo = state.CurrentDivTag;
 							state.CurrentDivTag = null;
 							state.StartingSubDivision = false;
-							cssList.Add(new ConsoleDivPart(tagInfo.X, tagInfo.Y, tagInfo.Width, tagInfo.Height, tagInfo.Depth, tagInfo.Color, tagInfo.StyledBox, tagInfo.IsRelative, tagInfo.Lines));
+							cssList.Add(new ConsoleDivPart(tagInfo.X, tagInfo.Y, tagInfo.Width, tagInfo.Height, tagInfo.Depth, tagInfo.Color, tagInfo.StyledBox!, tagInfo.IsRelative, tagInfo.Lines));
 						}
 					}
 					else
@@ -1084,7 +1084,7 @@ internal static class HtmlManager
 					#endregion
 					if (src == null)
 						throw new CodeEE(string.Format(trerror.NotSetAttribute.Text, tag, "src"));
-					return new ConsoleImagePart(src, srcb, srcm, height, width, ypos);
+					return new ConsoleImagePart(src, srcb!, srcm!, height, width, ypos);
 				}
 			#region EM_私家版_HTML_divタグ
 			case "div":

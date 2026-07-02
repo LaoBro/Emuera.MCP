@@ -1856,7 +1856,7 @@ internal sealed class VariableEvaluator : IDisposable
 			case EraSaveFileType.CharVar:
 				filename = getSaveDataPathC(savename); break;
 		}
-		return CheckDataByFilename(filename, type);
+		return CheckDataByFilename(filename!, type);
 	}
 
 	public EraDataResult CheckData(int saveIndex, EraSaveFileType type)
@@ -1873,7 +1873,7 @@ internal sealed class VariableEvaluator : IDisposable
 			case EraSaveFileType.CharVar:
 				filename = getSaveDataPathC(saveIndex); break;
 		}
-		return CheckDataByFilename(filename, type);
+		return CheckDataByFilename(filename!, type);
 	}
 
 	public EraDataResult CheckDataByFilename(string filename, EraSaveFileType type)

@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
@@ -399,7 +399,7 @@ internal sealed partial class VariableData : IDisposable
 		if (constant.IsDefinedCsvVar(data.Name))
 			ParserMediator.Warn(string.Format(trerror.IsDefinedCsvVariable.Text, data.Name), dimline.SC, 1);
 
-		UserDefinedCharaVarList.Add(ret);
+		UserDefinedCharaVarList.Add(ret!);
 		return ret;
 	}
 	public UserDefinedVariableToken CreateUserDefVariable(UserDefinedVariableData data, DimLineWC dimline)

@@ -124,13 +124,13 @@ internal static partial class FunctionMethodCreator
 				if (arguments[2].GetOperandType() == typeof(long) && arguments[2].GetIntValue(exm) != 0)
 				{
 					for (int i = 0; i < Math.Min(nodes.Count, exm.VEvaluator.RESULTS_ARRAY.Length); i++)
-						OutPutNode(nodes[i], exm.VEvaluator.RESULTS_ARRAY, i, outputStyle);
+						OutPutNode(nodes[i]!, exm.VEvaluator.RESULTS_ARRAY, i, outputStyle);
 				}
 				else
 				{
 					var arr = (arguments[2] as VariableTerm).Identifier.GetArray() as string[];
 					for (int i = 0; i < Math.Min(nodes.Count, arr.Length); i++)
-						OutPutNode(nodes[i], arr, i, outputStyle);
+						OutPutNode(nodes[i]!, arr, i, outputStyle);
 				}
 			}
 			return nodes.Count;
@@ -733,7 +733,7 @@ internal static partial class FunctionMethodCreator
 			if (arguments.Count == 4)
 			{
 				(arguments[2] as VariableTerm).SetValue(reg.GetGroupNumbers().Length, exm);
-				if (ret > 0) Output(matches, reg, (arguments[3] as VariableTerm).Identifier.GetArray() as string[]);
+				if (ret > 0) Output(matches, reg, ((arguments[3] as VariableTerm).Identifier.GetArray() as string[])!);
 			}
 			return ret;
 		}
@@ -863,9 +863,9 @@ internal static partial class FunctionMethodCreator
 				if (nodes.Count != 1)
 				{
 					if (setAllNodes)
-						for (int i = 0; i < nodes.Count; i++) SetNode(nodes[i], val, style);
+						for (int i = 0; i < nodes.Count; i++) SetNode(nodes[i]!, val, style);
 				}
-				else SetNode(nodes[0], val, style);
+				else SetNode(nodes[0]!, val, style);
 				if (saveToArg0)
 				{
 					(arguments[0] as VariableTerm).SetValue(doc.OuterXml, exm);
@@ -1036,9 +1036,9 @@ internal static partial class FunctionMethodCreator
 				if (nodes.Count != 1)
 				{
 					if (setAllNodes)
-						for (int i = 0; i < nodes.Count; i++) Insert(nodes[i], child, method);
+						for (int i = 0; i < nodes.Count; i++) Insert(nodes[i]!, child, method);
 				}
-				else if (!Insert(nodes[0], child, method) && method > 0) return 0;
+				else if (!Insert(nodes[0]!, child, method) && method > 0) return 0;
 				if (saveToArg0)
 				{
 					(arguments[0] as VariableTerm).SetValue(doc.OuterXml, exm);
@@ -1134,9 +1134,9 @@ internal static partial class FunctionMethodCreator
 				if (nodes.Count != 1)
 				{
 					if (setAllNodes)
-						for (int i = 0; i < nodes.Count; i++) Remove(nodes[i]);
+						for (int i = 0; i < nodes.Count; i++) Remove(nodes[i]!);
 				}
-				else if (!Remove(nodes[0])) return 0;
+				else if (!Remove(nodes[0]!)) return 0;
 				if (saveToArg0)
 				{
 					(arguments[0] as VariableTerm).SetValue(doc.OuterXml, exm);
@@ -1243,9 +1243,9 @@ internal static partial class FunctionMethodCreator
 				if (nodes.Count != 1)
 				{
 					if (setAllNodes)
-						for (int i = 0; i < nodes.Count; i++) Replace(nodes[i], child);
+						for (int i = 0; i < nodes.Count; i++) Replace(nodes[i]!, child);
 				}
-				else if (!Replace(nodes[0], child)) return 0;
+				else if (!Replace(nodes[0]!, child)) return 0;
 				if (saveToArg0)
 				{
 					(arguments[0] as VariableTerm).SetValue(doc.OuterXml, exm);

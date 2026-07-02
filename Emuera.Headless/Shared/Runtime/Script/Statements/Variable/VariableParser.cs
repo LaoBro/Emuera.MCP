@@ -76,7 +76,7 @@ internal static class VariableParser
 				op3 = operand;
 			i++;
 		}
-		return ReduceVariable(id, op1, op2, op3);
+		return ReduceVariable(id, op1!, op2!, op3!);
 
 	}
 
