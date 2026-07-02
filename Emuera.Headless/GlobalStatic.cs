@@ -7,7 +7,6 @@ using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
 using System.Collections.Generic;
-using System.Drawing.Text;
 
 namespace MinorShift.Emuera;
 
@@ -193,7 +192,7 @@ internal static class GlobalStatic
     public static bool ForceQuitAndRestart;
 
     /// <summary>フォントファイルコレクション。Reset 时 Dispose + 重新 new（字体丢失，接受权衡）。</summary>
-    public static PrivateFontCollection Pfc { get; private set; } = new();
+    public static HeadlessFontCollection Pfc { get; private set; } = new();
 
     /// <summary>rewind 历史记录。Reset 时重新 new。</summary>
     public static CtrlZ ctrlZ { get; private set; } = new();
@@ -230,7 +229,7 @@ internal static class GlobalStatic
             tempDic = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
             ForceQuitAndRestart = false;
             Pfc.Dispose();
-            Pfc = new PrivateFontCollection();
+            Pfc = new HeadlessFontCollection();
             ctrlZ = new CtrlZ();
 #if DEBUG
             StackList = [];

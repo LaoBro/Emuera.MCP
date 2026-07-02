@@ -1,8 +1,8 @@
-﻿using MinorShift.Emuera.UI.Game;
+﻿using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.UI.Game;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
 using System.Text;
 
@@ -171,14 +171,14 @@ internal sealed class Utils
 			sb.Append('\'');
 		}
 	}
-	public static void AddColorParam(StringBuilder sb, string name, Color color)
+	public static void AddColorParam(StringBuilder sb, string name, EmuColor color)
 	{
-		if (color != Color.Transparent)
+		if (color != EmuColor.Transparent)
 		{
 			sb.Append(' ').Append(name).Append("='").Append(HtmlManager.GetColorToString(color)).Append('\'');
 		}
 	}
-	public static void AddColorParam4(StringBuilder sb, string name, Color[] colors)
+	public static void AddColorParam4(StringBuilder sb, string name, EmuColor[] colors)
 	{
 		if (colors != null)
 		{
@@ -234,6 +234,7 @@ internal sealed class Utils
 				nums[i] = MixedNum.ToPixel(mnums[i]);
 		}
 	}
+#if !HEADLESS
 	// filepathの安全性(ゲームフォルダ以外のフォルダか)を確認しない
 	static public Bitmap LoadImage(string filepath)
 	{
@@ -276,6 +277,7 @@ internal sealed class Utils
 		bitmap.Dispose();
 		return icon;
 	}
+#endif
 
 	public sealed class DataTable
 	{

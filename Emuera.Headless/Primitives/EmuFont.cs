@@ -4,7 +4,7 @@ namespace MinorShift.Emuera.Primitives;
 /// 轻量级字体描述类型，替代 System.Drawing.Font。
 /// 仅封装字体名称、大小和样式，不依赖 GDI/GDI+。
 /// </summary>
-internal readonly record struct EmuFont(string Name, float Size, EmuFontStyle Style)
+public readonly record struct EmuFont(string Name, float Size, EmuFontStyle Style)
 {
 	public static readonly EmuFont Default = new("ＭＳ ゴシック", 18, EmuFontStyle.Regular);
 

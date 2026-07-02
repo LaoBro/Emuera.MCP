@@ -1,4 +1,5 @@
 ﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -9,7 +10,6 @@ using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 
@@ -639,8 +639,7 @@ internal static partial class ArgumentParser
 				rowStr = st.Substring();
 			if (line.FunctionCode == FunctionCode.SETCOLORBYNAME || line.FunctionCode == FunctionCode.SETBGCOLORBYNAME)
 			{
-				Color c = Color.FromName(rowStr);
-				if (c.A == 0)
+				if (!EmuColor.TryFromName(rowStr, out _))
 				{
 					if (rowStr.Equals("transparent", StringComparison.OrdinalIgnoreCase))
 						throw new CodeEE(trerror.TransparentUnsupported.Text);

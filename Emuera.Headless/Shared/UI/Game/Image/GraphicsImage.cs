@@ -23,7 +23,7 @@ internal sealed class GraphicsImage : AbstractImage
 	private string _fontname = "";
 
 	public bool useImgList => false;
-	public List<Tuple<ASprite, System.Drawing.Rectangle>> drawImgList => null;
+	public List<Tuple<ASprite, EmuRectangle>> drawImgList => null;
 
 	public override int Width => _size.Width;
 	public override int Height => _size.Height;
@@ -63,12 +63,12 @@ internal sealed class GraphicsImage : AbstractImage
 	public void GClear(EmuColor c, int x, int y, int w, int h) { }
 	public void GDrawString(string text, int x, int y) { }
 	public void GDrawString(string text, int x, int y, int width, int height) { }
-	public void GDrawRectangle(System.Drawing.Rectangle rect) { }
-	public void GFillRectangle(System.Drawing.Rectangle rect) { }
-	public void GDrawCImg(ASprite img, System.Drawing.Rectangle destRect) { }
-	public void GDrawCImg(ASprite img, System.Drawing.Rectangle destRect, float[][] cm) { }
-	public void GDrawG(GraphicsImage srcGra, System.Drawing.Rectangle destRect, System.Drawing.Rectangle srcRect) { }
-	public void GDrawG(GraphicsImage srcGra, System.Drawing.Rectangle destRect, System.Drawing.Rectangle srcRect, float[][] cm) { }
+	public void GDrawRectangle(EmuRectangle rect) { }
+	public void GFillRectangle(EmuRectangle rect) { }
+	public void GDrawCImg(ASprite img, EmuRectangle destRect) { }
+	public void GDrawCImg(ASprite img, EmuRectangle destRect, float[][] cm) { }
+	public void GDrawG(GraphicsImage srcGra, EmuRectangle destRect, EmuRectangle srcRect) { }
+	public void GDrawG(GraphicsImage srcGra, EmuRectangle destRect, EmuRectangle srcRect, float[][] cm) { }
 	public void GDrawGWithMask(GraphicsImage srcGra, GraphicsImage maskGra, EmuPoint destPoint) { }
 	public void GRotate(long a, int x, int y) { }
 	public void GDrawGWithRotate(GraphicsImage srcGra, long a, int x, int y) { }
@@ -79,7 +79,7 @@ internal sealed class GraphicsImage : AbstractImage
 	public void GSetPen(object r) { }
 	public object GetBitmap() => null;
 	// 调用方（CBGSETGRAPHG 等）会用 g.Bitmap == null 判断，headless 下恒为 null
-	public System.Drawing.Bitmap Bitmap => null;
+	public object Bitmap => null;
 	public void GSetColor(EmuColor c, int x, int y) { }
 	public EmuColor GGetColor(int x, int y) => EmuColor.Black;
 	public bool GBitmapToInt64Array(long[,] array, int xstart, int ystart) => false;
@@ -94,9 +94,6 @@ internal sealed class GraphicsImage : AbstractImage
 using MinorShift.Emuera.Runtime.Config;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
 namespace MinorShift.Emuera.UI.Game.Image;

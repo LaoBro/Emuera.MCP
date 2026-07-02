@@ -2,7 +2,6 @@ using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game.Image;
 using System;
-using System.Drawing;
 using System.Text;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 
@@ -100,15 +99,15 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 		}
 		//top = raw_ypos * Config.Config.FontSize / 100;
 		top = raw_ypos != null ? raw_ypos.isPx ? raw_ypos.num : raw_ypos.num * Config.FontSize / 100 : 0;
-		destRect = new Rectangle(0, top, Width, height);
+		destRect = new EmuRectangle(0, top, Width, height);
 		if (destRect.Width < 0)
 		{
-			destRect.X = -destRect.Width;
+			destRect = destRect with { X = -destRect.Width };
 			Width = -destRect.Width;
 		}
 		if (destRect.Height < 0)
 		{
-			destRect.Y = destRect.Y - destRect.Height;
+			destRect = destRect with { Y = destRect.Y - destRect.Height };
 			height = -destRect.Height;
 		}
 		bottom = top + height;
@@ -134,7 +133,7 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 	private readonly ASprite cImageB;
 	private readonly int top;
 	private readonly int bottom;
-	private readonly Rectangle destRect;
+	private readonly EmuRectangle destRect;
 	//#pragma warning disable CS0649 // フィールド 'ConsoleImagePart.ia' は割り当てられません。常に既定値 null を使用します。
 	//		private readonly ImageAttributes ia;
 	//#pragma warning restore CS0649 // フィールド 'ConsoleImagePart.ia' は割り当てられません。常に既定値 null を使用します。
@@ -175,7 +174,7 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 	{
 		if (cImageM != null && cImageM.IsCreated)
 		{
-			Size spriteSize;
+			EmuSize spriteSize;
 			if (cImageM is SpriteF sf)
 			{
 				spriteSize = sf.DestBaseSize;

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.Text;
 using System.Timers;
 using MinorShift.Emuera.Primitives;
@@ -81,8 +80,8 @@ internal sealed class ConsoleStateData
     internal LogicalLine? lastInputLine;
 
 	// --- Style ---
-	internal StringStyle defaultStyle = new(Config.ForeColor, FontStyle.Regular, null);
-	internal StringStyle userStyle = new(Config.ForeColor, FontStyle.Regular, null);
+	internal StringStyle defaultStyle = new(Config.ForeColor, EmuFontStyle.Regular, null);
+	internal StringStyle userStyle = new(Config.ForeColor, EmuFontStyle.Regular, null);
 	internal DisplayLineAlignment alignment = DisplayLineAlignment.LEFT;
 	internal EmuColor bgColor = Config.BackColor;
 	internal bool UseUserStyle;

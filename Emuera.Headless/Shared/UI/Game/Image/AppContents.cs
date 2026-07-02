@@ -40,7 +40,6 @@ using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;

@@ -2,7 +2,6 @@ using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game.Image;
 using System;
-using System.Drawing;
 using System.Text;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 
@@ -60,8 +59,8 @@ abstract class ConsoleShapePart : AConsoleColoredPart
 				if (param.Length == 1)
 				{
 					//rectF = new RectangleF(0, 0, paramPixel[0], lineHeight);
-					var rectF = new RectangleF(0, 0, param[0].isPx ? param[0].num : (float)param[0].num * lineHeight / 100f, lineHeight);
-					ret = new ConsoleSpacePart(rectF);
+					var rectF = new EmuRectangleF(0, 0, param[0].isPx ? param[0].num : (float)param[0].num * lineHeight / 100f, lineHeight);
+				ret = new ConsoleSpacePart(rectF);
 				}
 				break;
 			case "rect":
@@ -69,14 +68,14 @@ abstract class ConsoleShapePart : AConsoleColoredPart
 				if (param.Length == 1 && param[0].num > 0)
 				{
 					//rectF = new RectangleF(0, 0, paramPixel[0], lineHeight);
-					var rectF = new RectangleF(0, 0, param[0].isPx ? param[0].num : (float)param[0].num * lineHeight / 100f, lineHeight);
-					ret = new ConsoleRectangleShapePart(rectF);
+					var rectF = new EmuRectangleF(0, 0, param[0].isPx ? param[0].num : (float)param[0].num * lineHeight / 100f, lineHeight);
+				ret = new ConsoleRectangleShapePart(rectF);
 				}
 				// else if (paramPixel.Length == 4)
 				else if (param.Length == 4)
 				{
 					//rectF = new RectangleF(paramPixel[0], paramPixel[1], paramPixel[2], paramPixel[3]);
-					var rectF = new RectangleF(MixedNum.ToPixelf(param[0]), MixedNum.ToPixelf(param[1]), MixedNum.ToPixelf(param[2]), MixedNum.ToPixelf(param[3]));
+					var rectF = new EmuRectangleF(MixedNum.ToPixelf(param[0]), MixedNum.ToPixelf(param[1]), MixedNum.ToPixelf(param[2]), MixedNum.ToPixelf(param[3]));
 					//1820a12 サイズ上限撤廃
 					if (rectF.X >= 0 && rectF.Width > 0 && rectF.Height > 0)
 					//	rectF.Y >= 0 && (rectF.Y + rectF.Height) <= lineHeight)
@@ -122,7 +121,7 @@ abstract class ConsoleShapePart : AConsoleColoredPart
 
 	internal sealed class ConsoleRectangleShapePart : ConsoleShapePart
 {
-	public ConsoleRectangleShapePart(RectangleF theRect)
+	public ConsoleRectangleShapePart(EmuRectangleF theRect)
 	{
 		Text = "";
 		originalRectF = theRect;
@@ -139,7 +138,7 @@ abstract class ConsoleShapePart : AConsoleColoredPart
 	private readonly int bottom;
 	public override int Top { get { return top; } }
 	public override int Bottom { get { return bottom; } }
-	readonly RectangleF originalRectF;
+	readonly EmuRectangleF originalRectF;
 	bool visible;
 	EmuRectangle rect;
 	public override void DrawTo(IImageContext graph, int pointY, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
@@ -167,7 +166,7 @@ abstract class ConsoleShapePart : AConsoleColoredPart
 
 internal sealed class ConsoleSpacePart : ConsoleShapePart
 {
-	public ConsoleSpacePart(RectangleF theRect)
+	public ConsoleSpacePart(EmuRectangleF theRect)
 	{
 		Text = "";
 		WidthF = theRect.Width;

@@ -3,7 +3,6 @@ using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
 using MinorShift.Emuera.UI.Game.Image;
 using System;
-using System.Drawing;
 using System.Text;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Shape;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
@@ -14,7 +13,7 @@ class ConsoleDivPart : AConsoleDisplayNode
 {
 	public ConsoleDivPart(MixedNum xPos, MixedNum yPos, MixedNum width, MixedNum height, int depth, int color, StyledBoxModel box, bool isRelative, ConsoleDisplayLine[] childs)
 	{
-		backgroundColor = color >= 0 ? Color.FromArgb((int)(color | 0xff000000)) : Color.Transparent;
+		backgroundColor = color >= 0 ? EmuColor.FromArgb((int)(color | 0xff000000)) : EmuColor.Transparent;
 		StringBuilder sb = new();
 		width.num = Math.Abs(width.num);
 		height.num = Math.Abs(height.num);
@@ -36,9 +35,9 @@ class ConsoleDivPart : AConsoleDisplayNode
 			MixedNum4ToInt4(box.radius, ref radius);
 			if (box.color != null)
 			{
-				borderColors = new Color[4];
+				borderColors = new EmuColor[4];
 				for (int i = 0; i < 4; i++)
-					borderColors[i] = box.color[i] >= 0 ? Color.FromArgb((int)(box.color[i] | 0xff000000)) : Color.Transparent;
+					borderColors[i] = box.color[i] >= 0 ? EmuColor.FromArgb((int)(box.color[i] | 0xff000000)) : EmuColor.Transparent;
 				AddColorParam4(sb, "bcolor", borderColors);
 			}
 		}
@@ -91,8 +90,8 @@ class ConsoleDivPart : AConsoleDisplayNode
 	int PointY;
 	int Height;
 	int[] margin, padding, radius, border;
-	Color[] borderColors;
-	Color backgroundColor;
+	EmuColor[] borderColors;
+	EmuColor backgroundColor;
 	string altHeadTag;
 	readonly ConsoleDisplayLine[] children;
 	public bool IsEscaped { get; set; }
@@ -106,7 +105,7 @@ class ConsoleDivPart : AConsoleDisplayNode
 	{
 		ConsoleButtonString pointing = null;
 		#region EE_div各要素の修正
-		var rect = new Rectangle(PointX + xOffset, relPointY + PointY + yOffset, width, Height);
+		var rect = new EmuRectangle(PointX + xOffset, relPointY + PointY + yOffset, width, Height);
 		#endregion
 		if (!rect.Contains(pointX, pointY)) return null;
 		relPointY = rect.Y;

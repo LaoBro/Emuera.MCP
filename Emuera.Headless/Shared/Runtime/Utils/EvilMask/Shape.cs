@@ -1,13 +1,11 @@
-﻿using System.Drawing;
-using System.Drawing.Drawing2D;
-
-namespace MinorShift.Emuera.Runtime.Utils.EvilMask;
+﻿namespace MinorShift.Emuera.Runtime.Utils.EvilMask;
 
 internal sealed class Shape
 {
 	internal struct Direction { public const int Top = 0, Right = 1, Bottom = 2, Left = 3; };
 	internal struct Corner { public const int LeftTop = 0, RightTop = 1, RightBottom = 2, LeftBottom = 3; };
 
+#if !HEADLESS
 	internal sealed class BoxBorder
 	{
 		public static void DrawBorder(Graphics graph, Rectangle rect, int[] border, int[] radius, Color[] colors, Color bgColor)
@@ -238,4 +236,5 @@ internal sealed class Shape
 			graph.SmoothingMode = backUp;
 		}
 	}
+#endif
 }

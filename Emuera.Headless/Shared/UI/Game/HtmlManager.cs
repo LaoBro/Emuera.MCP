@@ -1,4 +1,5 @@
 ﻿using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
@@ -6,7 +7,6 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Text;
 using System.Text.RegularExpressions;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Shape;
@@ -245,7 +245,7 @@ internal static class HtmlManager
 	private sealed class HtmlAnalzeState
 	{
 		public bool LineHead = true;//行頭フラグ。一度もテキストが出てきてない状態
-		public FontStyle FontStyle = FontStyle.Regular;
+		public EmuFontStyle FontStyle = EmuFontStyle.Regular;
 		public List<HtmlAnalzeStateFontTag> FonttagList = [];
 		public bool FlagNobr;//falseの時に</nobr>するとエラー
 		public bool FlagP;//falseの時に</p>するとエラー
@@ -278,8 +278,8 @@ internal static class HtmlManager
 
 		public StringStyle GetSS()
 		{
-			Color c = Config.ForeColor;
-			Color b = Config.FocusColor;
+			EmuColor c = Config.ForeColor;
+			EmuColor b = Config.FocusColor;
 			string fontname = null;
 			bool colorChanged = false;
 			if (FonttagList.Count > 0)
@@ -289,11 +289,11 @@ internal static class HtmlManager
 				if (font.Color >= 0)
 				{
 					colorChanged = true;
-					c = Color.FromArgb(font.Color >> 16, font.Color >> 8 & 0xFF, font.Color & 0xFF);
+					c = EmuColor.FromArgb(font.Color >> 16, font.Color >> 8 & 0xFF, font.Color & 0xFF);
 				}
 				if (font.BColor >= 0)
 				{
-					b = Color.FromArgb(font.BColor >> 16, font.BColor >> 8 & 0xFF, font.BColor & 0xFF);
+					b = EmuColor.FromArgb(font.BColor >> 16, font.BColor >> 8 & 0xFF, font.BColor & 0xFF);
 				}
 			}
 			return new StringStyle(c, colorChanged, b, FontStyle, fontname);
@@ -550,7 +550,7 @@ internal static class HtmlManager
 					{
 						if (parent == null)
 						{
-							if (state.CurrentButtonTag != null || state.FontStyle != FontStyle.Regular || state.FonttagList.Count > 0)
+							if (state.CurrentButtonTag != null || state.FontStyle != EmuFontStyle.Regular || state.FonttagList.Count > 0)
 								throw new CodeEE(trerror.TagIsNotClosed.Text);
 							var width = state.CurrentDivTag.Width;
 							state.SubDivisionWidth = MixedNum.ToPixel(width);
@@ -612,7 +612,7 @@ internal static class HtmlManager
 		if (state.CurrentDivTag != null)
 			throw new CodeEE(trerror.TagIsNotClosed.Text);
 		#endregion
-		if (state.CurrentButtonTag != null || state.FontStyle != FontStyle.Regular || state.FonttagList.Count > 0)
+		if (state.CurrentButtonTag != null || state.FontStyle != EmuFontStyle.Regular || state.FonttagList.Count > 0)
 			throw new CodeEE(trerror.TagIsNotClosed.Text);
 		if (cssList.Count > 0)
 			buttonList.Add(cssToButton(cssList, state, console));
@@ -791,7 +791,7 @@ internal static class HtmlManager
 		return ret;
 	}
 
-	public static string GetColorToString(Color color)
+	public static string GetColorToString(EmuColor color)
 	{
 		StringBuilder b = new();
 		b.Append("#");
@@ -802,7 +802,7 @@ internal static class HtmlManager
 	private static string getStringStyleStartingTag(StringStyle style)
 	{
 		bool fontChanged = !((style.Fontname == null || style.Fontname == Config.FontName) && !style.ColorChanged && style.ButtonColor == Config.FocusColor);
-		if (!fontChanged && style.FontStyle == FontStyle.Regular)
+		if (!fontChanged && style.FontStyle == EmuFontStyle.Regular)
 			return "";
 		StringBuilder b = new();
 		if (fontChanged)
@@ -830,15 +830,15 @@ internal static class HtmlManager
 			}
 			b.Append(">");
 		}
-		if (style.FontStyle != FontStyle.Regular)
+		if (style.FontStyle != EmuFontStyle.Regular)
 		{
-			if ((style.FontStyle & FontStyle.Strikeout) != FontStyle.Regular)
+			if ((style.FontStyle & EmuFontStyle.Strikeout) != EmuFontStyle.Regular)
 				b.Append("<s>");
-			if ((style.FontStyle & FontStyle.Underline) != FontStyle.Regular)
+			if ((style.FontStyle & EmuFontStyle.Underline) != EmuFontStyle.Regular)
 				b.Append("<u>");
-			if ((style.FontStyle & FontStyle.Italic) != FontStyle.Regular)
+			if ((style.FontStyle & EmuFontStyle.Italic) != EmuFontStyle.Regular)
 				b.Append("<i>");
-			if ((style.FontStyle & FontStyle.Bold) != FontStyle.Regular)
+			if ((style.FontStyle & EmuFontStyle.Bold) != EmuFontStyle.Regular)
 				b.Append("<b>");
 		}
 
@@ -848,18 +848,18 @@ internal static class HtmlManager
 	private static string getClosingStyleStartingTag(StringStyle style)
 	{
 		bool fontChanged = !((style.Fontname == null || style.Fontname == Config.FontName) && !style.ColorChanged && style.ButtonColor == Config.FocusColor);
-		if (!fontChanged && style.FontStyle == FontStyle.Regular)
+		if (!fontChanged && style.FontStyle == EmuFontStyle.Regular)
 			return "";
 		StringBuilder b = new();
-		if (style.FontStyle != FontStyle.Regular)
+		if (style.FontStyle != EmuFontStyle.Regular)
 		{
-			if ((style.FontStyle & FontStyle.Bold) != FontStyle.Regular)
+			if ((style.FontStyle & EmuFontStyle.Bold) != EmuFontStyle.Regular)
 				b.Append("</b>");
-			if ((style.FontStyle & FontStyle.Italic) != FontStyle.Regular)
+			if ((style.FontStyle & EmuFontStyle.Italic) != EmuFontStyle.Regular)
 				b.Append("</i>");
-			if ((style.FontStyle & FontStyle.Underline) != FontStyle.Regular)
+			if ((style.FontStyle & EmuFontStyle.Underline) != EmuFontStyle.Regular)
 				b.Append("</u>");
-			if ((style.FontStyle & FontStyle.Strikeout) != FontStyle.Regular)
+			if ((style.FontStyle & EmuFontStyle.Strikeout) != EmuFontStyle.Regular)
 				b.Append("</s>");
 		}
 		if (fontChanged)
@@ -882,14 +882,14 @@ internal static class HtmlManager
 			}
 			tag = st.Substring(st.CurrentPosition, found).Trim();
 			st.CurrentPosition += found;
-			FontStyle endStyle = FontStyle.Strikeout;
+			EmuFontStyle endStyle = EmuFontStyle.Strikeout;
 			switch (tag.ToLower())
 			{
-				case "b": endStyle = FontStyle.Bold; goto case "s";
-				case "i": endStyle = FontStyle.Italic; goto case "s";
-				case "u": endStyle = FontStyle.Underline; goto case "s";
+				case "b": endStyle = EmuFontStyle.Bold; goto case "s";
+				case "i": endStyle = EmuFontStyle.Italic; goto case "s";
+				case "u": endStyle = EmuFontStyle.Underline; goto case "s";
 				case "s":
-					if ((state.FontStyle & endStyle) == FontStyle.Regular)
+					if ((state.FontStyle & endStyle) == EmuFontStyle.Regular)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, tag));
 					state.FontStyle ^= endStyle;
 					return null;
@@ -959,16 +959,16 @@ internal static class HtmlManager
 		if (string.IsNullOrEmpty(tag))
 			goto error;
 		IdentifierWord word;
-		FontStyle newStyle = FontStyle.Strikeout;
+		EmuFontStyle newStyle = EmuFontStyle.Strikeout;
 		switch (tag.ToLower())
 		{
-			case "b": newStyle = FontStyle.Bold; goto case "s";
-			case "i": newStyle = FontStyle.Italic; goto case "s";
-			case "u": newStyle = FontStyle.Underline; goto case "s";
+			case "b": newStyle = EmuFontStyle.Bold; goto case "s";
+			case "i": newStyle = EmuFontStyle.Italic; goto case "s";
+			case "u": newStyle = EmuFontStyle.Underline; goto case "s";
 			case "s":
 				if (wc != null)
 					throw new CodeEE(string.Format(trerror.AttributeSetToTag.Text, tag));
-				if ((state.FontStyle & newStyle) != FontStyle.Regular)
+				if ((state.FontStyle & newStyle) != EmuFontStyle.Regular)
 					throw new CodeEE(string.Format(trerror.DuplicateTag.Text, tag));
 				state.FontStyle |= newStyle;
 				return null;
@@ -1264,15 +1264,15 @@ internal static class HtmlManager
 						throw new CodeEE(string.Format(trerror.NotSetAttribute.Text, tag, "param"));
 					if (type == null)
 						throw new CodeEE(string.Format(trerror.NotSetAttribute.Text, tag, "type"));
-					Color c = Config.ForeColor;
-					Color b = Config.FocusColor;
+					EmuColor c = Config.ForeColor;
+					EmuColor b = Config.FocusColor;
 					if (color >= 0)
 					{
-						c = Color.FromArgb(color >> 16, color >> 8 & 0xFF, color & 0xFF);
+						c = EmuColor.FromArgb(color >> 16, color >> 8 & 0xFF, color & 0xFF);
 					}
 					if (bcolor >= 0)
 					{
-						b = Color.FromArgb(bcolor >> 16, bcolor >> 8 & 0xFF, bcolor & 0xFF);
+						b = EmuColor.FromArgb(bcolor >> 16, bcolor >> 8 & 0xFF, bcolor & 0xFF);
 					}
 					return ConsoleShapePart.CreateShape(type, param, c, b, color >= 0);
 					#endregion
@@ -1484,8 +1484,7 @@ internal static class HtmlManager
 		}
 		else
 		{
-			Color color = Color.FromName(str);
-			if (color.A == 0)//色名として解釈失敗 エラー確定
+			if (!EmuColor.TryFromName(str, out var color))
 			{
 				if (str.Equals("transparent", StringComparison.OrdinalIgnoreCase))
 					throw new CodeEE(trerror.TransparentUnsupported.Text);

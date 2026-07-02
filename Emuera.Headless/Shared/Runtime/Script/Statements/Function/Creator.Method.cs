@@ -8,12 +8,12 @@ using MinorShift.Emuera.Runtime.Script.Statements.Function;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.UI.Game;
 using MinorShift.Emuera.UI.Game.Image;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
@@ -2409,6 +2409,10 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string str = arguments[0].GetStrValue(exm);
+#if HEADLESS
+			// Headless 模式下不支持字体集合检查
+			return 0;
+#else
 			using System.Drawing.Text.InstalledFontCollection ifc = new();
 			long isInstalled = 0;
 			foreach (FontFamily ff in ifc.Families)
@@ -2430,6 +2434,7 @@ internal static partial class FunctionMethodCreator
 			}
 			#endregion
 			return (isInstalled);
+#endif
 		}
 
 	}
@@ -2583,7 +2588,7 @@ internal static partial class FunctionMethodCreator
 		readonly bool defaultColor;
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			Color color = defaultColor ? Config.ForeColor : GlobalStatic.Console.StringStyle.Color;
+			EmuColor color = defaultColor ? Config.ForeColor : GlobalStatic.Console.StringStyle.Color;
 			return color.ToArgb() & 0xFFFFFF;
 		}
 	}
@@ -2615,7 +2620,7 @@ internal static partial class FunctionMethodCreator
 		readonly bool defaultColor;
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			Color color = defaultColor ? Config.BackColor : GlobalStatic.Console.bgColor;
+			EmuColor color = defaultColor ? Config.BackColor : GlobalStatic.Console.bgColor;
 			return color.ToArgb() & 0xFFFFFF;
 		}
 	}
@@ -2631,15 +2636,15 @@ internal static partial class FunctionMethodCreator
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			FontStyle fontstyle = GlobalStatic.Console.StringStyle.FontStyle;
+			EmuFontStyle fontstyle = GlobalStatic.Console.StringStyle.FontStyle;
 			long ret = 0;
-			if ((fontstyle & FontStyle.Bold) == FontStyle.Bold)
+			if ((fontstyle & EmuFontStyle.Bold) == EmuFontStyle.Bold)
 				ret |= 1;
-			if ((fontstyle & FontStyle.Italic) == FontStyle.Italic)
+			if ((fontstyle & EmuFontStyle.Italic) == EmuFontStyle.Italic)
 				ret |= 2;
-			if ((fontstyle & FontStyle.Strikeout) == FontStyle.Strikeout)
+			if ((fontstyle & EmuFontStyle.Strikeout) == EmuFontStyle.Strikeout)
 				ret |= 4;
-			if ((fontstyle & FontStyle.Underline) == FontStyle.Underline)
+			if ((fontstyle & EmuFontStyle.Underline) == EmuFontStyle.Underline)
 				ret |= 8;
 			return ret;
 		}
@@ -2720,10 +2725,11 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string colorName = arguments[0].GetStrValue(exm);
-			Color color = Color.FromName(colorName);
 			int i;
-			if (color.A > 0)
+			if (EmuColor.TryFromName(colorName, out var color))
+			{
 				i = (color.R << 16) + (color.G << 8) + color.B;
+			}
 			else
 			{
 				if (colorName.Equals("transparent", StringComparison.OrdinalIgnoreCase))
@@ -5185,19 +5191,19 @@ internal static partial class FunctionMethodCreator
 	/// <summary>
 	/// argNo番目の引数を整数値として読み取り、 アルファ値を含むColor構造体にして返す。
 	/// </summary>
-	private static Color ReadColor(string Name, ExpressionMediator exm, List<AExpression> arguments, int argNo)
+	private static EmuColor ReadColor(string Name, ExpressionMediator exm, List<AExpression> arguments, int argNo)
 	{
 		long c64 = arguments[argNo].GetIntValue(exm);
 		if (c64 < 0 || c64 > 0xFFFFFFFF)
 			// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodColorARGB0, Name, c64));
 			throw new CodeEE(string.Format(trerror.InvalidColorARGB.Text, Name, c64));
-		return Color.FromArgb((int)(c64 >> 24) & 0xFF, (int)(c64 >> 16) & 0xFF, (int)(c64 >> 8) & 0xFF, (int)c64 & 0xFF);
+		return EmuColor.FromArgb((int)(c64 >> 24) & 0xFF, (int)(c64 >> 16) & 0xFF, (int)(c64 >> 8) & 0xFF, (int)c64 & 0xFF);
 	}
 
 	/// <summary>
 	/// argNo番目を含む2つの引数を整数値として読み取り、Point形式にして返す。
 	/// </summary>
-	private static Point ReadPoint(string Name, ExpressionMediator exm, List<AExpression> arguments, int argNo)
+	private static EmuPoint ReadPoint(string Name, ExpressionMediator exm, List<AExpression> arguments, int argNo)
 	{
 		long x64 = arguments[argNo].GetIntValue(exm);
 		if (x64 < int.MinValue || x64 > int.MaxValue)
@@ -5207,13 +5213,13 @@ internal static partial class FunctionMethodCreator
 		if (y64 < int.MinValue || y64 > int.MaxValue)
 			// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name,y64, argNo+1+1));
 			throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, argNo + 2, y64, int.MinValue, int.MaxValue));
-		return new Point((int)x64, (int)y64);
+		return new EmuPoint((int)x64, (int)y64);
 	}
 
 	/// <summary>
 	/// argNo番目を含む4つの引数を整数値として読み取り、Rectangle形式にして返す。
 	/// </summary>
-	private static Rectangle ReadRectangle(string Name, ExpressionMediator exm, List<AExpression> arguments, int argNo)
+	private static EmuRectangle ReadRectangle(string Name, ExpressionMediator exm, List<AExpression> arguments, int argNo)
 	{
 		long x64 = arguments[argNo].GetIntValue(exm);
 		if (x64 < int.MinValue || x64 > int.MaxValue)
@@ -5232,7 +5238,7 @@ internal static partial class FunctionMethodCreator
 		if (h64 < int.MinValue || h64 > int.MaxValue || h64 == 0)
 			// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, h64, argNo + 3 + 1));
 			throw new CodeEE(string.Format(trerror.ArgIsOutOfRangeExcept.Text, Name, argNo + 4, h64, int.MinValue, int.MaxValue, 0));
-		return new Rectangle((int)x64, (int)y64, (int)w64, (int)h64);
+		return new EmuRectangle((int)x64, (int)y64, (int)w64, (int)h64);
 	}
 
 	/// <summary>
@@ -5400,10 +5406,10 @@ internal static partial class FunctionMethodCreator
 			//失敗したら負の値を返す。他と戻り値違うけど仕方ないね
 			if (!g.IsCreated)
 				return -1;
-			Point p = ReadPoint(Name, exm, arguments, 1);
+			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			if (p.X < 0 || p.X >= g.Width || p.X < 0 || p.Y >= g.Height)
 				return -1;
-			Color c = g.GGetColor(p.X, p.Y);
+			EmuColor c = g.GGetColor(p.X, p.Y);
 			//Color.ToArgb()はInt32の負の値をとることがあり、Int64にうまく変換できない?（と思ったが気のせいだった
 			return c.ToArgb() & 0xFFFFFFFFL;
 		}
@@ -5425,8 +5431,8 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
 				return 0;
-			Color c = ReadColor(Name, exm, arguments, 1);
-			Point p = ReadPoint(Name, exm, arguments, 2);
+			EmuColor c = ReadColor(Name, exm, arguments, 1);
+			EmuPoint p = ReadPoint(Name, exm, arguments, 2);
 			if (p.X < 0 || p.X >= g.Width || p.X < 0 || p.Y >= g.Height)
 				return 0;
 			g.GSetColor(c, p.X, p.Y);
@@ -5450,7 +5456,7 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
 				return 0;
-			Color c = ReadColor(Name, exm, arguments, 1);
+			EmuColor c = ReadColor(Name, exm, arguments, 1);
 #if HEADLESS
 			g.GSetBrush(null);
 #else
@@ -5487,6 +5493,10 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
 				return 0;
+#if HEADLESS
+			// Headless 模式下不支持字体设置
+			return 0;
+#else
 			string fontname = arguments[1].GetStrValue(exm);
 			long fontsize = arguments[2].GetIntValue(exm);
 			FontStyle fs = FontStyle.Regular;
@@ -5528,6 +5538,7 @@ internal static partial class FunctionMethodCreator
 			// g.GSetFont(styledFont);
 			g.GSetFont(styledFont, fs);
 			return 1;
+#endif
 		}
 	}
 	#endregion
@@ -5550,9 +5561,13 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
 				return 0;
-			Color c = ReadColor(Name, exm, arguments, 1);
+			EmuColor c = ReadColor(Name, exm, arguments, 1);
 			long width = arguments[2].GetIntValue(exm);
+#if HEADLESS
+			g.GSetPen(null);
+#else
 			g.GSetPen(new Pen(c, width));
+#endif
 			return 1;
 		}
 	}
@@ -5631,9 +5646,16 @@ internal static partial class FunctionMethodCreator
 			}
 			else if (arguments.Count == 4)
 			{
-				Point p = ReadPoint(Name, exm, arguments, 2);
+				EmuPoint p = ReadPoint(Name, exm, arguments, 2);
 				g.GDrawString(text, p.X, p.Y);
 			}
+#if HEADLESS
+			// Headless 模式下无法测量文本尺寸，返回 0
+			long[] resultArray0 = exm.VEvaluator.RESULT_ARRAY;
+			resultArray0[1] = 0;
+			resultArray0[2] = 0;
+			return 1;
+#else
 			//生成する画像のサイズを取得
 			var bitmap = new Bitmap(16, 16);
 			//Graphics canvas = Graphics.FromImage(bitmap);
@@ -5651,6 +5673,7 @@ internal static partial class FunctionMethodCreator
 			resultArray[1] = (long)size.Width;
 			resultArray[2] = (long)size.Height;
 			return 1;
+#endif
 		}
 	}
 	#endregion
@@ -5678,6 +5701,12 @@ internal static partial class FunctionMethodCreator
 				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			string text = arguments[0].GetStrValue(exm);
+#if HEADLESS
+			// Headless 模式下无法测量文本尺寸，返回 0
+			long[] resultArrayH = exm.VEvaluator.RESULT_ARRAY;
+			resultArrayH[1] = 0;
+			return 0;
+#else
 			//生成する画像のサイズを取得
 			string fontname = arguments[1].GetStrValue(exm);
 			long fontsize = arguments[2].GetIntValue(exm);
@@ -5707,6 +5736,7 @@ internal static partial class FunctionMethodCreator
 			//resultArray[1] = (Int64)tsize.Width;
 			resultArray[1] = (long)size.Height;
 			return (long)size.Width;
+#endif
 		}
 	}
 	#endregion
@@ -5793,8 +5823,8 @@ internal static partial class FunctionMethodCreator
 			}
 			else
 			{
-				Point p = ReadPoint(Name, exm, arguments, 3);
-				dest.GDrawGWithRotate(src, angle, p.X, p.Y);
+				EmuPoint p = ReadPoint(Name, exm, arguments, 3);
+			dest.GDrawGWithRotate(src, angle, p.X, p.Y);
 			}
 			return 1;
 		}
@@ -5836,8 +5866,8 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
 				return 0;
-			Point fromP = ReadPoint(Name, exm, arguments, 1);
-			Point forP = ReadPoint(Name, exm, arguments, 3);
+			EmuPoint fromP = ReadPoint(Name, exm, arguments, 1);
+			EmuPoint forP = ReadPoint(Name, exm, arguments, 3);
 			g.GDrawLine(fromP.X, fromP.Y, forP.X, forP.Y);
 			return 1;
 		}
@@ -5889,7 +5919,7 @@ internal static partial class FunctionMethodCreator
 			ASprite img = AppContents.GetSprite(imgname);
 			if (img == null || !img.IsCreated)
 				return 0;
-			Point p = ReadPoint(Name, exm, arguments, 1);
+			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			switch (Name)
 			{
 				case "SPRITEMOVE":
@@ -5922,12 +5952,12 @@ internal static partial class FunctionMethodCreator
 			//他と違って失敗は0ではなく負の値
 			if (img == null || !img.IsCreated)
 				return -1;
-			Point p = ReadPoint(Name, exm, arguments, 1);
+			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			if (p.X < 0 || p.X >= img.DestBaseSize.Width)
 				return -1;
 			if (p.Y < 0 || p.Y >= img.DestBaseSize.Height)
 				return -1;
-			Color c = img.SpriteGetColor(p.X, p.Y);
+			EmuColor c = img.SpriteGetColor(p.X, p.Y);
 			//Color.ToArgb()はInt32の負の値をとることがあり、Int64にうまく変換できない？（と思ったが気のせいだった
 			//return ((long)c.A) << 24 + c.R << 16 + c.G << 8 + c.B;
 			return c.ToArgb() & 0xFFFFFFFFL;
@@ -5972,7 +6002,7 @@ internal static partial class FunctionMethodCreator
 			if (g.IsCreated)
 				return 0;
 
-			Point p = ReadPoint(Name, exm, arguments, 1);
+			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			int width = p.X; int height = p.Y;
 			if (width <= 0)//{0}関数:GraphicsのWidthに0以下の値({1})が指定されました
 						   // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGWidth0, Name, width));
@@ -6011,7 +6041,10 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (g.IsCreated)
 				return 0;
-
+#if HEADLESS
+			// Headless 模式下不支持图片加载
+			return 0;
+#else
 			string filename = arguments[1].GetStrValue(exm);
 			bool isRelative = false;
 			if (arguments.Count > 2)
@@ -6053,6 +6086,7 @@ internal static partial class FunctionMethodCreator
 			if (!g.IsCreated)
 				return 0;
 			return 1;
+#endif
 		}
 	}
 
@@ -6135,7 +6169,7 @@ internal static partial class FunctionMethodCreator
 			if (!g.IsCreated)
 				return 0;
 
-			Rectangle rect = new(0, 0, g.Width, g.Height);
+			EmuRectangle rect = new(0, 0, g.Width, g.Height);
 			if (arguments.Count == 6)
 			{//四角形は正でも負でもよいが親画像の外を指してはいけない
 				rect = ReadRectangle(Name, exm, arguments, 2);
@@ -6143,7 +6177,7 @@ internal static partial class FunctionMethodCreator
 				//if (rect.X + rect.Width < 0 || rect.X + rect.Width > g.Width || rect.Y + rect.Height < 0 || rect.Y + rect.Height > g.Height)
 				//	throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodCIMGCreateOutOfRange0, Name));
 
-				if (!rect.IntersectsWith(new Rectangle(0, 0, g.Width, g.Height)))
+				if (!rect.IntersectsWith(new EmuRectangle(0, 0, g.Width, g.Height)))
 					// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodCIMGCreateOutOfRange0, Name));
 					throw new CodeEE(string.Format(trerror.ImgRefOutOfRange.Text, Name));
 				#endregion
@@ -6224,7 +6258,7 @@ internal static partial class FunctionMethodCreator
 				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			Color c = ReadColor(Name, exm, arguments, 1);
+			EmuColor c = ReadColor(Name, exm, arguments, 1);
 			if (!g.IsCreated)
 				return 0;
 			if (arguments.Count == 2)
@@ -6255,7 +6289,7 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
 				return 0;
-			Rectangle rect = ReadRectangle(Name, exm, arguments, 1);
+			EmuRectangle rect = ReadRectangle(Name, exm, arguments, 1);
 			g.GFillRectangle(rect);
 			return 1;
 		}
@@ -6313,8 +6347,8 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage src = ReadGraphics(Name, exm, arguments, 1);
 			if (!src.IsCreated)
 				return 0;
-			Rectangle destRect = ReadRectangle(Name, exm, arguments, 2);
-			Rectangle srcRect = ReadRectangle(Name, exm, arguments, 6);
+			EmuRectangle destRect = ReadRectangle(Name, exm, arguments, 2);
+			EmuRectangle srcRect = ReadRectangle(Name, exm, arguments, 6);
 			if (arguments.Count == 10 || arguments[10] == null)
 			{
 				dest.GDrawG(src, destRect, srcRect);
@@ -6370,7 +6404,7 @@ internal static partial class FunctionMethodCreator
 				return 0;
 			if (src.Width != mask.Width || src.Height != mask.Height)
 				return 0;
-			Point destPoint = ReadPoint(Name, exm, arguments, 3);
+			EmuPoint destPoint = ReadPoint(Name, exm, arguments, 3);
 			if (destPoint.X + src.Width > dest.Width || destPoint.Y + src.Height > dest.Height)
 				return 0;
 			dest.GDrawGWithMask(src, mask, destPoint);
@@ -6439,7 +6473,7 @@ internal static partial class FunctionMethodCreator
 			if (img == null || !img.IsCreated)
 				return 0;
 
-			Rectangle destRect = new(0, 0, img.DestBaseSize.Width, img.DestBaseSize.Height);
+			EmuRectangle destRect = new(0, 0, img.DestBaseSize.Width, img.DestBaseSize.Height);
 			if (arguments.Count == 2)
 			{
 				dest.GDrawCImg(img, destRect);
@@ -6447,9 +6481,8 @@ internal static partial class FunctionMethodCreator
 			}
 			if (arguments.Count == 4)
 			{
-				Point p = ReadPoint(Name, exm, arguments, 2);
-				destRect.X = p.X;
-				destRect.Y = p.Y;
+				EmuPoint p = ReadPoint(Name, exm, arguments, 2);
+				destRect = destRect with { X = p.X, Y = p.Y };
 				dest.GDrawCImg(img, destRect);
 				return 1;
 			}
@@ -6505,7 +6538,7 @@ internal static partial class FunctionMethodCreator
 			ASprite img = AppContents.GetSprite(imgname);
 			if (img != null && img.IsCreated)
 				return 0;
-			Point pos = ReadPoint(Name, exm, arguments, 1);
+			EmuPoint pos = ReadPoint(Name, exm, arguments, 1);
 			if (pos.X <= 0)//{0}関数:GraphicsのWidthに0以下の値({1})が指定されました
 						   // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGWidth0, Name, pos.X));
 				throw new CodeEE(string.Format(trerror.GParamIsNegative.Text, Name, "Width", pos.X));
@@ -6552,13 +6585,13 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 1);
 			if (!g.IsCreated)
 				return 0;
-			Rectangle rect = ReadRectangle(Name, exm, arguments, 2);
+			EmuRectangle rect = ReadRectangle(Name, exm, arguments, 2);
 			//四角形は正でなければならず、かつ親画像の外を指してはいけない
 			if (rect.Width <= 0 || rect.Height <= 0 ||
 				rect.X < 0 || rect.X + rect.Width > g.Width || rect.Y < 0 || rect.Y + rect.Height > g.Height)
 				return 0;
 			//throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodCIMGCreateOutOfRange0, Name));
-			Point offset = ReadPoint(Name, exm, arguments, 6);
+			EmuPoint offset = ReadPoint(Name, exm, arguments, 6);
 			long delay = arguments[8].GetIntValue(exm);
 			if (delay <= 0 || delay > int.MaxValue)
 				return 0;
@@ -6669,7 +6702,7 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated || g.Bitmap == null)
 				return 0;
-			Point p = ReadPoint(Name, exm, arguments, 1);
+			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			long z64 = arguments[3].GetIntValue(exm);
 			if (z64 < int.MinValue || z64 > int.MaxValue || z64 == 0)
 				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, z64, 3 + 1));
@@ -6726,7 +6759,7 @@ internal static partial class FunctionMethodCreator
 			ASprite img = AppContents.GetSprite(imgname);
 			if (img == null || !img.IsCreated)
 				return 0;
-			Point p = ReadPoint(Name, exm, arguments, 1);
+			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			long z64 = arguments[3].GetIntValue(exm);
 			if (z64 < int.MinValue || z64 > int.MaxValue || z64 == 0)
 				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, z64, 3 + 1));
@@ -6786,7 +6819,7 @@ internal static partial class FunctionMethodCreator
 			string imgnameB = arguments[2].GetStrValue(exm);
 			ASprite imgB = AppContents.GetSprite(imgnameB);
 
-			Point p = ReadPoint(Name, exm, arguments, 3);
+			EmuPoint p = ReadPoint(Name, exm, arguments, 3);
 			long z64 = arguments[5].GetIntValue(exm);
 			if (z64 < int.MinValue || z64 > int.MaxValue || z64 == 0)
 				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, z64, 5 + 1));
@@ -6864,6 +6897,10 @@ internal static partial class FunctionMethodCreator
 		{
 			//if (exm.Console.SelectingButton != null)
 			//	return exm.Console.SelectingButton.ToString();
+#if HEADLESS
+			// Headless 模式下无鼠标交互
+			return "";
+#else
 			bool b = exm.Console.AlwaysRefresh;
 			Point point = exm.Console.UIAdapter.MainPicBox.PointToClient(exm.Console.UIAdapter.GetCursorPosition());
 			exm.Console.AlwaysRefresh = true;
@@ -6879,6 +6916,7 @@ internal static partial class FunctionMethodCreator
 				return exm.Console.PointingSring.Inputs;
 			}
 			return "";
+#endif
 		}
 	}
 	#endregion
@@ -7184,7 +7222,10 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (g.IsCreated)
 				return 0;
-
+#if HEADLESS
+			// Headless 模式下不支持图片加载
+			return 0;
+#else
 			long i64 = arguments[1].GetIntValue(exm);
 			if (i64 < 0 || i64 > int.MaxValue)
 				return 0;
@@ -7217,6 +7258,7 @@ internal static partial class FunctionMethodCreator
 			if (!g.IsCreated)
 				return 0;
 			return 1;
+#endif
 		}
 	}
 

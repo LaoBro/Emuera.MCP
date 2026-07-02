@@ -4,7 +4,6 @@ using MinorShift.Emuera.Runtime.Config.JSON;
 using MinorShift.Emuera.UI.Game.Image;
 using System;
 #if !HEADLESS
-using System.Drawing;
 using System.Windows.Forms;
 #endif
 

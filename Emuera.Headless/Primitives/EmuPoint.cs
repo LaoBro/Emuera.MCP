@@ -4,7 +4,7 @@ namespace MinorShift.Emuera.Primitives;
 /// 轻量级二维点类型，替代 System.Drawing.Point。
 /// 通过隐式转换兼容现有代码。
 /// </summary>
-internal readonly record struct EmuPoint(int X, int Y)
+public readonly record struct EmuPoint(int X, int Y)
 {
     public static readonly EmuPoint Empty = new(0, 0);
 

@@ -1,5 +1,6 @@
 ﻿using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameProc.Function;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements;
@@ -7,7 +8,6 @@ using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -139,7 +139,7 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 		{
 			expressionMediator.Console.ClearDisplay();
 		}
-		public void SetBgColor(Color color)
+		public void SetBgColor(EmuColor color)
 		{
 			expressionMediator.Console.SetBgColor(color);
 		}
@@ -147,7 +147,7 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 		{
 			expressionMediator.Console.SetFont(fontName);
 		}
-		public Point GetMousePosition()
+		public EmuPoint GetMousePosition()
 		{
 			return expressionMediator.Console.GetMousePosition();
 		}

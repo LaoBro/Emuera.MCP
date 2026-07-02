@@ -25,7 +25,6 @@ internal sealed class ConstImage : AbstractImage
 }
 #else
 using System;
-using System.Drawing;
 using System.IO;
 
 namespace MinorShift.Emuera.UI.Game.Image;

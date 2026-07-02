@@ -1,5 +1,5 @@
-﻿using MinorShift.Emuera.Runtime.Utils;
-using System.Drawing;
+﻿#if !HEADLESS
+using MinorShift.Emuera.Runtime.Utils;
 using System.IO;
 
 namespace MinorShift.Emuera.UI.Game.Image;
@@ -36,3 +36,4 @@ static class ImgUtils
 		return bmp;
 	}
 }
+#endif

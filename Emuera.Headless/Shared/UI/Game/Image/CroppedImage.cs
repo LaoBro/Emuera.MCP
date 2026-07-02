@@ -58,8 +58,6 @@ internal sealed class SpriteAnime : ASprite
 using MinorShift.Emuera.Runtime.Utils;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.UI.Game.Image;

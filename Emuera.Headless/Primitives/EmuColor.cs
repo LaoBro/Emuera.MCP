@@ -6,7 +6,7 @@ namespace MinorShift.Emuera.Primitives;
 /// 轻量级颜色类型，替代 System.Drawing.Color。
 /// 通过隐式转换兼容现有代码。
 /// </summary>
-internal readonly record struct EmuColor(byte R, byte G, byte B, byte A = 255)
+public readonly record struct EmuColor(byte R, byte G, byte B, byte A = 255)
 {
     // 静态常量
     public static readonly EmuColor Empty = new(0, 0, 0, 0);
@@ -39,7 +39,22 @@ internal readonly record struct EmuColor(byte R, byte G, byte B, byte A = 255)
     public static EmuColor FromName(string name)
         => ColorNameMap.GetValueOrDefault(name.ToLowerInvariant(), Black);
 
-    // 颜色名称映射
+    /// <summary>
+    /// 尝试按名称解析颜色，匹配 System.Drawing.Color.FromName 的失败语义。
+    /// 未知名称返回 false 并将 color 置为 Empty（A=0）。
+    /// </summary>
+    public static bool TryFromName(string name, out EmuColor color)
+    {
+        if (ColorNameMap.TryGetValue(name.ToLowerInvariant(), out var c))
+        {
+            color = c;
+            return true;
+        }
+        color = Empty;
+        return false;
+    }
+
+    // 颜色名称映射（含常见 CSS/HTML 颜色名）
     private static readonly Dictionary<string, EmuColor> ColorNameMap = new()
     {
         ["black"] = Black,
@@ -52,6 +67,21 @@ internal readonly record struct EmuColor(byte R, byte G, byte B, byte A = 255)
         ["grey"] = Gray,
         ["transparent"] = Transparent,
         ["darkblue"] = DarkBlue,
+        // 常见 CSS/HTML 颜色名补充
+        ["silver"] = new(192, 192, 192),
+        ["maroon"] = new(128, 0, 0),
+        ["olive"] = new(128, 128, 0),
+        ["lime"] = new(0, 255, 0),
+        ["aqua"] = new(0, 255, 255),
+        ["teal"] = new(0, 128, 128),
+        ["navy"] = new(0, 0, 128),
+        ["fuchsia"] = new(255, 0, 255),
+        ["purple"] = new(128, 0, 128),
+        ["orange"] = new(255, 165, 0),
+        ["pink"] = new(255, 192, 203),
+        ["brown"] = new(165, 42, 42),
+        ["cyan"] = new(0, 255, 255),
+        ["magenta"] = new(255, 0, 255),
     };
 
     // 隐式转换

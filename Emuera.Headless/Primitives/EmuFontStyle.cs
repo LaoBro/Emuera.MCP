@@ -6,7 +6,7 @@ namespace MinorShift.Emuera.Primitives;
 /// 轻量级 FontStyle 值类型，替代 System.Drawing.FontStyle。
 /// 支持位运算，与原类型数值完全兼容。
 /// </summary>
-internal readonly record struct EmuFontStyle(int Value)
+public readonly record struct EmuFontStyle(int Value)
 {
 	public static readonly EmuFontStyle Regular = new(0);
 	public static readonly EmuFontStyle Bold = new(1);
@@ -19,6 +19,8 @@ internal readonly record struct EmuFontStyle(int Value)
 		=> new(a.Value | b.Value);
 	public static EmuFontStyle operator &(EmuFontStyle a, EmuFontStyle b)
 		=> new(a.Value & b.Value);
+	public static EmuFontStyle operator ^(EmuFontStyle a, EmuFontStyle b)
+		=> new(a.Value ^ b.Value);
 
 	// 与 int 的位运算
 	public static EmuFontStyle operator |(EmuFontStyle a, int b)

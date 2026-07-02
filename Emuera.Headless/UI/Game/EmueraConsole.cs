@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.Text;
 using MinorShift.Emuera.GameProc;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.UI;
 using MinorShift.Emuera.Runtime.Config;
@@ -74,7 +74,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     public bool LastLineIsEmpty => _printManager.LastLineIsEmpty;
     public bool EmptyLine => printBuffer.IsEmpty;
     public bool noOutputLog { get => _state.noOutputLog; set => _state.noOutputLog = value; }
-    public Color bgColor { get => _state.bgColor; set => _state.bgColor = value; }
+    public EmuColor bgColor { get => _state.bgColor; set => _state.bgColor = value; }
     public bool UseUserStyle { get => _state.UseUserStyle; set => _state.UseUserStyle = value; }
     public bool UseSetColorStyle { get => _state.UseSetColorStyle; set => _state.UseSetColorStyle = value; }
     public StringStyle StringStyle => _state.userStyle;
@@ -181,10 +181,10 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     public void ReadAnyKey(bool anykey = false, bool stopMesskip = false) => _inputHandler.ReadAnyKey(anykey, stopMesskip);
     public void PressEnterKey(bool keySkip, string input, bool changedByMouse) => _inputHandler.PressEnterKey(keySkip, input, changedByMouse);
     public void InputMouseKey(int type, int result1, int result2, int result3, int result4, long result5) => _inputHandler.InputMouseKey(type, result1, result2, result3, result4, result5);
-    public void MouseWheel(System.Drawing.Point point, int delta) => _inputHandler.MouseWheel(point, delta);
-    public void MouseDown(System.Drawing.Point point, int button) => _inputHandler.MouseDown(point, button);
+    public void MouseWheel(EmuPoint point, int delta) => _inputHandler.MouseWheel(point, delta);
+    public void MouseDown(EmuPoint point, int button) => _inputHandler.MouseDown(point, button);
     public void PressPrimitiveKey(int keycode, int keydata, int keymod) => _inputHandler.PressPrimitiveKey(keycode, keydata, keymod);
-    public bool MoveMouse(System.Drawing.Point point) => _inputHandler.MoveMouse(point);
+    public bool MoveMouse(EmuPoint point) => _inputHandler.MoveMouse(point);
     public void LeaveMouse() => _inputHandler.LeaveMouse();
     internal void SetSelectingButton(ConsoleButtonString? button) => _inputHandler.SetSelectingButton(button);
     internal List<ConsoleButtonString> CollectCurrentButtons()
@@ -242,11 +242,11 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // Style delegation
     // ========================================
 
-    public void SetStringStyle(FontStyle fs) => _printManager.SetStringStyle(fs);
-    public void SetStringStyle(Color color) => _printManager.SetStringStyle(color);
+    public void SetStringStyle(EmuFontStyle fs) => _printManager.SetStringStyle(fs);
+    public void SetStringStyle(EmuColor color) => _printManager.SetStringStyle(color);
     public void SetFont(string fontname) => _printManager.SetFont(fontname);
     public void ResetStyle() => _printManager.ResetStyle();
-    public void SetBgColor(Color color) => _printManager.SetBgColor(color);
+    public void SetBgColor(EmuColor color) => _printManager.SetBgColor(color);
 
     // ========================================
     // Bar / StBar delegation
@@ -375,7 +375,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // Mouse helpers
     // ========================================
 
-    public System.Drawing.Point GetMousePosition() => _uiAdapter.GetMousePosition();
+    public EmuPoint GetMousePosition() => _uiAdapter.GetMousePosition();
 
     // ========================================
     // WinForms stubs (no-ops in headless)
@@ -393,7 +393,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     public void ClearBackgroundImage() { }
     public void RemoveBackground(string key) { }
     public void ValidateBackground(int width, int height) { }
-    public void SetToolTipColor(Color foreColor, Color backColor) { }
+    public void SetToolTipColor(EmuColor foreColor, EmuColor backColor) { }
     public void SetToolTipDelay(int delay) { }
     public void SetToolTipDuration(int duration) { }
     public void SetToolTipFontName(string fn) { }
@@ -598,8 +598,8 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     private string FormatLineWithAnsi(ConsoleDisplayLine line)
     {
         var sb = new StringBuilder();
-        Color? lastColor = null;
-        FontStyle lastFontStyle = FontStyle.Regular;
+        EmuColor? lastColor = null;
+        EmuFontStyle lastFontStyle = EmuFontStyle.Regular;
         int charWidth = Math.Max(Config.FontSize / 2, 1);
         foreach (var button in line.Buttons)
         {
@@ -613,14 +613,14 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
                         var style = css.StringStyle;
                         if (lastColor != style.Color || lastFontStyle != style.FontStyle)
                         {
-                            if (lastColor != null || lastFontStyle != FontStyle.Regular)
+                            if (lastColor != null || lastFontStyle != EmuFontStyle.Regular)
                             {
                                 sb.Append("\x1b[0m");
                                 if (isSelected) sb.Append("\x1b[7m");
                             }
                             sb.Append($"\x1b[38;2;{style.Color.R};{style.Color.G};{style.Color.B}m");
-                            if ((style.FontStyle & FontStyle.Bold) != 0) sb.Append("\x1b[1m");
-                            if ((style.FontStyle & FontStyle.Italic) != 0) sb.Append("\x1b[3m");
+                            if ((style.FontStyle & EmuFontStyle.Bold) != 0) sb.Append("\x1b[1m");
+                            if ((style.FontStyle & EmuFontStyle.Italic) != 0) sb.Append("\x1b[3m");
                             lastColor = style.Color;
                             lastFontStyle = style.FontStyle;
                         }
@@ -647,7 +647,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
             }
             if (isSelected) sb.Append("\x1b[27m");
         }
-        if (lastColor != null || lastFontStyle != FontStyle.Regular)
+        if (lastColor != null || lastFontStyle != EmuFontStyle.Regular)
             sb.Append("\x1b[0m");
         return sb.ToString();
     }

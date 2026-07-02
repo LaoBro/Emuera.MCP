@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -318,15 +317,15 @@ internal sealed class ConsolePrintManager
             _console.DebugNewLine();
         }
         _state.UseUserStyle = false;
-        var errColor = Color.FromArgb(255, 255, 255, 160);
+        var errColor = EmuColor.FromArgb(255, 255, 255, 160);
         var errerStyle = Style;
         errerStyle.Color = level switch
         {
             0 => errColor,
             1 => errColor,
             2 => errColor,
-            3 => Color.Red,
-            _ => Color.Red
+            3 => EmuColor.Red,
+            _ => EmuColor.Red
         };
         ConsoleDisplayLine dispLine = _console.printBuffer.AppendAndFlushErrButton(str, errerStyle, ErrorButtonsText, pos, _console.stringMeasure);
         if (dispLine == null)
@@ -361,7 +360,7 @@ internal sealed class ConsolePrintManager
     public void PrintBar()
     {
         StringStyle ss = _state.userStyle;
-        _state.userStyle.FontStyle = FontStyle.Regular;
+        _state.userStyle.FontStyle = EmuFontStyle.Regular;
         Print(_state.stBar);
         _state.userStyle = ss;
     }
@@ -371,7 +370,7 @@ internal sealed class ConsolePrintManager
         if (string.IsNullOrEmpty(barStr))
             throw new CodeEE(trerror.EmptyDrawline.Text);
         StringStyle ss = _state.userStyle;
-        _state.userStyle.FontStyle = FontStyle.Regular;
+        _state.userStyle.FontStyle = EmuFontStyle.Regular;
         if (isConst)
             Print(barStr);
         else
@@ -519,7 +518,7 @@ internal sealed class ConsolePrintManager
 
     // --- Style helpers ---
 
-    public void SetStringStyle(FontStyle fs) => _state.userStyle.FontStyle = fs;
+    public void SetStringStyle(EmuFontStyle fs) => _state.userStyle.FontStyle = fs;
 
     public void SetStringStyle(EmuColor color)
     {
@@ -541,7 +540,7 @@ internal sealed class ConsolePrintManager
         _state.alignment = DisplayLineAlignment.LEFT;
     }
 
-    public void SetBgColor(Color color)
+    public void SetBgColor(EmuColor color)
     {
         _state.bgColor = color;
         _state.forceTextBoxColor = true;

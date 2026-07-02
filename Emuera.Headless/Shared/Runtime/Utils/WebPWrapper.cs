@@ -22,8 +22,6 @@
 /// float[] PictureDistortion(Bitmap source, Bitmap reference, int metric_type) - Get PSNR, SSIM or LSIM distortion metric between two pictures
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 using System;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
@@ -33,6 +31,7 @@ using System.Windows.Forms;
 
 namespace MinorShift.Emuera.Runtime.Utils;
 
+#if !HEADLESS
 public sealed class WebP : IDisposable
 {
 	private const int WEBP_MAX_DIMENSION = 16383;
@@ -897,6 +896,7 @@ public sealed class WebP : IDisposable
 	}
 	#endregion
 }
+#endif
 
 #region | Import libwebp functions |
 [SuppressUnmanagedCodeSecurity]
