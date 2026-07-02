@@ -594,7 +594,7 @@ internal static class HtmlManager
 			}
 			if (state.FlagBr)
 			{
-				state.LastButtonTag = state.CurrentButtonTag;
+				state.LastButtonTag = state.CurrentButtonTag!;
 				if (cssList.Count > 0)
 					buttonList.Add(cssToButton(cssList, state, console));
 				buttonList.Add(null);
@@ -605,7 +605,7 @@ internal static class HtmlManager
 			}
 			state.FlagBr = false;
 			state.FlagButton = false;
-			state.LastButtonTag = state.CurrentButtonTag;
+			state.LastButtonTag = state.CurrentButtonTag!;
 		}
 		//</nobr></p>は省略許可
 		#region EM_私家版_HTML_divタグ
@@ -1034,9 +1034,9 @@ internal static class HtmlManager
 					//int height = 0;
 					//int width = 0;
 					//int ypos = 0;
-					MixedNum height = null;
-					MixedNum width = null;
-					MixedNum ypos = null;
+					MixedNum height = null!;
+					MixedNum width = null!;
+					MixedNum ypos = null!;
 					while (wc != null && !wc.EOL)
 					{
 						word = wc.Current as IdentifierWord;
@@ -1091,11 +1091,11 @@ internal static class HtmlManager
 				{
 					if (state.CurrentDivTag != null)
 						throw new CodeEE(string.Format(trerror.NestedTag.Text, "div"));
-					MixedNum x = null;
-					MixedNum y = null;
-					MixedNum width = null;
-					MixedNum height = null;
-					StyledBoxModel box = null;
+					MixedNum x = null!;
+					MixedNum y = null!;
+					MixedNum width = null!;
+					MixedNum height = null!;
+					StyledBoxModel box = null!;
 					bool isRelative = true;
 					int depth = 0;
 					int color = -1;
@@ -1344,7 +1344,7 @@ internal static class HtmlManager
 							//	throw new CodeEE("<" + tag + ">タグにvalue属性が設定されていません");
 							buttonTag.ButtonIsInteger = long.TryParse(value, out long intValue);
 							buttonTag.ButtonValueInt = intValue;
-							buttonTag.ButtonValueStr = value;
+							buttonTag.ButtonValueStr = value!;
 						}
 						buttonTag.IsButton = value != null;
 					}

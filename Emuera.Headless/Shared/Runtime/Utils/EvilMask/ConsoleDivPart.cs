@@ -89,7 +89,7 @@ class ConsoleDivPart : AConsoleDisplayNode
 	}
 	int PointY;
 	int Height;
-	int[] margin, padding, radius, border;
+	int[] margin = null!, padding = null!, radius = null!, border = null!;
 	EmuColor[] borderColors;
 	EmuColor backgroundColor;
 	string altHeadTag;

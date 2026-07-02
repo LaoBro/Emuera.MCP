@@ -37,6 +37,24 @@
 
 **分布**（10 文件 26 位置）：`Process.State.cs`(9)、`ErbLoader.cs`(4)、`Process.cs`(3)、`LogicalLine.cs`(2)、`Process.CalledFunction.cs`(2)、`Instraction.Child.cs`(2)、`PluginManager.cs`(1)、`LabelDictionary.cs`(1)、`IdentifierDictionary.cs`(1)、`Creator.Method.cs`(1)。
 
+### 2.4 CS8601（标注 98，实际 49 位置 / 98 诊断）
+**模式**：可能的 null 引用赋值——`T?` 表达式赋给 `T` 目标。分两类：
+1. BCL API 返回 `T?`（运行时可能 null，签名声明 `T` 或 `T?`）赋给 `T`：`Environment.ProcessPath`、`Path.GetFileName/GetDirectoryName`、`LinkedListNode<T>.Next/Previous/First/Last`、`JsonSerializer.Deserialize<T>`、`as` 表达式等。
+2. **`ref` 参数传递**：局部 `string x = null` 传给 `ref string`（非 null）参数，编译器视为"赋值 null 给非 null"。
+
+**修复**（13 文件 49 位置）：
+- BCL 返回值 / `as` 表达式 / `default`：加 `!`，如 `ExePath = Environment.ProcessPath!;`、`Pointer = Pointer.Next!;`、`(term as SingleTerm)!`、`_buffer[_tail] = default!;`。
+- `ref` 参数：被传 `ref` 的局部/字段用 `null!` 初始化（如 `string errMes = null!;`、`int[] margin = null!, ...;`），运行时仍为 null，由被调方内部 `CreateIfNull` 或后续判空兜底。
+- `??=` 配合：`Pointer ??= Collection.First!;`。
+
+**要点**：
+- 构建输出每条诊断打印两遍，49 位置 = 98 行 CS8601，与 `.editorconfig` 标注数吻合。
+- `!` 不能加在 `ref` 实参上（`ref x!` 非法），须在变量声明处用 `null!`。
+- `as` 表达式须整体加 `!`：`(expr as Type)!`，而非 `expr as Type!`。
+- 字段 `ref` 传递场景（`ConsoleDivPart.cs`）用 `null!` 初始化保持延迟初始化语义，不改变运行时行为。
+
+**分布**（13 文件）：`HtmlManager.cs`(17)、`WordCollection.cs`(12)、`ErbLoader.cs`(5)、`Sys.cs`(4)、`LexicalAnalyzer.cs`(2)、`Creator.Method.cs`(2)、`JSONConfig.cs`(1)、`Process.CalledFunction.cs`(1)、`DefineMacro.cs`(1)、`Instraction.Child.cs`(1)、`CircularBuffer.cs`(1)、`VariableParser.cs`(1)、`ConsoleDivPart.cs`(1)。
+
 ## 3. 标准操作流程（SOP）
 
 每批一个 CS ID，按以下步骤：
@@ -75,15 +93,14 @@
 
 | 序 | CS ID | 标注数 | 模式（预估） | 难度 | 备注 |
 |---|---|---|---|---|---|
-| 1 | CS8601 | 98 | 可能 null 引用赋值 | 中 | 数量适中，模式较集中，适合作为下一批 |
-| 2 | CS8604 | 176 | 传入可能 null 实参 | 中 | 跨文件调用点，按文件分组修复 |
-| 3 | CS8602 | 350 | 解引用可能空引用 | 高 | 数量大，需逐处判断 null 防护是否充分 |
-| 4 | CS8600 | 674 | null 转 non-null 类型 | 高 | 多为 `(T)x` 显式转换或赋值，`!` 可解大部分 |
-| 5 | CS8603 | 606 | 可能返回 null 引用 | 高 | 返回类型标注与实现不符，需调整签名或加 `?` |
-| 6 | CS8618 | 686 | 构造函数未初始化非 null 字段 | 高 | 多为字段初始化，`= null!` 或 `= default!` 过渡 |
-| 7 | CS8625 | 550 | null 字面量转非 null 引用 | 高 | 多为 `= null` 赋值，改 `= null!` 或调整类型 |
+| 1 | CS8604 | 176 | 传入可能 null 实参 | 中 | 跨文件调用点，按文件分组修复 |
+| 2 | CS8602 | 350 | 解引用可能空引用 | 高 | 数量大，需逐处判断 null 防护是否充分 |
+| 3 | CS8600 | 674 | null 转 non-null 类型 | 高 | 多为 `(T)x` 显式转换或赋值，`!` 可解大部分 |
+| 4 | CS8603 | 606 | 可能返回 null 引用 | 高 | 返回类型标注与实现不符，需调整签名或加 `?` |
+| 5 | CS8618 | 686 | 构造函数未初始化非 null 字段 | 高 | 多为字段初始化，`= null!` 或 `= default!` 过渡 |
+| 6 | CS8625 | 550 | null 字面量转非 null 引用 | 高 | 多为 `= null` 赋值，改 `= null!` 或调整类型 |
 
-总剩余约 3140 条。建议每批一个 CS ID，按上表顺序推进。
+总剩余约 3042 条。建议每批一个 CS ID，按上表顺序推进。
 
 ### 大批量批次策略
 - 单批 >200 条时，先用 Grep log 按文件聚合，识别 top-N 高频文件。
@@ -108,7 +125,7 @@
 | CS8605 | 2 | 0 | ✅ 已完成 | 2026-07-03 |
 | CS8767 | 6 | 3 | ✅ 已完成 | 2026-07-03 |
 | CS8629 | 52 | 26 | ✅ 已完成 | 2026-07-03 |
-| CS8601 | 98 | — | ⬜ 待清理 | — |
+| CS8601 | 98 | 49 | ✅ 已完成 | 2026-07-03 |
 | CS8604 | 176 | — | ⬜ 待清理 | — |
 | CS8602 | 350 | — | ⬜ 待清理 | — |
 | CS8600 | 674 | — | ⬜ 待清理 | — |
@@ -135,5 +152,20 @@
 - [`IdentifierDictionary.cs`](../../Emuera.Headless/Shared/Runtime/Script/Data/IdentifierDictionary.cs)
 - [`Creator.Method.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Function/Creator.Method.cs)
 
+**CS8601**（13 文件）：
+- [`HtmlManager.cs`](../../Emuera.Headless/Shared/UI/Game/HtmlManager.cs)（17 处：`null!` 局部变量传 `ref`、`state.LastButtonTag = state.CurrentButtonTag!`、`buttonTag.ButtonValueStr = value!`）
+- [`WordCollection.cs`](../../Emuera.Headless/Shared/Runtime/Script/Parser/WordCollection.cs)（12 处：`Pointer = Collection.First!/Last!`、`Pointer = Pointer.Next!`、`Pointer = lastPointer!`、`Pointer ??= Collection.First!`、`Pointer = next!`）
+- [`ErbLoader.cs`](../../Emuera.Headless/Shared/Runtime/Script/Loader/ErbLoader.cs)（5 处：`gotoLabel.ParentLabelLine = lastLabelLine!`、`subNames[i] = (term as SingleTerm)!`、`defs[i] = def!`、`string FunctionNotFoundName = null!`）
+- [`Sys.cs`](../../Emuera.Headless/Shared/Runtime/Utils/Sys.cs)（4 处：`ExePath/ExeDir/ExeName/emueraVer` 加 `!`）
+- [`LexicalAnalyzer.cs`](../../Emuera.Headless/Shared/Runtime/Script/Parser/LexicalAnalyzer.cs)（2 处：`wc.Pointer = wc.Pointer.Next!`、`macroWC.Pointer = macroWC.Pointer.Next!`）
+- [`Creator.Method.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Function/Creator.Method.cs)（2 处：`array[i] = node.Value!`、`string errMes = null!`）
+- [`JSONConfig.cs`](../../Emuera.Headless/Shared/Runtime/Config/JSON/JSONConfig.cs)（1 处：`Data = JsonSerializer.Deserialize<JSONConfigData>(json)!`）
+- [`Process.CalledFunction.cs`](../../Emuera.Headless/Shared/Runtime/Script/Process.CalledFunction.cs)（1 处：`convertedArg[i] = term!`）
+- [`DefineMacro.cs`](../../Emuera.Headless/Shared/Runtime/Script/Data/DefineMacro.cs)（1 处：`IDWord = (Statement.Current as IdentifierWord)!`）
+- [`Instraction.Child.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Instraction.Child.cs)（1 处：`callArg.CallFunc = call!`）
+- [`CircularBuffer.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/CircularBuffer.cs)（1 处：`_buffer[_tail] = default!`）
+- [`VariableParser.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Variable/VariableParser.cs)（1 处：`terms = [op1!, op2]`）
+- [`ConsoleDivPart.cs`](../../Emuera.Headless/Shared/Runtime/Utils/EvilMask/ConsoleDivPart.cs)（1 处：`int[] margin = null!, padding = null!, radius = null!, border = null!` 字段传 `ref`）
+
 **配置**：
-- [`.editorconfig`](../../.editorconfig)：删除 `CS8605`、`CS8767`、`CS8629` 三条抑制规则
+- [`.editorconfig`](../../.editorconfig)：删除 `CS8605`、`CS8767`、`CS8629`、`CS8601` 四条抑制规则

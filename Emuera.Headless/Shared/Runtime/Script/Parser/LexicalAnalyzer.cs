@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Utils;
@@ -1125,7 +1125,7 @@ internal static partial class LexicalAnalyzer
 		wc.Pointer = macroStart;
 		while (macroEnd == wc.Pointer)
 		{
-			wc.Pointer = wc.Pointer.Next;
+			wc.Pointer = wc.Pointer.Next!;
 			wc.Collection.Remove(wc.Pointer.Previous);
 		}
 		while (!macroWC.EOL)
@@ -1140,7 +1140,7 @@ internal static partial class LexicalAnalyzer
 			macroWC.InsertRange(args[w.Number]);
 			for (int i = 0; i < args[w.Number].Collection.Count; i++)
 			{
-				macroWC.Pointer = macroWC.Pointer.Next;
+				macroWC.Pointer = macroWC.Pointer.Next!;
 			}
 		}
 		wc.InsertRange(macroWC);

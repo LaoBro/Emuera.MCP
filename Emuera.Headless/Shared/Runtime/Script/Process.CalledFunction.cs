@@ -225,7 +225,7 @@ internal sealed class CalledFunction
 					term = new FunctionMethodTerm(tostrMethod, [term]);
 				}
 			}
-			convertedArg[i] = term;
+			convertedArg[i] = term!;
 		}
 		return new UserDefinedFunctionArgument(convertedArg, func.Arg);
 	}

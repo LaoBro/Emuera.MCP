@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Script.Parser;
+using MinorShift.Emuera.Runtime.Script.Parser;
 
 namespace MinorShift.Emuera.Runtime.Script.Data;
 
@@ -12,7 +12,7 @@ internal sealed class DefineMacro
 		Statement.PointerReset();;
 		HasArguments = argcount != 0;
 		if (Statement.Collection.Count == 1)
-			IDWord = Statement.Current as IdentifierWord;
+			IDWord = (Statement.Current as IdentifierWord)!;
 		IsNull = wc.Collection.Count == 0;
 	}
 	public readonly string Keyword;

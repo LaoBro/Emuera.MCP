@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -75,7 +75,7 @@ public class CircularBuffer<T> : ICircularBuffer<T>, IEnumerable<T>
 			throw new InvalidOperationException("queue exhausted");
 
 		var dequeued = _buffer[_tail];
-		_buffer[_tail] = default;
+		_buffer[_tail] = default!;
 		_tail = (_tail + 1) % Capacity;
 		--Count;
 		return dequeued;

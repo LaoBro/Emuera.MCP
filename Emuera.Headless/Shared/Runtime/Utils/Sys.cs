@@ -11,13 +11,13 @@ public static class AssemblyData
 {
 	static AssemblyData()
 	{
-		ExePath = Environment.ProcessPath;
+		ExePath = Environment.ProcessPath!;
 		#region eee_カレントディレクトリー
 		WorkingDir = Directory.GetCurrentDirectory() + "\\";
 		#endregion
-		ExeDir = Path.GetDirectoryName(ExePath) + "\\";
-		ExeName = Path.GetFileName(ExePath);
-		emueraVer = typeof(AssemblyData).Assembly.GetName().Version;
+		ExeDir = Path.GetDirectoryName(ExePath)! + "\\";
+		ExeName = Path.GetFileName(ExePath)!;
+		emueraVer = typeof(AssemblyData).Assembly.GetName().Version!;
 
 #if HEADLESS
 		EmueraVersionText = "Emuera.NET " + (Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0");

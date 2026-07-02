@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
@@ -13,7 +13,7 @@ internal sealed class WordCollection
 	public WordCollection()
 	{
 		Collection = new();
-		Pointer = Collection.First;
+		Pointer = Collection.First!;
 	}
 
 	public LinkedList<Word> Collection;
@@ -24,13 +24,13 @@ internal sealed class WordCollection
 	public void PointerReset()
 	{
 		index = 0;
-		Pointer = Collection.First;
+		Pointer = Collection.First!;
 	}
 
 	public void Add(Word token)
 	{
 		Collection.AddLast(token);
-		Pointer ??= Collection.First;
+		Pointer ??= Collection.First!;
 	}
 	public void Add(WordCollection wc)
 	{
@@ -38,7 +38,7 @@ internal sealed class WordCollection
 		{
 			Collection.AddLast(word);
 		}
-		Pointer ??= Collection.First;
+		Pointer ??= Collection.First!;
 	}
 
 	public void Clear()
@@ -52,7 +52,7 @@ internal sealed class WordCollection
 		{
 			if (index == 0)
 			{
-				Pointer = Collection.First;
+				Pointer = Collection.First!;
 			}
 			else
 			{
@@ -61,10 +61,10 @@ internal sealed class WordCollection
 		else
 		{
 
-			Pointer = Pointer.Next;
-		}
+			Pointer = Pointer.Next!;
+	}
 
-		index++;
+	index++;
 	}
 	public Word Current
 	{
@@ -102,12 +102,12 @@ internal sealed class WordCollection
 			if (Collection.Count == 0)
 			{
 				Collection.AddFirst(w);
-				Pointer = Collection.First;
+				Pointer = Collection.First!;
 			}
 			else
 			{
 				Collection.AddLast(w);
-				Pointer = Collection.Last;
+				Pointer = Collection.Last!;
 			}
 		}
 		else
@@ -143,13 +143,13 @@ internal sealed class WordCollection
 			lastPointer ??= pointer;
 		}
 
-		Pointer = lastPointer;
+		Pointer = lastPointer!;
 	}
 	public void Remove()
 	{
 		var next = Pointer.Next;
 		Collection.Remove(Pointer);
-		Pointer = next;
+		Pointer = next!;
 	}
 
 	public void SetIsMacro()

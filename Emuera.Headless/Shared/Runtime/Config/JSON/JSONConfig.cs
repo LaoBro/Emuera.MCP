@@ -31,7 +31,7 @@ static class JSONConfig
 		if (File.Exists(_configFilePath))
 		{
 			var json = File.ReadAllText(_configFilePath);
-			Data = JsonSerializer.Deserialize<JSONConfigData>(json);
+			Data = JsonSerializer.Deserialize<JSONConfigData>(json)!;
 		}
 		else
 		{

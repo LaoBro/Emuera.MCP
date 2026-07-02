@@ -434,7 +434,7 @@ internal sealed class ErbLoader
 				{
 					if (nextLine is GotoLabelLine gotoLabel)
 					{
-						gotoLabel.ParentLabelLine = lastLabelLine;
+						gotoLabel.ParentLabelLine = lastLabelLine!;
 						if (lastLabelLine != null && !labelDic.AddLabelDollar(gotoLabel))
 						{
 							ScriptPosition? pos = labelDic.GetLabelDollar(gotoLabel.LabelName, lastLabelLine).Position;
@@ -491,7 +491,7 @@ internal sealed class ErbLoader
 					}
 				}
 			}
-			nextLine.ParentLabelLine = lastLabelLine;
+			nextLine.ParentLabelLine = lastLabelLine!;
 
 			lastLine = addLine(nextLine, lastLine);
 		}
@@ -583,7 +583,7 @@ internal sealed class ErbLoader
 					if (subNamesRow[i] == null)
 					{ errMes = trerror.CanNotOmitFuncDefineArg.Text; goto err; }
 					AExpression term = subNamesRow[i].Restructure(exm);
-					subNames[i] = term as SingleTerm;
+					subNames[i] = (term as SingleTerm)!;
 					if (subNames[i] == null)
 					{ errMes = trerror.FuncDefineArgOnlyConst.Text; goto err; }
 				}
@@ -660,7 +660,7 @@ internal sealed class ErbLoader
 						{ errMes = trerror.NotMatchTypeArgAndInitialValue.Text; goto err; }
 					}
 					args[i] = vTerm;
-					defs[i] = def;
+					defs[i] = def!;
 				}
 
 			}
@@ -1512,7 +1512,7 @@ internal sealed class ErbLoader
 
 			if (func.Function.Instruction != null)
 			{
-				string FunctionNotFoundName = null;
+				string FunctionNotFoundName = null!;
 				try
 				{
 					func.Function.Instruction.SetJumpTo(ref useCallForm, func, depth, ref FunctionNotFoundName);

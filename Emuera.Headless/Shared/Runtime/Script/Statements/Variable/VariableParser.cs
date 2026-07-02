@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Utils;
@@ -114,8 +114,8 @@ internal static class VariableParser
 					else
 						op2 = op1;
 					op1 = TARGET;
-				}
-				terms = [op1, op2];
+			}
+			terms = [op1!, op2];
 			}
 			else
 			{

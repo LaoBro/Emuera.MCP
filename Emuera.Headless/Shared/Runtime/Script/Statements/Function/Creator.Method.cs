@@ -81,7 +81,7 @@ internal static partial class FunctionMethodCreator
 				case 2: array[i] = node.InnerXml; break;
 				case 3: array[i] = node.OuterXml; break;
 				case 4: array[i] = node.Name; break;
-				default: array[i] = node.Value; break;
+				default: array[i] = node.Value!; break;
 			}
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -5043,8 +5043,8 @@ internal static partial class FunctionMethodCreator
 			if (str == null || str.Length == 0)
 				// throw new CodeEE(funcname + "関数に空文字列が渡されました");
 				throw new CodeEE(string.Format(trerror.ArgIsEmptyString.Text, Name, 1));
-			string errMes = null;
-			SingleTerm term = ConfigData.GetConfigValueInERB(str, ref errMes);
+			string errMes = null!;
+			SingleTerm term = ConfigData.GetConfigValueInERB(str, ref errMes)!;
 			if (errMes != null)
 				// throw new CodeEE(funcname + "関数:" + errMes);
 				throw new CodeEE(errMes);

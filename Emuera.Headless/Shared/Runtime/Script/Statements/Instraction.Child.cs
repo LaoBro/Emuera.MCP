@@ -3685,7 +3685,7 @@ internal sealed partial class FunctionIdentifier
 					return;
 				}
 			}
-			callArg.CallFunc = call;
+			callArg.CallFunc = call!;
 		}
 
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
