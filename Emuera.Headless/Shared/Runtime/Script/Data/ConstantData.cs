@@ -1104,7 +1104,7 @@ internal sealed class ConstantData
 		if (ret == null && Config.Config.UseERD)
 		{
 			if (string.IsNullOrEmpty(varname))
-				return ret;
+				return ret!;
 			else
 			{
 				switch (code)
@@ -1114,7 +1114,7 @@ internal sealed class ConstantData
 					case VariableCode.CVAR:
 					case VariableCode.CVARS:
 						if (!erdNameToIntDics.ContainsKey(varname))
-							return ret;
+							return ret!;
 						ret = erdNameToIntDics[varname];
 						errPos = varname + ".csv";
 						allowIndex = 0;
@@ -1130,7 +1130,7 @@ internal sealed class ConstantData
 							{
 								string varnamed = varname + "@1";
 								if (!erdNameToIntDics.ContainsKey(varnamed))
-									return ret;
+									return ret!;
 
 								ret = erdNameToIntDics[varnamed];
 								errPos = varnamed + ".csv";
@@ -1143,7 +1143,7 @@ internal sealed class ConstantData
 							{
 								string varnamed = varname + "@2";
 								if (!erdNameToIntDics.ContainsKey(varnamed))
-									return ret;
+									return ret!;
 
 								ret = erdNameToIntDics[varnamed];
 								errPos = varnamed + ".csv";
@@ -1157,7 +1157,7 @@ internal sealed class ConstantData
 					case VariableCode.VARS3D:
 						string varname3d = varname + "@" + (index + 1);
 						if (!erdNameToIntDics.ContainsKey(varname3d))
-							return ret;
+							return ret!;
 
 						ret = erdNameToIntDics[varname3d];
 						errPos = varname3d + ".csv";
@@ -1168,7 +1168,7 @@ internal sealed class ConstantData
 		}
 		#endregion
 		if (index < 0)
-			return ret;
+			return ret!;
 		if (ret == null)
 			throw new CodeEE(string.Format(trerror.CanNotSpecifiedByString.Text, code.ToString()));
 		if (index != allowIndex)
@@ -1202,7 +1202,7 @@ internal sealed class ConstantData
 			if (chara.No == index)
 				return chara;
 		}
-		return null;
+		return null!;
 	}
 
 	public CharacterTemplate GetCharacterTemplate_UseSp(long index, bool sp)
@@ -1210,7 +1210,7 @@ internal sealed class ConstantData
 		var i = CharacterTmplList.BinarySearch(null, Comparer<CharacterTemplate>.Create((left, right) => (int)(left.No - index)));
 		if (i < 0)
 		{
-			return null;
+			return null!;
 		}
 		return CharacterTmplList[i];
 	}
@@ -1223,7 +1223,7 @@ internal sealed class ConstantData
 				continue;
 			return chara;
 		}
-		return null;
+		return null!;
 	}
 
 	public CharacterTemplate GetPseudoChara()

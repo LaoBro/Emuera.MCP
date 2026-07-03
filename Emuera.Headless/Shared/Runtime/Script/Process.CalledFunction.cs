@@ -95,7 +95,7 @@ internal sealed class CalledFunction
 			{
 				throw new CodeEE(string.Format(trerror.CalleventToNonEventFunc.Text, label, line.Position!.Value.Filename, line.Position!.Value.LineNo));
 			}
-			return null;
+			return null!;
 		}
 		called.counter = -1;
 		called.group = 0;
@@ -119,7 +119,7 @@ internal sealed class CalledFunction
 			{
 				throw new CodeEE(string.Format(trerror.CallToEventFunc.Text, label, Config.Config.GetConfigName(ConfigCode.CompatiCallEvent)));
 			}
-			return null;
+			return null!;
 		}
 		else if (labelline.IsMethod)
 		{
@@ -157,14 +157,14 @@ internal sealed class CalledFunction
 		if (TopLabel.IsError)
 		{
 			errMes = TopLabel.ErrMes;
-			return null;
+			return null!;
 		}
 		FunctionLabelLine func = TopLabel;
 		AExpression[] convertedArg = new AExpression[func.Arg.Length];
 		if (convertedArg.Length < srcArgs.Count)
 		{
 			errMes = string.Format(trerror.TooManyFuncArgs.Text, func.LabelName);
-			return null;
+			return null!;
 		}
 		AExpression term;
 		VariableTerm destArg;
@@ -179,20 +179,20 @@ internal sealed class CalledFunction
 				if (term == null)
 				{
 					errMes = string.Format(trerror.CanNotOmitRefArg.Text, func.LabelName, (i + 1).ToString());
-					return null;
+					return null!;
 				}
 				VariableTerm vTerm = (term as VariableTerm)!;
 				if (vTerm == null || vTerm.Identifier.Dimension == 0)
 				{
 					errMes = string.Format(trerror.RequireArrayBecauseRefArg.Text, func.LabelName, (i + 1).ToString());
-					return null;
+					return null!;
 				}
 				//TODO 1810alpha007 キャラ型を認めるかどうかはっきりしたい 今のところ認めない方向
 				//型チェック
 				if (!((ReferenceToken)destArg.Identifier).MatchType(vTerm.Identifier, false, out errMes))
 				{
 					errMes = string.Format(trerror.NumberOfArg.Text, func.LabelName, (i + 1).ToString(), errMes);
-					return null;
+					return null!;
 				}
 			}
 			else if (term == null)//引数が省略されたとき
@@ -203,7 +203,7 @@ internal sealed class CalledFunction
 				if (term == null && !Config.Config.CompatiFuncArgOptional)
 				{
 					errMes = string.Format(trerror.CanNotOmitArgWithMessage.Text, func.LabelName, (i + 1).ToString(), Config.Config.GetConfigName(ConfigCode.CompatiFuncArgOptional));
-					return null;
+					return null!;
 				}
 			}
 			else if (term.GetOperandType() != destArg.GetOperandType())
@@ -211,14 +211,14 @@ internal sealed class CalledFunction
 				if (term.GetOperandType() == typeof(string))
 				{
 					errMes = string.Format(trerror.CanNotConvertStrToInt.Text, func.LabelName, (i + 1).ToString());
-					return null;
+					return null!;
 				}
 				else
 				{
 					if (!Config.Config.CompatiFuncArgAutoConvert)
 					{
 						errMes = string.Format(trerror.CanNotConvertIntToStr.Text, func.LabelName, (i + 1).ToString(), Config.Config.GetConfigName(ConfigCode.CompatiFuncArgAutoConvert));
-						return null;
+						return null!;
 					}
 					if (tostrMethod == null)
 						tostrMethod = FunctionMethodCreator.GetMethodList()["TOSTR"];

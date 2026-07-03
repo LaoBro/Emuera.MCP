@@ -37,7 +37,7 @@ internal static class VariableParser
 	//{
 	//    IdentifierWord id = wc.Current as IdentifierWord;
 	//    if (id == null)
-	//        return null;
+	//        return null!;
 	//    wc.ShiftNext();
 	//    VariableToken vid = ExpressionParser.ReduceVariableIdentifier(wc, id.Code);
 	//    if (vid == null)

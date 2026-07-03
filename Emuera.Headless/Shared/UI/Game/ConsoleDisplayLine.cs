@@ -137,7 +137,7 @@ internal sealed class ConsoleDisplayLine
 	//	//    if ((button.PointX <= pointX) && (button.PointX + button.Width >= pointX))
 	//	//        return button;
 	//	//}
-	//	return null;
+	//	return null!;
 	//}
 
 	public void DrawTo(IImageContext graph, int pointY, bool isBackLog, bool force, TextDrawingMode mode)

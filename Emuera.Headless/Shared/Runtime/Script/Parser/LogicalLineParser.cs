@@ -388,7 +388,7 @@ internal static class LogicalLineParser
 		string errMes;
 		LexicalAnalyzer.SkipWhiteSpace(stream);//先頭のホワイトスペースを読み飛ばす
 		if (stream.EOS)
-			return null;
+			return null!;
 		//コメント行かどうかはここに来る前に判定しておく
 		try
 		{

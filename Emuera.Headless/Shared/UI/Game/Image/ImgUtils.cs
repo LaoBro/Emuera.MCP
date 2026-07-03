@@ -10,7 +10,7 @@ static class ImgUtils
 	{
 		if (!File.Exists(filepath))
 		{
-			return null;
+			return null!;
 		}
 		Bitmap bmp = null;
 
@@ -21,7 +21,7 @@ static class ImgUtils
 
 			if (bmp == null)
 			{
-				return null;
+				return null!;
 			}
 		}
 		else
@@ -29,7 +29,7 @@ static class ImgUtils
 			bmp = new Bitmap(filepath);
 			if (bmp == null)
 			{
-				return null;
+				return null!;
 			}
 		}
 

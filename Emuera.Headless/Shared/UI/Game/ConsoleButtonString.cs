@@ -161,7 +161,7 @@ internal sealed class ConsoleButtonString
 	public ConsoleButtonString DivideAt(int divIndex, StringMeasure sm)
 	{
 		if (divIndex <= 0)
-			return null;
+			return null!;
 		List<AConsoleDisplayNode> cssListA = [];
 		List<AConsoleDisplayNode> cssListB = [];
 		int index = 0;
@@ -197,7 +197,7 @@ internal sealed class ConsoleButtonString
 			cssListA.Add(strArray[cssIndex]);
 		}
 		if (cssIndex >= strArray.Length && cssListB.Count == 0)
-			return null;
+			return null!;
 		AConsoleDisplayNode[] cssArrayA = new AConsoleDisplayNode[cssListA.Count];
 		AConsoleDisplayNode[] cssArrayB = new AConsoleDisplayNode[cssListB.Count];
 		cssListA.CopyTo(cssArrayA);

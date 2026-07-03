@@ -23,7 +23,7 @@ internal sealed class GraphicsImage : AbstractImage
 	private string _fontname = "";
 
 	public bool useImgList => false;
-	public List<Tuple<ASprite, EmuRectangle>> drawImgList => null;
+	public List<Tuple<ASprite, EmuRectangle>> drawImgList => null!;
 
 	public override int Width => _size.Width;
 	public override int Height => _size.Height;
@@ -77,9 +77,9 @@ internal sealed class GraphicsImage : AbstractImage
 	public void GSetFont(EmuFont r, EmuFontStyle fs) { _font = r; _fontStyle = fs; _fontname = r.Name; }
 	public void GSetBrush(IBrush r) { }
 	public void GSetPen(object r) { }
-	public object GetBitmap() => null;
+	public object GetBitmap() => null!;
 	// 调用方（CBGSETGRAPHG 等）会用 g.Bitmap == null 判断，headless 下恒为 null
-	public object Bitmap => null;
+	public object Bitmap => null!;
 	public void GSetColor(EmuColor c, int x, int y) { }
 	public EmuColor GGetColor(int x, int y) => EmuColor.Black;
 	public bool GBitmapToInt64Array(long[,] array, int xstart, int ystart) => false;

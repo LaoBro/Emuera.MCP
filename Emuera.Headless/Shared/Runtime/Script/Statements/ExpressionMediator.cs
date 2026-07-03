@@ -66,13 +66,13 @@ internal sealed class ExpressionMediator
 		if (!(forceHiragana | forceKatakana | halftoFull))
 			return str;
 		if (forceKatakana)
-			return Strings.StrConv(str, VbStrConv.Katakana, 0x0411);
+			return Strings.StrConv(str, VbStrConv.Katakana, 0x0411)!;
 		else if (forceHiragana)
 		{
 			if (halftoFull)
-				return Strings.StrConv(str, VbStrConv.Hiragana | VbStrConv.Wide, 0x0411);
+				return Strings.StrConv(str, VbStrConv.Hiragana | VbStrConv.Wide, 0x0411)!;
 			else
-				return Strings.StrConv(str, VbStrConv.Hiragana, 0x0411);
+				return Strings.StrConv(str, VbStrConv.Hiragana, 0x0411)!;
 		}
 		return str;
 	}

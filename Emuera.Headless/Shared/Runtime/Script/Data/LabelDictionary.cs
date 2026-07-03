@@ -42,12 +42,12 @@ internal sealed class LabelDictionary
 	{
 		string id = point.LabelName;
 		if (!labelAtDic.TryGetValue(id, out List<FunctionLabelLine>? value))
-			return null;
+			return null!;
 		if (point.IsError)
-			return null;
+			return null!;
 		List<FunctionLabelLine> labelList = value;
 		if (labelList.Count <= 1)
-			return null;
+			return null!;
 		return labelList[0];
 	}
 
@@ -221,7 +221,7 @@ internal sealed class LabelDictionary
 		if (eventLabelDic.TryGetValue(key, out List<FunctionLabelLine>[]? ret))
 			return ret;
 		else
-			return null;
+			return null!;
 	}
 
 	public FunctionLabelLine GetNonEventLabel(string key)
@@ -229,7 +229,7 @@ internal sealed class LabelDictionary
 		if (noneventLabelDic.TryGetValue(key, out FunctionLabelLine? ret))
 			return ret;
 		else
-			return null;
+			return null!;
 	}
 
 	public List<FunctionLabelLine> GetAllLabels(bool getInvalidList)
@@ -249,7 +249,7 @@ internal sealed class LabelDictionary
 			if (labels.TryGetValue(labelAtLine, out var label))
 				return label;
 		}
-		return null;
+		return null!;
 	}
 
 	internal void AddInvalidLabel(FunctionLabelLine invalidLabelLine)

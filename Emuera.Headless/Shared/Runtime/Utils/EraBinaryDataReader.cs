@@ -101,15 +101,15 @@ internal abstract class EraBinaryDataReader : IDisposable
 		try
 		{
 			if (fs == null || fs.Length < 16)
-				return null;
+				return null!;
 			#region EM_私家版_セーブ圧縮
 			BinaryReader reader = new(fs, Encoding.Unicode, true);
 
 			//if (reader.ReadUInt64() != EraBDConst.Header)
-			//	return null;
+			//	return null!;
 			var header = reader.ReadUInt64();
 			if (header != EraBDConst.Header && header != EraBDConst.ZipHeader)
-				return null;
+				return null!;
 			#endregion
 			int version = (int)reader.ReadUInt32();
 			int datacount = (int)reader.ReadUInt32();
@@ -134,11 +134,11 @@ internal abstract class EraBinaryDataReader : IDisposable
 			if (version == EraBDConst.Version1808)
 				return new EraBinaryDataReader1808(reader, version, data);
 			else
-				return null;
+				return null!;
 		}
 		catch
 		{
-			return null;
+			return null!;
 		}
 	}
 

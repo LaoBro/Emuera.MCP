@@ -432,7 +432,7 @@ internal static class HtmlManager
 			}
 			found = st.Find('>');
 			if (found < 0)
-				return null;
+				return null!;
 			found++;
 			strList.Add(st.Substring(st.CurrentPosition, found));
 			st.CurrentPosition += found;
@@ -617,7 +617,7 @@ internal static class HtmlManager
 		if (cssList.Count > 0)
 			buttonList.Add(cssToButton(cssList, state, console));
 		#region EM_私家版_HTML_PRINT拡張
-		if (buttonsOutput != null) return null;
+		if (buttonsOutput != null) return null!;
 		#endregion
 
 		foreach (ConsoleButtonString button in buttonList)
@@ -878,7 +878,7 @@ internal static class HtmlManager
 			if (found < 0)
 			{
 				st.CurrentPosition = st.RowString.Length;
-				return null;//戻り先でエラーを出す
+				return null!;//戻り先でエラーを出す
 			}
 			tag = st.Substring(st.CurrentPosition, found).Trim();
 			st.CurrentPosition += found;
@@ -892,48 +892,48 @@ internal static class HtmlManager
 					if ((state.FontStyle & endStyle) == EmuFontStyle.Regular)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, tag));
 					state.FontStyle ^= endStyle;
-					return null;
+					return null!;
 				case "p":
 					if (!state.FlagP || state.FlagPClosed)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, "p"));
 					state.FlagPClosed = true;
-					return null;
+					return null!;
 				case "nobr":
 					if (!state.FlagNobr || state.FlagNobrClosed)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, "nobr"));
 					state.FlagNobrClosed = true;
-					return null;
+					return null!;
 				case "font":
 					if (state.FonttagList.Count == 0)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, "font"));
 					state.FonttagList.RemoveAt(state.FonttagList.Count - 1);
-					return null;
+					return null!;
 				case "button":
 					if (state.CurrentButtonTag == null || !state.CurrentButtonTag.IsButtonTag)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, "button"));
 					state.CurrentButtonTag = null;
 					state.FlagButton = true;
-					return null;
+					return null!;
 				case "nonbutton":
 					if (state.CurrentButtonTag == null || state.CurrentButtonTag.IsButtonTag)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, "nonbutton"));
 					state.CurrentButtonTag = null;
 					state.FlagButton = true;
-					return null;
+					return null!;
 				#region EM_私家版_clearbutton
 				case "clearbutton":
 					if (!state.FlagClearButton)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, "clearbutton"));
 					state.FlagClearButton = false;
 					state.FlagClearButtonTooltip = false;
-					return null;
+					return null!;
 				#endregion
 				#region EM_私家版_HTML_divタグ
 				case "div":
 					if (state.CurrentDivTag == null)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, "div"));
 					state.CurrentDivTag = null;
-					return null;
+					return null!;
 				#endregion
 				default:
 					throw new CodeEE(string.Format(trerror.CanNotInterpretCloseTag.Text, tag));
@@ -971,12 +971,12 @@ internal static class HtmlManager
 				if ((state.FontStyle & newStyle) != EmuFontStyle.Regular)
 					throw new CodeEE(string.Format(trerror.DuplicateTag.Text, tag));
 				state.FontStyle |= newStyle;
-				return null;
+				return null!;
 			case "br":
 				if (wc != null)
 					throw new CodeEE(string.Format(trerror.AttributeSetToTag.Text, tag));
 				state.FlagBr = true;
-				return null;
+				return null!;
 			case "nobr":
 				if (wc != null)
 					throw new CodeEE(string.Format(trerror.AttributeSetToTag.Text, tag));
@@ -985,7 +985,7 @@ internal static class HtmlManager
 				if (state.FlagNobr)
 					throw new CodeEE(string.Format(trerror.DuplicateTag.Text, "nobr"));
 				state.FlagNobr = true;
-				return null;
+				return null!;
 			case "p":
 				{
 					if (wc == null)
@@ -1020,7 +1020,7 @@ internal static class HtmlManager
 							throw new CodeEE(string.Format(trerror.CanNotInterpretAttribute.Text, attr.Str));
 					}
 					state.FlagP = true;
-					return null;
+					return null!;
 				}
 			case "img":
 				{
@@ -1191,7 +1191,7 @@ internal static class HtmlManager
 						throw new CodeEE(string.Format(trerror.NotSetAttribute.Text, tag, "height"));
 					state.CurrentDivTag = new HtmlDivTag(x, y, width, height, depth, color, box, isRelative);
 					state.StartingSubDivision = true;
-					return null;
+					return null!;
 				}
 			#endregion
 			case "shape":
@@ -1358,7 +1358,7 @@ internal static class HtmlManager
 					buttonTag.IsButtonTag = isButton;
 					state.CurrentButtonTag = buttonTag;
 					state.FlagButton = true;
-					return null;
+					return null!;
 				}
 			#region EM_私家版_clearbutton
 			case "clearbutton":
@@ -1388,7 +1388,7 @@ internal static class HtmlManager
 								throw new CodeEE(string.Format(trerror.CanNotInterpretAttributeName.Text, tag, word.Code));
 						}
 					state.FlagClearButton = true;
-					return null;
+					return null!;
 				}
 			#endregion
 			case "font":
@@ -1452,7 +1452,7 @@ internal static class HtmlManager
 							font.FontName = oldFont.FontName;
 					}
 					state.FonttagList.Add(font);
-					return null;
+					return null!;
 				}
 			default:
 				goto error;

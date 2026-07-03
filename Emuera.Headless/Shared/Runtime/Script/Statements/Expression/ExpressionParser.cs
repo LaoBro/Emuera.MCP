@@ -267,7 +267,7 @@ internal static class ExpressionParser
 					return new NullTerm(0);
 				}
 			}
-			return mToken;
+			return mToken!;
 		}
 		else
 		{//変数 or キーワード
@@ -611,7 +611,7 @@ internal static class ExpressionParser
 		public AExpression ReduceAll()
 		{
 			if (stack.Count == 0)
-				return null;
+				return null!;
 			if (state != 1)
 				throw new CodeEE(trerror.UnrecognizedSyntax.Text);
 			//単項演算子の待ちが未解決の時はここで解決

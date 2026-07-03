@@ -1381,7 +1381,7 @@ internal sealed partial class VariableData
 		}
 		public override string GetStrValue(ExpressionMediator exm, long[] arguments)
 		{
-			return exm.Console.getDefStBar();
+			return exm.Console.getDefStBar()!;
 		}
 	}
 

@@ -504,7 +504,7 @@ internal sealed class ErbLoader
 	private LogicalLine addLine(LogicalLine nextLine, LogicalLine lastLine)
 	{
 		if (nextLine == null)
-			return null;
+			return null!;
 		enabledLineCount++;
 		lastLine.NextLine = nextLine;
 		return nextLine;

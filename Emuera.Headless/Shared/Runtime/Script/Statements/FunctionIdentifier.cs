@@ -501,7 +501,7 @@ internal sealed partial class FunctionIdentifier
 		if (funcMatch.TryGetValue(func, out string? ret))
 			return ret!;
 		else
-			return null;
+			return null!;
 	}
 
 

@@ -217,11 +217,11 @@ internal sealed class Utils
 		try
 		{
 			if (Path.GetPathRoot(path) != string.Empty)
-				return null;
+				return null!;
 		}
 		catch
 		{
-			return null;
+			return null!;
 		}
 		return Path.Combine(Program.ExeDir + path);
 	}
@@ -240,7 +240,7 @@ internal sealed class Utils
 	{
 		Bitmap bmp = null;
 		//FileStream fs = null;
-		if (!File.Exists(filepath)) return null;
+		if (!File.Exists(filepath)) return null!;
 		try
 		{
 			/*				fs = new FileStream(filepath, FileMode.Open);
@@ -310,17 +310,17 @@ internal sealed class Utils
 		public static Type IntToType(long i)
 		{
 			if (i > 0 && i <= builtInDTTypes.Length) return builtInDTTypes[i - 1];
-			return null;
+			return null!;
 		}
 		public static Type NameToType(string n)
 		{
 			if (builtInDictDTTypeNames_R.ContainsKey(n)) return builtInDictDTTypeNames_R[n];
-			return null;
+			return null!;
 		}
 		public static string TypeToName(Type t)
 		{
 			if (builtInDictDTTypeNames.ContainsKey(t)) return builtInDictDTTypeNames[t];
-			return null;
+			return null!;
 		}
 		public static object ConvertInt(long v, Type t)
 		{

@@ -172,7 +172,7 @@ internal sealed class CharacterData : IDisposable
 			VariableCode.__ARRAY_3D__ | VariableCode.__INTEGER__ | VariableCode.__STRING__);
 		int i = (int)(code & VariableCode.__LOWERCASE__);
 		if (i >= 0xF0)
-			return null;
+			return null!;
 		long length64;
 		switch (type)
 		{

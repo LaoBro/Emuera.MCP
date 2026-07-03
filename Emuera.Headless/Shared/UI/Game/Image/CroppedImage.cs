@@ -37,7 +37,7 @@ internal sealed class SpriteG : ASpriteSingle
 {
 	public SpriteG(string name, GraphicsImage gra, EmuRectangle rect) : base(name, gra, rect) { }
 	public bool useImgList => false;
-	public List<Tuple<ASprite, EmuRectangle>> drawImgList => null;
+	public List<Tuple<ASprite, EmuRectangle>> drawImgList => null!;
 	public bool isBaseImage(GraphicsImage gImg) => false;
 }
 
@@ -86,7 +86,7 @@ internal abstract class ASpriteSingle : ASprite
 	public ASpriteSingle(string name, AbstractImage img, Rectangle rect, Size destSize) : base(name, destSize) { SrcRectangle = rect; BaseImage = img; }
 	public AbstractImage BaseImage;
 	public readonly Rectangle SrcRectangle;
-	private Bitmap Bitmap { get { if (BaseImage != null && BaseImage.IsCreated) return BaseImage.Bitmap; return null; } }
+	private Bitmap Bitmap { get { if (BaseImage != null && BaseImage.IsCreated) return BaseImage.Bitmap; return null!; } }
 	public override bool IsCreated => BaseImage != null && BaseImage.IsCreated;
 	public override Color SpriteGetColor(int x, int y)
 	{
@@ -145,7 +145,7 @@ internal sealed class SpriteAnime : ASprite
 	DateTime StartTime; DateTime lastFrameTime; int lastFrame = -1;
 	private AnimeFrame GetCurrentFrame()
 	{
-		if (totaltime <= 0) return null;
+		if (totaltime <= 0) return null!;
 		if (lastFrame == -1) { StartTime = DateTime.Now; lastFrameTime = StartTime; lastFrame = 0; return FrameList[0]; }
 		if (DateTime.Now == lastFrameTime && lastFrame >= 0) return FrameList[lastFrame];
 		lastFrameTime = DateTime.Now;

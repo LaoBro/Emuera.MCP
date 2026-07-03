@@ -52,7 +52,7 @@ internal sealed class UserDefinedMethodTerm : SuperUserDefinedMethodTerm
 		CalledFunction call = CalledFunction.CreateCalledFunctionMethod(targetLabel, targetLabel.LabelName);
 		UserDefinedFunctionArgument arg = call.ConvertArg(srcArgs, out errMes);
 		if (arg == null)
-			return null;
+			return null!;
 		return new UserDefinedMethodTerm(arg, call.TopLabel.MethodType, call);
 	}
 

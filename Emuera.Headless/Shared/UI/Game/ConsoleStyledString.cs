@@ -47,10 +47,10 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 	public ConsoleStyledString DivideAt(int index, StringMeasure sm)
 	{
 		//if ((index <= 0)||(index > Text.Length)||this.Error)
-		//	return null;
+		//	return null!;
 		ConsoleStyledString ret = DivideAt(index);
 		if (ret == null)
-			return null;
+			return null!;
 		SetWidth(sm, XsubPixel);
 		ret.SetWidth(sm, XsubPixel);
 		return ret;
@@ -58,7 +58,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 	public ConsoleStyledString DivideAt(int index)
 	{
 		if (index <= 0 || index > Text.Length || Error)
-			return null;
+			return null!;
 		string str = Text[index..];
 		Text = Text[..index];
 		ConsoleStyledString ret = new()

@@ -93,7 +93,7 @@ internal sealed partial class EraStreamReader : IDisposable
 		{
 			line = ReadLine();
 			if (line == null)
-				return null;
+				return null!;
 			if (line.Length == 0)
 				continue;
 

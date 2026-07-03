@@ -165,7 +165,7 @@ internal sealed class StrForm
 	{
 		if (strs.Length == 2 && strs[0].Length == 0 && strs[1].Length == 0)
 			return terms[0];
-		return null;
+		return null!;
 	}
 
 	public void Restructure(ExpressionMediator exm)
