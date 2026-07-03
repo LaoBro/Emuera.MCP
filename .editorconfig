@@ -35,7 +35,6 @@ dotnet_diagnostic.SYSLIB0014.severity = none   # WebClient 已过时（共享代
 # <Nullable>enable</Nullable> 保留，但 Shared/ 历史代码暂不要求 nullable-clean
 # 如后续新增历史文件触发其他 CS86xx，按需在此追加
 dotnet_diagnostic.CS8600.severity = none   # null 转换为不可为 null 类型（674）
-dotnet_diagnostic.CS8602.severity = none   # 解引用可能空引用（350）
 dotnet_diagnostic.CS8603.severity = none   # 可能返回 null 引用（606）
 dotnet_diagnostic.CS8618.severity = none   # 构造函数未初始化非 null 字段（686）
 dotnet_diagnostic.CS8625.severity = none   # null 字面量转非 null 引用类型（550）

@@ -495,7 +495,7 @@ internal sealed partial class Process(EmueraConsole view)
 		{
 			console.PrintError(string.Format(trerror.FuncEndUnexpectedError.Text, AssemblyData.EmueraVersionText));
 			console.PrintError(exc.GetType().ToString() + ":" + exc.Message);
-			string[] stack = exc.StackTrace.Split('\n');
+			string[] stack = exc.StackTrace!.Split('\n');
 			for (int i = 0; i < stack.Length; i++)
 			{
 				console.PrintError(stack[i]);
@@ -536,7 +536,7 @@ internal sealed partial class Process(EmueraConsole view)
 					printRawLine(position);
 					console.PrintError(string.Format(trerror.ErrorMessage.Text, exc.Message));
 				}
-				console.PrintError(string.Format(trerror.ErrorInFunc.Text, current.ParentLabelLine.LabelName, current.ParentLabelLine.Position!.Value.Filename, current.ParentLabelLine.Position!.Value.LineNo.ToString()));
+				console!.PrintError(string.Format(trerror.ErrorInFunc.Text, current!.ParentLabelLine!.LabelName, current!.ParentLabelLine!.Position!.Value.Filename, current!.ParentLabelLine!.Position!.Value.LineNo.ToString()));
 				console.PrintError(trerror.FuncCallStack.Text);
 				LogicalLine parent;
 				int depth = 0;
@@ -563,7 +563,7 @@ internal sealed partial class Process(EmueraConsole view)
 		{
 			console.PrintError(string.Format(trerror.HasUnexpectedError.Text, posString, AssemblyData.EmueraVersionText));
 			console.PrintError(exc.GetType().ToString() + ":" + exc.Message);
-			string[] stack = exc.StackTrace.Split('\n');
+			string[] stack = exc.StackTrace!.Split('\n');
 			for (int i = 0; i < stack.Length; i++)
 			{
 				console.PrintError(stack[i]);

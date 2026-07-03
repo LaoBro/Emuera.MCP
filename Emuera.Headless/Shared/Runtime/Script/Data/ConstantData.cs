@@ -121,7 +121,7 @@ internal sealed class ConstantData
 	public long[] ItemPrice;
 
 	private readonly List<CharacterTemplate> CharacterTmplList;
-	private EmueraConsole output;
+	private EmueraConsole output = null!;
 
 	public ConstantData()
 	{
@@ -247,7 +247,7 @@ internal sealed class ConstantData
 			if (position != null)
 				ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
 			else
-				output.PrintError(trerror.UnexpectedError.Text);
+				output!.PrintError(trerror.UnexpectedError.Text);
 			return;
 		}
 		finally
@@ -852,7 +852,7 @@ internal sealed class ConstantData
 			}
 			bool found = erdNameToIntDics.TryGetValue(varname, out Dictionary<string, int> dic);
 			if (!found) return false;
-			return dic.TryGetValue(key, out ret);
+			return dic!.TryGetValue(key, out ret);
 		}
 	}
 	#endregion
@@ -1380,7 +1380,7 @@ internal sealed class ConstantData
 				if (position != null)
 					ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
 				else
-					output.PrintError(trerror.UnexpectedError.Text);
+					output!.PrintError(trerror.UnexpectedError.Text);
 				return;
 			}
 			finally
@@ -1470,7 +1470,7 @@ internal sealed class ConstantData
 			if (position != null)
 				ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
 			else
-				output.PrintError(trerror.UnexpectedError.Text);
+				output!.PrintError(trerror.UnexpectedError.Text);
 			return;
 		}
 		finally
@@ -1683,7 +1683,7 @@ internal sealed class ConstantData
 		{
 			if (tokens.Length < 3 || !tryToInt64(tokens[2], out long p2))
 				p2 = 1;
-			if (intArray.ContainsKey(index))
+			if (intArray!.ContainsKey(index))
 				ParserMediator.Warn(string.Format(trerror.VarKeyAreadyDefined.Text, varname, index.ToString()), position, 1);
 			intArray[index] = p2;
 		}
@@ -1766,7 +1766,7 @@ internal sealed class ConstantData
 			if (position != null)
 				ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
 			else
-				output.PrintError(trerror.UnexpectedError.Text);
+				output!.PrintError(trerror.UnexpectedError.Text);
 			return;
 		}
 		finally
@@ -1829,7 +1829,7 @@ internal sealed class ConstantData
 			if (position != null)
 				ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
 			else
-				output.PrintError(trerror.UnexpectedError.Text);
+				output!.PrintError(trerror.UnexpectedError.Text);
 			return;
 		}
 		finally

@@ -435,7 +435,7 @@ internal sealed class ProcessState
 		{
 			FunctionLabelLine label = called.CurrentLabel;
 			long line = currentLine.Position!.Value.LineNo;
-			console.DebugAddTraceLog(string.Format(trsl.DebugTraceCall.Text, label.LabelName, label.Position!.Value.Filename, label.Position!.Value.LineNo, line));
+			console.DebugAddTraceLog(string.Format(trsl.DebugTraceCall.Text, label!.LabelName, label!.Position!.Value.Filename, label.Position!.Value.LineNo, line));
 		}
 		lineCount++;
 		//ShfitNextLine();

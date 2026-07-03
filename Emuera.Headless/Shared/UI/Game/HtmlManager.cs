@@ -371,7 +371,7 @@ internal static class HtmlManager
 					if (parts[cssCounter] is ConsoleStyledString)
 					{
 						ConsoleStyledString css = parts[cssCounter] as ConsoleStyledString;
-						b.Append(getStringStyleStartingTag(css.StringStyle));
+						b.Append(getStringStyleStartingTag(css!.StringStyle));
 						b.Append(Escape(css.Text));
 						b.Append(getClosingStyleStartingTag(css.StringStyle));
 					}

@@ -290,7 +290,7 @@ internal sealed partial class FunctionIdentifier
 				state.CurrentLine = selectedLine;
 				if (selectedLine.Argument == null)
 					ArgumentParser.SetArgumentTo(selectedLine);
-				term = ((ExpressionArgument)selectedLine.Argument).Term;
+				term = ((ExpressionArgument)selectedLine.Argument!).Term;
 				str = term.GetStrValue(exm);
 				if (func.Function.IsPrintKFunction())
 					str = exm.ConvertStringType(str);
@@ -851,10 +851,10 @@ internal sealed partial class FunctionIdentifier
 			#region EE_INPUT機能拡張
 			if (arg.CanSkip != null && GlobalStatic.Console.MesSkip)
 			{
-				if (arg.Mouse.GetIntValue(exm) == 0)
-					GlobalStatic.VEvaluator.RESULT = arg.Def.GetIntValue(exm);
+				if (arg.Mouse!.GetIntValue(exm) == 0)
+					GlobalStatic.VEvaluator.RESULT = arg.Def!.GetIntValue(exm);
 				else
-					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = arg.Def.GetIntValue(exm);
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = arg.Def!.GetIntValue(exm);
 			}
 			else
 				exm.Console.WaitInput(req);
@@ -906,10 +906,10 @@ internal sealed partial class FunctionIdentifier
 			#region EE_INPUT機能拡張
 			if (arg.CanSkip != null && GlobalStatic.Console.MesSkip)
 			{
-				if (arg.Mouse.GetIntValue(exm) == 0)
-					GlobalStatic.VEvaluator.RESULTS = arg.Def.GetStrValue(exm);
+				if (arg.Mouse!.GetIntValue(exm) == 0)
+					GlobalStatic.VEvaluator.RESULTS = arg.Def!.GetStrValue(exm);
 				else
-					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = arg.Def.GetStrValue(exm);
+					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = arg.Def!.GetStrValue(exm);
 			}
 			else
 				exm.Console.WaitInput(req);
@@ -971,10 +971,10 @@ internal sealed partial class FunctionIdentifier
 			#region EE_INPUT機能拡張
 			if (arg.CanSkip != null && GlobalStatic.Console.MesSkip)
 			{
-				if (arg.Mouse.GetIntValue(exm) == 0)
-					GlobalStatic.VEvaluator.RESULT = arg.Def.GetIntValue(exm);
+				if (arg.Mouse!.GetIntValue(exm) == 0)
+					GlobalStatic.VEvaluator.RESULT = arg.Def!.GetIntValue(exm);
 				else
-					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = arg.Def.GetIntValue(exm);
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = arg.Def!.GetIntValue(exm);
 			}
 			else
 				exm.Console.WaitInput(req);
@@ -1034,10 +1034,10 @@ internal sealed partial class FunctionIdentifier
 			#region EE_INPUT機能拡張
 			if (arg.CanSkip != null && GlobalStatic.Console.MesSkip)
 			{
-				if (arg.Mouse.GetIntValue(exm) == 0)
-					GlobalStatic.VEvaluator.RESULTS = arg.Def.GetStrValue(exm);
+				if (arg.Mouse!.GetIntValue(exm) == 0)
+					GlobalStatic.VEvaluator.RESULTS = arg.Def!.GetStrValue(exm);
 				else
-					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = arg.Def.GetStrValue(exm);
+					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = arg.Def!.GetStrValue(exm);
 			}
 			else
 				exm.Console.WaitInput(req);
@@ -1091,10 +1091,10 @@ internal sealed partial class FunctionIdentifier
 			#region EE_INPUT機能拡張
 			if (tinputarg.CanSkip != null && GlobalStatic.Console.MesSkip)
 			{
-				if (tinputarg.Mouse.GetIntValue(exm) == 0)
-					GlobalStatic.VEvaluator.RESULT = tinputarg.Def.GetIntValue(exm);
+				if (tinputarg.Mouse!.GetIntValue(exm) == 0)
+					GlobalStatic.VEvaluator.RESULT = tinputarg.Def!.GetIntValue(exm);
 				else
-					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = tinputarg.Def.GetIntValue(exm);
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = tinputarg.Def!.GetIntValue(exm);
 			}
 			else
 				exm.Console.WaitInput(req);
@@ -1141,10 +1141,10 @@ internal sealed partial class FunctionIdentifier
 			#region EE_INPUT機能拡張
 			if (tinputarg.CanSkip != null && GlobalStatic.Console.MesSkip)
 			{
-				if (tinputarg.Mouse.GetIntValue(exm) == 0)
-					GlobalStatic.VEvaluator.RESULTS = tinputarg.Def.GetStrValue(exm);
+				if (tinputarg.Mouse!.GetIntValue(exm) == 0)
+					GlobalStatic.VEvaluator.RESULTS = tinputarg.Def!.GetStrValue(exm);
 				else
-					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = tinputarg.Def.GetStrValue(exm);
+					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = tinputarg.Def!.GetStrValue(exm);
 			}
 			else
 				exm.Console.WaitInput(req);
@@ -2261,10 +2261,10 @@ internal sealed partial class FunctionIdentifier
 			int count = 0;
 			if (arg.CanSkip != null && GlobalStatic.Console.MesSkip)
 			{
-				if (arg.Mouse.GetIntValue(exm) == 0)
-					GlobalStatic.VEvaluator.RESULT = arg.Def.GetIntValue(exm);
+				if (arg.Mouse!.GetIntValue(exm) == 0)
+					GlobalStatic.VEvaluator.RESULT = arg.Def!.GetIntValue(exm);
 				else
-					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = arg.Def.GetIntValue(exm);
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = arg.Def!.GetIntValue(exm);
 			}
 			else
 			{
@@ -2280,7 +2280,7 @@ internal sealed partial class FunctionIdentifier
 				}
 			loopep:
 				List<AConsoleDisplayNode> ep;
-				foreach (var value in exm.Console.EscapedParts)
+				foreach (var value in exm.Console.EscapedParts!)
 				{
 					ep = value.Value;
 					foreach (var part in ep)
@@ -2364,10 +2364,10 @@ internal sealed partial class FunctionIdentifier
 			int count = 0;
 			if (arg.CanSkip != null && GlobalStatic.Console.MesSkip)
 			{
-				if (arg.Mouse.GetIntValue(exm) == 0)
-					GlobalStatic.VEvaluator.RESULTS = arg.Def.GetStrValue(exm);
+				if (arg.Mouse!.GetIntValue(exm) == 0)
+					GlobalStatic.VEvaluator.RESULTS = arg.Def!.GetStrValue(exm);
 				else
-					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = arg.Def.GetStrValue(exm);
+					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = arg.Def!.GetStrValue(exm);
 			}
 			else
 			{
@@ -2383,7 +2383,7 @@ internal sealed partial class FunctionIdentifier
 				}
 			loopep:
 				List<AConsoleDisplayNode> ep;
-				foreach (var value in exm.Console.EscapedParts)
+				foreach (var value in exm.Console.EscapedParts!)
 				{
 					ep = value.Value;
 					foreach (var part in ep)
@@ -2458,10 +2458,10 @@ internal sealed partial class FunctionIdentifier
 			int count = 0;
 			if (arg.CanSkip != null && GlobalStatic.Console.MesSkip)
 			{
-				if (arg.Mouse.GetIntValue(exm) == 0)
-					GlobalStatic.VEvaluator.RESULT = arg.Def.GetIntValue(exm);
+				if (arg.Mouse!.GetIntValue(exm) == 0)
+					GlobalStatic.VEvaluator.RESULT = arg.Def!.GetIntValue(exm);
 				else
-					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = arg.Def.GetIntValue(exm);
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = arg.Def!.GetIntValue(exm);
 			}
 			else
 			{
@@ -2477,7 +2477,7 @@ internal sealed partial class FunctionIdentifier
 				}
 			loopep:
 				List<AConsoleDisplayNode> ep;
-				foreach (var value in exm.Console.EscapedParts)
+				foreach (var value in exm.Console.EscapedParts!)
 				{
 					ep = value.Value;
 					foreach (var part in ep)
@@ -2561,10 +2561,10 @@ internal sealed partial class FunctionIdentifier
 			int count = 0;
 			if (arg.CanSkip != null && GlobalStatic.Console.MesSkip)
 			{
-				if (arg.Mouse.GetIntValue(exm) == 0)
-					GlobalStatic.VEvaluator.RESULTS = arg.Def.GetStrValue(exm);
+				if (arg.Mouse!.GetIntValue(exm) == 0)
+					GlobalStatic.VEvaluator.RESULTS = arg.Def!.GetStrValue(exm);
 				else
-					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = arg.Def.GetStrValue(exm);
+					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = arg.Def!.GetStrValue(exm);
 			}
 			else
 			{
@@ -2580,7 +2580,7 @@ internal sealed partial class FunctionIdentifier
 				}
 			loopep:
 				List<AConsoleDisplayNode> ep;
-				foreach (var value in exm.Console.EscapedParts)
+				foreach (var value in exm.Console.EscapedParts!)
 				{
 					ep = value.Value;
 					foreach (var part in ep)
@@ -2638,7 +2638,7 @@ internal sealed partial class FunctionIdentifier
 			if (!dict.ContainsKey(key)) exm.VEvaluator.RESULT = -1;
 			var dt = dict[key];
 			if (!dt.Columns.Contains(cName)) exm.VEvaluator.RESULT = 0;
-			var column = dt.Columns[cName];
+			var column = dt.Columns[cName]!;
 			bool isString = column.DataType == typeof(string);
 			int idx = 0;
 			foreach (var opt in arg.Options)

@@ -111,7 +111,7 @@ internal static partial class FunctionMethodCreator
 			string path = arguments[1].GetStrValue(exm);
 			try
 			{
-				nodes = doc.SelectNodes(path);
+				nodes = doc.SelectNodes(path)!;
 			}
 			catch (System.Xml.XPath.XPathException e)
 			{
@@ -128,7 +128,7 @@ internal static partial class FunctionMethodCreator
 				}
 				else
 				{
-					var arr = (arguments[2] as VariableTerm).Identifier.GetArray() as string[];
+					var arr = ((arguments[2] as VariableTerm)!.Identifier.GetArray() as string[])!;
 					for (int i = 0; i < Math.Min(nodes.Count, arr.Length); i++)
 						OutPutNode(nodes[i]!, arr, i, outputStyle);
 				}
@@ -194,10 +194,10 @@ internal static partial class FunctionMethodCreator
 			}
 			List<string> strs = [];
 			if (arg.Length > 0)
-				foreach (string item in array)
-				{
-					if (item.Length < arg.Length) continue;
-					switch (action)
+				foreach (string item in array!)
+			{
+				if (item.Length < arg.Length) continue;
+				switch (action)
 					{
 						case EAction.BeginsWith:
 							if (item.ToUpper().IndexOf(arg, StringComparison.Ordinal) == 0) strs.Add(item);
@@ -213,7 +213,7 @@ internal static partial class FunctionMethodCreator
 			// strs.Sort();
 			string[] output;
 			if (arguments.Count == 2)
-				output = (arguments[1] as VariableTerm).Identifier.GetArray() as string[];
+				output = ((arguments[1] as VariableTerm)!.Identifier.GetArray() as string[])!;
 			else
 				output = exm.VEvaluator.RESULTS_ARRAY;
 			string[] ret = strs.ToArray();
@@ -256,7 +256,7 @@ internal static partial class FunctionMethodCreator
 			}
 			string[] output;
 			if (arguments.Count == 4)
-				output = (arguments[3] as VariableTerm).Identifier.GetArray() as string[];
+				output = ((arguments[3] as VariableTerm)!.Identifier.GetArray() as string[])!;
 			else
 				output = exm.VEvaluator.RESULTS_ARRAY;
 			var ret = Math.Min(files.Length, output.Length);
@@ -384,7 +384,7 @@ internal static partial class FunctionMethodCreator
 			bool isAscending = arguments.Count < 3 || arguments[2] == null || arguments[2].GetIntValue(exm) != 0;
 			long fixedLength = arguments.Count < 4 ? -1 : arguments[3].GetIntValue(exm);
 			if (fixedLength == 0) return 0;
-			VariableTerm varTerm = arguments[0] is VariableTerm ? arguments[0] as VariableTerm : GetConvertedTerm(exm, arguments[0].GetStrValue(exm));
+			VariableTerm varTerm = arguments[0] is VariableTerm ? (VariableTerm)arguments[0] : GetConvertedTerm(exm, arguments[0].GetStrValue(exm));
 			int[] sortedArray;
 			if (varTerm.Identifier.IsInteger)
 			{
@@ -418,7 +418,7 @@ internal static partial class FunctionMethodCreator
 				sortedArray = sortList.Select(p => p.Value).ToArray();
 			}
 			List<VariableTerm> varTerms = [];
-			foreach (var nTerm in (string[])(arguments[1] as VariableTerm).Identifier.GetArray())
+			foreach (var nTerm in (string[])(arguments[1] as VariableTerm)!.Identifier.GetArray())
 				varTerms.Add(GetConvertedTerm(exm, nTerm));
 			foreach (var term in varTerms)
 			{
@@ -578,7 +578,7 @@ internal static partial class FunctionMethodCreator
 						var.Identifier.SetValueAll(val, start, end, 0);
 					else if (var.Identifier.IsArray2D)
 					{
-						var array = var.Identifier.GetArray() as string[,];
+						var array = (var.Identifier.GetArray() as string[,])!;
 						var idx1 = var.GetElementInt(0, exm);
 						var idx2 = var.GetElementInt(1, exm);
 						for (int i = Math.Max(start, (int)idx2); i < end; i++)
@@ -589,7 +589,7 @@ internal static partial class FunctionMethodCreator
 						var idx1 = var.GetElementInt(0, exm);
 						var idx2 = var.GetElementInt(1, exm);
 						var idx3 = var.GetElementInt(2, exm);
-						var array = var.Identifier.GetArray() as string[,,];
+						var array = (var.Identifier.GetArray() as string[,,])!;
 						for (int i = Math.Max(start, (int)idx3); i < end; i++)
 							array[idx2, idx1, i] = val;
 					}
@@ -605,7 +605,7 @@ internal static partial class FunctionMethodCreator
 						var.Identifier.SetValueAll(val, start, end, 0);
 					else if (var.Identifier.IsArray2D)
 					{
-						var array = var.Identifier.GetArray() as long[,];
+						var array = (var.Identifier.GetArray() as long[,])!;
 						var idx1 = var.GetElementInt(0, exm);
 						var idx2 = var.GetElementInt(1, exm);
 						if (setAllDims)
@@ -625,7 +625,7 @@ internal static partial class FunctionMethodCreator
 						var idx1 = var.GetElementInt(0, exm);
 						var idx2 = var.GetElementInt(1, exm);
 						var idx3 = var.GetElementInt(2, exm);
-						var array = var.Identifier.GetArray() as long[,,];
+						var array = (var.Identifier.GetArray() as long[,,])!;
 						if (setAllDims)
 						{
 							for (int k = 0; k < array.GetLength(0); k++)
@@ -732,8 +732,8 @@ internal static partial class FunctionMethodCreator
 			}
 			if (arguments.Count == 4)
 			{
-				(arguments[2] as VariableTerm).SetValue(reg.GetGroupNumbers().Length, exm);
-				if (ret > 0) Output(matches, reg, ((arguments[3] as VariableTerm).Identifier.GetArray() as string[])!);
+				(arguments[2] as VariableTerm)!.SetValue(reg.GetGroupNumbers().Length, exm);
+				if (ret > 0) Output(matches, reg, ((arguments[3] as VariableTerm)!.Identifier.GetArray() as string[])!);
 			}
 			return ret;
 		}
@@ -848,7 +848,7 @@ internal static partial class FunctionMethodCreator
 			XmlNodeList nodes = null;
 			try
 			{
-				nodes = doc.SelectNodes(path);
+				nodes = doc.SelectNodes(path)!;
 			}
 			catch (System.Xml.XPath.XPathException e)
 			{
@@ -868,7 +868,7 @@ internal static partial class FunctionMethodCreator
 				else SetNode(nodes[0]!, val, style);
 				if (saveToArg0)
 				{
-					(arguments[0] as VariableTerm).SetValue(doc.OuterXml, exm);
+					(arguments[0] as VariableTerm)!.SetValue(doc.OuterXml, exm);
 				}
 			}
 			return nodes.Count;
@@ -952,9 +952,9 @@ internal static partial class FunctionMethodCreator
 					attr = method == 0 ? null : node as XmlAttribute;
 					switch (method)
 					{
-						case 0: node.Attributes.Append(newAttr); break;
-						case 1: attr.OwnerElement.Attributes.InsertBefore(newAttr, attr); break;
-						case 2: attr.OwnerElement.Attributes.InsertAfter(newAttr, attr); break;
+						case 0: node.Attributes!.Append(newAttr); break;
+						case 1: attr!.OwnerElement!.Attributes.InsertBefore(newAttr, attr); break;
+						case 2: attr!.OwnerElement!.Attributes.InsertAfter(newAttr, attr); break;
 					}
 					return true;
 				}
@@ -994,7 +994,7 @@ internal static partial class FunctionMethodCreator
 			XmlNodeList nodes;
 			try
 			{
-				nodes = doc.SelectNodes(path);
+				nodes = doc.SelectNodes(path)!;
 			}
 			catch (System.Xml.XPath.XPathException e)
 			{
@@ -1017,14 +1017,14 @@ internal static partial class FunctionMethodCreator
 					{
 						throw new CodeEE(string.Format(trerror.XmlParseError.Text, Name, xml, e.Message));
 					}
-					var newNode = childNode.DocumentElement;
-					child = doc.CreateNode(newNode.NodeType, newNode.Name, newNode.NamespaceURI);
+					var newNode = childNode.DocumentElement!;
+					child = doc.CreateNode(newNode.NodeType, newNode.Name, newNode.NamespaceURI)!;
 					for (int i = 0; i < newNode.Attributes.Count; i++)
 					{
-						var xattr = newNode.Attributes[i];
+						var xattr = newNode.Attributes![i]!;
 						var attr = doc.CreateAttribute(xattr.Name);
 						attr.Value = xattr.Value;
-						child.Attributes.Append(attr);
+						child.Attributes!.Append(attr);
 					}
 					child.InnerXml = newNode.InnerXml;
 				}
@@ -1041,7 +1041,7 @@ internal static partial class FunctionMethodCreator
 				else if (!Insert(nodes[0]!, child, method) && method > 0) return 0;
 				if (saveToArg0)
 				{
-					(arguments[0] as VariableTerm).SetValue(doc.OuterXml, exm);
+					(arguments[0] as VariableTerm)!.SetValue(doc.OuterXml, exm);
 				}
 			}
 			return nodes.Count;
@@ -1075,7 +1075,7 @@ internal static partial class FunctionMethodCreator
 			{
 				if (node is XmlAttribute attr)
 				{
-					attr.OwnerElement.Attributes.Remove(attr);
+					attr.OwnerElement!.Attributes.Remove(attr);
 					return true;
 				}
 			}
@@ -1122,7 +1122,7 @@ internal static partial class FunctionMethodCreator
 			XmlNodeList nodes;
 			try
 			{
-				nodes = doc.SelectNodes(path);
+				nodes = doc.SelectNodes(path)!;
 			}
 			catch (System.Xml.XPath.XPathException e)
 			{
@@ -1139,7 +1139,7 @@ internal static partial class FunctionMethodCreator
 				else if (!Remove(nodes[0]!)) return 0;
 				if (saveToArg0)
 				{
-					(arguments[0] as VariableTerm).SetValue(doc.OuterXml, exm);
+					(arguments[0] as VariableTerm)!.SetValue(doc.OuterXml, exm);
 				}
 			}
 			return nodes.Count;
@@ -1221,7 +1221,7 @@ internal static partial class FunctionMethodCreator
 			XmlNodeList nodes;
 			try
 			{
-				nodes = doc.SelectNodes(path);
+				nodes = doc.SelectNodes(path)!;
 			}
 			catch (System.Xml.XPath.XPathException e)
 			{
@@ -1229,14 +1229,14 @@ internal static partial class FunctionMethodCreator
 			}
 			if (nodes.Count > 0)
 			{
-				var newNode = newXml.DocumentElement;
-				var child = doc.CreateNode(newNode.NodeType, newNode.Name, newNode.NamespaceURI);
-				for (int i = 0; i < newNode.Attributes.Count; i++)
+				var newNode = newXml.DocumentElement!;
+				var child = doc.CreateNode(newNode.NodeType, newNode.Name, newNode.NamespaceURI)!;
+				for (int i = 0; i < newNode.Attributes!.Count; i++)
 				{
 					var xattr = newNode.Attributes[i];
 					var attr = doc.CreateAttribute(xattr.Name);
 					attr.Value = xattr.Value;
-					child.Attributes.Append(attr);
+					child.Attributes!.Append(attr);
 				}
 				child.InnerXml = newNode.InnerXml;
 				bool setAllNodes = arguments.Count >= 4 ? arguments[3].GetIntValue(exm) != 0 : false;
@@ -1248,7 +1248,7 @@ internal static partial class FunctionMethodCreator
 				else if (!Replace(nodes[0]!, child)) return 0;
 				if (saveToArg0)
 				{
-					(arguments[0] as VariableTerm).SetValue(doc.OuterXml, exm);
+					(arguments[0] as VariableTerm)!.SetValue(doc.OuterXml, exm);
 				}
 			}
 			return nodes.Count;
@@ -1353,7 +1353,7 @@ internal static partial class FunctionMethodCreator
 			if (op == Operation.Names)
 			{
 				string[] output;
-				if (arguments.Count > 1 && arguments[1] is VariableTerm v) output = v.Identifier.GetArray() as string[];
+				if (arguments.Count > 1 && arguments[1] is VariableTerm v) output = (v.Identifier.GetArray() as string[])!;
 				else output = exm.VEvaluator.RESULTS_ARRAY;
 				for (int i = 0; i < dt.Columns.Count; i++) output[i] = dt.Columns[i].ColumnName;
 				return dt.Columns.Count;
@@ -1362,7 +1362,7 @@ internal static partial class FunctionMethodCreator
 			bool contains = dt.Columns.Contains(cName);
 			switch (op)
 			{
-				case Operation.Check: { return contains ? Utils.DataTable.TypeToInt(dt.Columns[cName].DataType) : 0; }
+				case Operation.Check: { return contains ? Utils.DataTable.TypeToInt(dt.Columns[cName]!.DataType) : 0; }
 				case Operation.Remove:
 					{
 						if (contains && cName.ToLower() != "id")
@@ -1427,28 +1427,28 @@ internal static partial class FunctionMethodCreator
 				row[name] = DBNull.Value;
 				return;
 			}
-			bool isString = dt.Columns[name].DataType == typeof(string);
+			bool isString = dt.Columns[name]!.DataType == typeof(string);
 			if (v.GetOperandType() != (isString ? typeof(string) : typeof(long)))
 				throw new CodeEE(string.Format(trerror.DTInvalidDataType.Text, Name, key, name));
 
 			if (isString)
 				row[name] = v.GetStrValue(exm);
 			else
-				row[name] = Utils.DataTable.ConvertInt(v.GetIntValue(exm), dt.Columns[name].DataType);
+				row[name] = Utils.DataTable.ConvertInt(v.GetIntValue(exm), dt.Columns[name]!.DataType);
 		}
 		void SetValue(DataRow row, DataTable dt, string name, string key, string str)
 		{
 			CheckName(dt, name, key);
-			if (dt.Columns[name].DataType != typeof(string))
+			if (dt.Columns[name]!.DataType != typeof(string))
 				throw new CodeEE(string.Format(trerror.DTInvalidDataType.Text, Name, key, name));
 			row[name] = str;
 		}
 		void SetValue(DataRow row, DataTable dt, string name, string key, long v)
 		{
 			CheckName(dt, name, key);
-			if (dt.Columns[name].DataType == typeof(string))
+			if (dt.Columns[name]!.DataType == typeof(string))
 				throw new CodeEE(string.Format(trerror.DTInvalidDataType.Text, Name, key, name));
-			row[name] = Utils.DataTable.ConvertInt(v, dt.Columns[name].DataType);
+			row[name] = Utils.DataTable.ConvertInt(v, dt.Columns[name]!.DataType);
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
@@ -1473,11 +1473,11 @@ internal static partial class FunctionMethodCreator
 			}
 			if (arguments.Count == b + 4)
 			{
-				var names = (arguments[b + 1] as VariableTerm).Identifier.GetArray() as string[];
+				var names = ((arguments[b + 1] as VariableTerm)!.Identifier.GetArray() as string[])!;
 				var count = Math.Min(names.Length, arguments[b + 3].GetIntValue(exm));
 				if (arguments[b + 2].GetOperandType() == typeof(string))
 				{
-					var vals = (arguments[b + 2] as VariableTerm).Identifier.GetArray() as string[];
+					var vals = ((arguments[b + 2] as VariableTerm)!.Identifier.GetArray() as string[])!;
 					count = Math.Min(vals.Length, count);
 					for (int i = 0; i < count; i++)
 						SetValue(row, dt, names[i], key, vals[i]);
@@ -1485,7 +1485,7 @@ internal static partial class FunctionMethodCreator
 				}
 				else
 				{
-					var vals = (arguments[b + 2] as VariableTerm).Identifier.GetArray() as long[];
+					var vals = ((arguments[b + 2] as VariableTerm)!.Identifier.GetArray() as long[])!;
 					count = Math.Min(vals.Length, count);
 					for (int i = 0; i < count; i++)
 						SetValue(row, dt, names[i], key, vals[i]);
@@ -1551,7 +1551,7 @@ internal static partial class FunctionMethodCreator
 			if (arguments.Count == 3)
 			{
 				StringBuilder sb = new();
-				var array = (arguments[1] as VariableTerm).Identifier.GetArray() as long[];
+				var array = ((arguments[1] as VariableTerm)!.Identifier.GetArray() as long[])!;
 				var count = Math.Min((int)arguments[2].GetIntValue(exm), array.Length);
 				if (count <= 0) return 0;
 				sb.Append('(');
@@ -1665,13 +1665,13 @@ internal static partial class FunctionMethodCreator
 				if (v == null) row[name] = DBNull.Value;
 				else
 				{
-					bool isString = dt.Columns[name].DataType == typeof(string);
+					bool isString = dt.Columns[name]!.DataType == typeof(string);
 					if (v.GetOperandType() != (isString ? typeof(string) : typeof(long))) return -2;
 
 					if (isString)
 						row[name] = v.GetStrValue(exm);
 					else
-						row[name] = Utils.DataTable.ConvertInt(v.GetIntValue(exm), dt.Columns[name].DataType);
+						row[name] = Utils.DataTable.ConvertInt(v.GetIntValue(exm), dt.Columns[name]!.DataType);
 				}
 				return 1;
 			}
@@ -1701,7 +1701,7 @@ internal static partial class FunctionMethodCreator
 			else if (filter != null) res = dt.Select(filter);
 			else res = dt.Select();
 			bool toResult = arguments.Count != 4;
-			long[] output = toResult ? GlobalStatic.VEvaluator.RESULT_ARRAY : (arguments[3] as VariableTerm).Identifier.GetArray() as long[];
+			long[] output = toResult ? GlobalStatic.VEvaluator.RESULT_ARRAY : ((arguments[3] as VariableTerm)!.Identifier.GetArray() as long[])!;
 			if (res != null)
 			{
 				int count = Math.Min(res.Length, toResult ? output.Length - 1 : output.Length);
@@ -1730,7 +1730,7 @@ internal static partial class FunctionMethodCreator
 			var dict = exm.VEvaluator.VariableData.DataDataTables;
 			if (!dict.ContainsKey(key)) return string.Empty;
 			var dt = dict[key];
-			var output = arguments.Count > 1 ? (arguments[1] as VariableTerm).Identifier.GetArray() as string[] : GlobalStatic.VEvaluator.RESULTS_ARRAY;
+			var output = arguments.Count > 1 ? ((arguments[1] as VariableTerm)!.Identifier.GetArray() as string[])! : GlobalStatic.VEvaluator.RESULTS_ARRAY;
 			var idx = arguments.Count > 1 ? 0 : 1;
 
 			var sb = new StringBuilder();
@@ -1886,9 +1886,9 @@ internal static partial class FunctionMethodCreator
 				string[] array;
 				if (arguments.Count == 3) // to array
 				{
-					var Term = arguments[1] as VariableTerm;
+					var Term = (arguments[1] as VariableTerm)!;
 					if (arguments[2].GetIntValue(exm) == 0) return "";
-					array = Term.Identifier.GetArray() as string[];
+					array = (Term.Identifier.GetArray() as string[])!;
 				}
 				else if (arguments.Count == 2) // to RESULTS array
 				{
@@ -1949,7 +1949,7 @@ internal static partial class FunctionMethodCreator
 			try
 			{
 				doc.LoadXml(xml);
-				nodes = doc.SelectNodes("/map/p");
+				nodes = doc.SelectNodes("/map/p")!;
 			}
 			catch (XmlException e)
 			{
@@ -1959,10 +1959,10 @@ internal static partial class FunctionMethodCreator
 			{
 				XmlNodeList key, val;
 				var node = nodes[i];
-				key = node.SelectNodes("./k");
-				val = node.SelectNodes("./v");
+				key = node!.SelectNodes("./k")!;
+				val = node!.SelectNodes("./v")!;
 				if (key.Count != 1 || val.Count != 1) continue;
-				sMap[key[0].InnerText] = val[0].InnerXml;
+				sMap[key[0]!.InnerText] = val[0]!.InnerXml;
 			}
 			return 1;
 		}
@@ -3393,7 +3393,7 @@ internal static partial class FunctionMethodCreator
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			VariableTerm varTerm = arguments[0] as VariableTerm;
+			VariableTerm varTerm = (arguments[0] as VariableTerm)!;
 			long start = (arguments.Count > 2 && arguments[2] != null) ? arguments[2].GetIntValue(exm) : 0;
 			long end = (arguments.Count > 3 && arguments[3] != null) ? arguments[3].GetIntValue(exm) : (isCharaRange ? exm.VEvaluator.CHARANUM : varTerm.GetLength());
 
@@ -3959,7 +3959,7 @@ internal static partial class FunctionMethodCreator
 		public override bool UniqueRestructure(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			arguments[0].Restructure(exm);
-			VariableTerm varToken = arguments[0] as VariableTerm;
+			VariableTerm varToken = (arguments[0] as VariableTerm)!;
 			bool isConst = varToken.Identifier.IsConst;
 			for (int i = 1; i < arguments.Count; i++)
 			{
@@ -4050,7 +4050,7 @@ internal static partial class FunctionMethodCreator
 			long min = arguments[1].GetIntValue(exm);
 			long max = arguments[2].GetIntValue(exm);
 
-			VariableTerm varTerm = arguments[0] as VariableTerm;
+			VariableTerm varTerm = (arguments[0] as VariableTerm)!;
 			long start = (arguments.Count > 3 && arguments[3] != null) ? arguments[3].GetIntValue(exm) : 0;
 			long end = (arguments.Count > 4 && arguments[4] != null) ? arguments[4].GetIntValue(exm) : (isCharaRange ? exm.VEvaluator.CHARANUM : varTerm.GetLength());
 
@@ -4108,7 +4108,7 @@ internal static partial class FunctionMethodCreator
 		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			VariableTerm varTerm = arguments[0] as VariableTerm;
+			VariableTerm varTerm = (arguments[0] as VariableTerm)!;
 			int[] sortedArray;
 			if (varTerm.Identifier.IsInteger)
 			{
@@ -4660,9 +4660,9 @@ internal static partial class FunctionMethodCreator
 						{
 							if (!(arguments[2] is VariableTerm varTerm) || varTerm.Identifier.IsCalc || !varTerm.Identifier.IsArray1D || !varTerm.Identifier.IsString || varTerm.Identifier.IsConst)
 								throw new CodeEE(string.Format(trerror.ArgIsNotNDStrArray.Text, Name, 3, 1));
-							var items = (arguments[2] as VariableTerm).Identifier.GetArray() as string[];
+							var items = ((arguments[2] as VariableTerm)!.Identifier.GetArray() as string[])!;
 							int idx = 0;
-							return reg.Replace(baseString, (Match match) =>
+							return reg!.Replace(baseString, (Match match) =>
 							{
 								if (idx < items.Length)
 								{
@@ -4679,7 +4679,7 @@ internal static partial class FunctionMethodCreator
 				}
 			}
 			// type == 0 or > 2 or omitted.
-			return reg.Replace(baseString, arguments[2].GetStrValue(exm));
+			return reg!.Replace(baseString, arguments[2].GetStrValue(exm));
 		}
 	}
 	#endregion
@@ -5255,13 +5255,13 @@ internal static partial class FunctionMethodCreator
 			long[,] array;
 			if (p.Identifier.IsCharacterData)
 			{
-				array = p.Identifier.GetArrayChara((int)p.Index1) as long[,];
+				array = (p.Identifier.GetArrayChara((int)p.Index1) as long[,])!;
 				e1 = p.Index2;
 				e2 = p.Index3;
 			}
 			else
 			{
-				array = p.Identifier.GetArray() as long[,];
+				array = (p.Identifier.GetArray() as long[,])!;
 				e1 = p.Index1;
 				e2 = p.Index2;
 			}
@@ -5286,7 +5286,7 @@ internal static partial class FunctionMethodCreator
 			}
 			else
 			{
-				array = p.Identifier.GetArray() as long[,,];
+				array = (p.Identifier.GetArray() as long[,,])!;
 				e1 = p.Index1;
 				e2 = p.Index2;
 				e3 = p.Index3;
@@ -6580,7 +6580,7 @@ internal static partial class FunctionMethodCreator
 			if (AppContents.GetSprite(imgname) == null)
 				return 0;
 			SpriteAnime img = AppContents.GetSprite(imgname) as SpriteAnime;
-			if (img == null && !img.IsCreated)
+			if (img == null || !img.IsCreated)
 				return 0;
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 1);
 			if (!g.IsCreated)

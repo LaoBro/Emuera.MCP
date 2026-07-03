@@ -46,7 +46,7 @@ internal sealed class VariableStrArgTerm : AExpression
 			throw new CodeEE(string.Format(trerror.NotDefinedErdKey.Text, parentCode.ToString(), key));
 		#endregion
 
-		if (!dic.TryGetValue(key, out int i))
+		if (!dic!.TryGetValue(key, out int i))
 		{
 			if (errPos == null)
 				throw new CodeEE(string.Format(trerror.CanNotSpecifiedByString.Text, parentCode.ToString()));

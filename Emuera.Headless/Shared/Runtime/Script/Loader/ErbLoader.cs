@@ -412,7 +412,7 @@ internal sealed class ErbLoader
 					else// if (label is FunctionLabelLine)
 					{
 						labelDic.AddLabel(label!);
-						if (!label.IsEvent && (Config.Config.WarnNormalFunctionOverloading || Program.AnalysisMode))
+						if (!label!.IsEvent && (Config.Config.WarnNormalFunctionOverloading || Program.AnalysisMode))
 						{
 							FunctionLabelLine seniorLabel = labelDic.GetSameNameLabel(label);
 							if (seniorLabel != null)
@@ -595,7 +595,7 @@ internal sealed class ErbLoader
 			if (!wc.EOL)
 			{
 				List<AExpression> argsRow;
-				if (symbol.Type == ',')
+				if (symbol!.Type == ',')
 					argsRow = ExpressionParser.ReduceArguments(wc, ArgsEndWith.EoL, true);
 				else if (symbol.Type == '(')
 					argsRow = ExpressionParser.ReduceArguments(wc, ArgsEndWith.RightParenthesis, true);
@@ -990,9 +990,9 @@ internal sealed class ErbLoader
 			var baseFunc = nestStack.Count == 0 ? null : nestStack.Peek();
 			if (baseFunc != null)
 			{
-				if (baseFunc.Function.IsPrintData() || baseFunc.FunctionCode == FunctionCode.STRDATA)
+				if (baseFunc!.Function!.IsPrintData() || baseFunc.FunctionCode == FunctionCode.STRDATA)
 				{
-					if (func.FunctionCode != FunctionCode.DATA && func.FunctionCode != FunctionCode.DATAFORM && func.FunctionCode != FunctionCode.DATALIST
+					if (func!.FunctionCode != FunctionCode.DATA && func.FunctionCode != FunctionCode.DATAFORM && func.FunctionCode != FunctionCode.DATALIST
 						&& func.FunctionCode != FunctionCode.ENDLIST && func.FunctionCode != FunctionCode.ENDDATA)
 					{
 						ParserMediator.Warn(string.Format(trerror.InvalidInstructionInSyntax.Text, baseFunc.Function.Name, func.Function.Name), func, 2, true, false);
@@ -1001,7 +1001,7 @@ internal sealed class ErbLoader
 				}
 				else if (baseFunc.FunctionCode == FunctionCode.DATALIST)
 				{
-					if (func.FunctionCode != FunctionCode.DATA && func.FunctionCode != FunctionCode.DATAFORM && func.FunctionCode != FunctionCode.ENDLIST)
+					if (func!.FunctionCode != FunctionCode.DATA && func.FunctionCode != FunctionCode.DATAFORM && func.FunctionCode != FunctionCode.ENDLIST)
 					{
 						ParserMediator.Warn(string.Format(trerror.InvalidInstructionInSyntax.Text, "DATALIST", func.Function.Name), func, 2, true, false);
 						continue;
@@ -1009,7 +1009,7 @@ internal sealed class ErbLoader
 				}
 				else if (baseFunc.FunctionCode == FunctionCode.TRYCALLLIST || baseFunc.FunctionCode == FunctionCode.TRYJUMPLIST || baseFunc.FunctionCode == FunctionCode.TRYGOTOLIST)
 				{
-					if (func.FunctionCode != FunctionCode.FUNC && func.FunctionCode != FunctionCode.ENDFUNC)
+					if (func!.FunctionCode != FunctionCode.FUNC && func.FunctionCode != FunctionCode.ENDFUNC)
 					{
 						ParserMediator.Warn(string.Format(trerror.InvalidInstructionInSyntax.Text, baseFunc.Function.Name, func.Function.Name), func, 2, true, false);
 						continue;
@@ -1017,14 +1017,14 @@ internal sealed class ErbLoader
 				}
 				else if (baseFunc.FunctionCode == FunctionCode.SELECTCASE)
 				{
-					if (baseFunc.IfCaseList.Count == 0 && func.FunctionCode != FunctionCode.CASE && func.FunctionCode != FunctionCode.CASEELSE && func.FunctionCode != FunctionCode.ENDSELECT)
+					if (baseFunc.IfCaseList!.Count == 0 && func!.FunctionCode != FunctionCode.CASE && func!.FunctionCode != FunctionCode.CASEELSE && func!.FunctionCode != FunctionCode.ENDSELECT)
 					{
 						ParserMediator.Warn(string.Format(trerror.OutsideSelectcase.Text, func.Function.Name), func, 2, true, false);
 						continue;
 					}
 				}
 			}
-			switch (func.FunctionCode)
+			switch (func!.FunctionCode)
 			{
 				case FunctionCode.REPEAT:
 					foreach (InstructionLine iLine in nestStack)
@@ -1035,7 +1035,7 @@ internal sealed class ErbLoader
 						}
 						else if (iLine.FunctionCode == FunctionCode.FOR)
 						{
-							VariableTerm cnt = (iLine.Argument as SpForNextArgment).Cnt;
+							VariableTerm cnt = (iLine.Argument as SpForNextArgment)!.Cnt;
 							if (cnt.Identifier.Name == "COUNT" && cnt.isAllConst && cnt.getEl1forArg == 0)
 							{
 								ParserMediator.Warn(string.Format(trerror.RepeatInsideFor.Text, "0"), func, 1, false, false);
@@ -1064,7 +1064,7 @@ internal sealed class ErbLoader
 					//それでこれがfalseになるのは、引数解析でエラーが起きた場合のみ
 					if (func.Argument != null)
 					{
-						VariableTerm Cnt = (func.Argument as SpForNextArgment).Cnt;
+						VariableTerm Cnt = (func.Argument as SpForNextArgment)!.Cnt;
 						if (Cnt.Identifier.Name == "COUNT")
 						{
 							foreach (InstructionLine iLine in nestStack)
@@ -1075,7 +1075,7 @@ internal sealed class ErbLoader
 								}
 								else if (iLine.FunctionCode == FunctionCode.FOR)
 								{
-									VariableTerm destCnt = (iLine.Argument as SpForNextArgment).Cnt;
+									VariableTerm destCnt = (iLine.Argument as SpForNextArgment)!.Cnt;
 									if (destCnt.Identifier.Name == "COUNT" && Cnt.isAllConst && destCnt.isAllConst && destCnt.getEl1forArg == Cnt.getEl1forArg)
 									{
 										ParserMediator.Warn(string.Format(trerror.RepeatInsideFor.Text, Cnt.getEl1forArg.ToString()), func, 1, false, false);
@@ -1124,26 +1124,26 @@ internal sealed class ErbLoader
 				case FunctionCode.ELSE:
 					{
 						//1.725 Stack<T>.Last.Value()はStackが空の時はnullを返す仕様だと思いこんでおりました。
-						InstructionLine ifLine = nestStack.Count == 0 ? null : nestStack.Peek();
+						InstructionLine? ifLine = nestStack.Count == 0 ? null : nestStack.Peek()!;
 						if (ifLine == null || ifLine.FunctionCode != FunctionCode.IF)
 						{
 							ParserMediator.Warn(string.Format(trerror.InvalidElse.Text, func.Function.Name), func, 2, true, false);
 							break;
 						}
-						if (ifLine.IfCaseList.Last.Value.FunctionCode == FunctionCode.ELSE)
-							ParserMediator.Warn(string.Format(trerror.InvalidElseAfterElse.Text, func.Function.Name), func, 1, false, false);
+						if (ifLine!.IfCaseList!.Last!.Value!.FunctionCode == FunctionCode.ELSE)
+							ParserMediator.Warn(string.Format(trerror.InvalidElseAfterElse.Text, func!.Function.Name), func, 1, false, false);
 						ifLine.IfCaseList.AddLast(func);
 					}
 					break;
 				case FunctionCode.ENDIF:
 					{
-						var ifLine = nestStack.Count == 0 ? null : nestStack.Peek();
+						InstructionLine? ifLine = nestStack.Count == 0 ? null : nestStack.Peek()!;
 						if (ifLine == null || ifLine.FunctionCode != FunctionCode.IF)
 						{
 							ParserMediator.Warn(trerror.UnexpectedEndif.Text, func, 2, true, false);
 							break;
 						}
-						foreach (var ifelseifLine in ifLine.IfCaseList)
+						foreach (var ifelseifLine in ifLine.IfCaseList!)
 						{
 							ifelseifLine.JumpTo = func;
 						}
@@ -1153,7 +1153,7 @@ internal sealed class ErbLoader
 				case FunctionCode.CASE:
 				case FunctionCode.CASEELSE:
 					{
-						InstructionLine selectLine = nestStack.Count == 0 ? null : nestStack.Peek();
+						InstructionLine? selectLine = nestStack.Count == 0 ? null : nestStack.Peek()!;
 						if (selectLine == null || selectLine.FunctionCode != FunctionCode.SELECTCASE && SelectcaseStack.Count == 0)
 						{
 							ParserMediator.Warn(string.Format(trerror.OutsideSelectcase.Text, func.Function.Name), func, 2, true, false);
@@ -1171,15 +1171,14 @@ internal sealed class ErbLoader
 							} while (selectLine != null && selectLine.FunctionCode != FunctionCode.SELECTCASE);
 							break;
 						}
-						if (selectLine.IfCaseList.Count > 0 &&
-							selectLine.IfCaseList.Last.Value.FunctionCode == FunctionCode.CASEELSE)
-							ParserMediator.Warn(string.Format(trerror.InvalidCaseAfterCaseelse.Text, func.Function.Name), func, 1, false, false);
+						if (selectLine!.IfCaseList!.Last!.Value!.FunctionCode == FunctionCode.CASEELSE)
+							ParserMediator.Warn(string.Format(trerror.InvalidCaseAfterCaseelse.Text, func!.Function.Name), func, 1, false, false);
 						selectLine.IfCaseList.AddLast(func);
 					}
 					break;
 				case FunctionCode.ENDSELECT:
 					{
-						InstructionLine selectLine = nestStack.Count == 0 ? null : nestStack.Peek();
+						InstructionLine? selectLine = nestStack.Count == 0 ? null : nestStack.Peek()!;
 						if (selectLine == null || selectLine.FunctionCode != FunctionCode.SELECTCASE && SelectcaseStack.Count == 0)
 						{
 							ParserMediator.Warn(trerror.UnexpectedEndselect.Text, func, 2, true, false);
@@ -1206,7 +1205,7 @@ internal sealed class ErbLoader
 						selectLine.JumpTo = func;
 						if (selectLine.IsError)
 							break;
-						var term = (selectLine.Argument as ExpressionArgument).Term;
+						var term = (selectLine.Argument as ExpressionArgument)!.Term;
 						if (term == null)
 						{
 							ParserMediator.Warn(trerror.MissingArg.Text, selectLine, 2, true, false);
@@ -1219,7 +1218,7 @@ internal sealed class ErbLoader
 								continue;
 							if (caseLine.FunctionCode == FunctionCode.CASEELSE)
 								continue;
-							var caseExps = (caseLine.Argument as CaseArgument).CaseExps;
+							var caseExps = (caseLine.Argument as CaseArgument)!.CaseExps;
 							if (caseExps.Length == 0)
 								ParserMediator.Warn(trerror.MissingArg.Text, caseLine, 2, true, false);
 
@@ -1420,7 +1419,7 @@ internal sealed class ErbLoader
 						if (pFunc.FunctionCode == FunctionCode.TRYGOTOLIST)
 						{
 							var spCallArg = func.Argument as SpCallArgment;
-							if (spCallArg.SubNames.Count != 0)
+							if (spCallArg!.SubNames.Count != 0)
 							{
 								ParserMediator.Warn(trerror.TrygotolistToSBrackets.Text, func, 2, true, false);
 								break;

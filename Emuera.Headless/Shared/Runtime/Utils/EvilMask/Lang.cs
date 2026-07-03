@@ -1405,13 +1405,15 @@ internal sealed partial class Lang
 			MFont = fnode.InnerText.Trim();
 		else
 			MFont = "MS UI Gothic";
+	#pragma warning disable CS8602
 		var nodes = xml.SelectNodes("/lang/tr");
 		for (int i = 0; i < nodes.Count; i++)
 		{
-			var attr = nodes[i].Attributes["id"];
+			var attr = nodes[i]!.Attributes["id"];
 			if (attr != null && trItems.ContainsKey(attr.Value))
-				trItems[attr.Value].Set(nodes[i].InnerText);
+				trItems[attr.Value].Set(nodes[i]!.InnerText);
 		}
+	#pragma warning restore CS8602
 	}
 	
 	public static void ReloadLang()

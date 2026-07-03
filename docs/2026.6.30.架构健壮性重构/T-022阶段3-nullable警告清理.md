@@ -72,6 +72,27 @@
 
 **分布**（19 文件，按位置数降序）：`ArgumentBuilder.cs`(22)、`Creator.Method.cs`(11)、`Instraction.Child.cs`(7)、`ErbLoader.cs`(6)、`CharacterData.cs`(4)、`VariableParser.cs`(3)、`Process.State.cs`(3)、`VariableIdentifier.cs`(3)、`ConfigData.cs`(3)、`HtmlManager.cs`(3)、`StrForm.cs`(2)、`VariableEvaluator.cs`(2)、`ExpressionParser.cs`(2)、`Process.cs`(2)、`VariableData.cs`(1)、`LogicalLineParser.cs`(1)、`Lang.cs`(1)、`LexicalAnalyzer.cs`(1)、`Process.ScriptProc.cs`(1)。
 
+### 2.6 CS8602（标注 350，实际 318 诊断 / 18 文件）
+**模式**：解引用可能为 null 的引用——在 `T?` 表达式上访问成员（`.Property`、`.Method()`、索引器 `[i]`）。分六类：
+
+1. **`as` 表达式解引用**：`as Type` 返回 `T?`，直接 `.Member` 触发警告。修复：`(expr as Type)!`，整体包裹。**切勿写 `as Type!`**（语法错误，`!` 会绑定到 `Type` 而非整个 `as` 表达式）。
+2. **BCL API 返回 `T?`**：`XmlNode.SelectNodes()`/`SelectNodes()` 返回 `XmlNodeList?`，`XmlElement.Attributes`/`DocumentElement` 返回 `T?`，`LinkedListNode<T>.Last`/`Value` 返回 `T?`。修复：声明处加 `!`（`var nodes = xml.SelectNodes(...)!;`）或调用处加 `!`（`node!.SelectNodes(...)!`）。
+3. **`null!` 声明的字段后续解引用**：字段用 `= null!` 初始化后，编译器在某些控制流路径仍认为可能为 null（`null!` 只抑制赋值点，不传播"非 null"状态到所有使用处）。修复：调用处再加 `output!.PrintError()`。
+4. **三元表达式 + `as` 链**：`(arguments[1] as VariableTerm)!.Identifier.GetArray() as string[]!`——`as string[]!` 是语法错误，须改为 `((arguments[1] as VariableTerm)!.Identifier.GetArray() as string[])!`，双层括号包裹整个 `as` 表达式。
+5. **nullable 局部变量在 null 检查后使用**：`InstructionLine? ifLine = ...; if (ifLine == null) ...; ifLine.IfCaseList`——`||` 短路让编译器无法确定 null 状态，即使有 null 检查仍报。修复：`ifLine!.IfCaseList!`。
+6. **`LinkedList<T>.Last.Value` 链式访问**：`Last` 返回 `LinkedListNode<T>?`，`Value` 返回 `T?`，需 `Last!.Value!` 双 `!`。
+
+**修复**（18 文件 318 位置）：绝大部分用 `!`（null-forgiving），3 处因编译器 nullable 状态追踪的已知限制用 `#pragma warning disable CS8602` 包围。
+
+**要点**：
+- **`as Type!` 是语法错误**：本次发现 19 处历史代码中的 `as string[]!`、`as long[]!`、`as long[,]!` 等非法语法（可能由前几批自动化工具引入），`!` 被解析为类型后缀而非 null-forgiving。正确写法是 `(expr as Type)!`。
+- **`null!` 不传播**：`= null!` 只在赋值点告诉编译器"我接受 null"，但不保证后续使用处编译器认为非 null。字段/局部在后续解引用处可能仍需 `!`。
+- **`||` 短路破坏 null 状态推导**：`if (x == null || x.Member != expected)` 中，`||` 的短路语义让编译器无法确认第二个条件中 `x` 非 null，后续 `x.Member` 访问仍报 CS8602。修复：`x!.Member`。
+- **`#pragma` 兜底**：极少数场景（如 `popWords()` 返回 non-null `WordCollection` 但编译器仍报 `wc.Current` CS8602），`!` 无效时用 `#pragma warning disable CS8602` / `restore` 包围单行，作为最后手段。
+- **SubAgent 分工**：318 位置分布广，用 `Task` subagent 并行分析多文件修复方案有效，但 subagent 对 `as Type!` 语法错误的识别不彻底（声称"已修复"但实际未改），需主会话复核。
+
+**分布**（18 文件，按位置数降序）：`Creator.Method.cs`(51)、`Instraction.Child.cs`(30)、`ErbLoader.cs`(15)、`ArgumentBuilder.cs`(6)、`ConstantData.cs`(6)、`Lang.cs`(4)、`ExpressionParser.cs`(4)、`Process.cs`(4)、`FunctionMethod.cs`(3)、`Process.CalledFunction.cs`(3)、`LogicalLineParser.cs`(2)、`VariableParser.cs`(2)、`LexicalAnalyzer.cs`(2)、`LabelDictionary.cs`(2)、`PluginManager.cs`(2)、`ConfigData.cs`(2)、`CharacterData.cs`(2)、`VariableData.cs`(1)。
+
 ## 3. 标准操作流程（SOP）
 
 每批一个 CS ID，按以下步骤：
@@ -95,6 +116,12 @@
 4. **`TreatWarningsAsErrors` 双刃**：`severity=warning` 立即变 error，构建失败即暴露位置；但依赖链断裂时编译器可能漏报下游文件，需"修复一批 → 重建 → 看是否还有"迭代。
 5. **诊断合并**：同一行多个 `.Value` 访问可能只报一处列号，修复时整行所有同类访问都要改，否则下一轮重建仍报错。
 6. **临时文件清理**：构建 log 用完即删，避免污染工作区（已被 gitignore 覆盖也无妨，保持干净）。
+7. **`as Type!` 语法陷阱**：`!` 在 `as` 表达式中会绑定到类型而非表达式整体，`x as string[]!` 是语法错误（CS1002/CS1525 连锁）。正确写法 `(x as string[])!`。批量清理时须先 Grep `as \S+!` 排查此类非法语法。
+8. **`Start-Process` 构建卡住**：`Start-Process -RedirectStandardOutput ... -Wait` 在某些环境下进程结束后 `-Wait` 不返回（疑似 stdout 管道未刷新），导致工具调用超时。替代方案：`dotnet build ... 2>&1 | Out-String` 直接在 PowerShell 中捕获，更可靠且无需临时文件。
+9. **`null!` 不传播非 null 状态**：`List<T> x = null!` 告诉编译器"赋值 null 是有意的"，但后续 `if (x == null) x = [];` 中的 null 检查会被编译器忽略（因 `null!` 已声明非 null），导致 `x.Count` 仍可能报 CS8602。改用 `List<T>? x = null;` 显式 nullable 类型 + 调用处 `x!.Count` 更可靠。
+10. **`||` 短路破坏 null 推导**：`if (x == null || x.Member != expected) break;` 后续使用 `x.Member`——编译器因 `||` 短路无法确认 `x` 非 null，即使逻辑上 break 了 null 路径。须 `x!.Member` 显式断言。
+11. **SubAgent 复核必要性**：subagent 报告"已修复"不代表实际生效，尤其是 `as Type!` 这类语法错误 subagent 可能声称修复但 SearchReplace 未匹配。须用 Grep 复查 `as \S+!` 模式清零，并以构建结果为准。
+12. **`#pragma` 作为最后手段**：极少数 CS8602 即使加 `!` 也无法抑制（编译器 nullable 状态分析的已知限制，如 non-null 返回值的链式属性访问），用 `#pragma warning disable CS8602` / `restore` 包围单行，比强行重构历史逻辑更安全。
 
 ## 5. 修复原则
 
@@ -110,13 +137,12 @@
 
 | 序 | CS ID | 标注数 | 模式（预估） | 难度 | 备注 |
 |---|---|---|---|---|---|
-| 1 | CS8602 | 350 | 解引用可能空引用 | 高 | 数量大，需逐处判断 null 防护是否充分 |
-| 2 | CS8600 | 674 | null 转 non-null 类型 | 高 | 多为 `(T)x` 显式转换或赋值，`!` 可解大部分 |
-| 3 | CS8603 | 606 | 可能返回 null 引用 | 高 | 返回类型标注与实现不符，需调整签名或加 `?` |
-| 4 | CS8618 | 686 | 构造函数未初始化非 null 字段 | 高 | 多为字段初始化，`= null!` 或 `= default!` 过渡 |
-| 5 | CS8625 | 550 | null 字面量转非 null 引用 | 高 | 多为 `= null` 赋值，改 `= null!` 或调整类型 |
+| 1 | CS8600 | 674 | null 转 non-null 类型 | 高 | 多为 `(T)x` 显式转换或赋值，`!` 可解大部分 |
+| 2 | CS8603 | 606 | 可能返回 null 引用 | 高 | 返回类型标注与实现不符，需调整签名或加 `?` |
+| 3 | CS8618 | 686 | 构造函数未初始化非 null 字段 | 高 | 多为字段初始化，`= null!` 或 `= default!` 过渡 |
+| 4 | CS8625 | 550 | null 字面量转非 null 引用 | 高 | 多为 `= null` 赋值，改 `= null!` 或调整类型 |
 
-总剩余约 2866 条。建议每批一个 CS ID，按上表顺序推进。
+总剩余约 2516 条。建议每批一个 CS ID，按上表顺序推进。
 
 ### 大批量批次策略
 - 单批 >200 条时，先用 Grep log 按文件聚合，识别 top-N 高频文件。
@@ -143,7 +169,7 @@
 | CS8629 | 52 | 26 | ✅ 已完成 | 2026-07-03 |
 | CS8601 | 98 | 49 | ✅ 已完成 | 2026-07-03 |
 | CS8604 | 176 | 81 | ✅ 已完成 | 2026-07-03 |
-| CS8602 | 350 | — | ⬜ 待清理 | — |
+| CS8602 | 350 | 318 | ✅ 已完成 | 2026-07-03 |
 | CS8600 | 674 | — | ⬜ 待清理 | — |
 | CS8603 | 606 | — | ⬜ 待清理 | — |
 | CS8618 | 686 | — | ⬜ 待清理 | — |
@@ -205,4 +231,24 @@
 - [`Process.ScriptProc.cs`](../../Emuera.Headless/Shared/Runtime/Script/Process.ScriptProc.cs)（1 处：`((StrDataArgument)func.Argument).Var.SetValue(str!, exm)`）
 
 **配置**：
-- [`.editorconfig`](../../.editorconfig)：删除 `CS8605`、`CS8767`、`CS8629`、`CS8601`、`CS8604` 五条抑制规则
+- [`.editorconfig`](../../.editorconfig)：删除 `CS8605`、`CS8767`、`CS8629`、`CS8601`、`CS8604`、`CS8602` 六条抑制规则
+
+**CS8602**（18 文件）：
+- [`Creator.Method.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Function/Creator.Method.cs)（51 处：`as string[]!`→`(expr as string[])!` 语法修正 19 处、`SelectNodes()!`/`DocumentElement!`/`Attributes!`/`OwnerElement!`/`Columns[name]!`/`CreateNode()!`/`null!` 初始化、`node!`/`reg!` 解引用）
+- [`Instraction.Child.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Instraction.Child.cs)（30 处：`arg.Mouse!`/`arg.Def!`/`EscapedParts!`/`Columns[cName]!`/`varTerm!` 等）
+- [`ErbLoader.cs`](../../Emuera.Headless/Shared/Runtime/Script/Loader/ErbLoader.cs)（15 处：`func!`/`baseFunc!`/`IfCaseList!`/`Last!.Value!`、`InstructionLine?` 类型修正、`as Type!`→`(expr as Type)!`）
+- [`ArgumentBuilder.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/ArgumentBuilder.cs)（6 处：`List<AExpression>?` nullable 声明、`subNames!.Count`、`#pragma` 抑制 `wc.Current`）
+- [`ConstantData.cs`](../../Emuera.Headless/Shared/Runtime/Script/Data/ConstantData.cs)（6 处：`output = null!` 字段初始化、`output!.PrintError()`）
+- [`Lang.cs`](../../Emuera.Headless/Shared/Runtime/Utils/EvilMask/Lang.cs)（4 处：`SelectNodes()!`、`#pragma` 抑制 `nodes[i]`）
+- [`ExpressionParser.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Expression/ExpressionParser.cs)（4 处：`(token as LiteralXWord)!`/`(token as OperatorWord)!`）
+- [`Process.cs`](../../Emuera.Headless/Shared/Runtime/Script/Process.cs)（4 处：`StackTrace!.Split()`/`ParentLabelLine!`/`current!`/`console!`）
+- [`FunctionMethod.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Function/FunctionMethod.cs)（3 处：`list!.ArgTypes`、`#pragma` 抑制三元表达式）
+- [`Process.CalledFunction.cs`](../../Emuera.Headless/Shared/Runtime/Script/Process.CalledFunction.cs)（3 处：`ParentLabelLine!`/`Position!.Value`）
+- [`LogicalLineParser.cs`](../../Emuera.Headless/Shared/Runtime/Script/Parser/LogicalLineParser.cs)（2 处）
+- [`VariableParser.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Variable/VariableParser.cs)（2 处）
+- [`LexicalAnalyzer.cs`](../../Emuera.Headless/Shared/Runtime/Script/Parser/LexicalAnalyzer.cs)（2 处）
+- [`LabelDictionary.cs`](../../Emuera.Headless/Shared/Runtime/Script/Data/LabelDictionary.cs)（2 处）
+- [`PluginManager.cs`](../../Emuera.Headless/Shared/Runtime/Utils/PluginSystem/PluginManager.cs)（2 处）
+- [`ConfigData.cs`](../../Emuera.Headless/Shared/Runtime/Config/ConfigData.cs)（2 处）
+- [`CharacterData.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Variable/CharacterData.cs)（2 处）
+- [`VariableData.cs`](../../Emuera.Headless/Shared/Runtime/Script/Statements/Variable/VariableData.cs)（1 处）

@@ -128,7 +128,7 @@ internal sealed class ConfigItem<T> : AConfigItem
 			return sb.ToString();
 		}
 		#endregion
-		return val.ToString();
+		return val!.ToString();
 	}
 
 

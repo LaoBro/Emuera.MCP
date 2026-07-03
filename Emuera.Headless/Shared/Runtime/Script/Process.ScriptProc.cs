@@ -760,7 +760,7 @@ internal sealed partial class Process
 						state.CurrentLine = selectedLine;
 						if (selectedLine.Argument == null)
 							ArgumentParser.SetArgumentTo(selectedLine);
-						term = ((ExpressionArgument)selectedLine.Argument).Term;
+						term = ((ExpressionArgument)selectedLine.Argument!).Term;
 						str += term.GetStrValue(exm);
 						if (++i < iList.Count)
 							str += "\n";
@@ -854,7 +854,7 @@ internal sealed partial class Process
 					{
 						if (iLine.Argument == null)
 							ArgumentParser.SetArgumentTo(iLine);
-						funcName = ((SpCallArgment)iLine.Argument).FuncnameTerm.GetStrValue(exm);
+						funcName = ((SpCallArgment)iLine.Argument!).FuncnameTerm.GetStrValue(exm);
 						jumpto = state.CurrentCalled.CallLabel(this, funcName);
 						if (jumpto != null)
 							break;

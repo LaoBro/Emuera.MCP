@@ -545,9 +545,9 @@ internal sealed class PrintStringBuffer
 		if (part == null)
 			return -1;
 		// int widthLimit = Config.DrawableWidth - css.PointX;
-		int widthLimit = divWidth - css.PointX;
+		int widthLimit = divWidth - css!.PointX;
 		#endregion
-		string str = css.Text;
+		string str = css!.Text;
 		EmuFont font = css.Font;
 
 		//最適なサイズを二分探索する

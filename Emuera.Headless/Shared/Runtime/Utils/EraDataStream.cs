@@ -387,7 +387,7 @@ internal sealed class EraDataReader : IDisposable
 						str = reader.ReadLine();
 						if (str == "}")
 							break;
-						if (str.Length == 0)
+						if (str!.Length == 0)
 						{
 							tokenList.Add([]);
 							continue;

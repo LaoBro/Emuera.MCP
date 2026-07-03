@@ -286,7 +286,7 @@ internal static partial class ArgumentParser
 				}
 				var arg = ExpressionParser.ReduceExpressionTerm(wc, TermEndWith.Comma | TermEndWith.KeyWordPx);
 				if (Config.NeedReduceArgumentOnLoad && arg != null) arg = arg.Restructure(exm);
-				if (arg.GetOperandType() == typeof(string))
+				if (arg!.GetOperandType() == typeof(string))
 				{
 					if (param.Count > 0 || argCount > 3)
 					{
@@ -447,7 +447,9 @@ internal static partial class ArgumentParser
 			while (!wc.EOL)
 			{
 				AExpression v = null;
+				#pragma warning disable CS8602
 				string keyword = wc.Current.ToString().ToLower();
+			#pragma warning restore CS8602
 				wc.ShiftNext(); // keyword
 				wc.ShiftNext(); // ,
 				if (wc.EOL)
@@ -869,7 +871,7 @@ internal static partial class ArgumentParser
 			WordCollection wc = LexicalAnalyzer.Analyse(st, LexEndWith.EoL, LexAnalyzeFlag.None);
 			wc.ShiftNext();
 
-			List<AExpression> subNames = null;
+			List<AExpression>? subNames = null;
 			List<AExpression> args = null;
 			if (cur == '[')
 			{
@@ -894,9 +896,9 @@ internal static partial class ArgumentParser
 				subNames = [];
 			if (args == null)
 				args = [];
-			for (int i = 0; i < subNames.Count; i++)
+			for (int i = 0; i < subNames!.Count; i++)
 				if (subNames != null)
-					subNames[i] = subNames[i].Restructure(exm);
+					subNames[i] = subNames[i]!.Restructure(exm);
 			for (int i = 0; i < args.Count; i++)
 				if (args[i] != null)
 					args[i] = args[i].Restructure(exm);
@@ -935,7 +937,7 @@ internal static partial class ArgumentParser
 			WordCollection wc = LexicalAnalyzer.Analyse(st, LexEndWith.EoL, LexAnalyzeFlag.None);
 			wc.ShiftNext();
 
-			List<AExpression> subNames = null;
+			List<AExpression>? subNames = null;
 			List<AExpression> args = null;
 			if (cur == '[')
 			{
@@ -960,9 +962,9 @@ internal static partial class ArgumentParser
 				subNames = [];
 			if (args == null)
 				args = [];
-			for (int i = 0; i < subNames.Count; i++)
+			for (int i = 0; i < subNames!.Count; i++)
 				if (subNames != null)
-					subNames[i] = subNames[i].Restructure(exm);
+					subNames[i] = subNames[i]!.Restructure(exm);
 			for (int i = 0; i < args.Count; i++)
 				if (args[i] != null)
 					args[i] = args[i].Restructure(exm);

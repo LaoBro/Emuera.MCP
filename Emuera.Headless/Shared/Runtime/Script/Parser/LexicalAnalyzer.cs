@@ -431,7 +431,7 @@ internal static partial class LexicalAnalyzer
 					break;
 				if (macro.IDWord != null)
 					throw new CodeEE(string.Format(trerror.MacroIsNotAvailable.Text, macro.Keyword));
-				str = macro.IDWord.Code;
+				str = macro.IDWord!.Code;
 			}
 		}
 		return new IdentifierWord(str);

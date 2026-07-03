@@ -90,7 +90,7 @@ internal sealed class WordCollection
 			if (index + 1 >= Collection.Count)
 				return nullToken;
 			var nextPoint = Pointer.Next;
-			return nextPoint.Value;
+			return nextPoint!.Value;
 		}
 	}
 	#endregion
