@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
 # I-12 阶段 1：质量护栏按路径分级
 # - Emuera.Headless/Shared/ 子树是 T-023 物理迁移自 Emuera/ 的历史共享源码
 #   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Headless 构建被历史代码警告淹没
@@ -29,7 +29,7 @@ dotnet_diagnostic.CS8981.severity = none
 # CS0649 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 # CS0162 已清理（T-022 阶段 4，2026-07-04，死代码删除）
 # CS0164 已清理（T-022 阶段 4，2026-07-04，未引用标签删除）
-dotnet_diagnostic.SYSLIB0014.severity = none   # WebClient 已过时（共享代码 Instraction.Child.cs 使用）
+# SYSLIB0014 已清理（T-022 阶段 4，2026-07-04，WebClient → HttpClient 静态单例）
 
 # Nullable 引用类型（CS86xx）：历史代码无 nullable 标注，T-022 阶段 3 全量抑制
 # <Nullable>enable</Nullable> 保留，但 Shared/ 历史代码暂不要求 nullable-clean

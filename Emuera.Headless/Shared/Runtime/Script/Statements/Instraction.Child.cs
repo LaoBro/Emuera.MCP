@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 #if !HEADLESS
 using System.Windows.Forms;
@@ -2834,6 +2835,10 @@ internal sealed partial class FunctionIdentifier
 
 	public sealed class UPDATECHECK_Instruction : AInstruction
 	{
+		// HttpClient 静态单例：替代过时的 WebClient（SYSLIB0014）。
+		// Headless 为控制台程序，无 SynchronizationContext，GetAwaiter().GetResult() 同步阻塞安全。
+		private static readonly HttpClient s_updateCheckClient = new();
+
 		public UPDATECHECK_Instruction()
 		{
 			ArgBuilder = ArgumentParser.GetArgumentBuilder(FunctionArgType.VOID);
@@ -2854,7 +2859,6 @@ internal sealed partial class FunctionIdentifier
 			}
 
 			string url = GlobalStatic.GameBaseData.UpdateCheckURL;
-			WebClient wc = new();
 			if (url == null || url == "")
 			{
 				exm.VEvaluator.RESULT = 3;
@@ -2862,7 +2866,7 @@ internal sealed partial class FunctionIdentifier
 			}
 			try
 			{
-				Stream st = wc.OpenRead(url);
+				Stream st = s_updateCheckClient.GetStreamAsync(url).GetAwaiter().GetResult();
 				StreamReader sr = new(st);
 				try
 				{
@@ -2884,7 +2888,6 @@ internal sealed partial class FunctionIdentifier
 						Console.Error.WriteLine(string.Format(trmb.NewVersionAvailable.Text, version, link));
 						exm.VEvaluator.RESULT = 1;
 						st.Close();
-						wc.Dispose();
 						return;
 #else
 						DialogResult result = MessageBox.Show(string.Format(trmb.NewVersionAvailable.Text, version, link),
@@ -2903,14 +2906,12 @@ internal sealed partial class FunctionIdentifier
 							});
 							//System.Diagnostics.Process.Start(link);
 							st.Close();
-							wc.Dispose();
 							return;
 						}
 						else
 						{
 							exm.VEvaluator.RESULT = 1;
 							st.Close();
-							wc.Dispose();
 							return;
 						}
 #endif
@@ -2919,16 +2920,14 @@ internal sealed partial class FunctionIdentifier
 					{
 						exm.VEvaluator.RESULT = 0;
 						st.Close();
-						wc.Dispose();
 						return;
 					}
 				}
 				catch
 				{
 					exm.VEvaluator.RESULT = 3;
-					st.Close();
-					wc.Dispose();
-					return;
+				st.Close();
+				return;
 				}
 			}
 			catch

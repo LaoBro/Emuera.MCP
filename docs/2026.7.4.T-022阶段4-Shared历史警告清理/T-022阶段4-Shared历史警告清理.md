@@ -166,6 +166,7 @@ dotnet_diagnostic.CA2016.severity = none
 - **CA1069 + VariableCode 计数器语义**：`VariableCode.__COUNT_*` 系列是有意的计数器边界，每种变量类型从 0 开始独立计数，导致与 `__NULL__`（0x00）或其他 `__COUNT_*` 成员值重复。这些值被强制转换为 int 用作数组长度（如 `new long[(int)VariableCode.__COUNT_INTEGER_ARRAY__]`），改值会破坏数组初始化。存档以枚举名序列化，不依赖数值唯一性。修复方式：在枚举定义前后用 `#pragma warning disable/restore CA1069` 局部抑制，并加注释说明理由。
 - **CA2211 + readonly**：`EncodingHandler` 的 `public static Encoding` 字段被 CA2211 标记为"非常量字段应当不可见"。这些字段初始化后不再修改，加 `readonly` 即可满足规则，同时保持 public 可见性。
 - **CS0162/CS0164 死代码遗留**：`LogicalLineParser.cs` 中 `err:` 标签原本被 `goto err` 引用，goto 被注释后遗留了未引用标签（CS0164）和死代码 return（CS0162）。catch 块已处理异常路径，直接删除 `err:` 标签和后续 return 语句。
+- **SYSLIB0014 + HttpClient 迁移**：`Instraction.Child.cs` 的 `UPDATECHECK_Instruction` 使用 `WebClient.OpenRead` 同步阻塞读取更新检查响应。迁移方案：在类内加 `private static readonly HttpClient s_updateCheckClient = new();` 静态单例（HttpClient 设计上应复用，避免 socket 耗尽），用 `GetStreamAsync(url).GetAwaiter().GetResult()` 同步阻塞替代 `OpenRead(url)`。Headless 为控制台程序，无 SynchronizationContext，`.GetAwaiter().GetResult()` 不会死锁。原 `wc.Dispose()` 调用全部删除（静态单例不 Dispose）。需新增 `using System.Net.Http;`（`System.Net` 仍保留，因 `NetworkInterface.GetIsNetworkAvailable()` 依赖）。运行时行为等价：同步 HTTP GET 读取两行文本。
 
 ## 6. 修复原则
 
@@ -189,5 +190,5 @@ dotnet_diagnostic.CA2016.severity = none
 | 3 | CA1854 | 84 | 84 | ✅ 已完成 |
 | 4 | CA1822 | 66 | 66 | ✅ 已完成 |
 | 5 | CA1069/CA2208/CA2211/CS0162/CS0164/CA2263/CA1507 | 50 | 27 | ✅ 已完成 |
-| 6 | SYSLIB0014 | 2 | - | ⬜ 待办 |
+| 6 | SYSLIB0014 | 2 | 1 | ✅ 已完成 |
 | - | CA1416（永久保留） | - | - | ⏸️ 保留 |
