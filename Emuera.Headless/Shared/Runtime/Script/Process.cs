@@ -353,7 +353,7 @@ internal sealed partial class Process(EmueraConsole view)
 #endif
 			LogicalLine currentLine = state.ErrorLine;
 			if (currentLine != null && currentLine is NullLine)
-				currentLine = null;
+				currentLine = null!;
 			if (systemProcRunning)
 				handleExceptionInSystemProc(ec, currentLine!, true);
 			else
@@ -417,7 +417,7 @@ internal sealed partial class Process(EmueraConsole view)
 			//環境によっては100以前にStackOverflowExceptionがでるかも？
 			throw new CodeEE(trerror.OverflowFuncStack.Text);
 		}
-		SingleTerm ret = null;
+		SingleTerm ret = null!;
 		int temp_current = state.currentMin;
 		state.currentMin = state.functionCount;
 		udmt.Call.updateRetAddress(state.CurrentLine);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -52,7 +52,7 @@ internal sealed class EraDataReader : IDisposable
 	{
 		if (reader == null)
 			throw new FileEE(trerror.InvalidStream.Text);
-		string str = reader.ReadLine();
+		string str = reader.ReadLine()!;
 		if (str == null)
 			throw new FileEE(trerror.NoStrToRead.Text);
 		return str;
@@ -62,7 +62,7 @@ internal sealed class EraDataReader : IDisposable
 	{
 		if (reader == null)
 			throw new FileEE(trerror.InvalidStream.Text);
-		string str = reader.ReadLine();
+		string str = reader.ReadLine()!;
 		if (str == null)
 			throw new FileEE(trerror.NoNumToRead.Text);
 		if (!long.TryParse(str, out long ret))
@@ -82,7 +82,7 @@ internal sealed class EraDataReader : IDisposable
 		while (true)
 		{
 			i++;
-			str = reader.ReadLine();
+			str = reader.ReadLine()!;
 			if (str == null)
 				throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 			if (str.Equals(FINISHER, StringComparison.Ordinal))
@@ -108,7 +108,7 @@ internal sealed class EraDataReader : IDisposable
 		while (true)
 		{
 			i++;
-			str = reader.ReadLine();
+			str = reader.ReadLine()!;
 			if (str == null)
 				throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 			if (str.Equals(FINISHER, StringComparison.Ordinal))
@@ -133,7 +133,7 @@ internal sealed class EraDataReader : IDisposable
 			return false;
 		while (true)
 		{
-			string str = reader.ReadLine();
+			string str = reader.ReadLine()!;
 			if (str == null)
 				return false;
 			if (str.Equals(EMU_1700_START, StringComparison.Ordinal))
@@ -172,7 +172,7 @@ internal sealed class EraDataReader : IDisposable
 		string str;
 		while (true)
 		{
-			str = reader.ReadLine();
+			str = reader.ReadLine()!;
 			if (str == null)
 				throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 			if (str.Equals(FINISHER, StringComparison.Ordinal))
@@ -196,7 +196,7 @@ internal sealed class EraDataReader : IDisposable
 		string str;
 		while (true)
 		{
-			str = reader.ReadLine();
+			str = reader.ReadLine()!;
 			if (str == null)
 				throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 			if (str.Equals(FINISHER, StringComparison.Ordinal))
@@ -223,7 +223,7 @@ internal sealed class EraDataReader : IDisposable
 		string str;
 		while (true)
 		{
-			str = reader.ReadLine();
+			str = reader.ReadLine()!;
 			if (str == null)
 				throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 			if (str.Equals(FINISHER, StringComparison.Ordinal))
@@ -234,7 +234,7 @@ internal sealed class EraDataReader : IDisposable
 			List<long> valueList = [];
 			while (true)
 			{
-				str = reader.ReadLine();
+				str = reader.ReadLine()!;
 				if (str == null)
 					throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 				if (str.Equals(EMU_SEPARATOR, StringComparison.Ordinal))
@@ -258,7 +258,7 @@ internal sealed class EraDataReader : IDisposable
 		string str;
 		while (true)
 		{
-			str = reader.ReadLine();
+			str = reader.ReadLine()!;
 			if (str == null)
 				throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 			if (str.Equals(FINISHER, StringComparison.Ordinal))
@@ -269,7 +269,7 @@ internal sealed class EraDataReader : IDisposable
 			List<string> valueList = [];
 			while (true)
 			{
-				str = reader.ReadLine();
+				str = reader.ReadLine()!;
 				if (str == null)
 					throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 				if (str.Equals(EMU_SEPARATOR, StringComparison.Ordinal))
@@ -293,7 +293,7 @@ internal sealed class EraDataReader : IDisposable
 		string str;
 		while (true)
 		{
-			str = reader.ReadLine();
+			str = reader.ReadLine()!;
 			if (str == null)
 				throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 			if (str.Equals(FINISHER, StringComparison.Ordinal))
@@ -304,7 +304,7 @@ internal sealed class EraDataReader : IDisposable
 			List<long[]> valueList = [];
 			while (true)
 			{
-				str = reader.ReadLine();
+				str = reader.ReadLine()!;
 				if (str == null)
 					throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 				if (str.Equals(EMU_SEPARATOR, StringComparison.Ordinal))
@@ -339,7 +339,7 @@ internal sealed class EraDataReader : IDisposable
 		string str;
 		while (true)
 		{
-			str = reader.ReadLine();
+			str = reader.ReadLine()!;
 			if (str == null)
 				throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 			if (str.Equals(FINISHER, StringComparison.Ordinal))
@@ -361,7 +361,7 @@ internal sealed class EraDataReader : IDisposable
 		string str;
 		while (true)
 		{
-			str = reader.ReadLine();
+			str = reader.ReadLine()!;
 			if (str == null)
 				throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 			if (str.Equals(FINISHER, StringComparison.Ordinal))
@@ -372,7 +372,7 @@ internal sealed class EraDataReader : IDisposable
 			List<List<long[]>> valueList = [];
 			while (true)
 			{
-				str = reader.ReadLine();
+				str = reader.ReadLine()!;
 				if (str == null)
 					throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 				if (str.Equals(EMU_SEPARATOR, StringComparison.Ordinal))
@@ -384,7 +384,7 @@ internal sealed class EraDataReader : IDisposable
 					List<long[]> tokenList = [];
 					while (true)
 					{
-						str = reader.ReadLine();
+						str = reader.ReadLine()!;
 						if (str == "}")
 							break;
 						if (str!.Length == 0)
@@ -418,7 +418,7 @@ internal sealed class EraDataReader : IDisposable
 		string str;
 		while (true)
 		{
-			str = reader.ReadLine();
+			str = reader.ReadLine()!;
 			if (str == null)
 				throw new FileEE(trerror.UnexpectedSaveDataEnd.Text);
 			if (str.Equals(FINISHER, StringComparison.Ordinal))

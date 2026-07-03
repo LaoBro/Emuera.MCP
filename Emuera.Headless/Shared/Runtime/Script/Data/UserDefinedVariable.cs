@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Script.Parser;
+using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
@@ -37,7 +37,7 @@ internal sealed class UserDefinedVariableData
 			TypeIsStr = dims
 		};
 
-		IdentifierWord idw;
+		IdentifierWord? idw;
 		bool staticDefined = false;
 		ret.Const = false;
 		string keyword = dimtype;

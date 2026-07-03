@@ -608,7 +608,7 @@ internal sealed class ConfigData
 
 	public bool SaveConfig()
 	{
-		StreamWriter writer = null;
+		StreamWriter writer = null!;
 
 		try
 		{
@@ -722,7 +722,7 @@ internal sealed class ConfigData
 		ScriptPosition? pos = null;
 		try
 		{
-			string line = null;
+			string line = null!;
 			//bool defineIgnoreWarningFiles = false;
 			while ((line = eReader.ReadLine()) != null)
 			{
@@ -805,7 +805,7 @@ internal sealed class ConfigData
 		ScriptPosition? pos = null;
 		try
 		{
-			string line = null;
+			string line = null!;
 			while ((line = eReader.ReadLine()) != null)
 			{
 				line = line.Trim();
@@ -844,7 +844,7 @@ internal sealed class ConfigData
 
 	public bool SaveDebugConfig()
 	{
-		StreamWriter writer = null;
+		StreamWriter writer = null!;
 		try
 		{
 			#region EM_私家版_Emuera多言語化改造
@@ -883,7 +883,7 @@ internal sealed class ConfigData
 		ScriptPosition? pos = null;
 		try
 		{
-			string line = null;
+			string line = null!;
 			while ((line = eReader.ReadLine()) != null)
 			{
 				if ((line.Length == 0) || (line[0] == ';'))

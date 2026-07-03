@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Function;
+using MinorShift.Emuera.GameData.Function;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Script.Statements.Function;
@@ -498,8 +498,8 @@ internal sealed partial class FunctionIdentifier
 
 	internal static string getMatchFunction(FunctionCode func)
 	{
-		if (funcMatch.TryGetValue(func, out string ret))
-			return ret;
+		if (funcMatch.TryGetValue(func, out string? ret))
+			return ret!;
 		else
 			return null;
 	}

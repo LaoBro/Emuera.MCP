@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
@@ -69,7 +69,7 @@ internal sealed partial class EraStreamReader : IDisposable
 
 	public string ReadLine()
 	{
-		string ret = null;
+		string ret = null!;
 		curNo = nextNo;
 		if (_fileLines.Length > curNo)
 		{

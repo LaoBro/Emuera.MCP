@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
@@ -281,7 +281,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 
 		public override void ReadIntArray(long[] refArray, bool needInit)
 		{
-			long[] oriArray = null;
+			long[] oriArray = null!;
 			byte b;
 			int x = 0;
 			int saveLength0 = reader.ReadInt32();
@@ -337,7 +337,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 		}
 		public override void ReadIntArray2D(long[,] refArray, bool needInit)
 		{
-			long[,] oriArray = null;
+			long[,] oriArray = null!;
 			byte b;
 			int x = 0;
 			int y = 0;
@@ -429,7 +429,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 		/// <param name="needInit">データがない部分を0で埋める必要があるか</param>
 		public override void ReadIntArray3D(long[,,] refArray, bool needInit)
 		{
-			long[,,] oriArray = null;
+			long[,,] oriArray = null!;
 			byte b;
 			int x = 0;
 			int y = 0;
@@ -556,7 +556,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 		}
 		public override void ReadStrArray(string[] refArray, bool needInit)
 		{
-			string[] oriArray = null;
+			string[] oriArray = null!;
 			byte b;
 			int x = 0;
 			int saveLength0 = reader.ReadInt32();
@@ -606,7 +606,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 		}
 		public override void ReadStrArray2D(string[,] refArray, bool needInit)
 		{
-			string[,] oriArray = null;
+			string[,] oriArray = null!;
 			byte b;
 			int x = 0;
 			int y = 0;
@@ -687,7 +687,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 		}
 		public override void ReadStrArray3D(string[,,] refArray, bool needInit)
 		{
-			string[,,] oriArray = null;
+			string[,,] oriArray = null!;
 			byte b;
 			int x = 0;
 			int y = 0;

@@ -15,7 +15,7 @@ static class AppContents
 
 	public static GraphicsImage GetGraphics(int i)
 	{
-		if (gList.TryGetValue(i, out GraphicsImage value))
+		if (gList.TryGetValue(i, out GraphicsImage? value))
 			return value;
 		GraphicsImage g = new(i);
 		gList[i] = g;

@@ -103,7 +103,7 @@ class ConsoleDivPart : AConsoleDisplayNode
 	public override bool CanDivide => false;
 	public ConsoleButtonString TestChildHitbox(int pointX, int pointY, int relPointY)
 	{
-		ConsoleButtonString pointing = null;
+		ConsoleButtonString pointing = null!;
 		#region EE_div各要素の修正
 		var rect = new EmuRectangle(PointX + xOffset, relPointY + PointY + yOffset, width, Height);
 		#endregion

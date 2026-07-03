@@ -105,8 +105,8 @@ internal sealed partial class Process
 	void doNormalFunction(InstructionLine func)
 	{
 		long iValue = 0;
-		string str = null;
-		AExpression term = null;
+		string str = null!;
+		AExpression term = null!;
 		switch (func.FunctionCode)
 		{
 
@@ -826,8 +826,8 @@ internal sealed partial class Process
 					//	break;
 					//}
 					string funcName = "";
-					CalledFunction callto = null;
-					SpCallArgment cfa = null;
+					CalledFunction callto = null!;
+					SpCallArgment cfa = null!;
 					foreach (InstructionLine iLine in func.callList)
 					{
 
@@ -849,7 +849,7 @@ internal sealed partial class Process
 			case FunctionCode.TRYGOTOLIST:
 				{
 					string funcName = "";
-					LogicalLine jumpto = null;
+					LogicalLine jumpto = null!;
 					foreach (InstructionLine iLine in func.callList)
 					{
 						if (iLine.Argument == null)

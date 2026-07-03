@@ -352,8 +352,8 @@ internal sealed class ErbLoader
 		var ppstate = new PPState();
 		LogicalLine nextLine = new NullLine();
 		LogicalLine lastLine = new NullLine();
-		FunctionLabelLine lastLabelLine = null;
-		CharStream st = null;
+		FunctionLabelLine lastLabelLine = null!;
+		CharStream st = null!;
 		ScriptPosition? position = null;
 		int funcCount = 0;
 		if (Program.AnalysisMode)
@@ -401,7 +401,7 @@ internal sealed class ErbLoader
 				if (isFunction)
 				{
 					var label = nextLine as FunctionLabelLine;
-					lastLabelLine = label;
+					lastLabelLine = label!;
 					if (label is InvalidLabelLine)
 					{
 						noError = false;
@@ -568,7 +568,7 @@ internal sealed class ErbLoader
 		{
 			if (label.IsSystem)
 				ParserMediator.Warn(string.Format(trerror.SystemFuncHasArg.Text, label.LabelName), label, 2, true, false);
-			SymbolWord symbol = wc.Current as SymbolWord;
+			SymbolWord symbol = (wc.Current as SymbolWord)!;
 			wc.ShiftNext();
 			if (symbol == null)
 			{ errMes = trerror.WrongArgFormat.Text; goto err; }
@@ -587,7 +587,7 @@ internal sealed class ErbLoader
 					if (subNames[i] == null)
 					{ errMes = trerror.FuncDefineArgOnlyConst.Text; goto err; }
 				}
-				symbol = wc.Current as SymbolWord;
+				symbol = (wc.Current as SymbolWord)!;
 				if (!wc.EOL && symbol == null)
 				{ errMes = trerror.WrongArgFormat.Text; goto err; }
 				wc.ShiftNext();
@@ -606,7 +606,7 @@ internal sealed class ErbLoader
 				defs = new SingleTerm[length];
 				for (int i = 0; i < length; i++)
 				{
-					SingleTerm def = null;
+					SingleTerm def = null!;
 					AExpression term = argsRow[i * 2];
 					//引数読み取り時点で判別されないといけない
 					//if (term == null)
@@ -649,7 +649,7 @@ internal sealed class ErbLoader
 					}
 					else
 					{
-						def = term.Restructure(exm) as SingleTerm;
+						def = (term.Restructure(exm) as SingleTerm)!;
 						if (def == null)
 						{ errMes = trerror.ArgCanOnlyConst.Text; goto err; }
 						if (!canDef)
@@ -950,7 +950,7 @@ internal sealed class ErbLoader
 		List<InstructionLine> tempLineList = [];
 		Stack<InstructionLine> nestStack = new();
 		Stack<InstructionLine> SelectcaseStack = new();
-		InstructionLine pairLine = null;
+		InstructionLine pairLine = null!;
 		while (true)
 		{
 			nextLine = nextLine.NextLine;
@@ -961,7 +961,7 @@ internal sealed class ErbLoader
 			{
 				if (nextLine is GotoLabelLine)
 				{
-					InstructionLine currentBaseFunc = nestStack.Count == 0 ? null : nestStack.Peek();
+					InstructionLine currentBaseFunc = (nestStack.Count == 0 ? null : nestStack.Peek())!;
 					if (currentBaseFunc != null)
 					{
 						if (currentBaseFunc.FunctionCode == FunctionCode.PRINTDATA
@@ -1249,7 +1249,7 @@ internal sealed class ErbLoader
 					pairLine.JumpTo = func;
 					break;
 				case FunctionCode.CATCH:
-					pairLine = nestStack.Count == 0 ? null : nestStack.Peek();
+					pairLine = (nestStack.Count == 0 ? null : nestStack.Peek())!;
 					if (pairLine == null
 						|| pairLine.FunctionCode != FunctionCode.TRYCGOTO
 						&& pairLine.FunctionCode != FunctionCode.TRYCCALL
@@ -1354,7 +1354,7 @@ internal sealed class ErbLoader
 				case FunctionCode.DATA:
 				case FunctionCode.DATAFORM:
 					{
-						InstructionLine pdata = nestStack.Count == 0 ? null : nestStack.Peek();
+						InstructionLine pdata = (nestStack.Count == 0 ? null : nestStack.Peek())!;
 						if (pdata == null || !pdata.Function.IsPrintData() && pdata.FunctionCode != FunctionCode.DATALIST && pdata.FunctionCode != FunctionCode.STRDATA)
 						{
 							ParserMediator.Warn(string.Format(trerror.MissingPrintdata.Text, func.Function.Name), func, 2, true, false);
@@ -1372,7 +1372,7 @@ internal sealed class ErbLoader
 					}
 				case FunctionCode.ENDDATA:
 					{
-						InstructionLine pline = nestStack.Count == 0 ? null : nestStack.Peek();
+						InstructionLine pline = (nestStack.Count == 0 ? null : nestStack.Peek())!;
 						if (pline == null || !pline.Function.IsPrintData() && pline.FunctionCode != FunctionCode.STRDATA)
 						{
 							ParserMediator.Warn(string.Format(trerror.MissingPrintdataStrdata.Text, func.Function.Name), func, 2, true, false);
@@ -1404,7 +1404,7 @@ internal sealed class ErbLoader
 					break;
 				case FunctionCode.FUNC:
 					{
-						InstructionLine pFunc = nestStack.Count == 0 ? null : nestStack.Peek();
+						InstructionLine pFunc = (nestStack.Count == 0 ? null : nestStack.Peek())!;
 						if (pFunc == null ||
 							pFunc.FunctionCode != FunctionCode.TRYCALLLIST && pFunc.FunctionCode != FunctionCode.TRYJUMPLIST && pFunc.FunctionCode != FunctionCode.TRYGOTOLIST)
 						{

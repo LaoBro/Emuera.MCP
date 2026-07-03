@@ -280,7 +280,7 @@ internal static class HtmlManager
 		{
 			EmuColor c = Config.ForeColor;
 			EmuColor b = Config.FocusColor;
-			string fontname = null;
+			string fontname = null!;
 			bool colorChanged = false;
 			if (FonttagList.Count > 0)
 			{
@@ -333,7 +333,7 @@ internal static class HtmlManager
 			ConsoleButtonString[] buttons = lines[dispCounter].Buttons;
 			for (int buttonCounter = 0; buttonCounter < buttons.Length; buttonCounter++)
 			{
-				string titleValue = null;
+				string titleValue = null!;
 				if (!string.IsNullOrEmpty(buttons[buttonCounter].Title))
 					titleValue = Escape(buttons[buttonCounter].Title);
 				bool hasTag = buttons[buttonCounter].IsButton || titleValue != null
@@ -370,7 +370,7 @@ internal static class HtmlManager
 				{
 					if (parts[cssCounter] is ConsoleStyledString)
 					{
-						ConsoleStyledString css = parts[cssCounter] as ConsoleStyledString;
+						ConsoleStyledString css = (parts[cssCounter] as ConsoleStyledString)!;
 						b.Append(getStringStyleStartingTag(css!.StringStyle));
 						b.Append(Escape(css.Text));
 						b.Append(getClosingStyleStartingTag(css.StringStyle));
@@ -943,7 +943,7 @@ internal static class HtmlManager
 		//以降は開始タグ
 
 		bool tempUseMacro = LexicalAnalyzer.UseMacro;
-		WordCollection wc = null;
+		WordCollection wc = null!;
 		try
 		{
 			LexicalAnalyzer.UseMacro = false;//一時的にマクロ展開をやめる
@@ -994,11 +994,11 @@ internal static class HtmlManager
 						throw new CodeEE(string.Format(trerror.TagIsNotBegin.Text, "p"));
 					if (state.FlagNobr)
 						throw new CodeEE(string.Format(trerror.DuplicateTag.Text, "p"));
-					word = wc.Current as IdentifierWord;
+					word = (wc.Current as IdentifierWord)!;
 					wc.ShiftNext();
-					OperatorWord op = wc.Current as OperatorWord;
+					OperatorWord op = (wc.Current as OperatorWord)!;
 					wc.ShiftNext();
-					LiteralStringWord attr = wc.Current as LiteralStringWord;
+					LiteralStringWord attr = (wc.Current as LiteralStringWord)!;
 					wc.ShiftNext();
 					if (!wc.EOL || word == null || op == null || op.Code != OperatorCode.Assignment || attr == null)
 						goto error;
@@ -1027,9 +1027,9 @@ internal static class HtmlManager
 					if (wc == null)
 						throw new CodeEE(string.Format(trerror.TagHasNotAttribute.Text, tag));
 					string attrValue;
-					string src = null;
-					string srcb = null;
-					string srcm = null;
+					string src = null!;
+					string srcb = null!;
+					string srcm = null!;
 					#region EM_私家版_HTMLパラメータ拡張
 					//int height = 0;
 					//int width = 0;
@@ -1039,11 +1039,11 @@ internal static class HtmlManager
 					MixedNum ypos = null!;
 					while (wc != null && !wc.EOL)
 					{
-						word = wc.Current as IdentifierWord;
+						word = (wc.Current as IdentifierWord)!;
 						wc.ShiftNext();
-						OperatorWord op = wc.Current as OperatorWord;
+						OperatorWord op = (wc.Current as OperatorWord)!;
 						wc.ShiftNext();
-						LiteralStringWord attr = wc.Current as LiteralStringWord;
+						LiteralStringWord attr = (wc.Current as LiteralStringWord)!;
 						wc.ShiftNext();
 						if (word == null || op == null || op.Code != OperatorCode.Assignment || attr == null)
 							goto error;
@@ -1102,11 +1102,11 @@ internal static class HtmlManager
 					string attrValue;
 					while (wc != null && !wc.EOL)
 					{
-						word = wc.Current as IdentifierWord;
+						word = (wc.Current as IdentifierWord)!;
 						wc.ShiftNext();
-						OperatorWord op = wc.Current as OperatorWord;
+						OperatorWord op = (wc.Current as OperatorWord)!;
 						wc.ShiftNext();
-						LiteralStringWord attr = wc.Current as LiteralStringWord;
+						LiteralStringWord attr = (wc.Current as LiteralStringWord)!;
 						wc.ShiftNext();
 						if (word == null || op == null || op.Code != OperatorCode.Assignment || attr == null)
 							goto error;
@@ -1200,17 +1200,17 @@ internal static class HtmlManager
 						throw new CodeEE(string.Format(trerror.TagHasNotAttribute.Text, tag));
 					#region EM_私家版_HTMLパラメータ拡張
 					// int[] param = null;
-					MixedNum[] param = null;
-					string type = null;
+					MixedNum[] param = null!;
+					string type = null!;
 					int color = -1;
 					int bcolor = -1;
 					while (!wc.EOL)
 					{
-						word = wc.Current as IdentifierWord;
+						word = (wc.Current as IdentifierWord)!;
 						wc.ShiftNext();
-						OperatorWord op = wc.Current as OperatorWord;
+						OperatorWord op = (wc.Current as OperatorWord)!;
 						wc.ShiftNext();
-						LiteralStringWord attr = wc.Current as LiteralStringWord;
+						LiteralStringWord attr = (wc.Current as LiteralStringWord)!;
 						wc.ShiftNext();
 						if (word == null || op == null || op.Code != OperatorCode.Assignment || attr == null)
 							goto error;
@@ -1285,16 +1285,16 @@ internal static class HtmlManager
 					HtmlAnalzeStateButtonTag buttonTag = new();
 					bool isButton = tag.Equals("button", StringComparison.OrdinalIgnoreCase);
 					string attrValue;
-					string value = null;
+					string value = null!;
 					//if (wc == null)
 					//	throw new CodeEE("<" + tag + ">タグに属性が設定されていません");
 					while (wc != null && !wc.EOL)
 					{
-						word = wc.Current as IdentifierWord;
+						word = (wc.Current as IdentifierWord)!;
 						wc.ShiftNext();
-						OperatorWord op = wc.Current as OperatorWord;
+						OperatorWord op = (wc.Current as OperatorWord)!;
 						wc.ShiftNext();
-						LiteralStringWord attr = wc.Current as LiteralStringWord;
+						LiteralStringWord attr = (wc.Current as LiteralStringWord)!;
 						wc.ShiftNext();
 						if (word == null || op == null || op.Code != OperatorCode.Assignment || attr == null)
 							goto error;
@@ -1368,11 +1368,11 @@ internal static class HtmlManager
 					if (wc != null)
 						while (!wc.EOL)
 						{
-							word = wc.Current as IdentifierWord;
+							word = (wc.Current as IdentifierWord)!;
 							wc.ShiftNext();
-							OperatorWord op = wc.Current as OperatorWord;
+							OperatorWord op = (wc.Current as OperatorWord)!;
 							wc.ShiftNext();
-							LiteralStringWord attr = wc.Current as LiteralStringWord;
+							LiteralStringWord attr = (wc.Current as LiteralStringWord)!;
 							wc.ShiftNext();
 							if (word == null || op == null || op.Code != OperatorCode.Assignment || attr == null)
 								goto error;
@@ -1398,11 +1398,11 @@ internal static class HtmlManager
 					HtmlAnalzeStateFontTag font = new();
 					while (!wc.EOL)
 					{
-						word = wc.Current as IdentifierWord;
+						word = (wc.Current as IdentifierWord)!;
 						wc.ShiftNext();
-						OperatorWord op = wc.Current as OperatorWord;
+						OperatorWord op = (wc.Current as OperatorWord)!;
 						wc.ShiftNext();
-						LiteralStringWord attr = wc.Current as LiteralStringWord;
+						LiteralStringWord attr = (wc.Current as LiteralStringWord)!;
 						wc.ShiftNext();
 						if (word == null || op == null || op.Code != OperatorCode.Assignment || attr == null)
 							goto error;

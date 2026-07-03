@@ -86,8 +86,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			XmlDocument doc = null;
-			XmlNodeList nodes = null;
+			XmlDocument doc = null!;
+			XmlNodeList nodes = null!;
 			if (arguments[0].GetOperandType() == typeof(long) || (byName && arguments[0].GetOperandType() == typeof(string)))
 			{
 				var idx = arguments[0].GetOperandType() == typeof(string) ? arguments[0].GetStrValue(exm) : arguments[0].GetIntValue(exm).ToString();
@@ -179,7 +179,7 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string arg = arguments[0].GetStrValue(exm).ToUpper();
-			string[] array = null;
+			string[] array = null!;
 			switch (type)
 			{
 				case EType.Function:
@@ -845,7 +845,7 @@ internal static partial class FunctionMethodCreator
 			}
 
 			string path = arguments[1].GetStrValue(exm);
-			XmlNodeList nodes = null;
+			XmlNodeList nodes = null!;
 			try
 			{
 				nodes = doc.SelectNodes(path)!;
@@ -949,7 +949,7 @@ internal static partial class FunctionMethodCreator
 				{
 					XmlAttribute attr;
 					if (method > 0 && !(node is XmlAttribute)) return false;
-					attr = method == 0 ? null : node as XmlAttribute;
+					attr = (method == 0 ? null : node as XmlAttribute)!;
 					switch (method)
 					{
 						case 0: node.Attributes!.Append(newAttr); break;
@@ -1190,7 +1190,7 @@ internal static partial class FunctionMethodCreator
 				}
 			}
 			bool saveToArg0 = true;
-			XmlDocument doc = null;
+			XmlDocument doc = null!;
 			if (arguments[0].GetOperandType() == typeof(long) || (byName && arguments[0].GetOperandType() == typeof(string)) || (arguments[0].GetOperandType() == typeof(string) && arguments.Count == 2))
 			{
 				saveToArg0 = false;
@@ -1374,7 +1374,7 @@ internal static partial class FunctionMethodCreator
 					}
 			}
 			if (contains) return 0;
-			Type t = null;
+			Type t = null!;
 			if (arguments.Count >= 3)
 			{
 				if (arguments[2].GetOperandType() == typeof(string)) t = Utils.DataTable.NameToType(arguments[2].GetStrValue(exm));
@@ -1657,8 +1657,8 @@ internal static partial class FunctionMethodCreator
 			var name = arguments[2].GetStrValue(exm);
 			if (name.ToLower() == "id") return 0;
 			var v = arguments.Count > 3 ? arguments[3] : null;
-			DataRow row = null;
-			if (asId) row = dt.Rows.Find(idx);
+			DataRow row = null!;
+			if (asId) row = dt.Rows.Find(idx)!;
 			else if (idx >= 0 && idx < dt.Rows.Count) row = dt.Rows[(int)idx];
 			if (row != null && dt.Columns.Contains(name))
 			{
@@ -1694,8 +1694,8 @@ internal static partial class FunctionMethodCreator
 			var dict = exm.VEvaluator.VariableData.DataDataTables;
 			if (!dict.ContainsKey(key)) return -1;
 			var dt = dict[key];
-			string filter = arguments.Count > 1 ? (arguments[1] != null ? arguments[1].GetStrValue(exm) : null) : null;
-			string sort = arguments.Count > 2 ? (arguments[2] != null ? arguments[2].GetStrValue(exm) : null) : null;
+			string filter = (arguments.Count > 1 ? (arguments[1] != null ? arguments[1].GetStrValue(exm) : null) : null)!;
+			string sort = (arguments.Count > 2 ? (arguments[2] != null ? arguments[2].GetStrValue(exm) : null) : null)!;
 			DataRow[] res;
 			if (sort != null) res = dt.Select(filter, sort);
 			else if (filter != null) res = dt.Select(filter);
@@ -4638,7 +4638,7 @@ internal static partial class FunctionMethodCreator
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string baseString = arguments[0].GetStrValue(exm);
-			Regex reg = null;
+			Regex reg = null!;
 			int type = arguments.Count == 4 ? (int)arguments[3].GetIntValue(exm) : 0;
 			if (type != 2)
 			{
@@ -5106,7 +5106,7 @@ internal static partial class FunctionMethodCreator
 			if (lineNo < 0)
 				// throw new CodeEE("引数を0未満にできません");
 				throw new CodeEE(string.Format(trerror.ArgIsNegative.Text, Name, 1, lineNo));
-			ConsoleDisplayLine[] dispLines = exm.Console.GetDisplayLines(lineNo);
+			ConsoleDisplayLine[] dispLines = exm.Console.GetDisplayLines(lineNo)!;
 			if (dispLines == null)
 				return "";
 			return HtmlManager.DisplayLine2Html(dispLines, true);
@@ -5124,7 +5124,7 @@ internal static partial class FunctionMethodCreator
 
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			ConsoleDisplayLine[] dispLines = exm.Console.PopDisplayingLines();
+			ConsoleDisplayLine[] dispLines = exm.Console.PopDisplayingLines()!;
 			if (dispLines == null)
 				return "";
 			return HtmlManager.DisplayLine2Html(dispLines, false);
@@ -6579,7 +6579,7 @@ internal static partial class FunctionMethodCreator
 				return 0;
 			if (AppContents.GetSprite(imgname) == null)
 				return 0;
-			SpriteAnime img = AppContents.GetSprite(imgname) as SpriteAnime;
+			SpriteAnime img = (AppContents.GetSprite(imgname) as SpriteAnime)!;
 			if (img == null || !img.IsCreated)
 				return 0;
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 1);
@@ -6824,7 +6824,7 @@ internal static partial class FunctionMethodCreator
 			if (z64 < int.MinValue || z64 > int.MaxValue || z64 == 0)
 				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, z64, 5 + 1));
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRangeExcept.Text, Name, 6, z64, int.MinValue, int.MaxValue, 0));
-			string tooltip = null;
+			string tooltip = null!;
 			if (arguments.Count > 6)
 				tooltip = arguments[6].GetStrValue(exm);
 			if (!exm.Console.CBG_SetButtonImage((int)b64, imgN, imgB, p.X, p.Y, (int)z64, tooltip))

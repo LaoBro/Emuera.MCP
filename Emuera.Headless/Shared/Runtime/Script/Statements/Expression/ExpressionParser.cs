@@ -213,11 +213,11 @@ internal static class ExpressionParser
 
 	public static VariableToken ReduceVariableIdentifier(WordCollection wc, string idStr)
 	{
-		string subId = null;
+		string subId = null!;
 		if (wc.Current.Type == '@')
 		{
 			wc.ShiftNext();
-			IdentifierWord subidWT = wc.Current as IdentifierWord;
+			IdentifierWord subidWT = (wc.Current as IdentifierWord)!;
 			if (subidWT == null)
 				throw new CodeEE(trerror.InvalidAt.Text);
 			wc.ShiftNext();
@@ -241,7 +241,7 @@ internal static class ExpressionParser
 
 	{
 		wc.ShiftNext();
-		SymbolWord symbol = wc.Current as SymbolWord;
+		SymbolWord symbol = (wc.Current as SymbolWord)!;
 		if (symbol != null && symbol.Type == '.')
 		{//名前空間
 			throw new NotImplCodeEE();
@@ -324,12 +324,12 @@ internal static class ExpressionParser
 	private static CaseExpression reduceCaseExpression(WordCollection wc)
 	{
 		CaseExpression ret = new();
-		IdentifierWord id = wc.Current as IdentifierWord;
+		IdentifierWord id = (wc.Current as IdentifierWord)!;
 		if (id != null && id.Code.Equals("IS", Config.Config.StringComparison))
 		{
 			wc.ShiftNext();
 			ret.CaseType = CaseExpressionType.Is;
-			OperatorWord opWT = wc.Current as OperatorWord;
+			OperatorWord opWT = (wc.Current as OperatorWord)!;
 			if (opWT == null)
 				throw new CodeEE(trerror.NoOpAfterIs.Text);
 
@@ -347,7 +347,7 @@ internal static class ExpressionParser
 		ret.LeftTerm = reduceTerm(wc, true, TermEndWith.Comma, VariableCode.__NULL__);
 		if (ret.LeftTerm == null)
 			throw new CodeEE(trerror.CanNotOmitCaseArg.Text);
-		id = wc.Current as IdentifierWord;
+		id = (wc.Current as IdentifierWord)!;
 		if (id != null && id.Code.Equals("TO", Config.Config.StringComparison))
 		{
 			ret.CaseType = CaseExpressionType.To;
@@ -355,7 +355,7 @@ internal static class ExpressionParser
 			ret.RightTerm = reduceTerm(wc, true, TermEndWith.Comma, VariableCode.__NULL__);
 			if (ret.RightTerm == null)
 				throw new CodeEE(trerror.NoExpressionAfterTo.Text);
-			id = wc.Current as IdentifierWord;
+			id = (wc.Current as IdentifierWord)!;
 			if (id != null && id.Code.Equals("TO", Config.Config.StringComparison))
 				throw new CodeEE(trerror.DuplicateTo.Text);
 			if (ret.LeftTerm.GetOperandType() != ret.RightTerm.GetOperandType())

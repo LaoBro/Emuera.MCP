@@ -54,7 +54,7 @@ internal sealed class CharacterData : IDisposable
 		for (int i = 0; i < varData.UserDefinedCharaVarList.Count; i++)
 		{
 			UserDefinedVariableData d = varData.UserDefinedCharaVarList[i].DimData;
-			object array = null;
+			object array = null!;
 			if (d.TypeIsStr)
 			{
 				switch (d.Dimension)
@@ -167,7 +167,7 @@ internal sealed class CharacterData : IDisposable
 
 	public static int[] CharacterVarLength(VariableCode code, ConstantData constant)
 	{
-		int[] ret = null;
+		int[] ret = null!;
 		VariableCode type = code & (VariableCode.__ARRAY_1D__ | VariableCode.__ARRAY_2D__ |
 			VariableCode.__ARRAY_3D__ | VariableCode.__INTEGER__ | VariableCode.__STRING__);
 		int i = (int)(code & VariableCode.__LOWERCASE__);
@@ -492,24 +492,24 @@ internal sealed class CharacterData : IDisposable
 		while (true)
 		{
 			KeyValuePair<string, EraSaveDataType> nameAndType = reader.ReadVariableCode();
-			VariableToken vToken = null;
-			object array = null;
+			VariableToken vToken = null!;
+			object array = null!;
 			if (nameAndType.Key != null)
 			{
 				if (!GlobalStatic.IdentifierDictionary.getVarTokenIsForbid(nameAndType.Key))
 					vToken = GlobalStatic.IdentifierDictionary.GetVariableToken(nameAndType.Key, null, false);
 				if (userDefineData)
 				{
-					array = vToken == null || !vToken.IsSavedata || !vToken.IsCharacterData || !(vToken is UserDefinedCharaVariableToken token)
+					array = (vToken == null || !vToken.IsSavedata || !vToken.IsCharacterData || !(vToken is UserDefinedCharaVariableToken token)
 						? null
-						: UserDefCVarDataList[token.ArrayIndex];
-					vToken = null;
+						: UserDefCVarDataList[token.ArrayIndex])!;
+					vToken = null!;
 				}
 				else
 				{
 					if (vToken != null)
 						codeInt = (int)VariableCode.__LOWERCASE__ & (int)vToken.Code;
-					array = null;
+					array = null!;
 				}
 			}
 			switch (nameAndType.Value)

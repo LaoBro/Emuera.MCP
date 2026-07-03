@@ -453,7 +453,7 @@ internal static class LogicalLineParser
 						List<int> lengths = [1];
 						if (func.Code == FunctionCode.VARI)
 						{
-							AExpression exp = null;
+							AExpression exp = null!;
 							if (leftSplit.Length > 1)
 							{
 								//配列である
@@ -495,7 +495,7 @@ internal static class LogicalLineParser
 						}
 						else if (func.Code == FunctionCode.VARS)
 						{
-							string value = default;
+							string value = default!;
 							if (leftSplit.Length > 1)
 							{
 								//配列である

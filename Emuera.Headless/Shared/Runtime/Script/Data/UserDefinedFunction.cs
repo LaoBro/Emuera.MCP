@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Script.Parser;
+using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
 using System.Collections.Generic;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
@@ -37,7 +37,7 @@ internal sealed class UserDefinedFunctionData
 		{
 			TypeIsStr = dims
 		};
-		IdentifierWord idw;
+		IdentifierWord? idw;
 		string keyword = dimtype;
 		while (!wc.EOL && (idw = wc.Current as IdentifierWord) != null)
 		{

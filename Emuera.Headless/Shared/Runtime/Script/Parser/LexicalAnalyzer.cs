@@ -1038,7 +1038,7 @@ internal static partial class LexicalAnalyzer
 		int count = 0;
 		while (!wc.EOL)
 		{
-			IdentifierWord word = wc.Current as IdentifierWord;
+			IdentifierWord word = (wc.Current as IdentifierWord)!;
 			if (word == null)
 			{
 				wc.ShiftNext();
@@ -1071,7 +1071,7 @@ internal static partial class LexicalAnalyzer
 	{
 		var macroStart = wc.Pointer;
 		wc.ShiftNext();
-		SymbolWord symbol = wc.Current as SymbolWord;
+		SymbolWord symbol = (wc.Current as SymbolWord)!;
 		if (symbol == null || symbol.Type != '(')
 			throw new CodeEE(string.Format(trerror.MacroHasNotArg.Text, macro.Keyword));
 		WordCollection macroWC = macro.Statement.Clone();
@@ -1086,7 +1086,7 @@ internal static partial class LexicalAnalyzer
 				wc.ShiftNext();
 				if (wc.EOL)
 					throw new CodeEE(string.Format(trerror.WrongMacroUsage.Text, macro.Keyword));
-				symbol = wc.Current as SymbolWord;
+				symbol = (wc.Current as SymbolWord)!;
 				if (symbol == null)
 				{
 					args[i].Add(wc.Current);
@@ -1118,7 +1118,7 @@ internal static partial class LexicalAnalyzer
 		}
 	//引数部読み取りループ終端
 	exitfor:
-		symbol = wc.Current as SymbolWord;
+		symbol = (wc.Current as SymbolWord)!;
 		if (symbol == null || symbol.Type != ')')
 			throw new CodeEE(string.Format(trerror.WrongMacroUsage.Text, macro.Keyword));
 		var macroEnd = wc.Pointer;
@@ -1130,7 +1130,7 @@ internal static partial class LexicalAnalyzer
 		}
 		while (!macroWC.EOL)
 		{
-			MacroWord w = macroWC.Current as MacroWord;
+			MacroWord w = (macroWC.Current as MacroWord)!;
 			if (w == null)
 			{
 				macroWC.ShiftNext();

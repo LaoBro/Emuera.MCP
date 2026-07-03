@@ -291,7 +291,9 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 					throw new ExeEE("This game comes prepackaged with plugins. This is a security check to make sure you're aware of that: Never run your EE under Administrator rights, Always get your games and Plugins from verified sources and If you're maintainer of the build and it should NOT come with plugins, Investigate immediately. If everything is okay, create file pluginsAware.txt at the root of the game distributive and restart");
 				}
 
-				PluginManifestAbstract manifest = (PluginManifestAbstract)Activator.CreateInstance(manifestType);
+#pragma warning disable CS8600
+				PluginManifestAbstract? manifest = (PluginManifestAbstract)Activator.CreateInstance(manifestType);
+#pragma warning restore CS8600
 				if (manifest == null)
 				{
 					//TODO: throw warning

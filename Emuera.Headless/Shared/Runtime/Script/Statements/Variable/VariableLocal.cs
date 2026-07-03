@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using System.Collections.Generic;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
@@ -21,7 +21,7 @@ internal sealed class VariableLocal
 	Dictionary<string, LocalVariableToken> localVarTokens = [];
 	public LocalVariableToken GetExistLocalVariableToken(string subKey)
 	{
-		if (localVarTokens.TryGetValue(subKey, out LocalVariableToken ret))
+		if (localVarTokens.TryGetValue(subKey, out LocalVariableToken? ret))
 			return ret;
 		return null;
 	}
@@ -33,7 +33,7 @@ internal sealed class VariableLocal
 
 	public LocalVariableToken GetNewLocalVariableToken(string subKey, FunctionLabelLine func)
 	{
-		LocalVariableToken ret = null;
+		LocalVariableToken ret = null!;
 		int newSize = 0;
 		if (varCode == VariableCode.LOCAL)
 			newSize = func.LocalLength;
@@ -70,7 +70,7 @@ internal sealed class VariableLocal
 
 	public void ResizeLocalVariableToken(string subKey, int newSize)
 	{
-		if (localVarTokens.TryGetValue(subKey, out LocalVariableToken ret))
+		if (localVarTokens.TryGetValue(subKey, out LocalVariableToken? ret))
 		{
 			if (size < newSize)
 				ret.resize(newSize);

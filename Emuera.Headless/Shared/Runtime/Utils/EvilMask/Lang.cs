@@ -1381,7 +1381,7 @@ internal sealed partial class Lang
 			return;
 		}
 
-		if (langList.TryGetValue(Config.Config.EmueraLang, out string lang))
+		if (langList.TryGetValue(Config.Config.EmueraLang, out string? lang))
 		{
 			loadLangXML(LoadXmlFile(lang));
 			return;
@@ -1424,7 +1424,7 @@ internal sealed partial class Lang
 			return;
 		}
 
-		if (!langList.TryGetValue(Config.Config.EmueraLang, out string path))
+		if (!langList.TryGetValue(Config.Config.EmueraLang, out string? path))
 			return;
 
 		XmlDocument xml;
@@ -1510,7 +1510,7 @@ internal sealed partial class Lang
 		if (addr.Length > 0) addr += '.';
 		foreach (var nt in t.GetNestedTypes())
 		{
-			string tr = null;
+			string tr = null!;
 			bool managed = false;
 			foreach (var attr in nt.GetCustomAttributes(false))
 			{

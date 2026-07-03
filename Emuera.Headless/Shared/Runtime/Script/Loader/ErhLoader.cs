@@ -192,7 +192,7 @@ internal sealed class ErhLoader
 				throw new CodeEE(trerror.FuncMacroArgIs0.Text, position);
 			while (!wc.EOL)
 			{
-				IdentifierWord word = wc.Current as IdentifierWord;
+				IdentifierWord word = (wc.Current as IdentifierWord)!;
 				if (word == null)
 					throw new CodeEE(trerror.WrongFormatReplacementSource.Text, position);
 				word.SetIsMacro();
@@ -227,7 +227,7 @@ internal sealed class ErhLoader
 		{
 			while (!destWc.EOL)
 			{
-				IdentifierWord word = destWc.Current as IdentifierWord;
+				IdentifierWord word = (destWc.Current as IdentifierWord)!;
 				if (word == null)
 				{
 					destWc.ShiftNext();
@@ -282,7 +282,7 @@ internal sealed class ErhLoader
 					UserDefinedVariableData data = UserDefinedVariableData.Create(dimline);
 					if (data.Reference)
 						throw new NotImplCodeEE();
-					VariableToken var = null;
+					VariableToken var = null!;
 					if (data.CharaData)
 						var = parentProcess.VEvaluator.VariableData.CreateUserDefCharaVariable(data, dimline);
 					else

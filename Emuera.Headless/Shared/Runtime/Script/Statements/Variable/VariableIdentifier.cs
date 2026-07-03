@@ -252,9 +252,9 @@ internal sealed class VariableIdentifier
 	{
 		VariableCode gFlag = flag &
 			(VariableCode.__ARRAY_1D__ | VariableCode.__ARRAY_2D__ | VariableCode.__ARRAY_3D__ | VariableCode.__CHARACTER_DATA__ | VariableCode.__STRING__ | VariableCode.__INTEGER__);
-		if (!extSaveListDic.TryGetValue(gFlag, out List<VariableCode> value))
+		if (!extSaveListDic.TryGetValue(gFlag, out List<VariableCode>? value))
 			return [];
-		return value;
+		return value!;
 	}
 
 	public static VariableIdentifier GetVariableId(VariableCode code)

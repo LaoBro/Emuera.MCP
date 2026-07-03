@@ -433,7 +433,7 @@ internal sealed class ProcessState
 		}
 		else if (Program.DebugMode)
 		{
-			FunctionLabelLine label = called.CurrentLabel;
+			FunctionLabelLine label = called.CurrentLabel!;
 			long line = currentLine.Position!.Value.LineNo;
 			console.DebugAddTraceLog(string.Format(trsl.DebugTraceCall.Text, label!.LabelName, label!.Position!.Value.Filename, label.Position!.Value.LineNo, line));
 		}

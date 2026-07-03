@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Script.Statements.Function;
+using MinorShift.Emuera.Runtime.Script.Statements.Function;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
@@ -81,7 +81,7 @@ internal static class OperatorMethodManager
 
 	public static AExpression ReduceUnaryTerm(OperatorCode op, AExpression o1)
 	{
-		OperatorMethod method = null;
+		OperatorMethod method = null!;
 		if (op == OperatorCode.Increment || op == OperatorCode.Decrement)
 		{
 			if (!(o1 is VariableTerm var))
@@ -93,7 +93,7 @@ internal static class OperatorMethodManager
 		{
 			if (op == OperatorCode.Plus)
 				return o1;
-			if (unaryDic.TryGetValue(op, out OperatorMethod value))
+			if (unaryDic.TryGetValue(op, out OperatorMethod? value))
 				method = value;
 		}
 		if (method != null)
@@ -111,7 +111,7 @@ internal static class OperatorMethodManager
 
 	public static AExpression ReduceUnaryAfterTerm(OperatorCode op, AExpression o1)
 	{
-		OperatorMethod method = null;
+		OperatorMethod method = null!;
 		if (op == OperatorCode.Increment || op == OperatorCode.Decrement)
 		{
 			if (!(o1 is VariableTerm var))
@@ -121,7 +121,7 @@ internal static class OperatorMethodManager
 		}
 		if (o1.GetOperandType() == typeof(long))
 		{
-			if (unaryAfterDic.TryGetValue(op, out OperatorMethod value))
+			if (unaryAfterDic.TryGetValue(op, out OperatorMethod? value))
 				method = value;
 		}
 		if (method != null)
@@ -139,15 +139,15 @@ internal static class OperatorMethodManager
 
 	public static AExpression ReduceBinaryTerm(OperatorCode op, AExpression left, AExpression right)
 	{
-		OperatorMethod method = null;
+		OperatorMethod method = null!;
 		if (left.GetOperandType() == typeof(long) && right.GetOperandType() == typeof(long))
 		{
-			if (binaryIntIntDic.TryGetValue(op, out OperatorMethod value))
+			if (binaryIntIntDic.TryGetValue(op, out OperatorMethod? value))
 				method = value;
 		}
 		else if (left.GetOperandType() == typeof(string) && right.GetOperandType() == typeof(string))
 		{
-			if (binaryStrStrDic.TryGetValue(op, out OperatorMethod value))
+			if (binaryStrStrDic.TryGetValue(op, out OperatorMethod? value))
 				method = value;
 		}
 		else if (left.GetOperandType() == typeof(long) && right.GetOperandType() == typeof(string)
@@ -177,7 +177,7 @@ internal static class OperatorMethodManager
 
 	public static AExpression ReduceTernaryTerm(AExpression o1, AExpression o2, AExpression o3)
 	{
-		OperatorMethod method = null;
+		OperatorMethod method = null!;
 		if (o1.GetOperandType() == typeof(long) && o2.GetOperandType() == typeof(long) && o3.GetOperandType() == typeof(long))
 			method = ternaryIntIntInt;
 		else if (o1.GetOperandType() == typeof(long) && o2.GetOperandType() == typeof(string) && o3.GetOperandType() == typeof(string))

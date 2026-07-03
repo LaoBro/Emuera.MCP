@@ -483,7 +483,7 @@ internal partial class IdentifierDictionary
 
 	public VariableToken GetVariableToken(string key, string subKey, bool allowPrivate)
 	{
-		VariableToken ret;
+		VariableToken? ret;
 		//if (Config.Config.IgnoreCase)
 		//	key = key.ToUpper();
 		if (allowPrivate)
@@ -500,7 +500,7 @@ internal partial class IdentifierDictionary
 				}
 			}
 		}
-		if (localvarTokenDic.TryGetValue(key, out VariableLocal value))
+		if (localvarTokenDic.TryGetValue(key, out VariableLocal? value))
 		{
 			if (value.IsForbid)
 			{
@@ -549,7 +549,7 @@ internal partial class IdentifierDictionary
 			return null;
 		if (Config.IgnoreCase)
 			key = key.ToUpper();
-		if (instructionDic.TryGetValue(key, out FunctionIdentifier ret))
+		if (instructionDic.TryGetValue(key, out FunctionIdentifier? ret))
 			return ret;
 		else
 			return null;
@@ -572,7 +572,7 @@ internal partial class IdentifierDictionary
 
 	public UserDefinedRefMethod GetRefMethod(string codeStr)
 	{
-		if (refmethodDic.TryGetValue(codeStr, out UserDefinedRefMethod value))
+		if (refmethodDic.TryGetValue(codeStr, out UserDefinedRefMethod? value))
 			return value;
 		return null;
 	}
@@ -583,13 +583,13 @@ internal partial class IdentifierDictionary
 		//	codeStr = codeStr.ToUpper();
 		if (arguments == null)//引数なし、名前のみの探索
 		{
-			if (refmethodDic.TryGetValue(codeStr, out UserDefinedRefMethod value))
+			if (refmethodDic.TryGetValue(codeStr, out UserDefinedRefMethod? value))
 				return new UserDefinedRefMethodNoArgTerm(value);
 			return null;
 		}
 		if ((labelDic != null) && labelDic.Initialized)
 		{
-			if (refmethodDic.TryGetValue(codeStr, out UserDefinedRefMethod value))
+			if (refmethodDic.TryGetValue(codeStr, out UserDefinedRefMethod? value))
 				return new UserDefinedRefMethodTerm(value, arguments);
 			FunctionLabelLine func = labelDic.GetNonEventLabel(codeStr);
 			if (func != null)
@@ -613,7 +613,7 @@ internal partial class IdentifierDictionary
 		}
 		if (userDefinedOnly)
 			return null;
-		if (!methodDic.TryGetValue(codeStr, out FunctionMethod method))
+		if (!methodDic.TryGetValue(codeStr, out FunctionMethod? method))
 			return null;
 		string errmes = method.CheckArgumentType(codeStr, arguments);
 		if (errmes != null)
@@ -692,9 +692,9 @@ internal partial class IdentifierDictionary
 	}
 	public bool getVarTokenIsForbid(string key)
 	{
-		if (localvarTokenDic.TryGetValue(key, out VariableLocal value))
+		if (localvarTokenDic.TryGetValue(key, out VariableLocal? value))
 			return value.IsForbid;
-		varTokenDic.TryGetValue(key, out VariableToken var);
+		varTokenDic.TryGetValue(key, out VariableToken? var);
 		if (var != null)
 			return var.IsForbid;
 		return true;

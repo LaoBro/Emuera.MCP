@@ -118,7 +118,7 @@ internal sealed class WordCollection
 	public void InsertRange(WordCollection wc)
 	{
 		var pointer = Pointer?.Previous;
-		LinkedListNode<Word> lastPointer = null;
+		LinkedListNode<Word> lastPointer = null!;
 		foreach (var word in wc.Collection)
 		{
 			if (pointer == null)

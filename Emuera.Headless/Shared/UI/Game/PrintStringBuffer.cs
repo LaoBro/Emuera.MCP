@@ -501,7 +501,7 @@ internal sealed class PrintStringBuffer
 	private static int getDivideIndex(ConsoleButtonString button, StringMeasure sm, int divWidth = 0)
 	#endregion
 	{
-		AConsoleDisplayNode divCss = null;
+		AConsoleDisplayNode divCss = null!;
 		int pointX = button.PointX;
 		int strLength = 0;
 		int index = 0;
@@ -541,7 +541,7 @@ internal sealed class PrintStringBuffer
 			return -1;
 		#region EM_私家版_描画拡張
 		if (divWidth == 0) divWidth = Config.DrawableWidth;
-		ConsoleStyledString css = part as ConsoleStyledString;
+		ConsoleStyledString css = (part as ConsoleStyledString)!;
 		if (part == null)
 			return -1;
 		// int widthLimit = Config.DrawableWidth - css.PointX;

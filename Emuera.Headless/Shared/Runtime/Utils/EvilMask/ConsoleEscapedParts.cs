@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.UI.Game;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -110,7 +110,7 @@ internal sealed class ConsoleEscapedParts
 			.Where(r => ((sbyte)r[ROW_DIVTYPE] & 2) != 0 || (int)r[ROW_TOP] <= bottom + 1 && (int)r[ROW_BOTTOM] >= top && r[ROW_LINE] is int line
 			&& ((sbyte)r[ROW_DIVTYPE] != 0 || top > line || line > bottom + 1)))
 		{
-			List<AConsoleDisplayNode> list = null;
+			List<AConsoleDisplayNode>? list = null;
 			rmap.TryGetValue((int)row[ROW_DEPTH], out list);
 			if (list == null)
 			{

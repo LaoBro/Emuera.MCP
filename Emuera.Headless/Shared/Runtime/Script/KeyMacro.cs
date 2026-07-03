@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Sub;
+using MinorShift.Emuera.Sub;
 using System;
 using System.IO;
 using trmk = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.KeyMacro;
@@ -52,7 +52,7 @@ internal static class KeyMacro
 	{
 		if (!isMacroChanged)
 			return true;
-		StreamWriter writer = null;
+		StreamWriter writer = null!;
 
 		try
 		{
@@ -84,8 +84,8 @@ internal static class KeyMacro
 		if (!eReader.Open(filename))
 			return;
 		try
-		{
-			string line = null;
+	{
+		string line = null!;
 			while ((line = eReader.ReadLine()) != null)
 			{
 				if (line.Length == 0 || line[0] == ';')

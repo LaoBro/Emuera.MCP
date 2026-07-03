@@ -2674,7 +2674,7 @@ internal sealed partial class FunctionIdentifier
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
 			long waittime = -1;
-			ExpressionArgument arg = func.Argument as ExpressionArgument;
+			ExpressionArgument arg = (func.Argument as ExpressionArgument)!;
 			if (arg != null && arg.Term != null)
 			{
 				waittime = arg.Term.GetIntValue(exm);
@@ -2702,7 +2702,7 @@ internal sealed partial class FunctionIdentifier
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
 			var soundArg = (SpHtmlPrint)func.Argument;
-			string datFilename = null;
+			string datFilename = null!;
 			if (soundArg.IsConst)
 				datFilename = soundArg.ConstStr;
 			else
@@ -2766,7 +2766,7 @@ internal sealed partial class FunctionIdentifier
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
 			ExpressionArgument arg = (ExpressionArgument)func.Argument;
-			string datFilename = null;
+			string datFilename = null!;
 			if (arg.IsConst)
 				datFilename = arg.ConstStr;
 			else
@@ -3289,7 +3289,7 @@ internal sealed partial class FunctionIdentifier
 		{
 			LogicalLine caseJumpto = func.JumpTo;//ENDSELECT
 			AExpression selectValue = ((ExpressionArgument)func.Argument).Term;
-			string sValue = null;
+			string sValue = null!;
 			long iValue = 0;
 			if (selectValue.IsInteger)
 				iValue = selectValue.GetIntValue(exm);
@@ -3329,7 +3329,7 @@ internal sealed partial class FunctionIdentifier
 				}
 				else
 				{
-					string Is = sValue;
+					string Is = sValue!;
 					foreach (CaseExpression caseExp in caseArg.CaseExps)
 					{
 						if (caseExp.GetBool(Is!, exm))
@@ -3621,7 +3621,7 @@ internal sealed partial class FunctionIdentifier
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
 			AExpression term = ((ExpressionArgument)func.Argument).Term;
-			SingleTerm ret = null;
+			SingleTerm ret = null!;
 			if (term != null)
 			{
 				ret = term.GetValue(exm);
@@ -3693,7 +3693,7 @@ internal sealed partial class FunctionIdentifier
 			SpCallArgment spCallArg = (SpCallArgment)func.Argument;
 			CalledFunction call;
 			string labelName;
-			UserDefinedFunctionArgument arg = null;
+			UserDefinedFunctionArgument arg = null!;
 			if (spCallArg.IsConst)
 			{
 				call = spCallArg.CallFunc;

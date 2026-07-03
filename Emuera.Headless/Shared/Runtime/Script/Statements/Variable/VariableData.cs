@@ -307,7 +307,7 @@ internal sealed partial class VariableData : IDisposable
 		varTokenDic.Add("GAMEBASE_DEFAULTCHARA", new IntConstantToken(VariableCode.GAMEBASE_DEFAULTCHARA, this, gamebase.DefaultCharacter));
 		varTokenDic.Add("GAMEBASE_NOITEM", new IntConstantToken(VariableCode.GAMEBASE_NOITEM, this, gamebase.DefaultNoItem));
 
-		VariableToken rand = null;
+		VariableToken rand = null!;
 		if (Config.CompatiRAND)
 			rand = new CompatiRandToken(VariableCode.RAND, this);
 		else
@@ -377,7 +377,7 @@ internal sealed partial class VariableData : IDisposable
 
 	public UserDefinedCharaVariableToken CreateUserDefCharaVariable(UserDefinedVariableData data, DimLineWC dimline)
 	{
-		UserDefinedCharaVariableToken ret = null;
+		UserDefinedCharaVariableToken ret = null!;
 		if (data.CharaData)
 		{
 			int index = UserDefinedCharaVarList.Count;
@@ -845,33 +845,33 @@ internal sealed partial class VariableData : IDisposable
 		int i = 0;
 		varList = userDefinedSaveVarList[i]; i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (strListDic.TryGetValue(var.Name, out List<string> value))
-				copyListToArray(value, (string[])var.GetArray());
+			if (strListDic.TryGetValue(var.Name, out List<string>? value))
+			copyListToArray(value!, (string[])var.GetArray());
 
 		varList = userDefinedSaveVarList[i]; i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (intListDic.TryGetValue(var.Name, out List<long> value))
-				copyListToArray(value, (long[])var.GetArray());
+			if (intListDic.TryGetValue(var.Name, out List<long>? value))
+			copyListToArray(value!, (long[])var.GetArray());
 
 		varList = userDefinedSaveVarList[i]; i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (str2DListDic.TryGetValue(var.Name, out List<string[]> value))
-				copyListToArray2D(value, (string[,])var.GetArray());
+			if (str2DListDic.TryGetValue(var.Name, out List<string[]>? value))
+			copyListToArray2D(value!, (string[,])var.GetArray());
 
 		varList = userDefinedSaveVarList[i]; i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (int2DListDic.TryGetValue(var.Name, out List<long[]> value))
-				copyListToArray2D(value, (long[,])var.GetArray());
+			if (int2DListDic.TryGetValue(var.Name, out List<long[]>? value))
+			copyListToArray2D(value!, (long[,])var.GetArray());
 
 		varList = userDefinedSaveVarList[i]; i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (str3DListDic.TryGetValue(var.Name, out List<List<string[]>> value))
-				copyListToArray3D(value, (string[,,])var.GetArray());
+			if (str3DListDic.TryGetValue(var.Name, out List<List<string[]>>? value))
+			copyListToArray3D(value!, (string[,,])var.GetArray());
 
 		varList = userDefinedSaveVarList[i];// i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (int3DListDic.TryGetValue(var.Name, out List<List<long[]>> value))
-				copyListToArray3D(value, (long[,,])var.GetArray());
+			if (int3DListDic.TryGetValue(var.Name, out List<List<long[]>>? value))
+			copyListToArray3D(value!, (long[,,])var.GetArray());
 	}
 
 	private static void copyListToArray<T>(List<T> srcList, T[] destArray)
@@ -966,33 +966,33 @@ internal sealed partial class VariableData : IDisposable
 		int i = 0;
 		varList = userDefinedGlobalSaveVarList[i]; i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (strListDic.TryGetValue(var.Name, out List<string> value))
-				copyListToArray(value, (string[])var.GetArray());
+			if (strListDic.TryGetValue(var.Name, out List<string>? value))
+			copyListToArray(value!, (string[])var.GetArray());
 
 		varList = userDefinedGlobalSaveVarList[i]; i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (intListDic.TryGetValue(var.Name, out List<long> value))
-				copyListToArray(value, (long[])var.GetArray());
+			if (intListDic.TryGetValue(var.Name, out List<long>? value))
+			copyListToArray(value!, (long[])var.GetArray());
 
 		varList = userDefinedGlobalSaveVarList[i]; i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (str2DListDic.TryGetValue(var.Name, out List<string[]> value))
-				copyListToArray2D(value, (string[,])var.GetArray());
+			if (str2DListDic.TryGetValue(var.Name, out List<string[]>? value))
+			copyListToArray2D(value!, (string[,])var.GetArray());
 
 		varList = userDefinedGlobalSaveVarList[i]; i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (int2DListDic.TryGetValue(var.Name, out List<long[]> value))
-				copyListToArray2D(value, (long[,])var.GetArray());
+			if (int2DListDic.TryGetValue(var.Name, out List<long[]>? value))
+			copyListToArray2D(value!, (long[,])var.GetArray());
 
 		varList = userDefinedGlobalSaveVarList[i]; i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (str3DListDic.TryGetValue(var.Name, out List<List<string[]>> value))
-				copyListToArray3D(value, (string[,,])var.GetArray());
+			if (str3DListDic.TryGetValue(var.Name, out List<List<string[]>>? value))
+			copyListToArray3D(value!, (string[,,])var.GetArray());
 
 		varList = userDefinedGlobalSaveVarList[i];// i++;
 		foreach (UserDefinedVariableToken var in varList)
-			if (int3DListDic.TryGetValue(var.Name, out List<List<long[]>> value))
-				copyListToArray3D(value, (long[,,])var.GetArray());
+			if (int3DListDic.TryGetValue(var.Name, out List<List<long[]>>? value))
+			copyListToArray3D(value!, (long[,,])var.GetArray());
 	}
 
 	#region EM_私家版_セーブ拡張
@@ -1168,11 +1168,11 @@ internal sealed partial class VariableData : IDisposable
 	public bool LoadVariableBinary(EraBinaryDataReader reader)
 	{
 		KeyValuePair<string, EraSaveDataType> nameAndType = reader.ReadVariableCode();
-		VariableToken vToken = null;
+		VariableToken vToken = null!;
 		if (nameAndType.Key != null && !GlobalStatic.IdentifierDictionary.getVarTokenIsForbid(nameAndType.Key))
 			vToken = GlobalStatic.IdentifierDictionary.GetVariableToken(nameAndType.Key, null, false);
 		if (vToken != null && (vToken.IsCharacterData || vToken.IsConst || vToken.IsPrivate || vToken.IsLocal || vToken.IsCalc))
-			vToken = null;
+			vToken = null!;
 		switch (nameAndType.Value)
 		{
 			#region EM_私家版_セーブ拡張

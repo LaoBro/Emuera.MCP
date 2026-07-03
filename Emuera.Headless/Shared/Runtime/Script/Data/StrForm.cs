@@ -86,7 +86,7 @@ internal sealed class StrForm
 			}
 			WordCollection wc;
 			AExpression operand;
-			YenAtSubWord yenat = SWT as YenAtSubWord;
+			YenAtSubWord yenat = (SWT as YenAtSubWord)!;
 			if (yenat != null)
 			{
 				wc = yenat.Words;
@@ -116,8 +116,8 @@ internal sealed class StrForm
 				else
 					throw new CodeEE(trerror.EmptyPer.Text);
 			}
-			AExpression second = null;
-			SingleTerm third = null;
+			AExpression second = null!;
+			SingleTerm third = null!;
 			wc.ShiftNext();
 			if (!wc.EOL)
 			{

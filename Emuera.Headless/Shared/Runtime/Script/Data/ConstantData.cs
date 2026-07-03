@@ -231,7 +231,7 @@ internal sealed class ConstantData
 			output.PrintSystemLine(string.Format(trsl.LoadingFile.Text, eReader.Filename));
 		try
 		{
-			CharStream st = null;
+			CharStream st = null!;
 			while ((st = eReader.ReadEnabledLine()) != null)
 			{
 				position = new ScriptPosition(eReader.Filename, eReader.LineNo);
@@ -850,7 +850,7 @@ internal sealed class ConstantData
 			{
 				return false;
 			}
-			bool found = erdNameToIntDics.TryGetValue(varname, out Dictionary<string, int> dic);
+			bool found = erdNameToIntDics.TryGetValue(varname, out Dictionary<string, int>? dic);
 			if (!found) return false;
 			return dic!.TryGetValue(key, out ret);
 		}
@@ -865,7 +865,7 @@ internal sealed class ConstantData
 		if (string.IsNullOrEmpty(varname))
 			return false;
 
-		if (!erdNameToIntDics.TryGetValue(varname, out Dictionary<string, int> dic))
+		if (!erdNameToIntDics.TryGetValue(varname, out Dictionary<string, int>? dic))
 			return false;
 
 		var keyValuePair = dic.FirstOrDefault(x => x.Value == value);
@@ -899,7 +899,7 @@ internal sealed class ConstantData
 	{
 		errPos = null;
 		int allowIndex = -1;
-		Dictionary<string, int> ret = null;
+		Dictionary<string, int> ret = null!;
 		switch (code)
 		{
 			case VariableCode.ABL:
@@ -1266,7 +1266,7 @@ internal sealed class ConstantData
 			{
 				targetList = spList;
 			}
-			if (targetList.TryGetValue(tmpl.No, out CharacterTemplate chara))
+			if (targetList.TryGetValue(tmpl.No, out CharacterTemplate? chara))
 			{
 
 				if (!Config.Config.CompatiSPChara && tmpl.IsSpchara != chara.IsSpchara)
@@ -1301,7 +1301,7 @@ internal sealed class ConstantData
 				output.PrintSystemLine(string.Format(trsl.LoadingFile.Text, eReader.Filename));
 			try
 			{
-				CharStream st = null;
+				CharStream st = null!;
 				while ((st = eReader.ReadEnabledLine()) != null)
 				{
 					position = new ScriptPosition(eReader.Filename, eReader.LineNo);
@@ -1392,7 +1392,7 @@ internal sealed class ConstantData
 	#endregion
 	private void loadCharacterDataFile(string csvPath, string csvName, bool disp)
 	{
-		CharacterTemplate tmpl = null;
+		CharacterTemplate tmpl = null!;
 		using var eReader = new EraStreamReader(false);
 		if (!eReader.OpenOnCache(csvPath, csvName))
 		{
@@ -1405,7 +1405,7 @@ internal sealed class ConstantData
 		try
 		{
 			long index = -1;
-			CharStream st = null;
+			CharStream st = null!;
 			while ((st = eReader.ReadEnabledLine()) != null)
 			{
 				position = new ScriptPosition(eReader.Filename, eReader.LineNo);
@@ -1529,11 +1529,11 @@ internal sealed class ConstantData
 		if (chara == null)
 			return;
 		int length;
-		Dictionary<int, long> intArray = null;
-		Dictionary<int, string> strArray = null;
+		Dictionary<int, long> intArray = null!;
+		Dictionary<int, string> strArray = null!;
 		Dictionary<string, int> namearray;
 
-		string errPos = null;
+		string errPos = null!;
 		Span<char> chars = stackalloc char[tokens[0].Length];
 		var varname = tokens[0].AsSpan().ToUpper(chars, CultureInfo.InvariantCulture);
 		switch (chars)
@@ -1593,7 +1593,7 @@ internal sealed class ConstantData
 			case "相性":
 				length = CharacterIntArrayLength[(int)(VariableCode.__LOWERCASE__ & VariableCode.RELATION)];
 				intArray = chara.Relation;
-				namearray = null;
+				namearray = null!;
 				break;
 			case "CFLAG":
 			case "フラグ":
@@ -1715,7 +1715,7 @@ internal sealed class ConstantData
 			output.PrintSystemLine(string.Format(trsl.LoadingFile.Text, eReader.Filename));
 		try
 		{
-			CharStream st = null;
+			CharStream st = null!;
 			Span<Range> dest = stackalloc Range[5];
 			while ((st = eReader.ReadEnabledLine()) != null)
 			{
@@ -1801,7 +1801,7 @@ internal sealed class ConstantData
 		ScriptPosition? position = null;
 		try
 		{
-			CharStream st = null;
+			CharStream st = null!;
 			while ((st = eReader.ReadEnabledLine()) != null)
 			{
 				position = new ScriptPosition(eReader.Filename, eReader.LineNo);

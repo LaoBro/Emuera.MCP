@@ -300,8 +300,8 @@ internal class FunctionLabelLine : LogicalLine, IComparable<FunctionLabelLine>
 	}
 	internal UserDefinedVariableToken GetPrivateVariable(string key)
 	{
-		privateVar.TryGetValue(key, out UserDefinedVariableToken var);
-		return var;
+		privateVar.TryGetValue(key, out UserDefinedVariableToken? var);
+		return var!;
 	}
 
 	/// <summary>

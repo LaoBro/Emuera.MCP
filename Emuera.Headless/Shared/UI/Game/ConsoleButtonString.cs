@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Utils;
@@ -177,7 +177,7 @@ internal sealed class ConsoleButtonString
 			int length = strArray[cssIndex].Text.Length;
 			if (divIndex < index + length)
 			{
-				ConsoleStyledString oldcss = strArray[cssIndex] as ConsoleStyledString;
+				ConsoleStyledString oldcss = (strArray[cssIndex] as ConsoleStyledString)!;
 				if (oldcss == null || !oldcss.CanDivide)
 					throw new ExeEE("文字列分割異常");
 				ConsoleStyledString newCss = oldcss.DivideAt(divIndex - index, sm);

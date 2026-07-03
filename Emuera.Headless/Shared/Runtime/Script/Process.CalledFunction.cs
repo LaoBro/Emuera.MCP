@@ -171,7 +171,7 @@ internal sealed class CalledFunction
 		//bool isString = false;
 		for (int i = 0; i < func.Arg.Length; i++)
 		{
-			term = i < srcArgs.Count ? srcArgs[i] : null;
+			term = i < srcArgs.Count ? srcArgs[i] : null!;
 			destArg = func.Arg[i];
 			//isString = destArg.IsString;
 			if (destArg.Identifier.IsReference)//参照渡しの場合
@@ -181,7 +181,7 @@ internal sealed class CalledFunction
 					errMes = string.Format(trerror.CanNotOmitRefArg.Text, func.LabelName, (i + 1).ToString());
 					return null;
 				}
-				VariableTerm vTerm = term as VariableTerm;
+				VariableTerm vTerm = (term as VariableTerm)!;
 				if (vTerm == null || vTerm.Identifier.Dimension == 0)
 				{
 					errMes = string.Format(trerror.RequireArrayBecauseRefArg.Text, func.LabelName, (i + 1).ToString());

@@ -1212,9 +1212,9 @@ internal sealed class VariableEvaluator : IDisposable
 			sortorder = SortOrder.ASCENDING;
 		if (sortkey == null)
 			sortkey = GlobalStatic.VariableData.GetSystemVariableToken("NO");
-		CharacterData masterChara = null;
-		CharacterData targetChara = null;
-		CharacterData assiChara = null;
+		CharacterData masterChara = null!;
+		CharacterData targetChara = null!;
+		CharacterData assiChara = null!;
 		if (MASTER >= 0 && MASTER < varData.CharacterList.Count)
 			masterChara = varData.CharacterList[(int)MASTER];
 		if (TARGET >= 0 && TARGET < varData.CharacterList.Count)
@@ -1398,8 +1398,8 @@ internal sealed class VariableEvaluator : IDisposable
 				{
 					if (arg2 >= tmpl.ArrayStrLength(CharacterStrData.CSTR) || arg2 < 0)
 						throw new CodeEE(trerror.OoRCstr.Text);
-					if (tmpl.CStr.TryGetValue(arg2, out string ret))
-						return ret;
+					if (tmpl.CStr.TryGetValue(arg2, out string? ret))
+					return ret!;
 					else
 						return "";
 				}
@@ -1844,7 +1844,7 @@ internal sealed class VariableEvaluator : IDisposable
 
 	public EraDataResult CheckData(string savename, EraSaveFileType type)
 	{
-		string filename = null;
+		string filename = null!;
 		switch (type)
 		{
 			case EraSaveFileType.Normal:
@@ -1861,7 +1861,7 @@ internal sealed class VariableEvaluator : IDisposable
 
 	public EraDataResult CheckData(int saveIndex, EraSaveFileType type)
 	{
-		string filename = null;
+		string filename = null!;
 		switch (type)
 		{
 			case EraSaveFileType.Normal:
@@ -1885,9 +1885,9 @@ internal sealed class VariableEvaluator : IDisposable
 			result.DataMes = "----";
 			return result;
 		}
-		FileStream fs = null;
-		EraBinaryDataReader bReader = null;
-		EraDataReader reader = null;
+		FileStream fs = null!;
+		EraBinaryDataReader bReader = null!;
+		EraDataReader reader = null!;
 		long version;
 		try
 		{
@@ -2017,8 +2017,8 @@ internal sealed class VariableEvaluator : IDisposable
 		CreateDatFolder();
 		CheckDatFilename(savename);
 		string filepath = getSaveDataPathC(savename);
-		EraBinaryDataWriter bWriter = null;
-		FileStream fs = null;
+		EraBinaryDataWriter bWriter = null!;
+		FileStream fs = null!;
 		try
 		{
 			Config.Config.CreateSavDir();
@@ -2057,8 +2057,8 @@ internal sealed class VariableEvaluator : IDisposable
 		RESULT = 0;
 		if (!File.Exists(filepath))
 			return;
-		EraBinaryDataReader bReader = null;
-		FileStream fs = null;
+		EraBinaryDataReader bReader = null!;
+		FileStream fs = null!;
 		try
 		{
 			List<CharacterData> addCharaList = [];
@@ -2104,8 +2104,8 @@ internal sealed class VariableEvaluator : IDisposable
 		CreateDatFolder();
 		CheckDatFilename(savename);
 		string filepath = getSaveDataPathV(savename);
-		EraBinaryDataWriter bWriter = null;
-		FileStream fs = null;
+		EraBinaryDataWriter bWriter = null!;
+		FileStream fs = null!;
 		try
 		{
 			Config.Config.CreateSavDir();
@@ -2142,8 +2142,8 @@ internal sealed class VariableEvaluator : IDisposable
 		RESULT = 0;
 		if (!File.Exists(filepath))
 			return;
-		EraBinaryDataReader bReader = null;
-		FileStream fs = null;
+		EraBinaryDataReader bReader = null!;
+		FileStream fs = null!;
 		try
 		{
 			fs = new FileStream(filepath, FileMode.Open, FileAccess.Read);
@@ -2289,9 +2289,9 @@ internal sealed class VariableEvaluator : IDisposable
 		string filepath = getSaveDataPathG();
 		if (!File.Exists(filepath))
 			return false;
-		EraDataReader reader = null;
-		EraBinaryDataReader bReader = null;
-		FileStream fs = null;
+		EraDataReader reader = null!;
+		EraBinaryDataReader bReader = null!;
+		FileStream fs = null!;
 		#region EM_LOADDATA、LOADGLOBAL、LOADDATA、LOADGLOBAL時にMAP,XML,DataTableを適切に削除するように
 		//DIM GLOVAL SAVEDATAにあたるデータだけが上書きされるらしい？
 		varData.RemoveEMGlobalData();
@@ -2403,9 +2403,9 @@ internal sealed class VariableEvaluator : IDisposable
 	public bool SaveTo(int saveIndex, string saveText)
 	{
 		string filepath = getSaveDataPath(saveIndex);
-		FileStream fs = null;
-		EraDataWriter writer = null;
-		EraBinaryDataWriter bWriter = null;
+		FileStream fs = null!;
+		EraDataWriter writer = null!;
+		EraBinaryDataWriter bWriter = null!;
 		try
 		{
 			Config.Config.CreateSavDir();

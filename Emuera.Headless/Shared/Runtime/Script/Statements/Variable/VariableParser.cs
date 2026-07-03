@@ -53,9 +53,9 @@ internal static class VariableParser
 	public static VariableTerm ReduceVariable(VariableToken id, WordCollection wc)
 	{
 		AExpression operand;
-		AExpression op1 = null;
-		AExpression op2 = null;
-		AExpression op3 = null;
+		AExpression op1 = null!;
+		AExpression op2 = null!;
+		AExpression op3 = null!;
 		int i = 0;
 		while (true)
 		{

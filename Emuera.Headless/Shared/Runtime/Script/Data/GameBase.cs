@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Sub;
 using System;
 using System.IO;
@@ -100,7 +100,7 @@ internal sealed class GameBase
 		}
 		try
 		{
-			CharStream st = null;
+			CharStream st = null!;
 			while ((st = eReader.ReadEnabledLine()) != null)
 			{
 				string[] tokens = st.Substring().Split(',');
