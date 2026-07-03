@@ -126,7 +126,7 @@ internal sealed class Utils
 			throw new CodeEE(string.Format(Lang.Error.DuplicateAttribute.Text, tag, word));
 		if (attrValue.EndsWith("px", StringComparison.OrdinalIgnoreCase))
 		{
-			if (!int.TryParse(attrValue.Substring(0, attrValue.Length - 2), out num.num))
+			if (!int.TryParse(attrValue.AsSpan(0, attrValue.Length - 2), out num.num))
 				throw new CodeEE(string.Format(Lang.Error.AttributeCanNotInterpretNum.Text, tag, word));
 			num.isPx = true;
 		}

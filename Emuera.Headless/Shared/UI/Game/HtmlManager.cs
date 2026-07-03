@@ -57,7 +57,7 @@ internal static class HtmlManager
 		int len = 0, i;
 		for (i = 0; i < s.Length; i++)
 		{
-			int t = HtmlLength(pref + s.Substring(i, 1) + suff);
+			int t = HtmlLength(pref + s[i] + suff);
 			if (len + t > lmax)
 			{
 				i--;
@@ -102,7 +102,7 @@ internal static class HtmlManager
 					if (arr.Peek().isStyleTag) suff += arr.Pop().tag;
 					else arr.Pop();
 				if (found < 0)
-					tstr = str.Substring(last, str.Length - last);
+					tstr = str.Substring(last);
 				else
 					tstr = str.Substring(last, found - last);
 				tmp = GetSubStr(pref, suff, tstr, ref length);
@@ -345,7 +345,7 @@ internal static class HtmlManager
 						string attrValue = Escape(buttons[buttonCounter].Inputs);
 						b.Append("<button value='");
 						b.Append(attrValue);
-						b.Append("'");
+						b.Append('\'');
 					}
 					else
 					{
@@ -355,15 +355,15 @@ internal static class HtmlManager
 					{
 						b.Append(" title='");
 						b.Append(titleValue);
-						b.Append("'");
+						b.Append('\'');
 					}
 					if (buttons[buttonCounter].PointXisLocked)
 					{
 						b.Append(" pos='");
 						b.Append(buttons[buttonCounter].RelativePointX);
-						b.Append("'");
+						b.Append('\'');
 					}
-					b.Append(">");
+					b.Append('>');
 				}
 				AConsoleDisplayNode[] parts = buttons[buttonCounter].StrArray;
 				for (int cssCounter = 0; cssCounter < parts.Length; cssCounter++)
@@ -714,12 +714,12 @@ internal static class HtmlManager
 			int unicode;
 			switch (escWord)
 			{
-				case "nbsp": b.Append(" "); break;
-				case "amp": b.Append("&"); break;
-				case "gt": b.Append(">"); break;
-				case "lt": b.Append("<"); break;
-				case "quot": b.Append("\""); break;
-				case "apos": b.Append("\'"); break;
+				case "nbsp": b.Append(' '); break;
+				case "amp": b.Append('&'); break;
+				case "gt": b.Append('>'); break;
+				case "lt": b.Append('<'); break;
+				case "quot": b.Append('"'); break;
+				case "apos": b.Append('\''); break;
 				default:
 					{
 						int iBbase = 10;
@@ -794,7 +794,7 @@ internal static class HtmlManager
 	public static string GetColorToString(EmuColor color)
 	{
 		StringBuilder b = new();
-		b.Append("#");
+		b.Append('#');
 		int colorValue = color.R * 0x10000 + color.G * 0x100 + color.B;
 		b.Append(colorValue.ToString("X6"));
 		return b.ToString();
@@ -812,23 +812,23 @@ internal static class HtmlManager
 			{
 				b.Append(" face='");
 				b.Append(Escape(style.Fontname));
-				b.Append("'");
+				b.Append('\'');
 			}
 			if (style.ColorChanged)
 			{
 				b.Append(" color='#");
 				int colorValue = style.Color.R * 0x10000 + style.Color.G * 0x100 + style.Color.B;
 				b.Append(colorValue.ToString("X6"));
-				b.Append("'");
+				b.Append('\'');
 			}
 			if (style.ButtonColor != Config.FocusColor)
 			{
 				b.Append(" bcolor='#");
 				int colorValue = style.ButtonColor.R * 0x10000 + style.ButtonColor.G * 0x100 + style.ButtonColor.B;
 				b.Append(colorValue.ToString("X6"));
-				b.Append("'");
+				b.Append('\'');
 			}
-			b.Append(">");
+			b.Append('>');
 		}
 		if (style.FontStyle != EmuFontStyle.Regular)
 		{
@@ -1247,7 +1247,7 @@ internal static class HtmlManager
 
 										if (tokens[i].EndsWith("px", StringComparison.OrdinalIgnoreCase))
 										{
-											if (!int.TryParse(tokens[i].Substring(0, tokens[i].Length - 2), out param[i].num))
+											if (!int.TryParse(tokens[i].AsSpan(0, tokens[i].Length - 2), out param[i].num))
 												throw new CodeEE(string.Format(trerror.AttributeCanNotInterpretNum.Text, tag, word.Code));
 											param[i].isPx = true;
 										}
@@ -1378,7 +1378,7 @@ internal static class HtmlManager
 							wc.ShiftNext();
 							if (word == null || op == null || op.Code != OperatorCode.Assignment || attr == null)
 								goto error;
-							if (word.Code.ToLower() == "notooltip")
+							if (string.Equals(word.Code, "notooltip", StringComparison.OrdinalIgnoreCase))
 							{
 								var val = attr.Str.ToLower();
 								if (val == "true")

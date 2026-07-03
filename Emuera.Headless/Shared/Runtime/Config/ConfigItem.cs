@@ -122,7 +122,7 @@ internal sealed class ConfigItem<T> : AConfigItem
 			foreach (var str in v)
 			{
 				if (sb.Length > 0)
-					sb.Append(",");
+					sb.Append(',');
 				sb.Append(str);
 			}
 			return sb.ToString();

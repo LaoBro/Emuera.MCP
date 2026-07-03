@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
 # I-12 阶段 1：质量护栏按路径分级
 # - Emuera.Headless/Shared/ 子树是 T-023 物理迁移自 Emuera/ 的历史共享源码
 #   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Headless 构建被历史代码警告淹没
@@ -40,24 +40,24 @@ dotnet_diagnostic.SYSLIB0014.severity = none   # WebClient 已过时（共享代
 # .NET 分析器 CA 规则（按基线构建统计的 22 个 ID 显式抑制）
 # 性能类
 dotnet_diagnostic.CA1507.severity = none   # 用 nameof 代替字符串
-dotnet_diagnostic.CA1514.severity = none   # Substring 冗余长度
+# CA1514 已清理（T-022 阶段 4，2026-07-04）
 # CA1806 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 # CA1816 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 dotnet_diagnostic.CA1822.severity = none   # 成员可标记 static
-dotnet_diagnostic.CA1829.severity = none   # 用 Length 代替 Count()
-dotnet_diagnostic.CA1830.severity = none   # StringBuilder 强类型重载
-dotnet_diagnostic.CA1834.severity = none   # StringBuilder.Append(char)
+# CA1829 已清理（T-022 阶段 4，2026-07-04）
+# CA1830 已清理（T-022 阶段 4，2026-07-04）
+# CA1834 已清理（T-022 阶段 4，2026-07-04）
 # CA1835 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-dotnet_diagnostic.CA1845.severity = none   # AsSpan 代替 Substring
-dotnet_diagnostic.CA1846.severity = none   # AsSpan 代替 Substring
+# CA1845 已清理（T-022 阶段 4，2026-07-04）
+# CA1846 已清理（T-022 阶段 4，2026-07-04）
 dotnet_diagnostic.CA1853.severity = none   # 字典 lookup 优化
 dotnet_diagnostic.CA1854.severity = none   # TryGetValue 代替 ContainsKey+indexer
-dotnet_diagnostic.CA1858.severity = none   # StartsWith 代替 IndexOf==0
+# CA1858 已清理（T-022 阶段 4，2026-07-04）
 # CA1859 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-dotnet_diagnostic.CA1862.severity = none   # string.Equals(StringComparison)
-dotnet_diagnostic.CA1864.severity = none   # TryAdd
-dotnet_diagnostic.CA1875.severity = none   # Regex.Count
-dotnet_diagnostic.CA2249.severity = none   # Contains 代替 IndexOf
+# CA1862 已清理（T-022 阶段 4，2026-07-04）
+# CA1864 已清理（T-022 阶段 4，2026-07-04）
+# CA1875 已清理（T-022 阶段 4，2026-07-04）
+# CA2249 已清理（T-022 阶段 4，2026-07-04）
 # 可靠性/正确性
 dotnet_diagnostic.CA1069.severity = none   # 枚举值不应重复
 dotnet_diagnostic.CA2208.severity = none   # ArgumentException 参数名

@@ -1263,7 +1263,7 @@ internal sealed partial class FunctionIdentifier
 
 			var pluginArgs = arg.RowArgs.Select((term) => PluginMethodParameterBuilder.ConvertTerm(term, exm)).ToArray();
 			arg.CallFunc.Execute(pluginArgs);
-			for (var i = 0; i < pluginArgs.Count(); ++i)
+			for (var i = 0; i < pluginArgs.Length; ++i)
 			{
 				var rowArg = arg.RowArgs[i];
 				if (rowArg is VariableTerm)
@@ -1576,11 +1576,11 @@ internal sealed partial class FunctionIdentifier
 			long bgDepth = 0;
 			bgName = arg.TermList[0].GetStrValue(exm);
 			float opacity = 1.0f;
-			if (arg.TermList.Count() >= 2)
+			if (arg.TermList.Length >= 2)
 			{
 				bgDepth = long.Parse(arg.TermList[1].GetStrValue(exm));
 			}
-			if (arg.TermList.Count() >= 3)
+			if (arg.TermList.Length >= 3)
 			{
 				opacity = long.Parse(arg.TermList[2].GetStrValue(exm)) / 255.0f;
 			}

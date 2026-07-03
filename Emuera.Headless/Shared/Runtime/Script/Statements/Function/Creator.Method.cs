@@ -200,13 +200,13 @@ internal static partial class FunctionMethodCreator
 				switch (action)
 					{
 						case EAction.BeginsWith:
-							if (item.ToUpper().IndexOf(arg, StringComparison.Ordinal) == 0) strs.Add(item);
+							if (item.ToUpper().StartsWith(arg, StringComparison.Ordinal)) strs.Add(item);
 							break;
 						case EAction.EndsWith:
 							if (item.ToUpper().LastIndexOf(arg, StringComparison.Ordinal) == item.Length - arg.Length) strs.Add(item);
 							break;
 						case EAction.With:
-							if (item.ToUpper().IndexOf(arg, StringComparison.Ordinal) >= 0) strs.Add(item);
+							if (item.ToUpper().Contains(arg, StringComparison.Ordinal)) strs.Add(item);
 							break;
 					}
 				}
@@ -1365,7 +1365,7 @@ internal static partial class FunctionMethodCreator
 				case Operation.Check: { return contains ? Utils.DataTable.TypeToInt(dt.Columns[cName]!.DataType) : 0; }
 				case Operation.Remove:
 					{
-						if (contains && cName.ToLower() != "id")
+						if (contains && !string.Equals(cName, "id", StringComparison.OrdinalIgnoreCase))
 						{
 							dt.Columns.Remove(cName);
 							return 1;
@@ -1655,7 +1655,7 @@ internal static partial class FunctionMethodCreator
 			var dt = dict[key];
 			var idx = arguments[1].GetIntValue(exm);
 			var name = arguments[2].GetStrValue(exm);
-			if (name.ToLower() == "id") return 0;
+			if (string.Equals(name, "id", StringComparison.OrdinalIgnoreCase)) return 0;
 			var v = arguments.Count > 3 ? arguments[3] : null;
 			DataRow row = null!;
 			if (asId) row = dt.Rows.Find(idx)!;
@@ -1773,8 +1773,7 @@ internal static partial class FunctionMethodCreator
 			{
 				return 0;
 			}
-			if (dict.ContainsKey(key)) dict[key] = dt;
-			else dict.Add(key, dt);
+			dict[key] = dt;
 			return 1;
 		}
 	}
@@ -1911,7 +1910,7 @@ internal static partial class FunctionMethodCreator
 				bool isNotEmpty = false;
 				foreach (var k in sMap.Keys)
 				{
-					if (isNotEmpty) sb.Append(",").Append(k);
+					if (isNotEmpty) sb.Append(',').Append(k);
 					else
 					{
 						isNotEmpty = true;
@@ -4449,7 +4448,7 @@ internal static partial class FunctionMethodCreator
 				// throw new CodeEE("第2引数が正規表現として不正です：" + e.Message);
 				throw new CodeEE(string.Format(trerror.InvalidRegexArg.Text, Name, 2, e.Message));
 			}
-			return reg.Matches(arguments[0].GetStrValue(exm)).Count;
+			return reg.Count(arguments[0].GetStrValue(exm));
 		}
 	}
 
@@ -7323,7 +7322,7 @@ internal static partial class FunctionMethodCreator
 			{
 				foreach (string funcname in GlobalStatic.Process.LabelDictionary.NoneventKeys)
 				{
-					if (funcname.ToUpper() == functionname.ToUpper())
+					if (string.Equals(funcname, functionname, StringComparison.OrdinalIgnoreCase))
 					{
 						FunctionLabelLine func = GlobalStatic.LabelDictionary.GetNonEventLabel(funcname);
 

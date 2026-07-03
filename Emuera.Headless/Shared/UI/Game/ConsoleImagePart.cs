@@ -58,7 +58,7 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 		//	if (raw_ypos.isPx) sb.Append("px");
 		//}
 		// sb.Append("'>");
-		sb.Append(">");
+		sb.Append('>');
 		AltText = sb.ToString();
 		cImage = AppContents.GetSprite(ResourceName);
 		//if (cImage != null && !cImage.IsCreated)
