@@ -5397,7 +5397,7 @@ internal static partial class FunctionMethodCreator
 			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			if (p.X < 0 || p.X >= g.Width || p.X < 0 || p.Y >= g.Height)
 				return -1;
-			EmuColor c = g.GGetColor(p.X, p.Y);
+			EmuColor c = GraphicsImage.GGetColor(p.X, p.Y);
 			//Color.ToArgb()はInt32の負の値をとることがあり、Int64にうまく変換できない?（と思ったが気のせいだった
 			return c.ToArgb() & 0xFFFFFFFFL;
 		}
@@ -5423,7 +5423,7 @@ internal static partial class FunctionMethodCreator
 			EmuPoint p = ReadPoint(Name, exm, arguments, 2);
 			if (p.X < 0 || p.X >= g.Width || p.X < 0 || p.Y >= g.Height)
 				return 0;
-			g.GSetColor(c, p.X, p.Y);
+			GraphicsImage.GSetColor(c, p.X, p.Y);
 			return 1;
 		}
 	}
@@ -5446,7 +5446,7 @@ internal static partial class FunctionMethodCreator
 				return 0;
 			EmuColor c = ReadColor(Name, exm, arguments, 1);
 #if HEADLESS
-			g.GSetBrush(null!);
+			GraphicsImage.GSetBrush(null!);
 #else
 			g.GSetBrush(new SolidBrush(c));
 #endif
@@ -5552,7 +5552,7 @@ internal static partial class FunctionMethodCreator
 			EmuColor c = ReadColor(Name, exm, arguments, 1);
 			long width = arguments[2].GetIntValue(exm);
 #if HEADLESS
-			g.GSetPen(null!);
+			GraphicsImage.GSetPen(null!);
 #else
 			g.GSetPen(new Pen(c, width));
 #endif
@@ -5578,7 +5578,7 @@ internal static partial class FunctionMethodCreator
 			if (!g.IsCreated)
 				return 0;
 
-			g.GDashStyle(arguments[1].GetIntValue(exm), arguments[2].GetIntValue(exm));
+			GraphicsImage.GDashStyle(arguments[1].GetIntValue(exm), arguments[2].GetIntValue(exm));
 			return 1;
 		}
 	}
@@ -5630,12 +5630,12 @@ internal static partial class FunctionMethodCreator
 			string text = arguments[1].GetStrValue(exm);
 			if (arguments.Count == 2)
 			{
-				g.GDrawString(text, 0, 0);
+				GraphicsImage.GDrawString(text, 0, 0);
 			}
 			else if (arguments.Count == 4)
 			{
 				EmuPoint p = ReadPoint(Name, exm, arguments, 2);
-				g.GDrawString(text, p.X, p.Y);
+				GraphicsImage.GDrawString(text, p.X, p.Y);
 			}
 #if HEADLESS
 			// Headless 模式下无法测量文本尺寸，返回 0
@@ -5807,12 +5807,12 @@ internal static partial class FunctionMethodCreator
 			//座標省略してたらx/2,y/2で渡す
 			if (arguments.Count == 3)
 			{
-				dest.GDrawGWithRotate(src, angle, src.Width / 2, src.Height / 2);
+				GraphicsImage.GDrawGWithRotate(src, angle, src.Width / 2, src.Height / 2);
 			}
 			else
 			{
 				EmuPoint p = ReadPoint(Name, exm, arguments, 3);
-			dest.GDrawGWithRotate(src, angle, p.X, p.Y);
+			GraphicsImage.GDrawGWithRotate(src, angle, p.X, p.Y);
 			}
 			return 1;
 		}
@@ -5856,7 +5856,7 @@ internal static partial class FunctionMethodCreator
 				return 0;
 			EmuPoint fromP = ReadPoint(Name, exm, arguments, 1);
 			EmuPoint forP = ReadPoint(Name, exm, arguments, 3);
-			g.GDrawLine(fromP.X, fromP.Y, forP.X, forP.Y);
+			GraphicsImage.GDrawLine(fromP.X, fromP.Y, forP.X, forP.Y);
 			return 1;
 		}
 	}
@@ -6250,9 +6250,9 @@ internal static partial class FunctionMethodCreator
 			if (!g.IsCreated)
 				return 0;
 			if (arguments.Count == 2)
-				g.GClear(c);
+				GraphicsImage.GClear(c);
 			else
-				g.GClear(c, (int)arguments[2].GetIntValue(exm), (int)arguments[3].GetIntValue(exm), (int)arguments[4].GetIntValue(exm), (int)arguments[5].GetIntValue(exm));
+				GraphicsImage.GClear(c, (int)arguments[2].GetIntValue(exm), (int)arguments[3].GetIntValue(exm), (int)arguments[4].GetIntValue(exm), (int)arguments[5].GetIntValue(exm));
 			return 1;
 		}
 		#endregion
@@ -6278,7 +6278,7 @@ internal static partial class FunctionMethodCreator
 			if (!g.IsCreated)
 				return 0;
 			EmuRectangle rect = ReadRectangle(Name, exm, arguments, 1);
-			g.GFillRectangle(rect);
+			GraphicsImage.GFillRectangle(rect);
 			return 1;
 		}
 	}
@@ -6339,11 +6339,11 @@ internal static partial class FunctionMethodCreator
 			EmuRectangle srcRect = ReadRectangle(Name, exm, arguments, 6);
 			if (arguments.Count == 10 || arguments[10] == null)
 			{
-				dest.GDrawG(src, destRect, srcRect);
+				GraphicsImage.GDrawG(src, destRect, srcRect);
 				return 1;
 			}
 			float[][] cm = ReadColormatrix(Name, exm, arguments, 10);
-			dest.GDrawG(src, destRect, srcRect, cm);
+			GraphicsImage.GDrawG(src, destRect, srcRect, cm);
 			return 1;
 		}
 
@@ -6395,7 +6395,7 @@ internal static partial class FunctionMethodCreator
 			EmuPoint destPoint = ReadPoint(Name, exm, arguments, 3);
 			if (destPoint.X + src.Width > dest.Width || destPoint.Y + src.Height > dest.Height)
 				return 0;
-			dest.GDrawGWithMask(src, mask, destPoint);
+			GraphicsImage.GDrawGWithMask(src, mask, destPoint);
 			return 1;
 		}
 
@@ -6464,26 +6464,26 @@ internal static partial class FunctionMethodCreator
 			EmuRectangle destRect = new(0, 0, img.DestBaseSize.Width, img.DestBaseSize.Height);
 			if (arguments.Count == 2)
 			{
-				dest.GDrawCImg(img, destRect);
+				GraphicsImage.GDrawCImg(img, destRect);
 				return 1;
 			}
 			if (arguments.Count == 4)
 			{
 				EmuPoint p = ReadPoint(Name, exm, arguments, 2);
 				destRect = destRect with { X = p.X, Y = p.Y };
-				dest.GDrawCImg(img, destRect);
+				GraphicsImage.GDrawCImg(img, destRect);
 				return 1;
 			}
 			if (arguments.Count == 6)
 			{
 				destRect = ReadRectangle(Name, exm, arguments, 2);
-				dest.GDrawCImg(img, destRect);
+				GraphicsImage.GDrawCImg(img, destRect);
 				return 1;
 			}
 			//if (arguments.Count == 7)
 			destRect = ReadRectangle(Name, exm, arguments, 2);
 			float[][] cm = ReadColormatrix(Name, exm, arguments, 6);
-			dest.GDrawCImg(img, destRect, cm);
+			GraphicsImage.GDrawCImg(img, destRect, cm);
 			return 1;
 		}
 
@@ -6583,7 +6583,7 @@ internal static partial class FunctionMethodCreator
 			long delay = arguments[8].GetIntValue(exm);
 			if (delay <= 0 || delay > int.MaxValue)
 				return 0;
-			img.AddFrame(g, rect, offset, (int)delay);
+			SpriteAnime.AddFrame(g, rect, offset, (int)delay);
 			return 1;
 		}
 	}
@@ -6688,7 +6688,7 @@ internal static partial class FunctionMethodCreator
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated || g.Bitmap == null)
+			if (!g.IsCreated || GraphicsImage.Bitmap == null)
 				return 0;
 			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			long z64 = arguments[3].GetIntValue(exm);
@@ -6719,7 +6719,7 @@ internal static partial class FunctionMethodCreator
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated || g.Bitmap == null)
+			if (!g.IsCreated || GraphicsImage.Bitmap == null)
 				return 0;
 			exm.Console.CBG_SetButtonMap(g);
 			return 1;

@@ -162,6 +162,7 @@ dotnet_diagnostic.CA2016.severity = none
 - **CA1069 枚举值**：若枚举被序列化（JSON/二进制），改值会破坏兼容性，需检查是否落盘/读盘。
 - **SYSLIB0014**：`WebClient` 是同步阻塞 API，迁移到 `HttpClient` 需注意线程模型，可能需引入 `async` 链路。
 - **CA1854 + CS8600 陷阱**：`Dictionary.TryGetValue(key, out T)` 的 `out` 参数带 `[MaybeNullWhen(false)]` 特性，当目标变量是非 null 引用类型（如 `XmlDocument doc`）时，`out doc` 会触发 CS8600。修复模式：用临时变量 + null-forgiving，`if (dict.TryGetValue(key, out var temp)) doc = temp!;`。
+- **CA1822 + CS0176 陷阱**：将实例方法/属性改为 static 后，调用方 `instance.StaticMember()` 会触发 CS0176 错误（非警告，构建失败）。修复模式：调用方改为类型名限定 `ClassName.StaticMember()`。C# 不允许实例引用访问 static 成员（与 C++/Java 不同）。HEADLESS 存根方法加 static 后，需全局搜索调用点改为 `GraphicsImage.Method()` 形式。
 
 ## 6. 修复原则
 
@@ -183,7 +184,7 @@ dotnet_diagnostic.CA2016.severity = none
 | 1 | CS0472/CS0649/CA1806/CA1816/CA1835/CA1859/CA2016 | 0 | 0 | ✅ 已完成 |
 | 2 | CA1834/CA1829/CA2249/CA1858/CA1864/CA1514/CA1845/CA1846/CA1862/CA1830/CA1875 | 38 | 80 | ✅ 已完成 |
 | 3 | CA1854 | 84 | 84 | ✅ 已完成 |
-| 4 | CA1822 | 66 | - | ⬜ 待办 |
+| 4 | CA1822 | 66 | 66 | ✅ 已完成 |
 | 5 | CA1069/CA2208/CA2211/CS0162/CS0164/CA2263/CA1507 | 50 | - | ⬜ 待办 |
 | 6 | SYSLIB0014 | 2 | - | ⬜ 待办 |
 | - | CA1416（永久保留） | - | - | ⏸️ 保留 |

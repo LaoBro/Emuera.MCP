@@ -19,7 +19,7 @@ internal abstract class ASprite : AContentItem, IDisposable
 	public EmuPoint DestBasePosition;
 	public override bool IsCreated => false;
 	public abstract void Dispose();
-	public void Move(EmuPoint point) { }
+	public static void Move(EmuPoint point) { }
 	// headless 下无实际位图，返回固定颜色供 SPRITEGETCOLOR 调用
 	public virtual EmuColor SpriteGetColor(int x, int y) => EmuColor.Black;
 }
@@ -36,9 +36,9 @@ internal abstract class ASpriteSingle : ASprite
 internal sealed class SpriteG : ASpriteSingle
 {
 	public SpriteG(string name, GraphicsImage gra, EmuRectangle rect) : base(name, gra, rect) { }
-	public bool useImgList => false;
-	public List<Tuple<ASprite, EmuRectangle>> drawImgList => null!;
-	public bool isBaseImage(GraphicsImage gImg) => false;
+	public static bool useImgList => false;
+	public static List<Tuple<ASprite, EmuRectangle>> drawImgList => null!;
+	public static bool isBaseImage(GraphicsImage gImg) => false;
 }
 
 internal sealed class SpriteF : ASpriteSingle
@@ -49,8 +49,8 @@ internal sealed class SpriteF : ASpriteSingle
 internal sealed class SpriteAnime : ASprite
 {
 	public SpriteAnime(string name, EmuSize size) : base(name, size) { }
-	internal bool AddFrame(AbstractImage parentImage, EmuRectangle rect, EmuPoint pos, int delay) => true;
-	internal void ResetTime() { }
+	internal static bool AddFrame(AbstractImage parentImage, EmuRectangle rect, EmuPoint pos, int delay) => true;
+	internal static void ResetTime() { }
 	public override bool IsCreated => true;
 	public override void Dispose() { }
 }

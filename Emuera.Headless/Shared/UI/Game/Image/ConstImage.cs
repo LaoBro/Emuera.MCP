@@ -16,7 +16,7 @@ internal sealed class ConstImage : AbstractImage
 		RealIsCreated = true;
 	}
 
-	public void Load() { }
+	public static void Load() { }
 
 	public override int Width => ImageWidth;
 	public override int Height => ImageHeight;

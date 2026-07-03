@@ -22,8 +22,8 @@ internal sealed class GraphicsImage : AbstractImage
 	private EmuFontStyle _fontStyle;
 	private string _fontname = "";
 
-	public bool useImgList => false;
-	public List<Tuple<ASprite, EmuRectangle>> drawImgList => null!;
+	public static bool useImgList => false;
+	public static List<Tuple<ASprite, EmuRectangle>> drawImgList => null!;
 
 	public override int Width => _size.Width;
 	public override int Height => _size.Height;
@@ -59,32 +59,32 @@ internal sealed class GraphicsImage : AbstractImage
 		_created = true;
 	}
 
-	public void GClear(EmuColor c) { }
-	public void GClear(EmuColor c, int x, int y, int w, int h) { }
-	public void GDrawString(string text, int x, int y) { }
-	public void GDrawString(string text, int x, int y, int width, int height) { }
-	public void GDrawRectangle(EmuRectangle rect) { }
-	public void GFillRectangle(EmuRectangle rect) { }
-	public void GDrawCImg(ASprite img, EmuRectangle destRect) { }
-	public void GDrawCImg(ASprite img, EmuRectangle destRect, float[][] cm) { }
-	public void GDrawG(GraphicsImage srcGra, EmuRectangle destRect, EmuRectangle srcRect) { }
-	public void GDrawG(GraphicsImage srcGra, EmuRectangle destRect, EmuRectangle srcRect, float[][] cm) { }
-	public void GDrawGWithMask(GraphicsImage srcGra, GraphicsImage maskGra, EmuPoint destPoint) { }
-	public void GRotate(long a, int x, int y) { }
-	public void GDrawGWithRotate(GraphicsImage srcGra, long a, int x, int y) { }
-	public void GDrawLine(int fromX, int fromY, int forX, int forY) { }
-	public void GDashStyle(long style, long cap) { }
+	public static void GClear(EmuColor c) { }
+	public static void GClear(EmuColor c, int x, int y, int w, int h) { }
+	public static void GDrawString(string text, int x, int y) { }
+	public static void GDrawString(string text, int x, int y, int width, int height) { }
+	public static void GDrawRectangle(EmuRectangle rect) { }
+	public static void GFillRectangle(EmuRectangle rect) { }
+	public static void GDrawCImg(ASprite img, EmuRectangle destRect) { }
+	public static void GDrawCImg(ASprite img, EmuRectangle destRect, float[][] cm) { }
+	public static void GDrawG(GraphicsImage srcGra, EmuRectangle destRect, EmuRectangle srcRect) { }
+	public static void GDrawG(GraphicsImage srcGra, EmuRectangle destRect, EmuRectangle srcRect, float[][] cm) { }
+	public static void GDrawGWithMask(GraphicsImage srcGra, GraphicsImage maskGra, EmuPoint destPoint) { }
+	public static void GRotate(long a, int x, int y) { }
+	public static void GDrawGWithRotate(GraphicsImage srcGra, long a, int x, int y) { }
+	public static void GDrawLine(int fromX, int fromY, int forX, int forY) { }
+	public static void GDashStyle(long style, long cap) { }
 	public void GSetFont(EmuFont r, EmuFontStyle fs) { _font = r; _fontStyle = fs; _fontname = r.Name; }
-	public void GSetBrush(IBrush r) { }
-	public void GSetPen(object r) { }
-	public object GetBitmap() => null!;
+	public static void GSetBrush(IBrush r) { }
+	public static void GSetPen(object r) { }
+	public static object GetBitmap() => null!;
 	// 调用方（CBGSETGRAPHG 等）会用 g.Bitmap == null 判断，headless 下恒为 null
-	public object Bitmap => null!;
-	public void GSetColor(EmuColor c, int x, int y) { }
-	public EmuColor GGetColor(int x, int y) => EmuColor.Black;
-	public bool GBitmapToInt64Array(long[,] array, int xstart, int ystart) => false;
-	public bool GByteArrayToBitmap(long[,] array, int xstart, int ystart) => false;
-	public void Load() { }
+	public static object Bitmap => null!;
+	public static void GSetColor(EmuColor c, int x, int y) { }
+	public static EmuColor GGetColor(int x, int y) => EmuColor.Black;
+	public static bool GBitmapToInt64Array(long[,] array, int xstart, int ystart) => false;
+	public static bool GByteArrayToBitmap(long[,] array, int xstart, int ystart) => false;
+	public static void Load() { }
 	public void UnLoad() { _created = false; }
 	public void GDispose() { _size = default; _created = false; }
 	public override void Dispose() { GDispose(); GC.SuppressFinalize(this); }
