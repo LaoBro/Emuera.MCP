@@ -163,6 +163,9 @@ dotnet_diagnostic.CA2016.severity = none
 - **SYSLIB0014**：`WebClient` 是同步阻塞 API，迁移到 `HttpClient` 需注意线程模型，可能需引入 `async` 链路。
 - **CA1854 + CS8600 陷阱**：`Dictionary.TryGetValue(key, out T)` 的 `out` 参数带 `[MaybeNullWhen(false)]` 特性，当目标变量是非 null 引用类型（如 `XmlDocument doc`）时，`out doc` 会触发 CS8600。修复模式：用临时变量 + null-forgiving，`if (dict.TryGetValue(key, out var temp)) doc = temp!;`。
 - **CA1822 + CS0176 陷阱**：将实例方法/属性改为 static 后，调用方 `instance.StaticMember()` 会触发 CS0176 错误（非警告，构建失败）。修复模式：调用方改为类型名限定 `ClassName.StaticMember()`。C# 不允许实例引用访问 static 成员（与 C++/Java 不同）。HEADLESS 存根方法加 static 后，需全局搜索调用点改为 `GraphicsImage.Method()` 形式。
+- **CA1069 + VariableCode 计数器语义**：`VariableCode.__COUNT_*` 系列是有意的计数器边界，每种变量类型从 0 开始独立计数，导致与 `__NULL__`（0x00）或其他 `__COUNT_*` 成员值重复。这些值被强制转换为 int 用作数组长度（如 `new long[(int)VariableCode.__COUNT_INTEGER_ARRAY__]`），改值会破坏数组初始化。存档以枚举名序列化，不依赖数值唯一性。修复方式：在枚举定义前后用 `#pragma warning disable/restore CA1069` 局部抑制，并加注释说明理由。
+- **CA2211 + readonly**：`EncodingHandler` 的 `public static Encoding` 字段被 CA2211 标记为"非常量字段应当不可见"。这些字段初始化后不再修改，加 `readonly` 即可满足规则，同时保持 public 可见性。
+- **CS0162/CS0164 死代码遗留**：`LogicalLineParser.cs` 中 `err:` 标签原本被 `goto err` 引用，goto 被注释后遗留了未引用标签（CS0164）和死代码 return（CS0162）。catch 块已处理异常路径，直接删除 `err:` 标签和后续 return 语句。
 
 ## 6. 修复原则
 
@@ -185,6 +188,6 @@ dotnet_diagnostic.CA2016.severity = none
 | 2 | CA1834/CA1829/CA2249/CA1858/CA1864/CA1514/CA1845/CA1846/CA1862/CA1830/CA1875 | 38 | 80 | ✅ 已完成 |
 | 3 | CA1854 | 84 | 84 | ✅ 已完成 |
 | 4 | CA1822 | 66 | 66 | ✅ 已完成 |
-| 5 | CA1069/CA2208/CA2211/CS0162/CS0164/CA2263/CA1507 | 50 | - | ⬜ 待办 |
+| 5 | CA1069/CA2208/CA2211/CS0162/CS0164/CA2263/CA1507 | 50 | 27 | ✅ 已完成 |
 | 6 | SYSLIB0014 | 2 | - | ⬜ 待办 |
 | - | CA1416（永久保留） | - | - | ⏸️ 保留 |

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
 # I-12 阶段 1：质量护栏按路径分级
 # - Emuera.Headless/Shared/ 子树是 T-023 物理迁移自 Emuera/ 的历史共享源码
 #   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Headless 构建被历史代码警告淹没
@@ -27,8 +27,8 @@ dotnet_diagnostic.CS8981.severity = none
 # 历史代码的潜在 nullable/未赋值/不可达代码警告：阶段 2（T-022）统一处理
 # CS0472 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 # CS0649 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-dotnet_diagnostic.CS0162.severity = none
-dotnet_diagnostic.CS0164.severity = none
+# CS0162 已清理（T-022 阶段 4，2026-07-04，死代码删除）
+# CS0164 已清理（T-022 阶段 4，2026-07-04，未引用标签删除）
 dotnet_diagnostic.SYSLIB0014.severity = none   # WebClient 已过时（共享代码 Instraction.Child.cs 使用）
 
 # Nullable 引用类型（CS86xx）：历史代码无 nullable 标注，T-022 阶段 3 全量抑制
@@ -39,7 +39,7 @@ dotnet_diagnostic.SYSLIB0014.severity = none   # WebClient 已过时（共享代
 
 # .NET 分析器 CA 规则（按基线构建统计的 22 个 ID 显式抑制）
 # 性能类
-dotnet_diagnostic.CA1507.severity = none   # 用 nameof 代替字符串
+# CA1507 已清理（T-022 阶段 4，2026-07-04，字符串 → nameof）
 # CA1514 已清理（T-022 阶段 4，2026-07-04）
 # CA1806 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 # CA1816 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
@@ -59,14 +59,14 @@ dotnet_diagnostic.CA1853.severity = none   # 字典 lookup 优化
 # CA1875 已清理（T-022 阶段 4，2026-07-04）
 # CA2249 已清理（T-022 阶段 4，2026-07-04）
 # 可靠性/正确性
-dotnet_diagnostic.CA1069.severity = none   # 枚举值不应重复
-dotnet_diagnostic.CA2208.severity = none   # ArgumentException 参数名
-dotnet_diagnostic.CA2211.severity = none   # 非私有静态字段
+# CA1069 已清理（T-022 阶段 4，2026-07-04，VariableCode.cs 局部 #pragma 抑制）
+# CA2208 已清理（T-022 阶段 4，2026-07-04，ArgumentException 参数名 → nameof）
+# CA2211 已清理（T-022 阶段 4，2026-07-04，字段加 readonly）
 # 平台兼容性（Headless 路径不触发 WinForms/COM，但共享源码含 Windows 专用 API）
 dotnet_diagnostic.CA1416.severity = none
 # 用法
 # CA2016 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-dotnet_diagnostic.CA2263.severity = none   # 优先泛型方法
+# CA2263 已清理（T-022 阶段 4，2026-07-04，优先泛型方法重载）
 
 # ===== Emuera.Headless 自有源码 =====
 # T-022 阶段 3：Headless 模式固有警告抑制

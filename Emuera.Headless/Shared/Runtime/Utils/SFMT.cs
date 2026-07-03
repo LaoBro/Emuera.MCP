@@ -90,7 +90,7 @@ public sealed class MTRandom
 	public void SetRand(long[] array)
 	{
 		if (array == null || array.Length != N32 + 1)
-			throw new ArgumentOutOfRangeException();
+			throw new ArgumentOutOfRangeException(nameof(array));
 
 		for (int i = 0; i < N32; i++)
 			sfmt[i] = (uint)array[i];
@@ -100,7 +100,7 @@ public sealed class MTRandom
 	public void GetRand(long[] array)
 	{
 		if (array == null || array.Length != N32 + 1)
-			throw new ArgumentOutOfRangeException();
+			throw new ArgumentOutOfRangeException(nameof(array));
 		for (int i = 0; i < N32; i++)
 			array[i] = sfmt[i];
 		array[N32] = idx;

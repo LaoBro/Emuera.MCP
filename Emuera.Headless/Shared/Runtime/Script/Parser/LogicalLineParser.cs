@@ -588,9 +588,7 @@ internal static class LogicalLineParser
 				assignOP = OperatorCode.Assignment;
 			}
 			return new InstructionLine(position, FunctionIdentifier.SETFunction, assignOP, wc1, stream);
-		err:
-			return new InvalidLine(position, errMes);
-		}
+	}
 		catch (CodeEE e)
 		{
 #if !HEADLESS

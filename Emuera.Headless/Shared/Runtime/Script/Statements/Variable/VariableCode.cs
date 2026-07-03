@@ -1,5 +1,9 @@
-﻿namespace MinorShift.Emuera.Runtime.Script.Statements.Variable;
+namespace MinorShift.Emuera.Runtime.Script.Statements.Variable;
 
+// CA1069 抑制：__COUNT_* 系列是有意的计数器边界，每种变量类型从 0 开始独立计数。
+// 这些值被强制转换为 int 用作数组长度（如 new long[(int)VariableCode.__COUNT_INTEGER_ARRAY__]），
+// 改值会破坏数组初始化。存档以枚举名序列化，不依赖数值唯一性。
+#pragma warning disable CA1069
 internal enum VariableCode
 {
 	__NULL__ = 0x00000000,
@@ -289,3 +293,4 @@ internal enum VariableCode
 															 //PRIVATE3D = 0xFF | __INTEGER__ | __ARRAY_3D__ | __EXTENDED__,//プライベート変数
 															 //PRIVATES3D = 0xFF | __STRING__ | __ARRAY_3D__ | __EXTENDED__,//プライベート変数
 }
+#pragma warning restore CA1069

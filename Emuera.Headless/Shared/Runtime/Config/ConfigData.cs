@@ -548,7 +548,7 @@ internal sealed class ConfigData
 				break;
 			default:
 				{
-					if (Enum.IsDefined(typeof(ConfigCode), item.Code))
+					if (Enum.IsDefined<ConfigCode>(item.Code))
 					{
 						switch (item.ValueToString())
 						{
