@@ -136,6 +136,18 @@ def main():
         )
     )
 
+    results.append(
+        (
+            "SELECTCASE loading",
+            _run_script(
+                "SELECTCASE loading",
+                [sys.executable, str(TESTS_DIR / "test_selectcase_loading.py")],
+                env=env,
+                timeout=180,
+            ),
+        )
+    )
+
     print("\n=== Summary ===")
     all_passed = True
     for name, (passed, code) in results:

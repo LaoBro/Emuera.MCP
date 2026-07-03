@@ -1171,8 +1171,8 @@ internal sealed class ErbLoader
 							} while (selectLine != null && selectLine.FunctionCode != FunctionCode.SELECTCASE);
 							break;
 						}
-						if (selectLine!.IfCaseList!.Last!.Value!.FunctionCode == FunctionCode.CASEELSE)
-							ParserMediator.Warn(string.Format(trerror.InvalidCaseAfterCaseelse.Text, func!.Function.Name), func, 1, false, false);
+						if (selectLine.IfCaseList.Count > 0 && selectLine.IfCaseList.Last!.Value.FunctionCode == FunctionCode.CASEELSE)
+							ParserMediator.Warn(string.Format(trerror.InvalidCaseAfterCaseelse.Text, func.Function.Name), func, 1, false, false);
 						selectLine.IfCaseList.AddLast(func);
 					}
 					break;

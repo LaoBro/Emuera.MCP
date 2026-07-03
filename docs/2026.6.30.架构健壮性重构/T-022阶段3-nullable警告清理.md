@@ -34,11 +34,23 @@ ull 字面量初始化、TryGetValue out 参数）。 | 1. **null 字面量赋�
     - **`as Type!` 陷阱**：`!` 会绑定到类型名导致语法错误，必须写为 `(expr as Type)!`。
     - **`null!` 传播性**：`= null!` 仅抑制赋值警告，后续使用编译器仍可能判为 null，需再次加 `!`。
     - **短路求值**：`if (x == null || x.Member...)` 中 `||` 会破坏 nullable 推导，后续使用 `x` 需显式加 `!`。
+    - **`!` 不能替代运行时守卫**：`!` 仅抑制编译器警告，不做运行时安全检查。若原有代码用 `Count > 0 &&`、`!= null &&` 等守卫条件保护空值，**不得**将它们替换为 `!`。例如：
+
+```csharp
+// ❌ 错误：移除了运行时守卫，! 在空链表上仍是 null，.Value 抛出 NRE
+if (selectLine!.IfCaseList!.Last!.Value!.FunctionCode == ...)
+
+// ✓ 正确：保留 Count > 0 守卫，仅对编译器无法推导的非空处加 !
+if (selectLine.IfCaseList.Count > 0 && selectLine.IfCaseList.Last!.Value.FunctionCode == ...)
+```
+
+  > **典型案例**：T-022 CS8602 清理时误删了 `ErbLoader.nestCheck` 中 `SELECTCASE` 的 `IfCaseList.Count > 0 &&` 守卫，导致所有含 `SELECTCASE`/`CASE`/`CASEELSE` 的 ERB 函数在加载时 NRE。
     - **`#pragma`**：仅在 `!` 无法抑制的编译器分析已知限制场景下使用。
 ## 5. 修复原则
 - **最小改动**：不重构历史逻辑，优先用 `!` 过渡。
 - **接口契约**：实现成员签名必须严格匹配接口定义。
 - **显式意图**：历史代码“假设非 null”处用 `!` 明确标注。
+- **保留运行时守卫**：`!` 不能替代 `Count > 0`、`!= null` 等运行时空值守卫。`!` 只抑制编译器警告，不改变运行时语义。若原守卫是防止 `null`/空集合上的成员访问，必须保留。（参见踩坑记录 §4）
 ## 6. 剩余清理计划
 待清理的 CS ID（按建议顺序）：
 | 序 | CS ID | 标注数 | 模式（预估） | 难度 |
