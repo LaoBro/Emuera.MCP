@@ -1,4 +1,4 @@
-﻿﻿﻿# 仓库根 .editorconfig
+﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
 # I-12 阶段 1：质量护栏按路径分级
 # - Emuera.Headless/Shared/ 子树是 T-023 物理迁移自 Emuera/ 的历史共享源码
 #   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Headless 构建被历史代码警告淹没
@@ -25,8 +25,8 @@ dotnet_diagnostic.CS8981.severity = none
 # T-023 物理迁移自 Emuera/；责任在历史代码，Headless 暂不修改
 [Emuera.Headless/Shared/**]
 # 历史代码的潜在 nullable/未赋值/不可达代码警告：阶段 2（T-022）统一处理
-dotnet_diagnostic.CS0472.severity = none
-dotnet_diagnostic.CS0649.severity = none
+# CS0472 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
+# CS0649 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 dotnet_diagnostic.CS0162.severity = none
 dotnet_diagnostic.CS0164.severity = none
 dotnet_diagnostic.SYSLIB0014.severity = none   # WebClient 已过时（共享代码 Instraction.Child.cs 使用）
@@ -41,19 +41,19 @@ dotnet_diagnostic.SYSLIB0014.severity = none   # WebClient 已过时（共享代
 # 性能类
 dotnet_diagnostic.CA1507.severity = none   # 用 nameof 代替字符串
 dotnet_diagnostic.CA1514.severity = none   # Substring 冗余长度
-dotnet_diagnostic.CA1806.severity = none   # 未使用方法返回值
-dotnet_diagnostic.CA1816.severity = none   # Dispose 调用 GC.SuppressFinalize
+# CA1806 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
+# CA1816 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 dotnet_diagnostic.CA1822.severity = none   # 成员可标记 static
 dotnet_diagnostic.CA1829.severity = none   # 用 Length 代替 Count()
 dotnet_diagnostic.CA1830.severity = none   # StringBuilder 强类型重载
 dotnet_diagnostic.CA1834.severity = none   # StringBuilder.Append(char)
-dotnet_diagnostic.CA1835.severity = none   # ReadAsync(Memory<byte>)
+# CA1835 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 dotnet_diagnostic.CA1845.severity = none   # AsSpan 代替 Substring
 dotnet_diagnostic.CA1846.severity = none   # AsSpan 代替 Substring
 dotnet_diagnostic.CA1853.severity = none   # 字典 lookup 优化
 dotnet_diagnostic.CA1854.severity = none   # TryGetValue 代替 ContainsKey+indexer
 dotnet_diagnostic.CA1858.severity = none   # StartsWith 代替 IndexOf==0
-dotnet_diagnostic.CA1859.severity = none   # 变量类型收窄
+# CA1859 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 dotnet_diagnostic.CA1862.severity = none   # string.Equals(StringComparison)
 dotnet_diagnostic.CA1864.severity = none   # TryAdd
 dotnet_diagnostic.CA1875.severity = none   # Regex.Count
@@ -65,7 +65,7 @@ dotnet_diagnostic.CA2211.severity = none   # 非私有静态字段
 # 平台兼容性（Headless 路径不触发 WinForms/COM，但共享源码含 Windows 专用 API）
 dotnet_diagnostic.CA1416.severity = none
 # 用法
-dotnet_diagnostic.CA2016.severity = none   # CancellationToken 传递
+# CA2016 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 dotnet_diagnostic.CA2263.severity = none   # 优先泛型方法
 
 # ===== Emuera.Headless 自有源码 =====
