@@ -81,7 +81,7 @@ internal partial class ParserMediator
 
 	public static void Warn(string str, ScriptPosition? pos, int level)
 	{
-		Warn(str, pos, level, null);
+		Warn(str, pos, level, null!);
 	}
 
 	public static void Warn(string str, ScriptPosition? pos, int level, string stack)
@@ -105,7 +105,7 @@ internal partial class ParserMediator
 	/// <param name="level">警告レベル.0:軽微なミス.1:無視できる行.2:行が実行されなければ無害.3:致命的</param>
 	public static void Warn(string str, LogicalLine line, int level, bool isError, bool isBackComp)
 	{
-		Warn(str, line, level, isError, isBackComp, null);
+		Warn(str, line, level, isError, isBackComp, null!);
 	}
 
 	public static void Warn(string str, LogicalLine line, int level, bool isError, bool isBackComp, string stack)

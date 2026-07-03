@@ -497,7 +497,7 @@ internal sealed class CharacterData : IDisposable
 			if (nameAndType.Key != null)
 			{
 				if (!GlobalStatic.IdentifierDictionary.getVarTokenIsForbid(nameAndType.Key))
-					vToken = GlobalStatic.IdentifierDictionary.GetVariableToken(nameAndType.Key, null, false);
+					vToken = GlobalStatic.IdentifierDictionary.GetVariableToken(nameAndType.Key, null!, false);
 				if (userDefineData)
 				{
 					array = (vToken == null || !vToken.IsSavedata || !vToken.IsCharacterData || !(vToken is UserDefinedCharaVariableToken token)
@@ -536,7 +536,7 @@ internal sealed class CharacterData : IDisposable
 					if (userDefineData && array != null)
 						reader.ReadIntArray((array as long[])!, true);
 					else if (vToken == null || !vToken.IsInteger || vToken.Dimension != 1)
-						reader.ReadIntArray(null, true);
+						reader.ReadIntArray(null!, true);
 					else
 						reader.ReadIntArray(dataIntegerArray[codeInt], true);
 					break;
@@ -544,7 +544,7 @@ internal sealed class CharacterData : IDisposable
 					if (userDefineData && array != null)
 						reader.ReadStrArray((array as string[])!, true);
 					else if (vToken == null || !vToken.IsString || vToken.Dimension != 1)
-						reader.ReadStrArray(null, true);
+						reader.ReadStrArray(null!, true);
 					else
 						reader.ReadStrArray(dataStringArray[codeInt], true);
 					break;
@@ -552,7 +552,7 @@ internal sealed class CharacterData : IDisposable
 					if (userDefineData && array != null)
 						reader.ReadIntArray2D((array as long[,])!, true);
 					else if (vToken == null || !vToken.IsInteger || vToken.Dimension != 2)
-						reader.ReadIntArray2D(null, true);
+						reader.ReadIntArray2D(null!, true);
 					else
 						reader.ReadIntArray2D(dataIntegerArray2D[codeInt], true);
 					break;
@@ -560,7 +560,7 @@ internal sealed class CharacterData : IDisposable
 					if (userDefineData && array != null)
 						reader.ReadStrArray2D((array as string[,])!, true);
 					else if (vToken == null || !vToken.IsString || vToken.Dimension != 2)
-						reader.ReadStrArray2D(null, true);
+						reader.ReadStrArray2D(null!, true);
 					else
 						reader.ReadStrArray2D(dataStringArray2D[codeInt], true);
 					break;
@@ -658,11 +658,11 @@ internal sealed class CharacterData : IDisposable
 	public void Dispose()
 	{
 		for (int i = 0; i < dataIntegerArray.Length; i++)
-			dataIntegerArray[i] = null;
+			dataIntegerArray[i] = null!;
 		for (int i = 0; i < dataStringArray.Length; i++)
-			dataStringArray[i] = null;
+			dataStringArray[i] = null!;
 		for (int i = 0; i < dataIntegerArray2D.Length; i++)
-			dataIntegerArray2D[i] = null;
+			dataIntegerArray2D[i] = null!;
 	}
 
 	#endregion

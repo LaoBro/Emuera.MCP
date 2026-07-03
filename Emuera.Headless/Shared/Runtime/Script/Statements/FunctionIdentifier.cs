@@ -533,7 +533,7 @@ internal sealed partial class FunctionIdentifier
 		this.code = code;
 		arg = instruction.ArgBuilder;
 		flag = instruction.Flag | additionalFlag;
-		method = null;
+		method = null!;
 		Name = name;
 		Instruction = instruction;
 	}
@@ -543,9 +543,9 @@ internal sealed partial class FunctionIdentifier
 		this.code = code;
 		this.arg = arg;
 		this.flag = flag;
-		method = null;
+		method = null!;
 		Name = name;
-		Instruction = null;
+		Instruction = null!;
 	}
 
 	private FunctionIdentifier(string methodName, FunctionMethod method, AInstruction instruction)

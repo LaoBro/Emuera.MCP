@@ -207,7 +207,7 @@ internal static class LogicalLineParser
 							break;
 						}
 						AExpression arg = ExpressionParser.ReduceIntegerTerm(wc, TermEndWith.EoL);
-						if (arg.Restructure(null) is not SingleLongTerm sizeTerm || sizeTerm.GetOperandType() != typeof(long))
+						if (arg.Restructure(null!) is not SingleLongTerm sizeTerm || sizeTerm.GetOperandType() != typeof(long))
 						{
 							ParserMediator.Warn(string.Format(trerror.SharpHasNotValidValue.Text, token.ToString()), position, 2);
 							break;
@@ -382,7 +382,7 @@ internal static class LogicalLineParser
 	}
 
 
-	public static LogicalLine ParseLine(CharStream stream, ScriptPosition? position, EmueraConsole console, FunctionLabelLine parentLine = null)
+	public static LogicalLine ParseLine(CharStream stream, ScriptPosition? position, EmueraConsole console, FunctionLabelLine parentLine = null!)
 	{
 		//int lineNo = Position.Value.LineNo;
 		string errMes;
@@ -412,7 +412,7 @@ internal static class LogicalLineParser
 				//token変更不可能
 				//if (wc != EOS)
 				//
-				return new InstructionLine(position, FunctionIdentifier.SETFunction, opWT.Code, wc, null);
+				return new InstructionLine(position, FunctionIdentifier.SETFunction, opWT.Code, wc, null!);
 			}
 			#endregion
 			IdentifierWord idWT = LexicalAnalyzer.ReadFirstIdentifierWord(stream);

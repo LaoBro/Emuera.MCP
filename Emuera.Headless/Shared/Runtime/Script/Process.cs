@@ -224,7 +224,7 @@ internal sealed partial class Process(EmueraConsole view)
 		}
 		catch (Exception e)
 		{
-			handleException(e, null, true);
+			handleException(e, null!, true);
 			console.PrintSystemLine(trsl.ErhLoadingError.Text);
 			return false;
 		}

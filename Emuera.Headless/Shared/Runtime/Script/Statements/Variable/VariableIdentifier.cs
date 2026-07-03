@@ -264,7 +264,7 @@ internal sealed class VariableIdentifier
 
 	public static VariableIdentifier GetVariableId(string key)
 	{
-		return GetVariableId(key, null);
+		return GetVariableId(key, null!);
 	}
 	public static VariableIdentifier GetVariableId(string key, string subStr)
 	{

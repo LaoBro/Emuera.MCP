@@ -478,18 +478,18 @@ internal sealed class EraBinaryDataWriter : IDisposable
 		{
 			var st = writer.BaseStream;
 			st.Seek(0, SeekOrigin.Begin);
-			writer.Close(); writer = null;
+			writer.Close(); writer = null!;
 			var compressor = new GZipStream(fileWriter.BaseStream, CompressionMode.Compress);
 			st.CopyTo(compressor);
 			fileWriter.Close();
 			compressor.Close();
 			st.Close();
 		}
-		fileWriter = null;
+		fileWriter = null!;
 		#endregion
 		if (writer != null)
 			writer.Close();
-		writer = null;
+		writer = null!;
 	}
 
 	#endregion

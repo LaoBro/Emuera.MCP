@@ -1274,7 +1274,7 @@ internal sealed class VariableEvaluator : IDisposable
 			for (long i = lastIndex - 1; i >= startIndex; i--)
 			{
 				fvp.Index1 = i;
-				if (word == fvp.GetStrValue(null))
+				if (word == fvp.GetStrValue(null!))
 					return i;
 			}
 		}
@@ -1283,7 +1283,7 @@ internal sealed class VariableEvaluator : IDisposable
 			for (long i = startIndex; i < lastIndex; i++)
 			{
 				fvp.Index1 = i;
-				if (word == fvp.GetStrValue(null))
+				if (word == fvp.GetStrValue(null!))
 					return i;
 			}
 		}
@@ -1308,7 +1308,7 @@ internal sealed class VariableEvaluator : IDisposable
 			for (long i = lastIndex - 1; i >= startIndex; i--)
 			{
 				fvp.Index1 = i;
-				if (word == fvp.GetIntValue(null))
+				if (word == fvp.GetIntValue(null!))
 					return i;
 			}
 		}
@@ -1317,7 +1317,7 @@ internal sealed class VariableEvaluator : IDisposable
 			for (long i = startIndex; i < lastIndex; i++)
 			{
 				fvp.Index1 = i;
-				if (word == fvp.GetIntValue(null))
+				if (word == fvp.GetIntValue(null!))
 					return i;
 			}
 		}

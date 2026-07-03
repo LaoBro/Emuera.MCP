@@ -46,7 +46,7 @@ internal static class HtmlManager
 	#region EM_私家版_HtmlManager機能拡張
 	public static int HtmlLength(string s)
 	{
-		ConsoleDisplayLine[] lines = Html2DisplayLine(s, GlobalStatic.Console.StrMeasure, null);
+		ConsoleDisplayLine[] lines = Html2DisplayLine(s, GlobalStatic.Console.StrMeasure, null!);
 		int len = 0;
 		if (lines.Length <= 0) return 0;
 		foreach (var btn in lines[0].Buttons) len += btn.Width;
@@ -459,12 +459,12 @@ internal static class HtmlManager
 	/// <returns></returns>
 	public static ConsoleDisplayLine[] Html2DisplayLine(string str, StringMeasure sm, EmueraConsole console)
 	{
-		return html2DisplayLine(str, sm, console, null, null);
+		return html2DisplayLine(str, sm, console, null!, null!);
 	}
 	public static ConsoleButtonString[] Html2ButtonList(string str, StringMeasure sm, EmueraConsole console)
 	{
 		var parts = new List<ConsoleButtonString>();
-		html2DisplayLine(str, sm, console, null, parts);
+		html2DisplayLine(str, sm, console, null!, parts);
 		return parts.ToArray();
 	}
 	static ConsoleDisplayLine[] html2DisplayLine(string str, StringMeasure sm, EmueraConsole console, HtmlParentInfo parent, List<ConsoleButtonString> buttonsOutput)
@@ -574,15 +574,15 @@ internal static class HtmlManager
 									// state.SubDivisionXOffset += MixedNum.ToPixel(box.padding[Direction.Left]);
 								}
 							}
-							state.CurrentDivTag.Lines = html2DisplayLine(null, sm, console, new HtmlParentInfo
+							state.CurrentDivTag.Lines = html2DisplayLine(null!, sm, console, new HtmlParentInfo
 							{
 								HasComment = hasComment,
 								HasReturn = hasReturn,
 								State = state,
 								Stream = st,
-							}, null);
+							}, null!);
 							var tagInfo = state.CurrentDivTag;
-							state.CurrentDivTag = null;
+							state.CurrentDivTag = null!;
 							state.StartingSubDivision = false;
 							cssList.Add(new ConsoleDivPart(tagInfo.X, tagInfo.Y, tagInfo.Width, tagInfo.Height, tagInfo.Depth, tagInfo.Color, tagInfo.StyledBox!, tagInfo.IsRelative, tagInfo.Lines));
 						}
@@ -597,7 +597,7 @@ internal static class HtmlManager
 				state.LastButtonTag = state.CurrentButtonTag!;
 				if (cssList.Count > 0)
 					buttonList.Add(cssToButton(cssList, state, console));
-				buttonList.Add(null);
+				buttonList.Add(null!);
 			}
 			if (state.FlagButton && cssList.Count > 0)
 			{
@@ -777,7 +777,7 @@ internal static class HtmlManager
 		{
 			ret = new ConsoleButtonString(console, css)
 			{
-				Title = null
+				Title = null!
 			};
 		}
 		if (state.LastButtonTag != null)
@@ -911,13 +911,15 @@ internal static class HtmlManager
 				case "button":
 					if (state.CurrentButtonTag == null || !state.CurrentButtonTag.IsButtonTag)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, "button"));
-					state.CurrentButtonTag = null;
+					state.CurrentButtonTag = null!;
 					state.FlagButton = true;
 					return null!;
 				case "nonbutton":
 					if (state.CurrentButtonTag == null || state.CurrentButtonTag.IsButtonTag)
+					{
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, "nonbutton"));
-					state.CurrentButtonTag = null;
+					}
+					state.CurrentButtonTag = null!;
 					state.FlagButton = true;
 					return null!;
 				#region EM_私家版_clearbutton
@@ -932,7 +934,7 @@ internal static class HtmlManager
 				case "div":
 					if (state.CurrentDivTag == null)
 						throw new CodeEE(string.Format(trerror.UnexpectedCloseTag.Text, "div"));
-					state.CurrentDivTag = null;
+					state.CurrentDivTag = null!;
 					return null!;
 				#endregion
 				default:
@@ -1352,7 +1354,7 @@ internal static class HtmlManager
 					{
 						buttonTag.IsButton = false;
 						if (state.FlagClearButtonTooltip)
-							buttonTag.ButtonTitle = null;
+							buttonTag.ButtonTitle = null!;
 					}
 					#endregion
 					buttonTag.IsButtonTag = isButton;

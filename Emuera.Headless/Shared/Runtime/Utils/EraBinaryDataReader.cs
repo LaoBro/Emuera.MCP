@@ -176,7 +176,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 	{
 		if (reader != null)
 			reader.Close();
-		reader = null;
+		reader = null!;
 	}
 
 	#endregion
@@ -261,7 +261,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 			#region EM_私家版_セーブ拡張
 			//if (type == EraSaveDataType.EOC || type == EraSaveDataType.EOF || type == EraSaveDataType.Separator)
 			if (type == EraSaveDataType.EOC || type == EraSaveDataType.EOF || type == EraSaveDataType.Separator || type == EraSaveDataType.Map || type == EraSaveDataType.Xml || type == EraSaveDataType.DT)
-				return new KeyValuePair<string, EraSaveDataType>(null, type);
+				return new KeyValuePair<string, EraSaveDataType>(null!, type);
 			#endregion
 			string key = reader.ReadString();
 			return new KeyValuePair<string, EraSaveDataType>(key, type);
@@ -584,7 +584,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 					int cnt = (int)m_ReadInt();
 					if (needInit)
 						for (int i = 0; i < cnt; i++)
-							refArray[x + i] = null;
+							refArray[x + i] = null!;
 					x += cnt;
 					continue;
 				}
@@ -596,7 +596,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 			}
 			if (needInit)
 				for (; x < length0; x++)
-					refArray[x] = null;
+					refArray[x] = null!;
 			if (oriArray != null)
 			{
 				for (x = 0; x < length0; x++)
@@ -638,7 +638,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 					if (needInit)
 						for (int i = 0; i < cnt; i++)
 							for (y = 0; y < length1; y++)
-								refArray[x + i, y] = null;
+								refArray[x + i, y] = null!;
 					x += cnt;
 					y = 0;
 					continue;
@@ -647,7 +647,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 				{
 					if (needInit)
 						for (; y < length1; y++)
-							refArray[x, y] = null;
+							refArray[x, y] = null!;
 					x++;
 					y = 0;
 					continue;
@@ -658,7 +658,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 					int cnt = (int)m_ReadInt();
 					if (needInit)
 						for (int i = 0; i < cnt; i++)
-							refArray[x, y + i] = null;
+							refArray[x, y + i] = null!;
 					y += cnt;
 					continue;
 				}
@@ -673,7 +673,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 				for (; x < length0; x++)
 				{
 					for (; y < length1; y++)
-						refArray[x, y] = null;
+						refArray[x, y] = null!;
 					y = 0;
 				}
 			}
@@ -724,7 +724,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 						for (int i = 0; i < cnt; i++)
 							for (y = 0; y < length1; y++)
 								for (z = 0; z < length2; z++)
-									refArray[x + i, y, z] = null;
+									refArray[x + i, y, z] = null!;
 					x += cnt;
 					y = 0;
 					z = 0;
@@ -737,7 +737,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 						for (; y < length1; y++)
 						{
 							for (; z < length2; z++)
-								refArray[x, y, z] = null;
+								refArray[x, y, z] = null!;
 							z = 0;
 						}
 					}
@@ -753,7 +753,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 					if (needInit)
 						for (int i = 0; i < cnt; i++)
 							for (z = 0; z < length2; z++)
-								refArray[x, y + i, z] = null;
+								refArray[x, y + i, z] = null!;
 					y += cnt;
 					z = 0;
 					continue;
@@ -762,7 +762,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 				{
 					if (needInit)
 						for (; z < length2; z++)
-							refArray[x, y, z] = null;
+							refArray[x, y, z] = null!;
 					y++;
 					z = 0;
 					continue;
@@ -773,7 +773,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 					int cnt = (int)m_ReadInt();
 					if (needInit)
 						for (int i = 0; i < cnt; i++)
-							refArray[x, y, z + i] = null;
+							refArray[x, y, z + i] = null!;
 					z += cnt;
 					continue;
 				}
@@ -790,7 +790,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 					for (; y < length1; y++)
 					{
 						for (; z < length2; z++)
-							refArray[x, y, z] = null;
+							refArray[x, y, z] = null!;
 						z = 0;
 					}
 					y = 0;

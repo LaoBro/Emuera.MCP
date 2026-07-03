@@ -332,7 +332,7 @@ internal static partial class FunctionMethodCreator
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			VariableToken token = GlobalStatic.IdentifierDictionary.GetVariableToken(arguments[0].GetStrValue(exm), null, true);
+			VariableToken token = GlobalStatic.IdentifierDictionary.GetVariableToken(arguments[0].GetStrValue(exm), null!, true);
 			if (token != null)
 			{
 				long res = 0;
@@ -2069,7 +2069,7 @@ internal static partial class FunctionMethodCreator
 		public CsvStrDataMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = null;
+			argumentTypeArray = null!;
 			charaStr = CharacterStrData.NAME;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int }, OmitStart = 1 },
@@ -2371,7 +2371,7 @@ internal static partial class FunctionMethodCreator
 		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			VariableToken var = GlobalStatic.IdentifierDictionary.GetVariableToken(arguments[0].GetStrValue(exm), null, true);
+			VariableToken var = GlobalStatic.IdentifierDictionary.GetVariableToken(arguments[0].GetStrValue(exm), null!, true);
 			if (var == null)
 				// throw new CodeEE("VARSIZEの1番目の引数(\"" + arguments[0].GetStrValue(exm) + "\")が変数名ではありません");
 				throw new CodeEE(string.Format(trerror.NotVariableName.Text, Name, 1, arguments[0].GetStrValue(exm)));
@@ -2389,7 +2389,7 @@ internal static partial class FunctionMethodCreator
 				arguments[1].Restructure(exm);
 			if (arguments[0] is SingleTerm && (arguments.Count == 1 || arguments[1] is SingleTerm))
 			{
-				VariableToken var = GlobalStatic.IdentifierDictionary.GetVariableToken(arguments[0].GetStrValue(exm), null, true);
+				VariableToken var = GlobalStatic.IdentifierDictionary.GetVariableToken(arguments[0].GetStrValue(exm), null!, true);
 				if (var == null || var.IsReference)//可変長の場合は定数化できない
 					return false;
 				return true;
@@ -2552,7 +2552,7 @@ internal static partial class FunctionMethodCreator
 		public MesSkipMethod(bool warn)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = null;
+			argumentTypeArray = null!;
 			CanRestructure = false;
 			this.warn = warn;
 		}
@@ -2565,7 +2565,7 @@ internal static partial class FunctionMethodCreator
 				return string.Format(trerror.TooManyFuncArgs.Text, name);
 			if (warn)
 				// ParserMediator.Warn("関数MOUSESKIP()は推奨されません。代わりに関数MESSKIP()を使用してください", GlobalStatic.Process.GetScaningLine(), 1, false, false, null);
-				ParserMediator.Warn(string.Format(trerror.FuncDeprecated.Text, name, "MESSKIP"), GlobalStatic.Process.GetScaningLine(), 1, false, false, null);
+				ParserMediator.Warn(string.Format(trerror.FuncDeprecated.Text, name, "MESSKIP"), GlobalStatic.Process.GetScaningLine(), 1, false, false, null!);
 			return null!;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -3809,7 +3809,7 @@ internal static partial class FunctionMethodCreator
 		*/
 		public override Int64 GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			VariableToken var = GlobalStatic.IdentifierDictionary.GetVariableToken(arguments[0].GetStrValue(exm), null, true);
+			VariableToken var = GlobalStatic.IdentifierDictionary.GetVariableToken(arguments[0].GetStrValue(exm), null!, true);
 			if (var == null)
 				throw new CodeEE("GETNUMBの1番目の引数(\"" + arguments[0].GetStrValue(exm) + "\")が変数名ではありません");
 			string key = arguments[1].GetStrValue(exm);
@@ -4370,7 +4370,7 @@ internal static partial class FunctionMethodCreator
 		public StrfindMethod(bool unicode)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = null;
+			argumentTypeArray = null!;
 			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.String, ArgType.Int}, OmitStart = 2 }
@@ -4711,7 +4711,7 @@ internal static partial class FunctionMethodCreator
 						string.Format(trerror.InvalidUnicode.Text, Name, i)));
 				else
 					//ParserMediator.Warn("UNICODE関数に制御文字に対応する値(0x" + String.Format("{0:X}", i) + ")が渡されました", GlobalStatic.Process.scaningLine, 1, false, false, null);
-					ParserMediator.Warn(string.Format(trerror.InvalidUnicode.Text, Name, i), GlobalStatic.Process.scaningLine, 1, false, false, null);
+					ParserMediator.Warn(string.Format(trerror.InvalidUnicode.Text, Name, i), GlobalStatic.Process.scaningLine, 1, false, false, null!);
 				return "";
 			}
 			string s = new(new char[] { (char)i });
@@ -5458,7 +5458,7 @@ internal static partial class FunctionMethodCreator
 				return 0;
 			EmuColor c = ReadColor(Name, exm, arguments, 1);
 #if HEADLESS
-			g.GSetBrush(null);
+			g.GSetBrush(null!);
 #else
 			g.GSetBrush(new SolidBrush(c));
 #endif
@@ -5564,7 +5564,7 @@ internal static partial class FunctionMethodCreator
 			EmuColor c = ReadColor(Name, exm, arguments, 1);
 			long width = arguments[2].GetIntValue(exm);
 #if HEADLESS
-			g.GSetPen(null);
+			g.GSetPen(null!);
 #else
 			g.GSetPen(new Pen(c, width));
 #endif
@@ -6235,7 +6235,7 @@ internal static partial class FunctionMethodCreator
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int } },
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int } }
 				];
-			argumentTypeArray = null;
+			argumentTypeArray = null!;
 			CanRestructure = false;
 		}
 		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)

@@ -124,13 +124,13 @@ internal sealed class InstructionLine : LogicalLine
 	public CharStream PopArgumentPrimitive()
 	{
 		CharStream ret = argprimitive;
-		argprimitive = null;
+		argprimitive = null!;
 		return ret;
 	}
 	public WordCollection PopAssignmentDestStr()
 	{
 		WordCollection ret = assigndest;
-		assigndest = null;
+		assigndest = null!;
 		return ret;
 	}
 
@@ -242,7 +242,7 @@ internal class FunctionLabelLine : LogicalLine, IComparable<FunctionLabelLine>
 	public WordCollection PopRowArgs()
 	{
 		WordCollection ret = wc;
-		wc = null;
+		wc = null!;
 		return ret;
 	}
 

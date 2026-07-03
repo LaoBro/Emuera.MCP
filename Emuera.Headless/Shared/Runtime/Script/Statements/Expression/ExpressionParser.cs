@@ -180,7 +180,7 @@ internal static class ExpressionParser
 	{
 		StrForm strf = StrForm.FromWordToken(sfw);
 		if (strf.IsConst)
-			return new SingleStrTerm(strf.GetString(null));
+			return new SingleStrTerm(strf.GetString(null!));
 		return new StrFormTerm(strf);
 	}
 
@@ -236,7 +236,7 @@ internal static class ExpressionParser
 	/// <returns></returns>
 	#region EE_ERD
 	//private static IOperandTerm reduceIdentifier(WordCollection wc, string idStr, VariableCode varCode)
-	private static AExpression reduceIdentifier(WordCollection wc, string idStr, VariableCode varCode, VariableToken varId = null)
+	private static AExpression reduceIdentifier(WordCollection wc, string idStr, VariableCode varCode, VariableToken varId = null!)
 	#endregion
 
 	{
@@ -275,12 +275,12 @@ internal static class ExpressionParser
 			if (id != null)//idStrが変数名の場合、
 			{
 				if (varCode != VariableCode.__NULL__)//変数の引数が引数を持つことはない
-					return VariableParser.ReduceVariable(id, null, null, null);
+					return VariableParser.ReduceVariable(id, null!, null!, null!);
 				else
 					return VariableParser.ReduceVariable(id, wc);
 			}
 			//idStrが変数名でない場合、
-			AExpression refToken = GlobalStatic.IdentifierDictionary.GetFunctionMethod(GlobalStatic.LabelDictionary, idStr, null, false);
+			AExpression refToken = GlobalStatic.IdentifierDictionary.GetFunctionMethod(GlobalStatic.LabelDictionary, idStr, null!, false);
 			if (refToken != null)//関数参照と名前が一致したらそれを返す。実際に使うとエラー
 				return refToken;
 			if (varCode != VariableCode.__NULL__ && GlobalStatic.ConstantData.isDefined(varCode, idStr))//連想配列的な可能性アリ
@@ -377,7 +377,7 @@ internal static class ExpressionParser
 
 	#region EE_ERD
 	// private static IOperandTerm reduceTerm(WordCollection wc, bool allowKeywordTo, TermEndWith endWith, VariableCode varCode)
-	private static AExpression reduceTerm(WordCollection wc, bool allowKeywordTo, TermEndWith endWith, VariableCode varCode, VariableToken varId = null)
+	private static AExpression reduceTerm(WordCollection wc, bool allowKeywordTo, TermEndWith endWith, VariableCode varCode, VariableToken varId = null!)
 	#endregion
 	{
 		TermStack stack = new();

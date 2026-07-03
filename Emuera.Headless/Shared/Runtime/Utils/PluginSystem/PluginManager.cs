@@ -42,7 +42,7 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 		/// <param name="line">Line of code to execute</param>
 		public void ExecuteLine(string line)
 		{
-			var logicalLine = LogicalLineParser.ParseLine(line, null);
+			var logicalLine = LogicalLineParser.ParseLine(line, null!);
 			InstructionLine func = (InstructionLine)logicalLine;
 			ArgumentParser.SetArgumentTo(func);
 			func.Function.Instruction.DoInstruction(expressionMediator, func, processState);
@@ -103,7 +103,7 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 		{
 			expressionMediator.Console.PrintHtml(htmlText, toBuffer);
 		}
-		public void PrintImage(string resourceName, int width, int height, int y, string buttonResourceName = null, string mapResourceName = null)
+		public void PrintImage(string resourceName, int width, int height, int y, string buttonResourceName = null!, string mapResourceName = null!)
 		{
 			MixedNum widthNum = new()
 			{

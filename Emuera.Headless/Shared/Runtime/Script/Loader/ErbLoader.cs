@@ -133,7 +133,7 @@ internal sealed class ErbLoader
 		}
 		finally
 		{
-			parentProcess.scaningLine = null;
+			parentProcess.scaningLine = null!;
 		}
 		isOnlyEvent.Clear();
 		return noError;
@@ -176,7 +176,7 @@ internal sealed class ErbLoader
 		await Task.Run(() => ParseScript());
 
 		ParserMediator.FlushWarningList();
-		parentProcess.scaningLine = null;
+		parentProcess.scaningLine = null!;
 		isOnlyEvent.Clear();
 		return noError;
 	}
@@ -536,7 +536,7 @@ internal sealed class ErbLoader
 			}
 			finally
 			{
-				parentProcess.scaningLine = null;
+				parentProcess.scaningLine = null!;
 			}
 		}
 		labelDic.SortLabels();
@@ -907,7 +907,7 @@ internal sealed class ErbLoader
 		}
 		finally
 		{
-			parentProcess.scaningLine = null;
+			parentProcess.scaningLine = null!;
 		}
 
 	}

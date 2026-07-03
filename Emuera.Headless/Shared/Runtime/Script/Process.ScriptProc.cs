@@ -679,19 +679,19 @@ internal sealed partial class Process
 					SpCopyArrayArgument arrayArg = (SpCopyArrayArgument)func.Argument;
 					AExpression varName1 = arrayArg.VarName1;
 					AExpression varName2 = arrayArg.VarName2;
-					VariableToken[] vars = [null, null];
+					VariableToken[] vars = [null!, null!];
 					if (!(varName1 is SingleTerm) || !(varName2 is SingleTerm))
 					{
-						string[] names = [null, null];
+						string[] names = [null!, null!];
 						names[0] = varName1.GetStrValue(exm);
 						names[1] = varName2.GetStrValue(exm);
-						if ((vars[0] = GlobalStatic.IdentifierDictionary.GetVariableToken(names[0], null, true)) == null)
+						if ((vars[0] = GlobalStatic.IdentifierDictionary.GetVariableToken(names[0], null!, true)) == null)
 							throw new CodeEE(string.Format(trerror.NotVariableName.Text, "ARRAYCOPY", "1", names[0]));
 						if (!vars[0].IsArray1D && !vars[0].IsArray2D && !vars[0].IsArray3D)
 							throw new CodeEE(string.Format(trerror.ArraycopyArgIsNotArray.Text, "1", names[0]));
 						if (vars[0].IsCharacterData)
 							throw new CodeEE(string.Format(trerror.ArraycopyArgIsCharaVar.Text, "1", names[0]));
-						if ((vars[1] = GlobalStatic.IdentifierDictionary.GetVariableToken(names[1], null, true)) == null)
+						if ((vars[1] = GlobalStatic.IdentifierDictionary.GetVariableToken(names[1], null!, true)) == null)
 							throw new CodeEE(string.Format(trerror.NotVariableName.Text, "ARRAYCOPY", "2", names[1]));
 						if (!vars[1].IsArray1D && !vars[1].IsArray2D && !vars[1].IsArray3D)
 							throw new CodeEE(string.Format(trerror.ArraycopyArgIsNotArray.Text, "2", names[1]));
@@ -706,8 +706,8 @@ internal sealed partial class Process
 					}
 					else
 					{
-						vars[0] = GlobalStatic.IdentifierDictionary.GetVariableToken(((SingleStrTerm)varName1).Str, null, true);
-						vars[1] = GlobalStatic.IdentifierDictionary.GetVariableToken(((SingleStrTerm)varName2).Str, null, true);
+						vars[0] = GlobalStatic.IdentifierDictionary.GetVariableToken(((SingleStrTerm)varName1).Str, null!, true);
+					vars[1] = GlobalStatic.IdentifierDictionary.GetVariableToken(((SingleStrTerm)varName2).Str, null!, true);
 						if ((vars[0].IsInteger && vars[1].IsString) || (vars[0].IsString && vars[1].IsInteger))
 							throw new CodeEE(trerror.DifferentArraycopyArgsType.Text);
 					}

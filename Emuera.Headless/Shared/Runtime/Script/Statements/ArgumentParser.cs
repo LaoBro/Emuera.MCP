@@ -16,7 +16,7 @@ internal static partial class ArgumentParser
 			return false;
 		if (!Program.DebugMode && line.Function.IsDebug())
 		{//非DebugモードでのDebug系命令。何もしないので引数解析も不要
-			line.Argument = null;
+			line.Argument = null!;
 			return true;
 		}
 

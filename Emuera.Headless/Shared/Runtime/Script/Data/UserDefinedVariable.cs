@@ -215,7 +215,7 @@ internal sealed class UserDefinedVariableData
 				if (wc.EOL)
 					throw new CodeEE(trerror.HasNotExpressionAfterComma.Text, sc);
 				AExpression arg = ExpressionParser.ReduceIntegerTerm(wc, TermEndWith.Comma_Assignment);
-				if (arg.Restructure(null) is not SingleLongTerm sizeTerm)
+				if (arg.Restructure(null!) is not SingleLongTerm sizeTerm)
 					throw new CodeEE(trerror.HasNotExpressionAfterComma.Text, sc);
 				if (ret.Reference)//参照型には要素数指定不可(0にするか書かないかどっちか
 				{

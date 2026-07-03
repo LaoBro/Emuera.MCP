@@ -17,12 +17,12 @@ internal sealed partial class Lang
 		public TranslatableString(string text)
 		{
 			this.text = text;
-			tr = null;
+			tr = null!;
 		}
 
 		public void Clear()
 		{
-			tr = null;
+			tr = null!;
 		}
 
 		public void Set(string tr)

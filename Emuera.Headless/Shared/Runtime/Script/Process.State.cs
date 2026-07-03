@@ -363,7 +363,7 @@ internal sealed class ProcessState
 	{
 		if (IsFunctionMethod)
 		{
-			ReturnF(null);
+			ReturnF(null!);
 			return;
 		}
 		//sequential = false;//いずれにしろ順列ではない。
@@ -387,7 +387,7 @@ internal sealed class ProcessState
 		{
 			if (called.TopLabel.hasPrivDynamicVar)
 				called.TopLabel.ScopeOut();
-			currentLine = null;
+			currentLine = null!;
 		}
 		else
 		{

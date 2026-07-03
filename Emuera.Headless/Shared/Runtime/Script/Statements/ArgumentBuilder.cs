@@ -252,7 +252,7 @@ internal static partial class ArgumentParser
 	{
 		public SP_PRINT_IMG_ArgumentBuilder()
 		{
-			argumentTypeArray = null;// new Type[] { typeof(string), typeof(string), typeof(Int64), typeof(Int64), typeof(Int64) };
+			argumentTypeArray = null!;// new Type[] { typeof(string), typeof(string), typeof(Int64), typeof(Int64), typeof(Int64) };
 			minArg = 1;
 		}
 		public override Argument CreateArgument(InstructionLine line, ExpressionMediator exm)
@@ -356,7 +356,7 @@ internal static partial class ArgumentParser
 	{
 		public SP_HTML_PRINT_ArgumentBuilder()
 		{
-			argumentTypeArray = null;// new Type[] { typeof(string), typeof(string), typeof(Int64), typeof(Int64), typeof(Int64) };
+			argumentTypeArray = null!;// new Type[] { typeof(string), typeof(string), typeof(Int64), typeof(Int64), typeof(Int64) };
 		}
 		public override Argument CreateArgument(InstructionLine line, ExpressionMediator exm)
 		{
@@ -403,7 +403,7 @@ internal static partial class ArgumentParser
 	{
 		public SP_DT_COLUMN_OPTIONS_ArgumentBuilder()
 		{
-			argumentTypeArray = null;// new Type[] { typeof(string), typeof(string), typeof(Int64), typeof(Int64), typeof(Int64) };
+			argumentTypeArray = null!;// new Type[] { typeof(string), typeof(string), typeof(Int64), typeof(Int64), typeof(Int64) };
 		}
 		public override Argument CreateArgument(InstructionLine line, ExpressionMediator exm)
 		{
@@ -709,7 +709,7 @@ internal static partial class ArgumentParser
 			if (iw == null)
 			{ warn(string.Format(trerror.CanNotRecognizeArg.Text, "1"), line, 2, false); return null!; }
 			string idStr = iw.Code;
-			VariableToken id = GlobalStatic.IdentifierDictionary.GetVariableToken(idStr, null, true);
+			VariableToken id = GlobalStatic.IdentifierDictionary.GetVariableToken(idStr, null!, true);
 			if (id == null)
 			{ warn(string.Format(trerror.ArgIsNotVariable.Text, "1"), line, 2, false); return null!; }
 			else if ((!id.IsArray1D && !id.IsArray2D && !id.IsArray3D) || (id.Code == VariableCode.RAND))
@@ -910,7 +910,7 @@ internal static partial class ArgumentParser
 			if (funcname is SingleTerm)
 			{
 				ret.IsConst = true;
-				ret.ConstStr = funcname.GetStrValue(null);
+				ret.ConstStr = funcname.GetStrValue(null!);
 				if (string.IsNullOrEmpty(ret.ConstStr))
 				{
 					warn(trerror.NotSpecifiedFuncName.Text, line, 2, false);
@@ -973,7 +973,7 @@ internal static partial class ArgumentParser
 			if (funcname is SingleTerm)
 			{
 				ret.IsConst = true;
-				ret.ConstStr = funcname.GetStrValue(null);
+				ret.ConstStr = funcname.GetStrValue(null!);
 				if (ret.ConstStr == "")
 				{
 					warn(trerror.NotSpecifiedFuncName.Text, line, 2, false);
@@ -1053,7 +1053,7 @@ internal static partial class ArgumentParser
 							return null!;
 						}
 					}
-					ret = new SpSetArgument(varTerm, null)
+					ret = new SpSetArgument(varTerm, null!)
 					{
 						IsConst = true,
 						ConstInt = op == OperatorCode.Increment ? 1 : -1,
@@ -1092,7 +1092,7 @@ internal static partial class ArgumentParser
 						}
 						srcTerms[i] = srcTerms[i].Restructure(exm);
 						if (allConst && (srcTerms[i] is SingleTerm))
-							constValues[i] = srcTerms[i].GetIntValue(null);
+							constValues[i] = srcTerms[i].GetIntValue(null!);
 						else
 							allConst = false;
 					}
@@ -1115,7 +1115,7 @@ internal static partial class ArgumentParser
 					{
 						ret.IsConst = true;
 						ret.AddConst = false;
-						ret.ConstInt = src.GetIntValue(null);
+						ret.ConstInt = src.GetIntValue(null!);
 					}
 					return ret;
 				}
@@ -1123,10 +1123,10 @@ internal static partial class ArgumentParser
 				{
 					if (src is SingleTerm)
 					{
-						ret = new SpSetArgument(varTerm, null)
+						ret = new SpSetArgument(varTerm, null!)
 						{
 							IsConst = true,
-							ConstInt = op == OperatorCode.Plus ? src.GetIntValue(null) : -src.GetIntValue(null),
+							ConstInt = op == OperatorCode.Plus ? src.GetIntValue(null!) : -src.GetIntValue(null!),
 							AddConst = true
 						};
 						return ret;
@@ -1155,7 +1155,7 @@ internal static partial class ArgumentParser
 					{
 						ret.IsConst = true;
 						ret.AddConst = false;
-						ret.ConstStr = src.GetStrValue(null);
+						ret.ConstStr = src.GetStrValue(null!);
 					}
 					return ret;
 				}
@@ -1184,7 +1184,7 @@ internal static partial class ArgumentParser
 							{
 								ret.IsConst = true;
 								ret.AddConst = false;
-								ret.ConstStr = src.GetStrValue(null);
+								ret.ConstStr = src.GetStrValue(null!);
 							}
 							return ret;
 						}
@@ -1204,7 +1204,7 @@ internal static partial class ArgumentParser
 							}
 							srcTerms[i] = srcTerms[i].Restructure(exm);
 							if (allConst && (srcTerms[i] is SingleTerm))
-								constValues[i] = srcTerms[i].GetStrValue(null);
+								constValues[i] = srcTerms[i].GetStrValue(null!);
 							else
 								allConst = false;
 						}
@@ -1290,7 +1290,7 @@ internal static partial class ArgumentParser
 			SpInputsArgument ret = null!;
 			if (st.EOS)
 			{
-				ret = new SpInputsArgument(null, null, null);
+				ret = new SpInputsArgument(null!, null!, null!);
 				return ret;
 			}
 			StrFormWord sfwt = LexicalAnalyzer.AnalyseFormattedString(st, FormStrEndWith.Comma, false);
@@ -1298,7 +1298,7 @@ internal static partial class ArgumentParser
 			term = term.Restructure(exm);
 			if (st.EOS)
 			{
-				ret = new SpInputsArgument(term, null, null);
+				ret = new SpInputsArgument(term, null!, null!);
 				return ret;
 			}
 			st.ShiftNext();
@@ -1314,9 +1314,9 @@ internal static partial class ArgumentParser
 				if (terms[0] == null || !terms[0].IsInteger)
 				{
 					warn(trerror.IgnoreArgBecauseNotInt.Text, line, 1, false);
-					ret = new SpInputsArgument(term, null, null);
+					ret = new SpInputsArgument(term, null!, null!);
 				}
-				else if (terms.Count == 1) ret = new SpInputsArgument(term, terms[0], null);
+				else if (terms.Count == 1) ret = new SpInputsArgument(term, terms[0], null!);
 				else ret = new SpInputsArgument(term, terms[0], terms[1]);
 			}
 			#endregion
@@ -1366,7 +1366,7 @@ internal static partial class ArgumentParser
 				{
 					throw new CodeEE(trerror.CanNotUseRepeat.Text);
 				}
-				if ((term is SingleTerm) && (term.GetIntValue(null) <= 0L))
+				if ((term is SingleTerm) && (term.GetIntValue(null!) <= 0L))
 				{
 					warn(trerror.RepeatCountLessthan0.Text, line, 0, true);
 				}
@@ -1378,7 +1378,7 @@ internal static partial class ArgumentParser
 			ExpressionArgument ret = new(term);
 			if (term is SingleTerm)
 			{
-				long i = term.GetIntValue(null);
+				long i = term.GetIntValue(null!);
 				ret.ConstInt = i;
 				ret.IsConst = true;
 				if (line.FunctionCode == FunctionCode.CLEARLINE)
@@ -1491,7 +1491,7 @@ internal static partial class ArgumentParser
 				return null!;
 			if (terms.Count == 0)
 			{
-				ExpressionArgument ret = new(null)
+				ExpressionArgument ret = new(null!)
 				{
 					ConstStr = "",
 					ConstInt = 0,
@@ -1535,7 +1535,7 @@ internal static partial class ArgumentParser
 				return null!;
 			//上の判定で省略不可時はここに来ないので即さばける
 			if (terms.Count == 1)
-				terms = [terms[0], null];
+				terms = [terms[0], null!];
 			return new SpSwapCharaArgument(terms[0], terms[1]);
 		}
 	}
@@ -1655,7 +1655,7 @@ internal static partial class ArgumentParser
 	{
 		public SP_FOR_NEXT_ArgumentBuilder()
 		{
-			argumentTypeArray = [typeof(long), null, typeof(long), typeof(long)];
+			argumentTypeArray = [typeof(long), null!, typeof(long), typeof(long)];
 			minArg = 3;
 		}
 		public override Argument CreateArgument(InstructionLine line, ExpressionMediator exm)
@@ -1742,7 +1742,7 @@ internal static partial class ArgumentParser
 		{
 			var terms = popTerms(line);
 			if (terms.Count == 0)
-				return new PrintDataArgument(null);
+				return new PrintDataArgument(null!);
 			if (!checkArgumentType(line, exm, terms))
 				return null!;
 			VariableTerm varTerm = getChangeableVariable(terms, 1, line);
@@ -1851,7 +1851,7 @@ internal static partial class ArgumentParser
 					warn(string.Format(trerror.CanNotSetthirdLaterArg.Text, varTerm.Identifier.Name), line, 2, false);
 					return null!;
 				}
-				return new SpVarSetArgument(new FixedVariableTerm(varTerm.Identifier), term, null, null);
+				return new SpVarSetArgument(new FixedVariableTerm(varTerm.Identifier), term, null!, null!);
 			}
 			if (terms.Count > 2)
 				term3 = terms[2];
@@ -1910,7 +1910,7 @@ internal static partial class ArgumentParser
 			if (index is SingleStrTerm term1 && index.GetOperandType() == typeof(string) && varTerm.Identifier.IsArray1D)
 			{
 				if (!GlobalStatic.ConstantData.isDefined(varTerm.Identifier.Code, term1.Str))
-				{ warn(string.Format(trerror.NotDefinedKey.Text, varTerm.Identifier.Name, index.GetStrValue(null)), line, 2, false); return null!; }
+				{ warn(string.Format(trerror.NotDefinedKey.Text, varTerm.Identifier.Name, index.GetStrValue(null!)), line, 2, false); return null!; }
 			}
 			if (terms.Count > 3 && !varTerm.Identifier.IsArray1D)
 				warn(trerror.IgnoreFourthLaterArg.Text, line, 1, false);
@@ -2176,7 +2176,7 @@ internal static partial class ArgumentParser
 			{
 				if (!(termList[i] is SingleTerm))
 					continue;
-				long iValue = termList[i].GetIntValue(null);
+				long iValue = termList[i].GetIntValue(null!);
 				if (iValue < 0)
 				{ warn(trerror.NotPositiveCharaNo.Text, line, 2, false); return null!; }
 				if (iValue > int.MaxValue)
@@ -2185,7 +2185,7 @@ internal static partial class ArgumentParser
 				{
 					if (!(termList[j] is SingleTerm))
 						continue;
-					if (iValue == termList[j].GetIntValue(null))
+					if (iValue == termList[j].GetIntValue(null!))
 					{
 						warn(string.Format(trerror.DuplicateVarSave.Text, iValue.ToString()), line, 1, false);
 						return null!;
@@ -2236,7 +2236,7 @@ internal static partial class ArgumentParser
 			ReferenceToken refVar = null!;
 			if (refm == null)
 			{
-				VariableToken token = GlobalStatic.IdentifierDictionary.GetVariableToken(id.Code, null, true);
+				VariableToken token = GlobalStatic.IdentifierDictionary.GetVariableToken(id.Code, null!, true);
 				if (token == null || !token.IsReference)
 				{ warn(string.Format(trerror.ArgIsNotRef.Text, "1"), line, 2, false); return null!; }
 				refVar = (ReferenceToken)token;
@@ -2263,7 +2263,7 @@ internal static partial class ArgumentParser
 			{
 				if (srcCode == null)
 					return new RefArgument(refVar!, name!);
-				VariableToken srcVar = GlobalStatic.IdentifierDictionary.GetVariableToken(srcCode, null, true);
+				VariableToken srcVar = GlobalStatic.IdentifierDictionary.GetVariableToken(srcCode, null!, true);
 				if (srcVar == null)
 				{ warn(string.Format(trerror.NotDefinedVar.Text, srcCode), line, 2, false); return null!; }
 				return new RefArgument(refVar!, srcVar);
@@ -2333,16 +2333,16 @@ internal static partial class ArgumentParser
 			SpInputsArgument ret;
 			if (terms.Count == 0)
 			{
-				ret = new SpInputsArgument(null, null, null);
+				ret = new SpInputsArgument(null!, null!, null!);
 				return ret;
 			}
 			else if (terms.Count == 1)
 			{
-				ret = new SpInputsArgument(terms[0], null, null);
+				ret = new SpInputsArgument(terms[0], null!, null!);
 			}
 			else if (terms.Count == 2)
 			{
-				ret = new SpInputsArgument(terms[0], terms[1], null);
+				ret = new SpInputsArgument(terms[0], terms[1], null!);
 			}
 			else
 			{
@@ -2366,10 +2366,10 @@ internal static partial class ArgumentParser
 			var terms = popTerms(line);
 			if (!checkArgumentType(line, exm, terms))
 				return null!;
-			VariableToken[] vars = [null, null];
+			VariableToken[] vars = [null!, null!];
 			if (terms[0] is SingleStrTerm term)
 			{
-				if ((vars[0] = GlobalStatic.IdentifierDictionary.GetVariableToken(term.Str, null, true)) == null)
+				if ((vars[0] = GlobalStatic.IdentifierDictionary.GetVariableToken(term.Str, null!, true)) == null)
 				{
 					warn(string.Format(trerror.ArraycopyArgIsNotDefined.Text, "1", term.Str), line, 2, false);
 					return null!;
@@ -2387,7 +2387,7 @@ internal static partial class ArgumentParser
 			}
 			if (terms[1] is SingleStrTerm term1)
 			{
-				if ((vars[1] = GlobalStatic.IdentifierDictionary.GetVariableToken(term1.Str, null, true)) == null)
+				if ((vars[1] = GlobalStatic.IdentifierDictionary.GetVariableToken(term1.Str, null!, true)) == null)
 				{
 					warn(string.Format(trerror.ArraycopyArgIsNotDefined.Text, "2", term1.Str), line, 2, false);
 					return null!;

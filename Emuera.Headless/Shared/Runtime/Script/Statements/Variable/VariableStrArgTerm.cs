@@ -61,7 +61,7 @@ internal sealed class VariableStrArgTerm : AExpression
 		if (dic == null)
 			#region EE_ERD
 			// dic = exm.VEvaluator.Constant.GetKeywordDictionary(out errPos, parentCode, index);
-			dic = exm.VEvaluator.Constant.GetKeywordDictionary(out errPos, parentCode, index, null);
+			dic = exm.VEvaluator.Constant.GetKeywordDictionary(out errPos, parentCode, index, null!);
 		#endregion
 
 		strTerm = strTerm.Restructure(exm);

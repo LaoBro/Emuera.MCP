@@ -68,7 +68,7 @@ internal sealed class ErhLoader
 		{
 			ParserMediator.FlushWarningList();
 			#region EE_ERD
-			erdFileNames = null;
+			erdFileNames = null!;
 			#endregion
 		}
 		return noError;

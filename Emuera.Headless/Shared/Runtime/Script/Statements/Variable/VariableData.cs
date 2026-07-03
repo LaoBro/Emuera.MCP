@@ -524,7 +524,7 @@ internal sealed partial class VariableData : IDisposable
 		for (int i = 0; i < globalInt.Length; i++)
 			globalInt[i] = 0;
 		for (int i = 0; i < globalStr.Length; i++)
-			globalStr[i] = null;
+			globalStr[i] = null!;
 		foreach (UserDefinedVariableToken var in userDefinedGlobalVarList)
 			var.SetDefault();
 	}
@@ -571,7 +571,7 @@ internal sealed partial class VariableData : IDisposable
 		}
 
 		for (int i = 0; i < dataString.Length; i++)
-			dataString[i] = null;
+			dataString[i] = null!;
 
 		for (int i = 0; i < dataStringArray.Length; i++)
 		{
@@ -587,7 +587,7 @@ internal sealed partial class VariableData : IDisposable
 					}
 				default:
 					for (int j = 0; j < dataStringArray[i].Length; j++)
-						dataStringArray[i][j] = null;
+						dataStringArray[i][j] = null!;
 					break;
 			}
 		}
@@ -607,7 +607,7 @@ internal sealed partial class VariableData : IDisposable
 			int length1 = array2D.GetLength(1);
 			for (int x = 0; x < length0; x++)
 				for (int y = 0; y < length1; y++)
-					array2D[x, y] = null;
+					array2D[x, y] = null!;
 		}
 		for (int i = 0; i < dataIntegerArray3D.Length; i++)
 		{
@@ -629,7 +629,7 @@ internal sealed partial class VariableData : IDisposable
 			for (int x = 0; x < length0; x++)
 				for (int y = 0; y < length1; y++)
 					for (int z = 0; z < length2; z++)
-						array3D[x, y, z] = null;
+						array3D[x, y, z] = null!;
 		}
 
 		long[] palamlv = dataIntegerArray[(int)VariableCode.__LOWERCASE__ & (int)VariableCode.PALAMLV];
@@ -1170,7 +1170,7 @@ internal sealed partial class VariableData : IDisposable
 		KeyValuePair<string, EraSaveDataType> nameAndType = reader.ReadVariableCode();
 		VariableToken vToken = null!;
 		if (nameAndType.Key != null && !GlobalStatic.IdentifierDictionary.getVarTokenIsForbid(nameAndType.Key))
-			vToken = GlobalStatic.IdentifierDictionary.GetVariableToken(nameAndType.Key, null, false);
+			vToken = GlobalStatic.IdentifierDictionary.GetVariableToken(nameAndType.Key, null!, false);
 		if (vToken != null && (vToken.IsCharacterData || vToken.IsConst || vToken.IsPrivate || vToken.IsLocal || vToken.IsCalc))
 			vToken = null!;
 		switch (nameAndType.Value)
@@ -1213,47 +1213,47 @@ internal sealed partial class VariableData : IDisposable
 				if (vToken == null || !vToken.IsInteger || vToken.Dimension != 0)
 					reader.ReadInt();//該当変数なし、or型不一致なら読み捨てる
 				else
-					vToken.SetValue(reader.ReadInt(), null);
+					vToken.SetValue(reader.ReadInt(), null!);
 				break;
 			case EraSaveDataType.Str:
 				if (vToken == null || !vToken.IsString || vToken.Dimension != 0)
 					reader.ReadString();
 				else
-					vToken.SetValue(reader.ReadString(), null);
+					vToken.SetValue(reader.ReadString(), null!);
 				break;
 			case EraSaveDataType.IntArray:
 				if (vToken == null || !vToken.IsInteger || vToken.Dimension != 1)
-					reader.ReadIntArray(null, true);
+					reader.ReadIntArray(null!, true);
 				else
 					reader.ReadIntArray((long[])vToken.GetArray(), true);
 				break;
 			case EraSaveDataType.IntArray2D:
 				if (vToken == null || !vToken.IsInteger || vToken.Dimension != 2)
-					reader.ReadIntArray2D(null, true);
+					reader.ReadIntArray2D(null!, true);
 				else
 					reader.ReadIntArray2D((long[,])vToken.GetArray(), true);
 				break;
 			case EraSaveDataType.IntArray3D:
 				if (vToken == null || !vToken.IsInteger || vToken.Dimension != 3)
-					reader.ReadIntArray3D(null, true);
+					reader.ReadIntArray3D(null!, true);
 				else
 					reader.ReadIntArray3D((long[,,])vToken.GetArray(), true);
 				break;
 			case EraSaveDataType.StrArray:
 				if (vToken == null || !vToken.IsString || vToken.Dimension != 1)
-					reader.ReadStrArray(null, true);
+					reader.ReadStrArray(null!, true);
 				else
 					reader.ReadStrArray((string[])vToken.GetArray(), true);
 				break;
 			case EraSaveDataType.StrArray2D:
 				if (vToken == null || !vToken.IsString || vToken.Dimension != 2)
-					reader.ReadStrArray2D(null, true);
+					reader.ReadStrArray2D(null!, true);
 				else
 					reader.ReadStrArray2D((string[,])vToken.GetArray(), true);
 				break;
 			case EraSaveDataType.StrArray3D:
 				if (vToken == null || !vToken.IsString || vToken.Dimension != 3)
-					reader.ReadStrArray3D(null, true);
+					reader.ReadStrArray3D(null!, true);
 				else
 					reader.ReadStrArray3D((string[,,])vToken.GetArray(), true);
 				break;
@@ -1268,9 +1268,9 @@ internal sealed partial class VariableData : IDisposable
 	{
 		ClearLocalValue();
 		for (int i = 0; i < dataIntegerArray.Length; i++)
-			dataIntegerArray[i] = null;
+			dataIntegerArray[i] = null!;
 		for (int i = 0; i < dataStringArray.Length; i++)
-			dataStringArray[i] = null;
+			dataStringArray[i] = null!;
 		for (int i = 0; i < characterList.Count; i++)
 			characterList[i].Dispose();
 		characterList.Clear();

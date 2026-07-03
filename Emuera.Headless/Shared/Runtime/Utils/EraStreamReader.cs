@@ -208,10 +208,10 @@ internal sealed partial class EraStreamReader : IDisposable
 	{
 		if (disposed)
 			return;
-		filepath = null;
-		filename = null;
+		filepath = null!;
+		filename = null!;
 		disposed = true;
-		_fileLines = null;
+		_fileLines = null!;
 	}
 
 	#endregion

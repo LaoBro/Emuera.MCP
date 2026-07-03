@@ -1,4 +1,4 @@
-﻿namespace MinorShift.Emuera.Runtime.Script.Parser;
+namespace MinorShift.Emuera.Runtime.Script.Parser;
 
 /// <summary>
 /// FormattedStringWTの中身用のトークン
@@ -20,7 +20,7 @@ internal abstract class SubWord
 
 internal sealed class TripleSymbolSubWord : SubWord
 {
-	public TripleSymbolSubWord(char c) : base(null) { code = c; }
+	public TripleSymbolSubWord(char c) : base(null!) { code = c; }
 	readonly char code;
 	public char Code { get { return code; } }
 }

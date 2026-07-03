@@ -633,38 +633,38 @@ internal sealed class ConstantData
 		}
 		ItemPrice = new long[MaxDataList[itemIndex]];
 		#region EE_ERD
-		loadDataTo(Path.Combine(csvDir, "ABL.CSV"), ablIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "EXP.CSV"), expIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "TALENT.CSV"), talentIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "PALAM.CSV"), paramIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "TRAIN.CSV"), trainIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "MARK.CSV"), markIndex, null, disp);
+		loadDataTo(Path.Combine(csvDir, "ABL.CSV"), ablIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "EXP.CSV"), expIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "TALENT.CSV"), talentIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "PALAM.CSV"), paramIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "TRAIN.CSV"), trainIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "MARK.CSV"), markIndex, null!, disp);
 		loadDataTo(Path.Combine(csvDir, "ITEM.CSV"), itemIndex, ItemPrice, disp);
-		loadDataTo(Path.Combine(csvDir, "BASE.CSV"), baseIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "SOURCE.CSV"), sourceIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "EX.CSV"), exIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "STR.CSV"), strIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "EQUIP.CSV"), equipIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "TEQUIP.CSV"), tequipIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "FLAG.CSV"), flagIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "TFLAG.CSV"), tflagIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "CFLAG.CSV"), cflagIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "TCVAR.CSV"), tcvarIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "CSTR.CSV"), cstrIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "STAIN.CSV"), stainIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "CDFLAG1.CSV"), cdflag1Index, null, disp);
-		loadDataTo(Path.Combine(csvDir, "CDFLAG2.CSV"), cdflag2Index, null, disp);
+		loadDataTo(Path.Combine(csvDir, "BASE.CSV"), baseIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "SOURCE.CSV"), sourceIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "EX.CSV"), exIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "STR.CSV"), strIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "EQUIP.CSV"), equipIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "TEQUIP.CSV"), tequipIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "FLAG.CSV"), flagIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "TFLAG.CSV"), tflagIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "CFLAG.CSV"), cflagIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "TCVAR.CSV"), tcvarIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "CSTR.CSV"), cstrIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "STAIN.CSV"), stainIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "CDFLAG1.CSV"), cdflag1Index, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "CDFLAG2.CSV"), cdflag2Index, null!, disp);
 
-		loadDataTo(Path.Combine(csvDir, "STRNAME.CSV"), strnameIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "TSTR.CSV"), tstrnameIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "SAVESTR.CSV"), savestrnameIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "GLOBAL.CSV"), globalIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "GLOBALS.CSV"), globalsIndex, null, disp);
+		loadDataTo(Path.Combine(csvDir, "STRNAME.CSV"), strnameIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "TSTR.CSV"), tstrnameIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "SAVESTR.CSV"), savestrnameIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "GLOBAL.CSV"), globalIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "GLOBALS.CSV"), globalsIndex, null!, disp);
 		#endregion
 		#region EE_CSV機能拡張
-		loadDataTo(Path.Combine(csvDir, "DAY.CSV"), dayIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "TIME.CSV"), timeIndex, null, disp);
-		loadDataTo(Path.Combine(csvDir, "MONEY.CSV"), moneyIndex, null, disp);
+		loadDataTo(Path.Combine(csvDir, "DAY.CSV"), dayIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "TIME.CSV"), timeIndex, null!, disp);
+		loadDataTo(Path.Combine(csvDir, "MONEY.CSV"), moneyIndex, null!, disp);
 		#endregion
 		//逆引き辞書を作成
 		for (int i = 0; i < names.Length; i++)
@@ -729,8 +729,8 @@ internal sealed class ConstantData
 		{
 			string[] nameArray = new string[varlength];
 			names[ERD_NAMES_INDEX] = nameArray;
-			loadDataTo(filepath, ERD_NAMES_INDEX, null, disp);
-			names[ERD_NAMES_INDEX] = null;
+			loadDataTo(filepath, ERD_NAMES_INDEX, null!, disp);
+			names[ERD_NAMES_INDEX] = null!;
 			//逆引き辞書を作成
 			for (int j = 0; j < nameArray.Length; j++)
 			{
@@ -781,16 +781,16 @@ internal sealed class ConstantData
 		if (varCode == VariableCode.CDFLAG)
 		{
 			// dic = GetKeywordDictionary(out _, VariableCode.CDFLAGNAME1, -1);
-			dic = GetKeywordDictionary(out _, VariableCode.CDFLAGNAME1, -1, null);
+			dic = GetKeywordDictionary(out _, VariableCode.CDFLAGNAME1, -1, null!);
 			if (dic == null || !dic.ContainsKey(str))
 				// dic = GetKeywordDictionary(out _, VariableCode.CDFLAGNAME2, -1);
-				dic = GetKeywordDictionary(out _, VariableCode.CDFLAGNAME2, -1, null);
+				dic = GetKeywordDictionary(out _, VariableCode.CDFLAGNAME2, -1, null!);
 			if (dic == null)
 				return false;
 			return dic.ContainsKey(str);
 		}
 		// dic = GetKeywordDictionary(out _, varCode, -1);
-		dic = GetKeywordDictionary(out _, varCode, -1, null);
+		dic = GetKeywordDictionary(out _, varCode, -1, null!);
 		if (dic == null)
 			return false;
 		return dic.ContainsKey(str);
@@ -837,7 +837,7 @@ internal sealed class ConstantData
 
 		{
 			//ここで見つからなかったら下の処理でも通す
-			Dictionary<string, int> dic = GetKeywordDictionary(out string errPos, code, index, null);
+			Dictionary<string, int> dic = GetKeywordDictionary(out string errPos, code, index, null!);
 			if (dic != null)
 			{
 				var found = dic.TryGetValue(key, out ret);
@@ -882,7 +882,7 @@ internal sealed class ConstantData
 			throw new CodeEE(trerror.KeywordsCannotBeEmpty.Text);
 		#region EE_ERD
 		// Dictionary<string, int> dic = GetKeywordDictionary(out string errPos, code, index);
-		Dictionary<string, int> dic = GetKeywordDictionary(out string errPos, code, index, null);
+		Dictionary<string, int> dic = GetKeywordDictionary(out string errPos, code, index, null!);
 		#endregion
 		if (dic.TryGetValue(key, out int ret))
 			return ret;
@@ -897,7 +897,7 @@ internal sealed class ConstantData
 	public Dictionary<string, int> GetKeywordDictionary(out string errPos, VariableCode code, int index, string varname)
 	#endregion
 	{
-		errPos = null;
+		errPos = null!;
 		int allowIndex = -1;
 		Dictionary<string, int> ret = null!;
 		switch (code)
@@ -1207,7 +1207,7 @@ internal sealed class ConstantData
 
 	public CharacterTemplate GetCharacterTemplate_UseSp(long index, bool sp)
 	{
-		var i = CharacterTmplList.BinarySearch(null, Comparer<CharacterTemplate>.Create((left, right) => (int)(left.No - index)));
+		var i = CharacterTmplList.BinarySearch(null!, Comparer<CharacterTemplate>.Create((left, right) => (int)(left.No - index)));
 		if (i < 0)
 		{
 			return null!;

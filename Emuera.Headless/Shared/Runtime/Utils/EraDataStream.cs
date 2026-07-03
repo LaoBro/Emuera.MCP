@@ -439,8 +439,8 @@ internal sealed class EraDataReader : IDisposable
 			reader.Close();
 		else if (file != null)
 			file.Close();
-		file = null;
-		reader = null;
+		file = null!;
+		reader = null!;
 	}
 
 	#endregion
@@ -725,8 +725,8 @@ internal sealed class EraDataWriter : IDisposable
 			writer.Close();
 		else if (file != null)
 			file.Close();
-		writer = null;
-		file = null;
+		writer = null!;
+		file = null!;
 	}
 
 	#endregion

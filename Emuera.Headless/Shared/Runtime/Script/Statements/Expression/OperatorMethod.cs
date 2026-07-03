@@ -15,7 +15,7 @@ internal abstract class OperatorMethod : FunctionMethod
 {
 	public OperatorMethod()
 	{
-		argumentTypeArray = null;
+		argumentTypeArray = null!;
 	}
 	public override string CheckArgumentType(string name, List<AExpression> arguments) { throw new ExeEE("型チェックは呼び出し元が行うこと"); }
 }

@@ -510,7 +510,7 @@ internal sealed partial class FunctionIdentifier
 	{
 		public CUSTOMDRAWLINE_Instruction()
 		{
-			ArgBuilder = null;
+			ArgBuilder = null!;
 			flag = METHOD_SAFE | EXTENDED;
 		}
 
@@ -3749,7 +3749,7 @@ internal sealed partial class FunctionIdentifier
 			CalledFunction call = CalledFunction.CallEventFunction(GlobalStatic.Process, labelName, func);
 			if (call == null)
 				return;
-			state.IntoFunction(call, null, null);
+			state.IntoFunction(call, null!, null!);
 		}
 	}
 
@@ -3773,7 +3773,7 @@ internal sealed partial class FunctionIdentifier
 		public override void SetJumpTo(ref bool useCallForm, InstructionLine func, int currentDepth, ref string FunctionoNotFoundName)
 		{
 			GotoLabelLine jumpto;
-			func.JumpTo = null;
+			func.JumpTo = null!;
 			if (func.Argument.IsConst)
 			{
 				string labelName = func.Argument.ConstStr;

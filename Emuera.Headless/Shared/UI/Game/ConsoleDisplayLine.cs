@@ -110,7 +110,7 @@ internal sealed class ConsoleDisplayLine
 
 	public void ChangeStr(ConsoleButtonString[] newButtons)
 	{
-		buttons = null;
+		buttons = null!;
 		foreach (ConsoleButtonString button in newButtons)
 			button.ParentLine = this;
 		buttons = newButtons;

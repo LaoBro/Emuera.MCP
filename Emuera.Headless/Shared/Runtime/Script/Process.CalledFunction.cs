@@ -138,7 +138,7 @@ internal sealed class CalledFunction
 		{
 			TopLabel = labelline,
 			CurrentLabel = labelline,
-			returnAddress = null,
+			returnAddress = null!,
 			IsEvent = false
 		};
 		return called;
@@ -153,7 +153,7 @@ internal sealed class CalledFunction
 	/// </summary>
 	public UserDefinedFunctionArgument ConvertArg(List<AExpression> srcArgs, out string errMes)
 	{
-		errMes = null;
+		errMes = null!;
 		if (TopLabel.IsError)
 		{
 			errMes = TopLabel.ErrMes;
@@ -297,7 +297,7 @@ internal sealed class CalledFunction
 			counter = -1;
 			if (group >= 4)
 			{
-				CurrentLabel = null;
+				CurrentLabel = null!;
 				return;
 			}
 		}
@@ -309,7 +309,7 @@ internal sealed class CalledFunction
 		group++;
 		if (group >= 4)
 		{
-			CurrentLabel = null;
+			CurrentLabel = null!;
 			return;
 		}
 		ShiftNext();
@@ -319,7 +319,7 @@ internal sealed class CalledFunction
 	{
 		group = 4;
 		counter = -1;
-		CurrentLabel = null;
+		CurrentLabel = null!;
 		return;
 	}
 

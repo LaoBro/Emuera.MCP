@@ -45,11 +45,11 @@ internal sealed class StrForm
 		VariableTerm callnameplayer = new(callnameID, [player]);
 		VariableTerm nameassi = new(nameID, [assi]);
 		VariableTerm callnametarget = new(callnameID, [target]);
-		NameTarget = new FunctionMethodTerm(formatPercent, [nametarget, null, null]);
-		CallnameMaster = new FunctionMethodTerm(formatPercent, [callnamemaster, null, null]);
-		CallnamePlayer = new FunctionMethodTerm(formatPercent, [callnameplayer, null, null]);
-		NameAssi = new FunctionMethodTerm(formatPercent, [nameassi, null, null]);
-		CallnameTarget = new FunctionMethodTerm(formatPercent, [callnametarget, null, null]);
+		NameTarget = new FunctionMethodTerm(formatPercent, [nametarget, null!, null!]);
+		CallnameMaster = new FunctionMethodTerm(formatPercent, [callnamemaster, null!, null!]);
+		CallnamePlayer = new FunctionMethodTerm(formatPercent, [callnameplayer, null!, null!]);
+		NameAssi = new FunctionMethodTerm(formatPercent, [nameassi, null!, null!]);
+		CallnameTarget = new FunctionMethodTerm(formatPercent, [callnametarget, null!, null!]);
 	}
 
 	public static StrForm FromWordToken(StrFormWord wt)
@@ -221,7 +221,7 @@ internal sealed class StrForm
 		{
 			CanRestructure = true;
 			ReturnType = typeof(string);
-			argumentTypeArray = null;
+			argumentTypeArray = null!;
 		}
 		public override string CheckArgumentType(string name, List<AExpression> arguments) { throw new ExeEE("型チェックは呼び出し元が行うこと"); }
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments) { throw new ExeEE("戻り値の型が違う"); }

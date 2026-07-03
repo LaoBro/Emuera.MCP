@@ -24,7 +24,7 @@ internal static class VariableParser
 			return false;
 		string[] idlist = ids.Split(':');
 		//idlist = synonym.ApplySynonym(idlist);
-		VariableToken id = GlobalStatic.IdentifierDictionary.GetVariableToken(idlist[0], null, false);
+		VariableToken id = GlobalStatic.IdentifierDictionary.GetVariableToken(idlist[0], null!, false);
 		return id != null;
 	}
 

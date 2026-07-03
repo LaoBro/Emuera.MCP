@@ -298,7 +298,7 @@ internal abstract class CharaVariableToken : VariableToken
 internal abstract class UserDefinedVariableToken : VariableToken
 {
 	protected UserDefinedVariableToken(VariableCode varCode, UserDefinedVariableData data)
-		: base(varCode, null)
+		: base(varCode, null!)
 	{
 		varName = data.Name;
 		IsPrivate = data.Private;
@@ -478,7 +478,7 @@ internal abstract class ReferenceToken : UserDefinedVariableToken
 		if (counter > 0)
 			arrayList.Add(array);
 		counter++;
-		array = null;
+		array = null!;
 	}
 
 	public override void ScopeOut()
@@ -490,7 +490,7 @@ internal abstract class ReferenceToken : UserDefinedVariableToken
 			arrayList.RemoveAt(arrayList.Count - 1);
 		}
 		else
-			array = null;
+			array = null!;
 		counter--;
 	}
 	public override object GetArray()
@@ -1579,7 +1579,7 @@ internal sealed partial class VariableData
 		public override void resize(int newSize)
 		{
 			size = newSize;
-			array = null;
+			array = null!;
 		}
 	}
 
@@ -1638,7 +1638,7 @@ internal sealed partial class VariableData
 		public override void resize(int newSize)
 		{
 			size = newSize;
-			array = null;
+			array = null!;
 		}
 
 	}
@@ -2136,7 +2136,7 @@ internal sealed partial class VariableData
 				array = arrayStack.Pop();
 			}
 			else
-				array = null;
+				array = null!;
 		}
 	}
 	private sealed class PrivateInt2DVariableToken : UserDefinedVariableToken
@@ -2200,7 +2200,7 @@ internal sealed partial class VariableData
 				array = arrayStack.Pop();
 			}
 			else
-				array = null;
+				array = null!;
 		}
 	}
 	private sealed class PrivateInt3DVariableToken : UserDefinedVariableToken
@@ -2267,7 +2267,7 @@ internal sealed partial class VariableData
 				array = arrayStack.Pop();
 			}
 			else
-				array = null;
+				array = null!;
 		}
 	}
 
@@ -2337,7 +2337,7 @@ internal sealed partial class VariableData
 				array = arrayStack.Pop();
 			}
 			else
-				array = null;
+				array = null!;
 		}
 	}
 
@@ -2400,7 +2400,7 @@ internal sealed partial class VariableData
 				array = arrayStack.Pop();
 			}
 			else
-				array = null;
+				array = null!;
 		}
 	}
 
@@ -2464,7 +2464,7 @@ internal sealed partial class VariableData
 				array = arrayStack.Pop();
 			}
 			else
-				array = null;
+				array = null!;
 		}
 	}
 

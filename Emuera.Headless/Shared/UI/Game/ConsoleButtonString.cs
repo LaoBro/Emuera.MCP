@@ -203,7 +203,7 @@ internal sealed class ConsoleButtonString
 		cssListA.CopyTo(cssArrayA);
 		cssListB.CopyTo(cssArrayB);
 		strArray = cssArrayA;
-		ConsoleButtonString ret = new(null, cssArrayB);
+		ConsoleButtonString ret = new(null!, cssArrayB);
 		CalcWidth(sm, XsubPixel);
 		ret.CalcWidth(sm, 0);
 		CalcPointX(PointX);

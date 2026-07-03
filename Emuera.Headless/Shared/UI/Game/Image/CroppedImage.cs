@@ -30,7 +30,7 @@ internal abstract class ASpriteSingle : ASprite
 	public ASpriteSingle(string name, AbstractImage img, EmuRectangle rect, EmuSize destSize) : base(name, destSize) { }
 	public AbstractImage BaseImage = null!;
 	public override bool IsCreated => BaseImage != null && BaseImage.IsCreated;
-	public override void Dispose() { BaseImage = null; }
+	public override void Dispose() { BaseImage = null!; }
 }
 
 internal sealed class SpriteG : ASpriteSingle

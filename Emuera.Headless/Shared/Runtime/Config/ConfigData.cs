@@ -785,7 +785,7 @@ internal sealed class ConfigData
 		}
 		catch (EmueraException ee)
 		{
-			ParserMediator.ConfigWarn(ee.Message, pos, 1, null);
+			ParserMediator.ConfigWarn(ee.Message, pos, 1, null!);
 		}
 		catch (Exception exc)
 		{
@@ -905,7 +905,7 @@ internal sealed class ConfigData
 		}
 		catch (EmueraException ee)
 		{
-			ParserMediator.ConfigWarn(ee.Message, pos, 1, null);
+			ParserMediator.ConfigWarn(ee.Message, pos, 1, null!);
 			goto err;
 		}
 		catch (Exception exc)
