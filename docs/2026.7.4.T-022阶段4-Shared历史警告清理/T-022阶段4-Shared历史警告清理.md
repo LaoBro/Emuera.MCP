@@ -161,6 +161,7 @@ dotnet_diagnostic.CA2016.severity = none
 - **CA1822 调用点**：标记 `static` 前必须全局 Grep 调用点，确认无 `instance.Method()` 调用。
 - **CA1069 枚举值**：若枚举被序列化（JSON/二进制），改值会破坏兼容性，需检查是否落盘/读盘。
 - **SYSLIB0014**：`WebClient` 是同步阻塞 API，迁移到 `HttpClient` 需注意线程模型，可能需引入 `async` 链路。
+- **CA1854 + CS8600 陷阱**：`Dictionary.TryGetValue(key, out T)` 的 `out` 参数带 `[MaybeNullWhen(false)]` 特性，当目标变量是非 null 引用类型（如 `XmlDocument doc`）时，`out doc` 会触发 CS8600。修复模式：用临时变量 + null-forgiving，`if (dict.TryGetValue(key, out var temp)) doc = temp!;`。
 
 ## 6. 修复原则
 
@@ -181,7 +182,7 @@ dotnet_diagnostic.CA2016.severity = none
 | :--- | :--- | :---: | :---: | :--- |
 | 1 | CS0472/CS0649/CA1806/CA1816/CA1835/CA1859/CA2016 | 0 | 0 | ✅ 已完成 |
 | 2 | CA1834/CA1829/CA2249/CA1858/CA1864/CA1514/CA1845/CA1846/CA1862/CA1830/CA1875 | 38 | 80 | ✅ 已完成 |
-| 3 | CA1854 | 84 | - | ⬜ 待办 |
+| 3 | CA1854 | 84 | 84 | ✅ 已完成 |
 | 4 | CA1822 | 66 | - | ⬜ 待办 |
 | 5 | CA1069/CA2208/CA2211/CS0162/CS0164/CA2263/CA1507 | 50 | - | ⬜ 待办 |
 | 6 | SYSLIB0014 | 2 | - | ⬜ 待办 |

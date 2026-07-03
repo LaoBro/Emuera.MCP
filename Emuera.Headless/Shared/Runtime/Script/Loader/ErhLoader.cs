@@ -295,9 +295,8 @@ internal sealed class ErhLoader
 						if (data.Dimension == 1)
 						{
 							key = data.Name.ToUpper();
-							if (erdFileNames.ContainsKey(key))
+							if (erdFileNames.TryGetValue(key, out var info))
 							{
-								var info = erdFileNames[key];
 								GlobalStatic.ConstantData.UserDefineLoadData(info, data.Name, data.Lengths[0], Config.Config.DisplayReport, dimline.SC);
 							}
 #if HEADLESS
@@ -311,9 +310,8 @@ internal sealed class ErhLoader
 							for (int dim = 1; dim < 3; dim++)
 							{
 								key = data.Name.ToUpper() + "@" + dim;
-								if (erdFileNames.ContainsKey(key))
+								if (erdFileNames.TryGetValue(key, out var info))
 								{
-									var info = erdFileNames[key];
 									GlobalStatic.ConstantData.UserDefineLoadData(info, data.Name + "@" + dim, data.Lengths[dim - 1], Config.Config.DisplayReport, dimline.SC);
 								}
 #if HEADLESS
@@ -328,9 +326,8 @@ internal sealed class ErhLoader
 							for (int dim = 1; dim < 4; dim++)
 							{
 								key = data.Name.ToUpper() + "@" + dim;
-								if (erdFileNames.ContainsKey(key))
+								if (erdFileNames.TryGetValue(key, out var info))
 								{
-									var info = erdFileNames[key];
 									GlobalStatic.ConstantData.UserDefineLoadData(info, data.Name + "@" + dim, data.Lengths[dim - 1], Config.Config.DisplayReport, dimline.SC);
 								}
 #if HEADLESS
@@ -379,18 +376,18 @@ internal sealed class ErhLoader
 		foreach (var path in Directory.GetFiles(Program.ErbDir, "*.erd", SearchOption.AllDirectories))
 		{
 			var key = Path.GetFileNameWithoutExtension(path).ToUpper();
-			if (!erdFileNames.ContainsKey(key))
-				erdFileNames[key] = [path];
+			if (erdFileNames.TryGetValue(key, out var list))
+				list.Add(path);
 			else
-				erdFileNames[key].Add(path);
+				erdFileNames[key] = [path];
 		}
 		foreach (var path in Directory.GetFiles(Program.CsvDir, "*.csv", SearchOption.TopDirectoryOnly))
 		{
 			var key = Path.GetFileNameWithoutExtension(path).ToUpper();
-			if (!erdFileNames.ContainsKey(key))
-				erdFileNames[key] = [path];
+			if (erdFileNames.TryGetValue(key, out var list))
+				list.Add(path);
 			else
-				erdFileNames[key].Add(path);
+				erdFileNames[key] = [path];
 		}
 	}
 	#endregion

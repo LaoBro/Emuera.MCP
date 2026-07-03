@@ -314,12 +314,12 @@ internal sealed class Utils
 		}
 		public static Type NameToType(string n)
 		{
-			if (builtInDictDTTypeNames_R.ContainsKey(n)) return builtInDictDTTypeNames_R[n];
+			if (builtInDictDTTypeNames_R.TryGetValue(n, out var v)) return v;
 			return null!;
 		}
 		public static string TypeToName(Type t)
 		{
-			if (builtInDictDTTypeNames.ContainsKey(t)) return builtInDictDTTypeNames[t];
+			if (builtInDictDTTypeNames.TryGetValue(t, out var v)) return v;
 			return null!;
 		}
 		public static object ConvertInt(long v, Type t)

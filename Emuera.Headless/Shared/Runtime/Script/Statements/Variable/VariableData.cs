@@ -1000,23 +1000,23 @@ internal sealed partial class VariableData : IDisposable
 	{
 		foreach (var key in GlobalStatic.ConstantData.GlobalSaveMaps)
 		{
-			if (DataStringMaps.ContainsKey(key))
+			if (DataStringMaps.TryGetValue(key, out var value))
 			{
-				writer.WriteWithKey(key, DataStringMaps[key]);
+				writer.WriteWithKey(key, value);
 			}
 		}
 		foreach (var key in GlobalStatic.ConstantData.GlobalSaveXmls)
 		{
-			if (DataXmlDocument.ContainsKey(key))
+			if (DataXmlDocument.TryGetValue(key, out var value))
 			{
-				writer.WriteWithKey(key, DataXmlDocument[key]);
+				writer.WriteWithKey(key, value);
 			}
 		}
 		foreach (var key in GlobalStatic.ConstantData.GlobalSaveDTs)
 		{
-			if (DataDataTables.ContainsKey(key))
+			if (DataDataTables.TryGetValue(key, out var value))
 			{
-				writer.WriteWithKey(key, DataDataTables[key]);
+				writer.WriteWithKey(key, value);
 			}
 		}
 	}
@@ -1024,23 +1024,23 @@ internal sealed partial class VariableData : IDisposable
 	{
 		foreach (var key in GlobalStatic.ConstantData.SaveMaps)
 		{
-			if (DataStringMaps.ContainsKey(key))
+			if (DataStringMaps.TryGetValue(key, out var value))
 			{
-				writer.WriteWithKey(key, DataStringMaps[key]);
+				writer.WriteWithKey(key, value);
 			}
 		}
 		foreach (var key in GlobalStatic.ConstantData.SaveXmls)
 		{
-			if (DataXmlDocument.ContainsKey(key))
+			if (DataXmlDocument.TryGetValue(key, out var value))
 			{
-				writer.WriteWithKey(key, DataXmlDocument[key]);
+				writer.WriteWithKey(key, value);
 			}
 		}
 		foreach (var key in GlobalStatic.ConstantData.SaveDTs)
 		{
-			if (DataDataTables.ContainsKey(key))
+			if (DataDataTables.TryGetValue(key, out var value))
 			{
-				writer.WriteWithKey(key, DataDataTables[key]);
+				writer.WriteWithKey(key, value);
 			}
 		}
 	}
@@ -1090,9 +1090,9 @@ internal sealed partial class VariableData : IDisposable
 	{
 		foreach (var key in GlobalStatic.ConstantData.SaveMaps)
 		{
-			if (DataStringMaps.ContainsKey(key))
+			if (DataStringMaps.TryGetValue(key, out var value))
 			{
-				DataStringMaps[key].Clear();
+				value.Clear();
 			}
 		}
 		foreach (var key in GlobalStatic.ConstantData.SaveXmls)
@@ -1104,9 +1104,9 @@ internal sealed partial class VariableData : IDisposable
 		}
 		foreach (var key in GlobalStatic.ConstantData.SaveDTs)
 		{
-			if (DataDataTables.ContainsKey(key))
+			if (DataDataTables.TryGetValue(key, out var value))
 			{
-				DataDataTables[key].Clear();
+				value.Clear();
 			}
 		}
 	}
@@ -1115,9 +1115,9 @@ internal sealed partial class VariableData : IDisposable
 	{
 		foreach (var key in GlobalStatic.ConstantData.GlobalSaveMaps)
 		{
-			if (DataStringMaps.ContainsKey(key))
+			if (DataStringMaps.TryGetValue(key, out var value))
 			{
-				DataStringMaps[key].Clear();
+				value.Clear();
 			}
 		}
 		foreach (var key in GlobalStatic.ConstantData.GlobalSaveXmls)
@@ -1129,9 +1129,9 @@ internal sealed partial class VariableData : IDisposable
 		}
 		foreach (var key in GlobalStatic.ConstantData.GlobalSaveDTs)
 		{
-			if (DataDataTables.ContainsKey(key))
+			if (DataDataTables.TryGetValue(key, out var value))
 			{
-				DataDataTables[key].Clear();
+				value.Clear();
 			}
 		}
 	}
@@ -1139,9 +1139,9 @@ internal sealed partial class VariableData : IDisposable
 	{
 		foreach (var key in GlobalStatic.ConstantData.StaticMaps)
 		{
-			if (DataStringMaps.ContainsKey(key))
+			if (DataStringMaps.TryGetValue(key, out var value))
 			{
-				DataStringMaps[key].Clear();
+				value.Clear();
 			}
 		}
 		foreach (var key in GlobalStatic.ConstantData.StaticXmls)
@@ -1153,9 +1153,9 @@ internal sealed partial class VariableData : IDisposable
 		}
 		foreach (var key in GlobalStatic.ConstantData.StaticDTs)
 		{
-			if (DataDataTables.ContainsKey(key))
+			if (DataDataTables.TryGetValue(key, out var value))
 			{
-				DataDataTables[key].Clear();
+				value.Clear();
 			}
 		}
 	}
