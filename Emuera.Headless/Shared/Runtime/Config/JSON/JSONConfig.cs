@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace MinorShift.Emuera.Runtime.Config.JSON;
 static class JSONConfig
 {
-	public static JSONConfigData Data;
+	public static JSONConfigData Data = null!;
 
 	const string _configFileName = "setting.json";
 	static string _configFilePath = Program.ExeDir + _configFileName;

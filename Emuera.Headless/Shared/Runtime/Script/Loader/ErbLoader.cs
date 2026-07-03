@@ -34,7 +34,7 @@ internal sealed class ErbLoader
 	int ignoredFNFWarningCount;
 
 	int enabledLineCount;
-	LabelDictionary labelDic;
+	LabelDictionary labelDic = null!;
 
 	bool noError = true;
 	/// <summary>

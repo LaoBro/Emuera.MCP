@@ -13,7 +13,7 @@ namespace MinorShift.Emuera.GameProc;
 
 internal sealed partial class Process
 {
-	private string[] TrainName;
+	private string[] TrainName = null!;
 	delegate void SystemProcess();
 	Dictionary<SystemStateCode, SystemProcess> systemProcessDictionary = [];
 	private void initSystemProcess()
@@ -83,7 +83,7 @@ internal sealed partial class Process
 	int lastCalledComable = -1;
 	int lastAddCom = -1;
 	//(Train.csv中の値・定義されていなければ-1) == comAble[(表示されている値)];
-	int[] comAble;//
+	int[] comAble = null!;//
 
 
 	private void runSystemProc()

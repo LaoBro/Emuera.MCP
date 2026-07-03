@@ -41,7 +41,7 @@ internal abstract class ArgumentBuilder
 	/// <summary>
 	/// 引数の型と数。typeof(void)で任意の型（あるいは個別にチェックするべき引数）。nullでその引数は省略可能
 	/// </summary>
-	protected Type[] argumentTypeArray;//
+	protected Type[] argumentTypeArray = null!;//
 	/// <summary>
 	/// 最低限必要な引数の数。設定しないと全て省略不可。
 	/// </summary>

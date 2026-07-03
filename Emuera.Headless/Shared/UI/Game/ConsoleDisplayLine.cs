@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game.Image;
 using System.Text;
@@ -49,7 +49,7 @@ internal sealed class ConsoleDisplayLine
 	readonly public bool IsTemporary;
 	public bool IsLineEnd = true;
 	//EmueraConsole parent;
-	ConsoleButtonString[] buttons;
+	ConsoleButtonString[] buttons = null!;
 	DisplayLineAlignment align;
 	public ConsoleButtonString[] Buttons { get { return buttons; } }
 	public DisplayLineAlignment Align { get { return align; } }

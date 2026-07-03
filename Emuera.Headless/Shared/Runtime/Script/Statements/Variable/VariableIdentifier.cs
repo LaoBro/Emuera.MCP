@@ -17,7 +17,7 @@ internal sealed class VariableIdentifier
 	private VariableIdentifier(VariableCode code, string scope)
 	{ this.code = code; this.scope = scope; }
 	readonly VariableCode code;
-	readonly string scope;
+	readonly string scope = null!;
 	public VariableCode Code
 	{ get { return code; } }
 	public string Scope

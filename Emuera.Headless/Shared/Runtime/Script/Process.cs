@@ -31,21 +31,21 @@ internal sealed partial class Process(EmueraConsole view)
 	/// @~~と$~~を集めたもの。CALL命令などで使う
 	/// 実行順序はLogicalLine自身が保持する。
 	/// </summary>
-	LabelDictionary labelDic;
+	LabelDictionary labelDic = null!;
 	public LabelDictionary LabelDictionary { get { return labelDic; } }
 
 	/// <summary>
 	/// 変数全部。スクリプト中で必要になる変数は（ユーザーが直接触れないものも含め）この中にいれる
 	/// </summary>
-	private VariableEvaluator vEvaluator;
+	private VariableEvaluator vEvaluator = null!;
 	public VariableEvaluator VEvaluator { get { return vEvaluator; } }
-	private ExpressionMediator exm;
-	private GameBase gamebase;
+	private ExpressionMediator exm = null!;
+	private GameBase gamebase = null!;
 	public GameBase gameBase { get { return gamebase; } }
 	readonly EmueraConsole console = view;
-	private IdentifierDictionary idDic;
-	ProcessState state;
-	ProcessState originalState;//リセットする時のために
+	private IdentifierDictionary idDic = null!;
+	ProcessState state = null!;
+	ProcessState originalState = null!;//リセットする時のために
 	bool noError;
 	//色々あって復活させてみる
 	bool initialiing;
@@ -466,7 +466,7 @@ internal sealed partial class Process(EmueraConsole view)
 				return state.Scope;
 			}
 	*/
-	public LogicalLine scaningLine;
+	public LogicalLine scaningLine = null!;
 	internal LogicalLine GetScaningLine()
 	{
 		if (scaningLine != null)

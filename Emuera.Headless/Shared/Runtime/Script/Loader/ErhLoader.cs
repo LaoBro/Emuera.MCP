@@ -26,7 +26,7 @@ internal sealed class ErhLoader
 	readonly IdentifierDictionary idDic;
 
 	bool noError = true;
-	Queue<DimLineWC> dimlines;
+	Queue<DimLineWC> dimlines = null!;
 	/// <summary>
 	/// 
 	/// </summary>
@@ -371,7 +371,7 @@ internal sealed class ErhLoader
 	}
 	#region EE_ERD
 
-	private Dictionary<string, List<string>> erdFileNames;
+	private Dictionary<string, List<string>> erdFileNames = null!;
 
 	private void PrepareERDFileNames()
 	{

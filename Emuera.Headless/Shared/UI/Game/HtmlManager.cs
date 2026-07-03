@@ -200,7 +200,7 @@ internal static class HtmlManager
 			StyledBox = box;
 			IsRelative = isRelative;
 		}
-		public ConsoleDisplayLine[] Lines;
+		public ConsoleDisplayLine[] Lines = null!;
 		public MixedNum Width;
 		public MixedNum Height;
 		public MixedNum X;
@@ -225,7 +225,7 @@ internal static class HtmlManager
 	{
 		public int Color = -1;
 		public int BColor = -1;
-		public string FontName;
+		public string FontName = null!;
 		//public int PointX = 0;
 		//public bool PointXisLocked = false;
 	}
@@ -235,8 +235,8 @@ internal static class HtmlManager
 		public bool IsButton = true;
 		public bool IsButtonTag = true;
 		public long ButtonValueInt;
-		public string ButtonValueStr;
-		public string ButtonTitle;
+		public string ButtonValueStr = null!;
+		public string ButtonTitle = null!;
 		public bool ButtonIsInteger;
 		public int PointX;
 		public bool PointXisLocked;
@@ -256,11 +256,11 @@ internal static class HtmlManager
 		/// <summary>
 		/// 今まで追加された文字列についてのボタンタグ情報
 		/// </summary>
-		public HtmlAnalzeStateButtonTag LastButtonTag;
+		public HtmlAnalzeStateButtonTag LastButtonTag = null!;
 		/// <summary>
 		/// 最新のボタンタグ情報
 		/// </summary>
-		public HtmlAnalzeStateButtonTag CurrentButtonTag;
+		public HtmlAnalzeStateButtonTag CurrentButtonTag = null!;
 
 		#region EM_私家版_clearbutton
 		public bool FlagClearButton;//falseの時に</clearbutton>するとエラー,trueの時ボタン化が無効とする
@@ -269,7 +269,7 @@ internal static class HtmlManager
 
 		#region EM_私家版_HTML_divタグ
 		public bool StartingSubDivision;
-		public HtmlDivTag CurrentDivTag;
+		public HtmlDivTag CurrentDivTag = null!;
 		public int SubDivisionWidth;
 		// public int SubDivisionXOffset; // 必要がなさそうなので削除する
 		#endregion
@@ -445,8 +445,8 @@ internal static class HtmlManager
 	#region EM_私家版_描画拡張
 	sealed class HtmlParentInfo
 	{
-		public HtmlAnalzeState State;
-		public CharStream Stream;
+		public HtmlAnalzeState State = null!;
+		public CharStream Stream = null!;
 		public bool HasComment;
 		public bool HasReturn;
 	}

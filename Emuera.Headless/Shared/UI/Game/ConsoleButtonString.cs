@@ -108,27 +108,27 @@ internal sealed class ConsoleButtonString
 	}
 
 	//Bitmap Cache
-	public IBitmapImage bitmapCache;
+	public IBitmapImage bitmapCache = null!;
 
-	ConsoleImagePart mask;
+	ConsoleImagePart mask = null!;
 	#endregion
 
 	AConsoleDisplayNode[] strArray;
 	public AConsoleDisplayNode[] StrArray { get { return strArray; } }
 	EmueraConsole parent;
 
-	public ConsoleDisplayLine ParentLine { get; set; }
+	public ConsoleDisplayLine ParentLine { get; set; } = null!;
 	public bool IsButton { get; private set; }
 	public bool IsInteger { get; private set; }
 	public long Input { get; private set; }
-	public string Inputs { get; private set; }
+	public string Inputs { get; private set; } = null!;
 	public int PointX { get; set; }
 	public bool PointXisLocked { get; set; }
 	public int Width { get; set; }
 	public float XsubPixel { get; set; }
 	public long Generation { get; private set; }
 	public ScriptPosition? ErrPos { get; set; }
-	public string Title { get; set; }
+	public string Title { get; set; } = null!;
 
 
 	public int RelativePointX { get; private set; }
@@ -142,7 +142,7 @@ internal sealed class ConsoleButtonString
 
 	#region EM_私家版_描画拡張
 	public AConsoleDisplayNode[] EscapedParts { get { return escaped; } }
-	AConsoleDisplayNode[] escaped;
+	AConsoleDisplayNode[] escaped = null!;
 	bool escapeFilterApplied;
 
 	public void FilterEscaped()

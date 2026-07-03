@@ -9,13 +9,13 @@ namespace MinorShift.Emuera.Runtime.Script.Data;
 
 internal sealed class UserDefinedVariableData
 {
-	public string Name;
+	public string Name = null!;
 	public bool TypeIsStr;
 	public bool Reference;
 	public int Dimension = 1;
-	public int[] Lengths;
-	public long[] DefaultInt;
-	public string[] DefaultStr;
+	public int[] Lengths = null!;
+	public long[] DefaultInt = null!;
+	public string[] DefaultStr = null!;
 	public bool Global;
 	public bool Save;
 	public bool Static = true;

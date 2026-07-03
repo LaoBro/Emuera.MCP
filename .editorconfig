@@ -1,4 +1,4 @@
-﻿# 仓库根 .editorconfig
+﻿﻿﻿﻿# 仓库根 .editorconfig
 # I-12 阶段 1：质量护栏按路径分级
 # - Emuera.Headless/Shared/ 子树是 T-023 物理迁移自 Emuera/ 的历史共享源码
 #   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Headless 构建被历史代码警告淹没
@@ -34,7 +34,7 @@ dotnet_diagnostic.SYSLIB0014.severity = none   # WebClient 已过时（共享代
 # Nullable 引用类型（CS86xx）：历史代码无 nullable 标注，T-022 阶段 3 全量抑制
 # <Nullable>enable</Nullable> 保留，但 Shared/ 历史代码暂不要求 nullable-clean
 # 如后续新增历史文件触发其他 CS86xx，按需在此追加
-dotnet_diagnostic.CS8618.severity = none   # 构造函数未初始化非 null 字段（686）
+# CS8618 已清理（T-022 阶段 3，2026-07-04）
 dotnet_diagnostic.CS8625.severity = none   # null 字面量转非 null 引用类型（550）
 
 # .NET 分析器 CA 规则（按基线构建统计的 22 个 ID 显式抑制）

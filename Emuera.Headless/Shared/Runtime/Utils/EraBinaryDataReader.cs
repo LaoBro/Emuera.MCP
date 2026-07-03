@@ -82,9 +82,9 @@ internal abstract class EraBinaryDataReader : IDisposable
 		version = ver;
 		data = buf;
 	}
-	protected BinaryReader reader;
+	protected BinaryReader reader = null!;
 	protected readonly int version;
-	protected readonly uint[] data;
+	protected readonly uint[] data = null!;
 
 	public abstract int ReaderVersion { get; }
 	/// <summary>

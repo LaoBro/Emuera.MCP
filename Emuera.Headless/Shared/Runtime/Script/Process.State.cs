@@ -95,9 +95,9 @@ internal sealed class ProcessState
 		if (Program.DebugMode)//DebugModeでなければ知らなくて良い
 			this.console = console;
 	}
-	readonly EmueraConsole console;
+	readonly EmueraConsole console = null!;
 	readonly List<CalledFunction> functionList = [];
-	private LogicalLine currentLine;
+	private LogicalLine currentLine = null!;
 	//private LogicalLine nextLine;
 	public int lineCount;
 	public int currentMin;
@@ -520,7 +520,7 @@ internal sealed class ProcessState
 		}
 	}
 
-	public SingleTerm MethodReturnValue;
+	public SingleTerm MethodReturnValue = null!;
 
 	public void ReturnF(SingleTerm ret)
 	{

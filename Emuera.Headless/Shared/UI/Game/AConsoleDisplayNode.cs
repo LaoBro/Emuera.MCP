@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game.Image;
 using System.Text;
@@ -12,8 +12,8 @@ abstract class AConsoleDisplayNode
 {
 	public bool Error { get; protected set; }
 
-	public string Text { get; protected set; }
-	public string AltText { get; protected set; }
+	public string Text { get; protected set; } = null!;
+	public string AltText { get; protected set; } = null!;
 	#region EM_私家版_描画拡張
 	// public int PointX { get; set; }
 	public virtual int PointX { get; set; }
@@ -36,7 +36,7 @@ abstract class AConsoleDisplayNode
 	}
 
 	#region EM_私家版_描画拡張
-	public ConsoleButtonString Parent { get; set; }
+	public ConsoleButtonString Parent { get; set; } = null!;
 	public int Depth { get; set; }
 	public virtual StringBuilder BuildString(StringBuilder sb)
 	{
@@ -47,8 +47,8 @@ abstract class AConsoleDisplayNode
 
 	#region EmuEra-Rikaichan
 	public bool rikaichaned;
-	public int[] Ends;
-	public AConsoleDisplayNode NextLine;
+	public int[] Ends = null!;
+	public AConsoleDisplayNode NextLine = null!;
 	#endregion
 }
 

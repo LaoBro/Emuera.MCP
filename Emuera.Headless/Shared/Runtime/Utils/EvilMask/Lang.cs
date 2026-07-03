@@ -31,7 +31,7 @@ internal sealed partial class Lang
 		}
 
 		private string text;
-		private string tr;
+		private string tr = null!;
 
 		public string Text { get { return tr == null ? text : tr; } }
 	}
@@ -1495,8 +1495,8 @@ internal sealed partial class Lang
 
 	static readonly Dictionary<string, string> langList = [];
 	static readonly Dictionary<string, string> localeList = [];
-	public static string MFont { get; private set; }
-	static string[] langNames;
+	public static string MFont { get; private set; } = null!;
+	static string[] langNames = null!;
 	static readonly Dictionary<string, TranslatableString> trItems = [];
 	static readonly Dictionary<Type, TranslatableString> trClass = [];
 

@@ -18,7 +18,7 @@ internal sealed class DefineMacro
 	public readonly string Keyword;
 	public readonly int ArgCount;
 	public readonly WordCollection Statement;
-	public readonly IdentifierWord IDWord;
+	public readonly IdentifierWord IDWord = null!;
 	public readonly bool HasArguments;
 	public readonly bool IsNull;
 

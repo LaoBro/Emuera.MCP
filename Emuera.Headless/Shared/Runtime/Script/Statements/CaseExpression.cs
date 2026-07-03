@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Script.Statements.Expression;
+using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using System;
 
 namespace MinorShift.Emuera.Runtime.Script.Statements;
@@ -12,8 +12,8 @@ internal enum CaseExpressionType
 internal sealed class CaseExpression
 {
 	public CaseExpressionType CaseType = CaseExpressionType.Normal;
-	public AExpression LeftTerm;
-	public AExpression RightTerm;
+	public AExpression LeftTerm = null!;
+	public AExpression RightTerm = null!;
 
 	public OperatorCode Operator;
 	public Type GetOperandType()

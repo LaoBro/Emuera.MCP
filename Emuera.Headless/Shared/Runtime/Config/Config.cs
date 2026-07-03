@@ -18,7 +18,7 @@ internal static class Config
 	#region config
 	public static Encoding Encode = EncodingHandler.UTF8BOMEncoding;
 	public static Encoding SaveEncode = EncodingHandler.UTF8BOMEncoding;
-	private static Dictionary<ConfigCode, string> nameDic;
+	private static Dictionary<ConfigCode, string> nameDic = null!;
 	public static string GetConfigName(ConfigCode code)
 	{
 		return nameDic[code];
@@ -478,7 +478,7 @@ internal static class Config
 	public static EmuColor FocusColor { get; private set; }
 	public static EmuColor LogColor { get; private set; }
 	public static int FontSize { get; private set; }
-	public static string FontName { get; private set; }
+	public static string FontName { get; private set; } = null!;
 	public static int LineHeight { get; private set; }
 	public static int FPS { get; private set; }
 	//public static int SkipFrame { get; private set; }
@@ -505,9 +505,9 @@ internal static class Config
 	public static long LastKey { get; private set; }
 	public static bool ButtonWrap { get; private set; }
 
-	public static string TextEditor { get; private set; }
+	public static string TextEditor { get; private set; } = null!;
 	public static TextEditorType EditorType { get; private set; }
-	public static string EditorArg { get; private set; }
+	public static string EditorArg { get; private set; } = null!;
 
 	public static bool CompatiErrorLine { get; private set; }
 	public static bool CompatiCALLNAME { get; private set; }
@@ -527,8 +527,8 @@ internal static class Config
 
 	public static int Language { get; private set; }
 
-	public static string SavDir { get; private set; }
-	public static string ForceSavDir { get; private set; }
+	public static string SavDir { get; private set; } = null!;
+	public static string ForceSavDir { get; private set; } = null!;
 
 	public static bool NeedReduceArgumentOnLoad { get; private set; }
 
@@ -584,20 +584,20 @@ internal static class Config
 		RelationDef = instance.GetConfigValue<long>(ConfigCode.RelationDef);
 	}
 
-	public static string MoneyLabel { get; private set; }
+	public static string MoneyLabel { get; private set; } = null!;
 	public static bool MoneyFirst { get; private set; }
-	public static string LoadLabel { get; private set; }
+	public static string LoadLabel { get; private set; } = null!;
 	public static int MaxShopItem { get; private set; }
-	public static string DrawLineString { get; private set; }
+	public static string DrawLineString { get; private set; } = null!;
 	public static char BarChar1 { get; private set; }
 	public static char BarChar2 { get; private set; }
-	public static string TitleMenuString0 { get; private set; }
-	public static string TitleMenuString1 { get; private set; }
+	public static string TitleMenuString0 { get; private set; } = null!;
+	public static string TitleMenuString1 { get; private set; } = null!;
 	public static int ComAbleDefault { get; private set; }
-	public static List<long> StainDefault { get; private set; }
-	public static string TimeupLabel { get; private set; }
-	public static List<long> ExpLvDef { get; private set; }
-	public static List<long> PalamLvDef { get; private set; }
+	public static List<long> StainDefault { get; private set; } = null!;
+	public static string TimeupLabel { get; private set; } = null!;
+	public static List<long> ExpLvDef { get; private set; } = null!;
+	public static List<long> PalamLvDef { get; private set; } = null!;
 	public static long PbandDef { get; private set; }
 	public static long RelationDef { get; private set; }
 	#endregion
@@ -617,25 +617,25 @@ internal static class Config
 	public static bool CheckDuplicateIdentifier { get; private set; }
 	#endregion
 	#region EE_行連結の改行コード置換
-	public static string ReplaceContinuationBR { get; private set; }
+	public static string ReplaceContinuationBR { get; private set; } = null!;
 	#endregion
 	#region EM_私家版_LoadText＆SaveText機能拡張
-	public static List<string> ValidExtension { get; private set; }
+	public static List<string> ValidExtension { get; private set; } = null!;
 	#endregion
 	#region EM_私家版_セーブ圧縮
 	public static bool ZipSaveData { get; private set; }
 	#endregion
 	#region EM_私家版_Emuera多言語化改造
 	public static bool EnglishConfigOutput { get; private set; }
-	public static string EmueraLang { get; private set; }
+	public static string EmueraLang { get; private set; } = null!;
 	#endregion
 	#region EM_私家版_Icon指定機能
-	public static string EmueraIcon { get; private set; }
+	public static string EmueraIcon { get; private set; } = null!;
 	#endregion
 	#region EE_AnchorのCB機能移植
 	public static bool CBUseClipboard { get; private set; }
 	public static bool CBIgnoreTags { get; private set; }
-	public static string CBReplaceTags { get; private set; }
+	public static string CBReplaceTags { get; private set; } = null!;
 	public static bool CBNewLinesOnly { get; private set; }
 	public static bool CBClearBuffer { get; private set; }
 	public static bool CBTriggerLeftClick { get; private set; }
@@ -649,7 +649,7 @@ internal static class Config
 	public static int CBMinTimer { get; private set; }
 
 	public static bool RikaiEnabled { get; private set; }
-	public static string RikaiFilename { get; private set; }
+	public static string RikaiFilename { get; private set; } = null!;
 	public static EmuColor RikaiColorBack { get; private set; }
 	public static EmuColor RikaiColorText { get; private set; }
 	public static bool RikaiUseSeparateBoxes { get; private set; }

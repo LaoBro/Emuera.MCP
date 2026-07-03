@@ -15,18 +15,18 @@ namespace MinorShift.Emuera.Runtime.Script.Data;
 internal sealed class StrForm
 {
 	private StrForm() { }
-	string[] strs;//terms.Count + 1
-	AExpression[] terms;
+	string[] strs = null!;//terms.Count + 1
+	AExpression[] terms = null!;
 
 	#region static
-	static FormattedStringMethod formatCurlyBrace;
-	static FormattedStringMethod formatPercent;
-	static FormattedStringMethod formatYenAt;
-	static FunctionMethodTerm NameTarget;// "***"
-	static FunctionMethodTerm CallnameMaster;// "+++"
-	static FunctionMethodTerm CallnamePlayer;// "==="
-	static FunctionMethodTerm NameAssi;// "///"
-	static FunctionMethodTerm CallnameTarget;// "$$$"
+	static FormattedStringMethod formatCurlyBrace = null!;
+	static FormattedStringMethod formatPercent = null!;
+	static FormattedStringMethod formatYenAt = null!;
+	static FunctionMethodTerm NameTarget = null!;// "***"
+	static FunctionMethodTerm CallnameMaster = null!;// "+++"
+	static FunctionMethodTerm CallnamePlayer = null!;// "==="
+	static FunctionMethodTerm NameAssi = null!;// "///"
+	static FunctionMethodTerm CallnameTarget = null!;// "$$$"
 	public static void Initialize()
 	{
 		formatCurlyBrace = new FormatCurlyBrace();

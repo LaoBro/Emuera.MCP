@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using System.Collections.Generic;
@@ -50,43 +50,43 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 		}
 
 		//Cached Int[] variables
-		static VariableToken _BASE;
-		static VariableToken _MAXBASE;
-		static VariableToken _ABL;
-		static VariableToken _TALENT;
-		static VariableToken _EXP;
-		static VariableToken _MARK;
-		static VariableToken _PALAM;
-		static VariableToken _SOURCE;
-		static VariableToken _EX;
-		static VariableToken _CFLAG;
-		static VariableToken _JUEL;
-		static VariableToken _RELATION;
-		static VariableToken _EQUIP;
-		static VariableToken _TEQUIP;
-		static VariableToken _STAIN;
-		static VariableToken _GOTJUEL;
-		static VariableToken _NOWEX;
-		static VariableToken _DOWNBASE;
-		static VariableToken _CUP;
-		static VariableToken _CDOWN;
-		static VariableToken _TCVAR;
+		static VariableToken _BASE = null!;
+		static VariableToken _MAXBASE = null!;
+		static VariableToken _ABL = null!;
+		static VariableToken _TALENT = null!;
+		static VariableToken _EXP = null!;
+		static VariableToken _MARK = null!;
+		static VariableToken _PALAM = null!;
+		static VariableToken _SOURCE = null!;
+		static VariableToken _EX = null!;
+		static VariableToken _CFLAG = null!;
+		static VariableToken _JUEL = null!;
+		static VariableToken _RELATION = null!;
+		static VariableToken _EQUIP = null!;
+		static VariableToken _TEQUIP = null!;
+		static VariableToken _STAIN = null!;
+		static VariableToken _GOTJUEL = null!;
+		static VariableToken _NOWEX = null!;
+		static VariableToken _DOWNBASE = null!;
+		static VariableToken _CUP = null!;
+		static VariableToken _CDOWN = null!;
+		static VariableToken _TCVAR = null!;
 
 		//Cached string variables
-		static VariableToken _NAME;
-		static VariableToken _CALLNAME;
-		static VariableToken _NICKNAME;
-		static VariableToken _MASTERNAME;
+		static VariableToken _NAME = null!;
+		static VariableToken _CALLNAME = null!;
+		static VariableToken _NICKNAME = null!;
+		static VariableToken _MASTERNAME = null!;
 
 		//Cached string[] variables
-		static VariableToken _CSTR;
+		static VariableToken _CSTR = null!;
 
 		//Cached int[][] variables
-		static VariableToken _CDFLAG;
+		static VariableToken _CDFLAG = null!;
 
 		static Dictionary<string, VariableToken> _UserDefinedVars = [];
 
-		static ExpressionMediator exm;
+		static ExpressionMediator exm = null!;
 		internal PluginAPICharContext(long charId)
 		{
 			this.charId = charId;

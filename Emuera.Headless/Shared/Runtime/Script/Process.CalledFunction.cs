@@ -145,7 +145,7 @@ internal sealed class CalledFunction
 	}
 
 
-	static FunctionMethod tostrMethod;
+	static FunctionMethod tostrMethod = null!;
 	/// <summary>
 	/// 1803beta005 予め引数の数を合わせて規定値を代入しておく
 	/// 1806+v6.99 式中関数の引数に無効な#DIM変数を与えている場合に例外になるのを修正
@@ -256,12 +256,12 @@ internal sealed class CalledFunction
 		return called;
 	}
 
-	List<FunctionLabelLine>[] eventLabelList;
-	public FunctionLabelLine CurrentLabel { get; private set; }
-	public FunctionLabelLine TopLabel { get; private set; }
+	List<FunctionLabelLine>[] eventLabelList = null!;
+	public FunctionLabelLine CurrentLabel { get; private set; } = null!;
+	public FunctionLabelLine TopLabel { get; private set; } = null!;
 	int counter = -1;
 	int group;
-	LogicalLine returnAddress;
+	LogicalLine returnAddress = null!;
 	public readonly string FunctionName = "";
 	public bool IsJump { get; set; }
 	public bool Finished { get; private set; }

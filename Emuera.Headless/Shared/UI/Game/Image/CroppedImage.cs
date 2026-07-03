@@ -28,7 +28,7 @@ internal abstract class ASpriteSingle : ASprite
 {
 	public ASpriteSingle(string name, AbstractImage img, EmuRectangle rect) : base(name, rect.Size) { }
 	public ASpriteSingle(string name, AbstractImage img, EmuRectangle rect, EmuSize destSize) : base(name, destSize) { }
-	public AbstractImage BaseImage;
+	public AbstractImage BaseImage = null!;
 	public override bool IsCreated => BaseImage != null && BaseImage.IsCreated;
 	public override void Dispose() { BaseImage = null; }
 }

@@ -19,13 +19,13 @@ internal abstract class LogicalLine
 	protected ScriptPosition? scriptPosition;
 
 	//LogicalLine prevLine;
-	LogicalLine nextLine;
+	LogicalLine nextLine = null!;
 	public ScriptPosition? Position
 	{
 		get { return scriptPosition; }
 	}
 
-	public FunctionLabelLine ParentLabelLine { get; set; }
+	public FunctionLabelLine ParentLabelLine { get; set; } = null!;
 	public LogicalLine NextLine
 	{
 		get { return nextLine; }
@@ -109,7 +109,7 @@ internal sealed class InstructionLine : LogicalLine
 	readonly FunctionIdentifier func;
 	CharStream argprimitive;
 
-	WordCollection assigndest;
+	WordCollection assigndest = null!;
 	public OperatorCode AssignOperator { get; private set; }
 	long subData;
 	public FunctionCode FunctionCode
@@ -120,7 +120,7 @@ internal sealed class InstructionLine : LogicalLine
 	{
 		get { return func; }
 	}
-	public Argument Argument { get; set; }
+	public Argument Argument { get; set; } = null!;
 	public CharStream PopArgumentPrimitive()
 	{
 		CharStream ret = argprimitive;
@@ -143,7 +143,7 @@ internal sealed class InstructionLine : LogicalLine
 		set { subData = value; }
 	}
 
-	VariableTerm cnt;
+	VariableTerm cnt = null!;
 	/// <summary>
 	/// 繰り返しにつかう変数を記憶する
 	/// </summary>
@@ -163,14 +163,14 @@ internal sealed class InstructionLine : LogicalLine
 		set { step = value; }
 	}
 
-	private LogicalLine jumpto;
-	private LogicalLine jumptoendcatch;
+	private LogicalLine jumpto = null!;
+	private LogicalLine jumptoendcatch = null!;
 	//IF文とSELECT文のみが使う。
-	public LinkedList<InstructionLine> IfCaseList;
+	public LinkedList<InstructionLine> IfCaseList = null!;
 	//PRINTDATA文のみが使う。
-	public List<List<InstructionLine>> dataList;
+	public List<List<InstructionLine>> dataList = null!;
 	//TRYCALLLIST系が使う
-	public List<InstructionLine> callList;
+	public List<InstructionLine> callList = null!;
 
 	public LogicalLine JumpTo
 	{
@@ -238,7 +238,7 @@ internal class FunctionLabelLine : LogicalLine, IComparable<FunctionLabelLine>
 		//ArgOptional = true;
 		//ArgAutoConvert = true;
 	}
-	WordCollection wc;
+	WordCollection wc = null!;
 	public WordCollection PopRowArgs()
 	{
 		WordCollection ret = wc;
@@ -246,7 +246,7 @@ internal class FunctionLabelLine : LogicalLine, IComparable<FunctionLabelLine>
 		return ret;
 	}
 
-	public string LabelName { get; protected set; }
+	public string LabelName { get; protected set; } = null!;
 	public bool IsEvent { get; set; }
 	public bool IsSystem { get; set; }
 	public bool IsSingle { get; set; }
@@ -263,9 +263,9 @@ internal class FunctionLabelLine : LogicalLine, IComparable<FunctionLabelLine>
 	//public bool ArgAutoConvert { get; set; }
 
 	public bool IsMethod { get; set; }
-	public Type MethodType { get; set; }
-	public VariableTerm[] Arg { get; set; }
-	public SingleTerm[] Def { get; set; }
+	public Type MethodType { get; set; } = null!;
+	public VariableTerm[] Arg { get; set; } = null!;
+	public SingleTerm[] Def { get; set; } = null!;
 	//public SingleTerm[] SubNames { get; set; }
 	public int Depth { get; set; }
 

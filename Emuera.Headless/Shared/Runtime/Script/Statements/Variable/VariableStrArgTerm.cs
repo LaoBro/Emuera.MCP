@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Script.Statements.Expression;
+using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Utils;
 using System.Collections.Generic;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
@@ -28,8 +28,8 @@ internal sealed class VariableStrArgTerm : AExpression
 	#region EE_ERD
 	readonly string varname;
 	#endregion
-	Dictionary<string, int> dic;
-	string errPos;
+	Dictionary<string, int> dic = null!;
+	string errPos = null!;
 
 	public override long GetIntValue(ExpressionMediator exm)
 	{

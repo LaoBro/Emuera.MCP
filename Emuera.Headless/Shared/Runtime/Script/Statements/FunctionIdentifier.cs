@@ -557,11 +557,11 @@ internal sealed partial class FunctionIdentifier
 		Name = methodName;
 		Instruction = instruction;
 	}
-	public readonly AInstruction Instruction;
+	public readonly AInstruction Instruction = null!;
 	private FunctionCode code;
 	private ArgumentBuilder arg;
 	private int flag;
-	private FunctionMethod method;
+	private FunctionMethod method = null!;
 	public FunctionCode Code { get { return code; } }
 	public ArgumentBuilder ArgBuilder { get { return arg; } }
 	public FunctionMethod Method { get { return method; } }

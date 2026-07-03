@@ -26,9 +26,9 @@ internal sealed class UserDefinedFunctionData
 	private UserDefinedFunctionData()
 	{
 	}
-	public string Name;
+	public string Name = null!;
 	public bool TypeIsStr;
-	public UserDifinedFunctionDataArgType[] ArgList;
+	public UserDifinedFunctionDataArgType[] ArgList = null!;
 
 	public static UserDefinedFunctionData Create(WordCollection wc, bool dims, ScriptPosition? sc)
 	{

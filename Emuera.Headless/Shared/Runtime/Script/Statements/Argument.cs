@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Script.Statements.Function;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
@@ -25,7 +25,7 @@ internal sealed class SpInputsArgument : Argument
 #region EM_私家版_HTMLパラメータ拡張
 internal sealed class MixedIntegerExprTerm
 {
-	public AExpression num;
+	public AExpression num = null!;
 	public bool isPx;
 }
 internal sealed class SpPrintShapeArgument : Argument
@@ -86,7 +86,7 @@ internal sealed class SpHtmlPrint : Argument
 internal abstract class Argument
 {
 	public bool IsConst;
-	public string ConstStr;
+	public string ConstStr = null!;
 	public long ConstInt;
 }
 
@@ -266,7 +266,7 @@ internal sealed class SpCallFArgment : Argument
 	readonly public AExpression FuncnameTerm;
 	readonly public List<AExpression> SubNames;
 	readonly public List<AExpression> RowArgs;
-	public AExpression FuncTerm;
+	public AExpression FuncTerm = null!;
 }
 
 internal sealed class SpCallArgment : Argument
@@ -280,8 +280,8 @@ internal sealed class SpCallArgment : Argument
 	readonly public AExpression FuncnameTerm;
 	readonly public List<AExpression> SubNames;
 	readonly public List<AExpression> RowArgs;
-	public UserDefinedFunctionArgument UDFArgument;
-	public CalledFunction CallFunc;
+	public UserDefinedFunctionArgument UDFArgument = null!;
+	public CalledFunction CallFunc = null!;
 }
 
 internal sealed class SpCallSharpArgment : Argument
@@ -295,8 +295,8 @@ internal sealed class SpCallSharpArgment : Argument
 	readonly public AExpression FuncnameTerm;
 	readonly public List<AExpression> SubNames;
 	readonly public List<AExpression> RowArgs;
-	public UserDefinedFunctionArgument UDFArgument;
-	public IPluginMethod CallFunc;
+	public UserDefinedFunctionArgument UDFArgument = null!;
+	public IPluginMethod CallFunc = null!;
 }
 
 internal sealed class SpForNextArgment : Argument
@@ -430,10 +430,10 @@ internal sealed class SpColorArgument : Argument
 	{
 		RGB = rgb;
 	}
-	readonly public AExpression R;
-	readonly public AExpression G;
-	readonly public AExpression B;
-	readonly public AExpression RGB;
+	readonly public AExpression R = null!;
+	readonly public AExpression G = null!;
+	readonly public AExpression B = null!;
+	readonly public AExpression RGB = null!;
 }
 
 internal sealed class SpSplitArgument : Argument
@@ -570,13 +570,13 @@ internal sealed class RefArgument : Argument
 		RefVarToken = vt;
 		SrcTerm = src;
 	}
-	readonly public UserDefinedRefMethod RefMethodToken;
-	readonly public UserDefinedRefMethod SrcRefMethodToken;
-	readonly public CalledFunction SrcCalledFunction;
+	readonly public UserDefinedRefMethod RefMethodToken = null!;
+	readonly public UserDefinedRefMethod SrcRefMethodToken = null!;
+	readonly public CalledFunction SrcCalledFunction = null!;
 
-	readonly public ReferenceToken RefVarToken;
-	readonly public VariableToken SrcVarToken;
-	readonly public AExpression SrcTerm;
+	readonly public ReferenceToken RefVarToken = null!;
+	readonly public VariableToken SrcVarToken = null!;
+	readonly public AExpression SrcTerm = null!;
 }
 #region EE
 internal sealed class StrDoubleArgument : Argument
@@ -620,20 +620,20 @@ internal sealed class SpSetArrayArgument : Argument
 	}
 	readonly public VariableTerm VariableDest;
 	readonly public List<AExpression> TermList;
-	readonly public long[] ConstIntList;
-	readonly public string[] ConstStrList;
+	readonly public long[] ConstIntList = null!;
+	readonly public string[] ConstStrList = null!;
 }
 #endregion
 
 #region Emuera.NET VAR命令
 internal sealed class IntAsignArgument : Argument
 {
-	public int[] Lengths;
+	public int[] Lengths = null!;
 	public IntAsignArgument(string str, int[] lengths)
 	{
 		ConstStr = str;
 	}
-	public AExpression Exp;
+	public AExpression Exp = null!;
 	public IntAsignArgument(string name, int[] lengths, AExpression exp)
 	{
 		ConstStr = name;
@@ -644,12 +644,12 @@ internal sealed class IntAsignArgument : Argument
 
 internal sealed class StrAsignArgument : Argument
 {
-	public int[] Lengths;
+	public int[] Lengths = null!;
 	public StrAsignArgument(string str)
 	{
 		ConstStr = str;
 	}
-	public string Value;
+	public string Value = null!;
 	public StrAsignArgument(string str, int[] lengths, string value)
 	{
 		ConstStr = str;

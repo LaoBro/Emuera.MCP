@@ -15,8 +15,8 @@ internal static class VariableParser
 		TARGET = new VariableTerm(GlobalStatic.VariableData.GetSystemVariableToken("TARGET"), zeroArgs);
 	}
 
-	public static SingleTerm ZeroTerm { get; private set; }
-	public static VariableTerm TARGET { get; private set; }
+	public static SingleTerm ZeroTerm { get; private set; } = null!;
+	public static VariableTerm TARGET { get; private set; } = null!;
 
 	public static bool IsVariable(string ids)
 	{

@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Script.Statements.Expression;
+using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
@@ -10,9 +10,9 @@ namespace MinorShift.Emuera.Runtime.Script.Statements.Function;
 
 internal abstract class FunctionMethod
 {
-	public Type ReturnType { get; protected set; }
-	protected Type[] argumentTypeArray;
-	protected string Name { get; private set; }
+	public Type ReturnType { get; protected set; } = null!;
+	protected Type[] argumentTypeArray = null!;
+	protected string Name { get; private set; } = null!;
 	#region EM_私家版_Emuera多言語化改造
 	protected enum ArgType
 	{
@@ -116,7 +116,7 @@ internal abstract class FunctionMethod
 			}
 		}
 	}
-	protected ArgTypeList[] argumentTypeArrayEx;
+	protected ArgTypeList[] argumentTypeArrayEx = null!;
 
 	//引数の数・型が一致するかどうかのテスト
 	//正しくない場合はエラーメッセージを返す。

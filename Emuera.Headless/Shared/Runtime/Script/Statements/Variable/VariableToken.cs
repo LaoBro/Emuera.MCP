@@ -256,7 +256,7 @@ internal abstract class CharaVariableToken : VariableToken
 		IsPrivate = false;
 		CanRestructure = false;
 	}
-	protected int[] sizes;
+	protected int[] sizes = null!;
 	protected int totalSize;
 	public override int GetLength()
 	{
@@ -316,7 +316,7 @@ internal abstract class UserDefinedVariableToken : VariableToken
 
 	public abstract void SetDefault();
 	protected bool isConst;
-	protected int[] sizes;
+	protected int[] sizes = null!;
 	protected int totalSize;
 	//public bool IsGlobal { get; protected set; }
 	//public bool IsSavedata { get; protected set; }
@@ -430,7 +430,7 @@ internal abstract class ReferenceToken : UserDefinedVariableToken
 		IsForbid = false;
 	}
 	protected List<Array> arrayList;
-	protected Array array;
+	protected Array array = null!;
 
 	public override void SetDefault()
 	{//Defaultのセットは参照元がやるべき
@@ -593,7 +593,7 @@ internal sealed partial class VariableData
 			array = varData.DataIntegerArray[VarCodeInt];
 			IsForbid = array.Length == 0;
 		}
-		long[] array;
+		long[] array = null!;
 		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
 		{
 			return array[arguments[0]];
@@ -657,7 +657,7 @@ internal sealed partial class VariableData
 			array = varData.DataIntegerArray2D[VarCodeInt];
 			IsForbid = array.Length == 0;
 		}
-		long[,] array;
+		long[,] array = null!;
 		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
 		{
 			return array[arguments[0], arguments[1]];
@@ -725,7 +725,7 @@ internal sealed partial class VariableData
 			array = varData.DataIntegerArray3D[VarCodeInt];
 			IsForbid = array.Length == 0;
 		}
-		long[,,] array;
+		long[,,] array = null!;
 		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
 		{
 			return array[arguments[0], arguments[1], arguments[2]];
@@ -797,7 +797,7 @@ internal sealed partial class VariableData
 			array = varData.DataString;
 			IsForbid = array.Length == 0;
 		}
-		string[] array;
+		string[] array = null!;
 		public override string GetStrValue(ExpressionMediator exm, long[] arguments)
 		{
 			return array[VarCodeInt];
@@ -824,7 +824,7 @@ internal sealed partial class VariableData
 			array = varData.DataStringArray[VarCodeInt];
 			IsForbid = array.Length == 0;
 		}
-		string[] array;
+		string[] array = null!;
 		public override string GetStrValue(ExpressionMediator exm, long[] arguments)
 		{
 			return array[arguments[0]];
@@ -1148,7 +1148,7 @@ internal sealed partial class VariableData
 			this.array = array;
 			IsForbid = array.Length == 0;
 		}
-		long[] array;
+		long[] array = null!;
 		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
 		{
 			return array[arguments[0]];
@@ -1193,7 +1193,7 @@ internal sealed partial class VariableData
 			IsForbid = array.Length == 0;
 		}
 
-		string[] array;
+		string[] array = null!;
 		public override string GetStrValue(ExpressionMediator exm, long[] arguments)
 		{
 			return array[arguments[0]];
@@ -1521,7 +1521,7 @@ internal sealed partial class VariableData
 			: base(varCode, varData, subId, size)
 		{
 		}
-		long[] array;
+		long[] array = null!;
 
 		public override void SetDefault()
 		{
@@ -1589,7 +1589,7 @@ internal sealed partial class VariableData
 			: base(varCode, varData, subId, size)
 		{
 		}
-		string[] array;
+		string[] array = null!;
 		public override void SetDefault()
 		{
 			if (array != null)
@@ -1663,7 +1663,7 @@ internal sealed partial class VariableData
 			//	Array.Copy(defArray, array, defArray.Length);
 		}
 		int length;
-		long[] array;
+		long[] array = null!;
 		long[] defArray;
 		void IfNullInitArray()
 		{
@@ -1741,7 +1741,7 @@ internal sealed partial class VariableData
 			//array = new Int64[sizes[0], sizes[1]];
 		}
 		(int x, int y) size = (0, 0);
-		long[,] array;
+		long[,] array = null!;
 
 		void IfNullInitArray()
 		{
@@ -1809,7 +1809,7 @@ internal sealed partial class VariableData
 			//array = new Int64[sizes[0], sizes[1], sizes[2]];
 		}
 		(int x, int y, int z) size = (0, 0, 0);
-		long[,,] array;
+		long[,,] array = null!;
 		void IfNullInitArray()
 		{
 			array ??= new long[sizes[0], sizes[1], sizes[2]];
@@ -1879,7 +1879,7 @@ internal sealed partial class VariableData
 			//	Array.Copy(defArray, array, defArray.Length);
 		}
 		int length;
-		string[] array;
+		string[] array = null!;
 		string[] defArray;
 
 		void IfNullInitArray()
@@ -1949,7 +1949,7 @@ internal sealed partial class VariableData
 			IsStatic = true;
 			//array = new string[sizes[0], sizes[1]];
 		}
-		string[,] array;
+		string[,] array = null!;
 		(int x, int y) size;
 
 		void IfNullInitArray()
@@ -2014,7 +2014,7 @@ internal sealed partial class VariableData
 			IsStatic = true;
 			//array = new string[sizes[0], sizes[1], sizes[2]];
 		}
-		string[,,] array;
+		string[,,] array = null!;
 		(int x, int y, int z) size;
 
 		void IfNullInitArray()
@@ -2082,7 +2082,7 @@ internal sealed partial class VariableData
 			defArray = data.DefaultInt;
 		}
 		readonly Stack<long[]> arrayStack;
-		long[] array;
+		long[] array = null!;
 		long[] defArray;
 		//int counter = 0;
 		public override void SetDefault()
@@ -2148,7 +2148,7 @@ internal sealed partial class VariableData
 			arrayStack = [];
 		}
 		readonly Stack<long[,]> arrayStack;
-		long[,] array;
+		long[,] array = null!;
 		//int counter = 0;
 		public override void SetDefault() { }
 		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
@@ -2212,7 +2212,7 @@ internal sealed partial class VariableData
 			arrayStack = [];
 		}
 		readonly Stack<long[,,]> arrayStack;
-		long[,,] array;
+		long[,,] array = null!;
 		//int counter = 0;
 		public override void SetDefault() { }
 		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
@@ -2283,7 +2283,7 @@ internal sealed partial class VariableData
 		}
 		//int counter = 0;
 		readonly Stack<string[]> arrayStack;
-		string[] array;
+		string[] array = null!;
 		string[] defArray;
 		public override void SetDefault()
 		{
@@ -2351,7 +2351,7 @@ internal sealed partial class VariableData
 		}
 		//int counter = 0;
 		readonly Stack<string[,]> arrayStack;
-		string[,] array;
+		string[,] array = null!;
 		public override void SetDefault()
 		{
 		}
@@ -2415,7 +2415,7 @@ internal sealed partial class VariableData
 		}
 		//int counter = 0;
 		readonly Stack<string[,,]> arrayStack;
-		string[,,] array;
+		string[,,] array = null!;
 		public override void SetDefault() { }
 
 		public override string GetStrValue(ExpressionMediator exm, long[] arguments)

@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
@@ -29,9 +29,9 @@ internal class VariableTerm : AExpression
 			}
 		}
 	}
-	public VariableToken Identifier;
-	private readonly AExpression[] arguments;
-	protected long[] transporter;
+	public VariableToken Identifier = null!;
+	private readonly AExpression[] arguments = null!;
+	protected long[] transporter = null!;
 	protected bool allArgIsConst;
 
 	public long GetElementInt(int i, ExpressionMediator exm)

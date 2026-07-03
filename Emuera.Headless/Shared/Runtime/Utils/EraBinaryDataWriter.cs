@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
@@ -39,7 +39,7 @@ internal sealed class EraBinaryDataWriter : IDisposable
 
 	#region EM_私家版_セーブ圧縮
 	BinaryWriter fileWriter;
-	MemoryStream ms;
+	MemoryStream ms = null!;
 	#endregion
 
 	public void WriteHeader()

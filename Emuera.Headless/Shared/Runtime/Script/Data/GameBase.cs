@@ -28,7 +28,7 @@ internal sealed class GameBase
 	#endregion
 
 	//1.727 追加。Form.Text
-	public string ScriptWindowTitle;
+	public string ScriptWindowTitle = null!;
 	public string ScriptVersionText
 	{
 		get

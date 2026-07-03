@@ -5,7 +5,7 @@
 ## 1. 背景与约束
 - **构建环境**：项目已启用 `<Nullable>enable</Nullable>` + `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`。
 - **策略**：历史代码（`Shared/`）原则不重构逻辑，只做“让编译器静默”的最小改动，保持运行时行为不变。
-- **当前状态**：已完成 CS8605, CS8767, CS8629, CS8601, CS8604, CS8602, CS8600 的清理。
+- **当前状态**：已完成 CS8605, CS8767, CS8629, CS8601, CS8604, CS8602, CS8600, CS8603, CS8618 的清理。
 ## 2. 已完成清理（模式与修复摘要）
 | CS ID | 警告模式 | 核心修复策略 |
 | :--- | :--- | :--- |
@@ -15,7 +15,9 @@
 | **CS8604** | 可能 null 实参传给非 null 形参。 | 统一在调用点使用 `!` 断言非 null（如 `func(arg!, arg2!)`）。 |
 | **CS8602** | 解引用可能为 null 的引用（在 `T?` 上访问成员）。 | 1. **常规**：使用 `!`（如 `node!.SelectNodes()`）。<br>2. **`as` 表达式**：必须用括号包裹 `(expr as Type)!`，**严禁** `as Type!`。<br>3. **编译器限制**：极少数情况用 `#pragma warning disable CS8602`。 |
 | **CS8600** | null 转 non-null 类型（显式转换、s 赋值、
-ull 字面量初始化、TryGetValue out 参数）。 | 1. **null 字面量赋值**：= null!（如 string x = null!;）。<br>2. **s 表达式**：必须用括号包裹 (expr as Type)!，**严禁** s Type!。<br>3. **方法返回 Type? 赋值**：调用点加 !（如 eader.ReadLine()!）。<br>4. **TryGetValue out 参数**：声明改 out Type? v，后续使用 !（或依赖 [MaybeNullWhen(false)] 流分析收窄）。<br>5. **显式 cast (T)x**：((T)x)!；编译器限制场景用 #pragma。 |
+ull 字面量初始化、TryGetValue out 参数）。 | 1. **null 字面量赋值**：= null!（如 string x = null!;）。<br>2. **s 表达式**：必须用括号包裹 (expr as Type)!，**严禁** s Type!。<br>3. **方法返回 Type? 赋值**：调用点加 !（如 
+eader.ReadLine()!）。<br>4. **TryGetValue out 参数**：声明改 out Type? v，后续使用 !（或依赖 [MaybeNullWhen(false)] 流分析收窄）。<br>5. **显式 cast (T)x**：((T)x)!；编译器限制场景用 #pragma。 |
+| **CS8618** | 构造函数未初始化非 null 字段/自动属性（实例字段、静态字段、auto-property `{ get; set; }`、带 protected/private set 的属性、readonly 字段）。同一字段在多个构造函数报告只需在声明处修复一次。 | 在字段/属性声明处添加 `= null!;` 初始化器：<br>1. **字段** `Type x;` → `Type x = null!;`<br>2. **自动属性** `{ get; set; }` → `{ get; set; } = null!;`<br>3. **带 protected/private set** `{ get; protected set; }` → `{ get; protected set; } = null!;`<br>4. **readonly 字段** 同样可加 `= null!;` inline 初始化<br>5. **跳过场景**：已有初始化器（`= ""`/`= new()`/`= []`）、计算属性（无 setter）、abstract 属性。 |
 ## 3. 标准操作流程（SOP）
 1. **暴露**：`.editorconfig` 中该 CS ID 的 `severity` 改为 `warning`。
 2. **定位**：全量构建捕获日志，Grep `CSxxxx` 按文件聚合统计。
@@ -55,10 +57,7 @@ if (selectLine.IfCaseList.Count > 0 && selectLine.IfCaseList.Last!.Value.Functio
 待清理的 CS ID（按建议顺序）：
 | 序 | CS ID | 标注数 | 模式（预估） | 难度 |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | CS8600 | 674 | null 转 non-null 类型（显式转换） | 高 |
-| 2 | CS8603 | 606 | 可能返回 null 引用（返回类型不符） | 高 |
-| 3 | CS8618 | 686 | 构造函数未初始化非 null 字段 | 高 |
-| 4 | CS8625 | 550 | null 字面量转非 null 引用 | 高 |
+| 1 | CS8625 | 550 | null 字面量转非 null 引用 | 高 |
 - **大批量策略**：单批 >200 条时，使用 Grep 按 Top-N 文件聚合，利用 SubAgent 并行分析方案，主会话执行精确 Edit。
 ## 7. 验证标准
 - `dotnet build ... --no-incremental` 结果为 **0 警告 0 错误**。
@@ -74,5 +73,5 @@ if (selectLine.IfCaseList.Count > 0 && selectLine.IfCaseList.Last!.Value.Functio
 | CS8602 | 350 | 318 | ✅ 已完成 |
 | CS8600 | 674 | 266 | ✅ 已完成 |
 | CS8603 | 606 | 279 | ✅ 已完成 |
-| CS8618 | 686 | — | ⬜ 待清理 |
+| CS8618 | 686 | 286 | ✅ 已完成 |
 | CS8625 | 550 | — | ⬜ 待清理 |

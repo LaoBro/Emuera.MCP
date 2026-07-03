@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.UI.Game;
 using System;
 using System.Collections.Generic;
@@ -46,8 +46,8 @@ internal sealed class Utils
 	}
 	internal sealed class StyledBoxModel
 	{
-		public MixedNum[] border, margin, padding, radius;
-		public int[] color;
+		public MixedNum[] border = null!, margin = null!, padding = null!, radius = null!;
+		public int[] color = null!;
 	}
 	static Stopwatch stopwatch = new();
 	static long stopwatch_base = DateTime.Now.Ticks;

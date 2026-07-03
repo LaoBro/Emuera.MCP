@@ -17,12 +17,12 @@ internal sealed partial class EraStreamReader : IDisposable
 		this.useRename = useRename;
 	}
 
-	string filepath;
-	string filename;
+	string filepath = null!;
+	string filename = null!;
 	readonly bool useRename;
 	int curNo;
 	int nextNo = 1;
-	string[] _fileLines;
+	string[] _fileLines = null!;
 	public bool Open(string path)
 	{
 		return Open(path, Path.GetFileName(path));

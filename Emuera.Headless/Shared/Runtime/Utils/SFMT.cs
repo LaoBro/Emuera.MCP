@@ -1,4 +1,4 @@
-﻿/*
+/*
 このファイルはSFMTアルゴリズムによって擬似乱数を作成するためのクラスライブラリです。
 このファイルはRei HOBARAさんが
 http://www.rei.to/random.html
@@ -259,7 +259,7 @@ public sealed class MTRandom
 	/// <summary>
 	/// 内部状態ベクトル。
 	/// </summary>
-	private uint[] sfmt;
+	private uint[] sfmt = null!;
 	/// <summary>
 	/// 内部状態ベクトルのうち、次に乱数として使用するインデックス。
 	/// </summary>

@@ -84,7 +84,7 @@ namespace MinorShift.Emuera.UI.Game
 	// I-14：移除 Graphics 和 ToolTipSize，Headless 模式下 Draw/Popup 事件从未触发
 	internal class ToolTipDrawEventArgs : EventArgs
 	{
-		public string ToolTipText { get; set; }
+		public string ToolTipText { get; set; } = null!;
 		public EmuRectangle Bounds { get; set; }
 	}
 

@@ -79,16 +79,16 @@ internal sealed class ConstantData
 	public int[] MaxDataList = new int[countNameCsv];
 	readonly HashSet<VariableCode> changedCode = [];
 
-	public int[] VariableIntArrayLength;
-	public int[] VariableStrArrayLength;
-	public long[] VariableIntArray2DLength;
-	public long[] VariableStrArray2DLength;
-	public long[] VariableIntArray3DLength;
-	public long[] VariableStrArray3DLength;
-	public int[] CharacterIntArrayLength;
-	public int[] CharacterStrArrayLength;
-	public long[] CharacterIntArray2DLength;
-	public long[] CharacterStrArray2DLength;
+	public int[] VariableIntArrayLength = null!;
+	public int[] VariableStrArrayLength = null!;
+	public long[] VariableIntArray2DLength = null!;
+	public long[] VariableStrArray2DLength = null!;
+	public long[] VariableIntArray3DLength = null!;
+	public long[] VariableStrArray3DLength = null!;
+	public int[] CharacterIntArrayLength = null!;
+	public int[] CharacterStrArrayLength = null!;
+	public long[] CharacterIntArray2DLength = null!;
+	public long[] CharacterStrArray2DLength = null!;
 
 	#region EM_私家版_セーブ拡張
 	public HashSet<string> GlobalSaveMaps { get; private set; } = [];
@@ -118,7 +118,7 @@ internal sealed class ConstantData
 		return names[(int)(code & VariableCode.__LOWERCASE__)];
 	}
 
-	public long[] ItemPrice;
+	public long[] ItemPrice = null!;
 
 	private readonly List<CharacterTemplate> CharacterTmplList;
 	private EmueraConsole output = null!;
@@ -1846,10 +1846,10 @@ internal sealed class CharacterTemplate
 	readonly int[] arraySize;
 	readonly int cstrSize;
 
-	public string Name;
-	public string Callname;
-	public string Nickname;
-	public string Mastername;
+	public string Name = null!;
+	public string Callname = null!;
+	public string Nickname = null!;
+	public string Mastername = null!;
 	public readonly long No = -1;
 	public readonly Dictionary<int, long> Maxbase = [];
 	public readonly Dictionary<int, long> Mark = [];

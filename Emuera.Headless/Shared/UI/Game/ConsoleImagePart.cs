@@ -126,11 +126,11 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 			cImageM = AppContents.GetSprite(MappingGraphName);
 		}
 	}
-	public readonly string MappingGraphName;
-	private readonly ASprite cImageM;
+	public readonly string MappingGraphName = null!;
+	private readonly ASprite cImageM = null!;
 	#endregion
-	private readonly ASprite cImage;
-	private readonly ASprite cImageB;
+	private readonly ASprite cImage = null!;
+	private readonly ASprite cImageB = null!;
 	private readonly int top;
 	private readonly int bottom;
 	private readonly EmuRectangle destRect;
@@ -138,7 +138,7 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 	//		private readonly ImageAttributes ia;
 	//#pragma warning restore CS0649 // フィールド 'ConsoleImagePart.ia' は割り当てられません。常に既定値 null を使用します。
 	public readonly string ResourceName;
-	public readonly string ButtonResourceName;
+	public readonly string ButtonResourceName = null!;
 	public override int Top { get { return top; } }
 	public override int Bottom { get { return bottom; } }
 

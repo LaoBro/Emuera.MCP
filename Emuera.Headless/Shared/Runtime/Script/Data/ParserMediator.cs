@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Utils;
@@ -30,7 +30,7 @@ internal partial class ParserMediator
 		warningList.Add(new ParserWarning(str, pos, level, stack));
 	}
 
-	static EmueraConsole console;
+	static EmueraConsole console = null!;
 	public static void Initialize(EmueraConsole console)
 	{
 		ParserMediator.console = console;

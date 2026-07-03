@@ -676,7 +676,7 @@ internal sealed class CharacterData : IDisposable
 	}
 
 	#region sort
-	public IComparable temp_SortKey;
+	public IComparable temp_SortKey = null!;
 	public int temp_CurrentOrder;
 	//Comparison<CharacterData>
 	public static int AscCharacterComparison(CharacterData x, CharacterData y)
