@@ -54,7 +54,7 @@ internal sealed partial class FunctionIdentifier
 
 		public override Argument CreateArgument(InstructionLine line, ExpressionMediator exm)
 		{
-			return null;
+			return null!;
 		}
 	}
 	private sealed class VARS_Instruction : AInstruction
@@ -78,7 +78,7 @@ internal sealed partial class FunctionIdentifier
 
 		public override Argument CreateArgument(InstructionLine line, ExpressionMediator exm)
 		{
-			return null;
+			return null!;
 		}
 	}
 	#endregion

@@ -454,7 +454,7 @@ internal sealed partial class Process(EmueraConsole view)
 	{
 		LogicalLine line = state.ErrorLine;
 		if (line == null)
-			return null;
+			return null!;
 		return line.Position;
 	}
 	/*
@@ -473,7 +473,7 @@ internal sealed partial class Process(EmueraConsole view)
 			return scaningLine;
 		LogicalLine line = state.ErrorLine;
 		if (line == null)
-			return default;
+			return default!;
 		return line;
 	}
 

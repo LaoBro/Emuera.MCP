@@ -150,7 +150,7 @@ internal sealed class PrintStringBuffer
 		fromCssToButton();
 		m_stringList.Add(new ConsoleStyledString(str, style));
 		if (m_stringList.Count == 0)
-			return null;
+			return null!;
 		m_buttonList.Add(createButton(m_stringList, input, pos));
 		m_stringList.Clear();
 		return FlushSingleLine(sm, false);

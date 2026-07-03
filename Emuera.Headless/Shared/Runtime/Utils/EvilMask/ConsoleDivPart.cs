@@ -107,7 +107,7 @@ class ConsoleDivPart : AConsoleDisplayNode
 		#region EE_div各要素の修正
 		var rect = new EmuRectangle(PointX + xOffset, relPointY + PointY + yOffset, width, Height);
 		#endregion
-		if (!rect.Contains(pointX, pointY)) return null;
+		if (!rect.Contains(pointX, pointY)) return null!;
 		relPointY = rect.Y;
 		foreach (var line in children)
 		{

@@ -106,7 +106,7 @@ internal abstract class FunctionMethod
 					if (!ArgTypes[i].Variadic) break;
 					count++;
 				}
-				if (count == 0) return null;
+				if (count == 0) return null!;
 				var ret = new _ArgType[count];
 				for (int i = 0; i < count; i++)
 				{
@@ -228,7 +228,7 @@ internal abstract class FunctionMethod
 						break;
 					}
 				}
-				if (errMsg[idx] == null) return null;
+				if (errMsg[idx] == null) return null!;
 			}
 			else if (list.OmitStart == -1 && list.ArgTypes.Count > 0 && !variadic)
 			{
@@ -290,7 +290,7 @@ internal abstract class FunctionMethod
 							: string.Format(trerror.ArgIsNotInt.Text, name, i + 1);
 			}
 		}
-		return null;
+		return null!;
 	}
 	#endregion
 

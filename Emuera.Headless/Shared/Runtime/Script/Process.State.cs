@@ -332,7 +332,7 @@ internal sealed class ProcessState
 		get
 		{
 			if (functionList.Count == currentMin)
-				return null;
+				return null!;
 			return functionList[^1].ReturnAddress;
 		}
 	}
@@ -340,7 +340,7 @@ internal sealed class ProcessState
 	public LogicalLine GetReturnAddressSequensial(int curerntDepth)
 	{
 		if (functionList.Count == currentMin)
-			return null;
+			return null!;
 		return functionList[functionList.Count - curerntDepth - 1].ReturnAddress;
 	}
 
@@ -354,7 +354,7 @@ internal sealed class ProcessState
 			//    throw new ExeEE("実行中の関数が存在しません");
 			//}
 			if (functionList.Count == 0)
-				return null;//1756 デバッグコマンドから呼び出されるようになったので
+				return null!;//1756 デバッグコマンドから呼び出されるようになったので
 			return functionList[^1].FunctionName;
 		}
 	}

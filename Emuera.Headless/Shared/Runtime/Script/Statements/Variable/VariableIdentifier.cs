@@ -270,7 +270,7 @@ internal sealed class VariableIdentifier
 	{
 		VariableCode ret;
 		if (string.IsNullOrEmpty(key))
-			return null;
+			return null!;
 		if (subStr != null)
 		{
 			if (localvarNameDic.TryGetValue(key, out ret))
@@ -282,7 +282,7 @@ internal sealed class VariableIdentifier
 		if (nameDic.TryGetValue(key, out ret))
 			return new VariableIdentifier(ret);
 		else
-			return null;
+			return null!;
 	}
 	public override string ToString()
 	{

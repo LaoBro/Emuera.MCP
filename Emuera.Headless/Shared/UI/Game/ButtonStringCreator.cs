@@ -262,7 +262,7 @@ internal static class ButtonStringCreator
 		reduce();
 		return strs;
 	unanalyzable:
-		return null;
+		return null!;
 	}
 
 }

@@ -39,7 +39,7 @@ static partial class Preload
 			catch
 			{
 				ParserMediator.Warn(trerror.AbnormalEncode.Text, new ScriptPosition(path, 0), 0, "");
-				return null;
+				return null!;
 			}
 		}
 		catch (IOException)

@@ -402,7 +402,7 @@ internal sealed class ConfigData
 			if (item.Code == code)
 				return item;
 		}
-		return null;
+		return null!;
 	}
 	public AConfigItem GetConfigItem(string key)
 	{
@@ -419,7 +419,7 @@ internal sealed class ConfigData
 			if (item.EngText == key)
 				return item;
 		}
-		return null;
+		return null!;
 		#endregion
 	}
 
@@ -432,7 +432,7 @@ internal sealed class ConfigData
 			if (item.Code == code)
 				return item;
 		}
-		return null;
+		return null!;
 	}
 	public AConfigItem GetReplaceItem(string key)
 	{
@@ -447,7 +447,7 @@ internal sealed class ConfigData
 			if (item.Text == key)
 				return item;
 		}
-		return null;
+		return null!;
 		#endregion
 	}
 
@@ -460,7 +460,7 @@ internal sealed class ConfigData
 			if (item.Code == code)
 				return item;
 		}
-		return null;
+		return null!;
 	}
 	public AConfigItem GetDebugItem(string key)
 	{
@@ -475,7 +475,7 @@ internal sealed class ConfigData
 			if (item.Text == key)
 				return item;
 		}
-		return null;
+		return null!;
 		#endregion
 	}
 
@@ -485,7 +485,7 @@ internal sealed class ConfigData
 		if (item == null)
 		{
 			errMes = string.Format(trerror.InvalidConfigName.Text, text);
-			return null;
+			return null!;
 		}
 		SingleTerm term;
 		switch (item.Code)
@@ -570,7 +570,7 @@ internal sealed class ConfigData
 					else
 					{
 						errMes = string.Format(trerror.NotAllowGetConfigValue.Text, text);
-						return null;
+						return null!;
 					}
 					break;
 					/** try-catchで解決しようとした名残
@@ -593,7 +593,7 @@ internal sealed class ConfigData
 							catch
 							{
 								errMes = string.Format(trerror.NotAllowGetConfigValue.Text, text);
-								return null;
+								return null!;
 							}
 						}
 					}

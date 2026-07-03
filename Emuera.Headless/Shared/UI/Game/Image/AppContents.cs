@@ -22,12 +22,12 @@ static class AppContents
 		return g;
 	}
 
-	public static ASprite GetSprite(string name) => null;
+	public static ASprite GetSprite(string name) => null!;
 	public static void SpriteDispose(string name) { }
 	public static long SpriteDisposeAll(bool delCsvImage) => 0;
 	public static void CreateSpriteG(string imgName, GraphicsImage parent, EmuRectangle rect) { }
 	internal static void CreateSpriteAnime(string imgName, int w, int h) { }
-	public static Exception LoadContents(bool reload) => null;
+	public static Exception LoadContents(bool reload) => null!;
 	public static void UnloadContents() { foreach (var graph in gList.Values) graph.GDispose(); gList.Clear(); }
 	public static void UnloadGraphicList() { foreach (var graph in gList.Values) graph.GDispose(); gList.Clear(); }
 	public static void UnloadTempLoadedConstImageNames() { }
@@ -67,9 +67,9 @@ static class AppContents
 
 	static public ASprite GetSprite(string name)
 	{
-		if (name == null) return null;
+		if (name == null) return null!;
 		name = name.ToUpper();
-		if (!imageDictionary.TryGetValue(name, out ASprite value)) return null;
+		if (!imageDictionary.TryGetValue(name, out ASprite value)) return null!;
 		return value;
 	}
 
@@ -117,7 +117,7 @@ static class AppContents
 
 	static public Exception LoadContents(bool reload)
 	{
-		if (!Directory.Exists(Program.ContentDir)) return null;
+		if (!Directory.Exists(Program.ContentDir)) return null!;
 		try
 		{
 			var csvFiles = Directory.EnumerateFiles(Program.ContentDir, "*.csv", SearchOption.AllDirectories);
@@ -165,7 +165,7 @@ static class AppContents
 		}
 		catch (Exception e) { return e; }
 		imageDictionary = new ConcurrentDictionary<string, ASprite>(resourceImageDictionary);
-		return null;
+		return null!;
 	}
 
 	static public void UnloadContents()
@@ -205,23 +205,23 @@ static class AppContents
 
 	static private AContentItem CreateFromCsv(string[] tokens, string dir, SpriteAnime currentAnime, ScriptPosition? sp)
 	{
-		if (tokens.Length < 2) return null;
+		if (tokens.Length < 2) return null!;
 		string name = tokens[0].Trim().ToUpper();
 		string arg2 = tokens[1];
-		if (name.Length == 0 || arg2.Length == 0) return null;
+		if (name.Length == 0 || arg2.Length == 0) return null!;
 		if (arg2.Equals("ANIME", StringComparison.OrdinalIgnoreCase))
 		{
-			if (tokens.Length < 4) { ParserMediator.Warn(trerror.NotDeclaredAnimationSpriteSize.Text, sp, 1); return null; }
+			if (tokens.Length < 4) { ParserMediator.Warn(trerror.NotDeclaredAnimationSpriteSize.Text, sp, 1); return null!; }
 			int[] sizeValue = new int[2]; bool sccs = true;
 			for (int i = 0; i < 2; i++) sccs &= int.TryParse(tokens[i + 2], out sizeValue[i]);
 			if (!sccs || sizeValue[0] <= 0 || sizeValue[1] <= 0 || sizeValue[0] > AbstractImage.MAX_IMAGESIZE || sizeValue[1] > AbstractImage.MAX_IMAGESIZE)
-			{ ParserMediator.Warn(trerror.InvalidAnimationSpriteSize.Text, sp, 1); return null; }
+			{ ParserMediator.Warn(trerror.InvalidAnimationSpriteSize.Text, sp, 1); return null!; }
 			SpriteAnime anime = new(name, new Size(sizeValue[0], sizeValue[1]));
 			return anime;
 		}
 
 		if (arg2.IndexOf('.', StringComparison.Ordinal) < 0)
-		{ ParserMediator.Warn(string.Format(trerror.MissingSecondArgumentExtension.Text, arg2), sp, 1); return null; }
+		{ ParserMediator.Warn(string.Format(trerror.MissingSecondArgumentExtension.Text, arg2), sp, 1); return null!; }
 		string parentName = dir + arg2;
 
 		if (!resourceDic.TryGetValue(parentName, out AbstractImage value))
@@ -230,20 +230,20 @@ static class AppContents
 			Bitmap bmp;
 			var webpbmp = Utils.LoadImage(filepath);
 			if (webpbmp == null)
-			{ ParserMediator.Warn(string.Format(trerror.FailedLoadFile.Text, arg2), sp, 1); return null; }
+			{ ParserMediator.Warn(string.Format(trerror.FailedLoadFile.Text, arg2), sp, 1); return null!; }
 			bmp = webpbmp;
 			if (bmp.Width > AbstractImage.MAX_IMAGESIZE || bmp.Height > AbstractImage.MAX_IMAGESIZE)
 				ParserMediator.Warn(string.Format(trerror.TooLargeImageFile.Text, AbstractImage.MAX_IMAGESIZE.ToString(), arg2), sp, 1);
 			ConstImage img = new(parentName);
 			img.CreateFrom(bmp, filepath, Config.TextDrawingMode == TextDrawingMode.WINAPI);
 			if (!img.IsCreated)
-			{ ParserMediator.Warn(string.Format(trerror.FailedCreateResource.Text, arg2), sp, 1); return null; }
+			{ ParserMediator.Warn(string.Format(trerror.FailedCreateResource.Text, arg2), sp, 1); return null!; }
 			value = img;
 			resourceDic.TryAdd(parentName, value);
 			img.Dispose();
 		}
 		if (value is not ConstImage parentImage || !parentImage.IsCreated)
-		{ ParserMediator.Warn(string.Format(trerror.SpriteCreateFromFailedResource.Text, arg2), sp, 1); return null; }
+		{ ParserMediator.Warn(string.Format(trerror.SpriteCreateFromFailedResource.Text, arg2), sp, 1); return null!; }
 		Rectangle rect = new(0, 0, parentImage.Width, parentImage.Height);
 		Size size = rect.Size;
 		Point pos = new();
@@ -256,19 +256,19 @@ static class AppContents
 			{
 				rect = new Rectangle(outValue[0], outValue[1], outValue[2], outValue[3]);
 				size = rect.Size;
-				if (rect.Width <= 0 || rect.Height <= 0) { ParserMediator.Warn(string.Format(trerror.SpriteSizeIsNegatibe.Text, name), sp, 1); return null; }
+				if (rect.Width <= 0 || rect.Height <= 0) { ParserMediator.Warn(string.Format(trerror.SpriteSizeIsNegatibe.Text, name), sp, 1); return null!; }
 				if (!rect.IntersectsWith(new Rectangle(0, 0, parentImage.Width, parentImage.Height)))
-				{ ParserMediator.Warn(string.Format(trerror.OoRParentImage.Text, name), sp, 1); return null; }
+				{ ParserMediator.Warn(string.Format(trerror.OoRParentImage.Text, name), sp, 1); return null!; }
 			}
 			if (tokens.Length >= 8) { sccs = true; for (int i = 0; i < 2; i++) sccs &= int.TryParse(tokens[i + 6], out outValue[i]); if (sccs) pos = new Point(outValue[0], outValue[1]); }
-			if (tokens.Length >= 9) { sccs = int.TryParse(tokens[8], out delay); if (sccs && delay <= 0) { ParserMediator.Warn(string.Format(trerror.FrameTimeIsNegative.Text, name), sp, 1); return null; } }
+			if (tokens.Length >= 9) { sccs = int.TryParse(tokens[8], out delay); if (sccs && delay <= 0) { ParserMediator.Warn(string.Format(trerror.FrameTimeIsNegative.Text, name), sp, 1); return null!; } }
 			if (tokens.Length >= 11) { sccs = true; for (int i = 0; i < 2; i++) sccs &= int.TryParse(tokens[i + 9], out outValue[i]); if (sccs) size = new Size(outValue[0], outValue[1]); }
 		}
 		if (currentAnime != null && currentAnime.Name == name)
 		{
 			if (!currentAnime.AddFrame(parentImage, rect, pos, delay))
-			{ ParserMediator.Warn(string.Format(trerror.FailedAddSpriteFrame.Text, arg2), sp, 1); return null; }
-			return null;
+			{ ParserMediator.Warn(string.Format(trerror.FailedAddSpriteFrame.Text, arg2), sp, 1); return null!; }
+			return null!;
 		}
 		ASprite image = new SpriteF(name, parentImage, rect, pos, size);
 		return image;

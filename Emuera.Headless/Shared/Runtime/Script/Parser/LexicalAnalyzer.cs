@@ -400,7 +400,7 @@ internal static partial class LexicalAnalyzer
 		//        if (macro.IDWord == null)
 		//        {
 		//            st.CurrentPosition = startpos;
-		//            return null;//変数処理に任せる。
+		//            return null!;//変数処理に任せる。
 		//        }
 		//        str = macro.IDWord.Code;
 		//    }
@@ -417,7 +417,7 @@ internal static partial class LexicalAnalyzer
 	{
 		string str = ReadSingleIdentifier(st);
 		if (string.IsNullOrEmpty(str))
-			return null;
+			return null!;
 		if (UseMacro)
 		{
 			int i = 0;

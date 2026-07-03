@@ -23,7 +23,7 @@ internal sealed class VariableLocal
 	{
 		if (localVarTokens.TryGetValue(subKey, out LocalVariableToken? ret))
 			return ret;
-		return null;
+		return null!;
 	}
 
 	public int GetDefaultSize()

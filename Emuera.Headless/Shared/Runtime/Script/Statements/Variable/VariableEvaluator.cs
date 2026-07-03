@@ -1002,7 +1002,7 @@ internal sealed class VariableEvaluator : IDisposable
 		long[] paramlv = varData.DataIntegerArray[(int)(VariableCode.PALAMLV & VariableCode.__LOWERCASE__)];
 		string paramName = constant.GetCsvNameList(VariableCode.PALAMNAME)[paramCode];
 		if (param == 0 && string.IsNullOrEmpty(paramName))
-			return null;
+			return null!;
 		if (paramName == null)
 			paramName = "";
 		char c = '-';
@@ -1839,7 +1839,7 @@ internal sealed class VariableEvaluator : IDisposable
 			return trerror.NothingFileName.Text;
 		if (datfilename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
 			return trerror.InvalidFileName.Text;
-		return null;
+		return null!;
 	}
 
 	public EraDataResult CheckData(string savename, EraSaveFileType type)

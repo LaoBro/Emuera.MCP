@@ -34,8 +34,8 @@ internal abstract class LogicalLine
 	public override string ToString()
 	{
 		if (scriptPosition == null)
-			return base.ToString();
-		return string.Format("{0}:{1}:{2}", scriptPosition.Value.Filename, scriptPosition.Value.LineNo, Process.getRawTextFormFilewithLine(scriptPosition));
+			return base.ToString()!;
+		return string.Format("{0}:{1}:{2}", scriptPosition.Value.Filename, scriptPosition.Value.LineNo, Process.getRawTextFormFilewithLine(scriptPosition)!);
 	}
 
 	protected bool isError;

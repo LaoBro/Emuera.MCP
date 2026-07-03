@@ -26,7 +26,7 @@ internal abstract class AConfigItem
 	public static ConfigItem<T> Copy<T>(ConfigItem<T> other)
 	{
 		if (other == null)
-			return null;
+			return null!;
 		//ConfigItem<T> ret = new ConfigItem<T>(other.Code, other.Text, other.Value);
 		ConfigItem<T> ret = new(other.Code, other.Text, other.EngText, other.Value)
 		{
@@ -128,7 +128,7 @@ internal sealed class ConfigItem<T> : AConfigItem
 			return sb.ToString();
 		}
 		#endregion
-		return val!.ToString();
+		return val!.ToString()!;
 	}
 
 

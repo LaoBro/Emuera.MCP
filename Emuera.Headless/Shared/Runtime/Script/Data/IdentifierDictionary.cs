@@ -478,7 +478,7 @@ internal partial class IdentifierDictionary
 		}
 		if (macroDic.TryGetValue(hash, out var value))
 			return value;
-		return null;
+		return null!;
 	}
 
 	public VariableToken GetVariableToken(string key, string subKey, bool allowPrivate)
@@ -539,20 +539,20 @@ internal partial class IdentifierDictionary
 		}
 		if (subKey != null)
 			throw new CodeEE(treer.InvalidAt.Text);
-		return null;
+		return null!;
 	}
 
 	public FunctionIdentifier GetFunctionIdentifier(string str)
 	{
 		string key = str;
 		if (string.IsNullOrEmpty(key))
-			return null;
+			return null!;
 		if (Config.IgnoreCase)
 			key = key.ToUpper();
 		if (instructionDic.TryGetValue(key, out FunctionIdentifier? ret))
 			return ret;
 		else
-			return null;
+			return null!;
 	}
 
 	public List<string> GetOverloadedList(LabelDictionary labelDic)
@@ -574,7 +574,7 @@ internal partial class IdentifierDictionary
 	{
 		if (refmethodDic.TryGetValue(codeStr, out UserDefinedRefMethod? value))
 			return value;
-		return null;
+		return null!;
 	}
 
 	public AExpression GetFunctionMethod(LabelDictionary labelDic, string codeStr, List<AExpression> arguments, bool userDefinedOnly)
@@ -585,7 +585,7 @@ internal partial class IdentifierDictionary
 		{
 			if (refmethodDic.TryGetValue(codeStr, out UserDefinedRefMethod? value))
 				return new UserDefinedRefMethodNoArgTerm(value);
-			return null;
+			return null!;
 		}
 		if ((labelDic != null) && labelDic.Initialized)
 		{
@@ -612,9 +612,9 @@ internal partial class IdentifierDictionary
 			}
 		}
 		if (userDefinedOnly)
-			return null;
+			return null!;
 		if (!methodDic.TryGetValue(codeStr, out FunctionMethod? method))
-			return null;
+			return null!;
 		string errmes = method.CheckArgumentType(codeStr, arguments);
 		if (errmes != null)
 			throw new CodeEE(errmes);

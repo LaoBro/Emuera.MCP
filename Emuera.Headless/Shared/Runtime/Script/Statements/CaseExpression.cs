@@ -35,14 +35,14 @@ internal sealed class CaseExpression
 		switch (CaseType)
 		{
 			case CaseExpressionType.Normal:
-				return LeftTerm.ToString();
+				return LeftTerm.ToString()!;
 			case CaseExpressionType.Is:
 				return "Is " + Operator.ToString() + " " + LeftTerm.ToString();
 			case CaseExpressionType.To:
 				return LeftTerm.ToString() + " To " + RightTerm.ToString();
 		}
 
-		return base.ToString();
+		return base.ToString()!;
 	}
 
 	public bool GetBool(long Is, ExpressionMediator exm)
