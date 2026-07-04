@@ -118,27 +118,28 @@ internal sealed class WindowsTerminalSetup : ITerminalSetup
         int totalRead = 0;
         var deadline = DateTime.UtcNow.AddMilliseconds(Da1TimeoutMs);
 
-        bool responded = false;
         while (DateTime.UtcNow < deadline)
         {
-            if (GetNumberOfConsoleInputEvents(stdin, out uint count) && count > 0)
+            int remaining = Math.Max(1, (int)(deadline - DateTime.UtcNow).TotalMilliseconds);
+            uint waitResult = WaitForSingleObject(stdin, Math.Min((uint)remaining, 50u));
+            if (waitResult == WAIT_OBJECT_0)
             {
                 int n = ReadRawBytes(stdin, buffer, totalRead, buffer.Length - totalRead);
                 if (n > 0)
                 {
                     totalRead += n;
                     if (ContainsDa1Response(buffer, totalRead))
-                    {
-                        responded = true;
                         break;
-                    }
                 }
             }
-            System.Threading.Thread.Sleep(5);
+            else if (waitResult != WAIT_TIMEOUT)
+            {
+                break;
+            }
         }
 
         SetConsoleMode(stdin, originalMode);
-        return responded;
+        return true;
     }
 
     private const int Da1TimeoutMs = 200;
@@ -190,8 +191,7 @@ internal sealed class WindowsTerminalSetup : ITerminalSetup
     private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
     [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetNumberOfConsoleInputEvents(IntPtr hConsoleInput, out uint lpcNumberOfEvents);
+    private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -203,6 +203,8 @@ internal sealed class WindowsTerminalSetup : ITerminalSetup
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_INPUT_HANDLE = -10;
     private static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
+    private const uint WAIT_OBJECT_0 = 0;
+    private const uint WAIT_TIMEOUT = 0x00000102;
     private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
     private const uint ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200;
     private const uint ENABLE_PROCESSED_INPUT = 0x0001;

@@ -40,7 +40,7 @@ internal sealed class WindowsTerminalInput : ITerminalInput
     }
 
     public bool HasInputAvailable()
-        => GetNumberOfConsoleInputEvents(_stdinHandle, out uint count) && count > 0;
+        => WaitForSingleObject(_stdinHandle, 0) == WAIT_OBJECT_0;
 
     public unsafe int ReadByte()
     {
@@ -94,13 +94,13 @@ internal sealed class WindowsTerminalInput : ITerminalInput
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetNumberOfConsoleInputEvents(IntPtr hConsoleInput, out uint lpcNumberOfEvents);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ReadFile(IntPtr hFile, IntPtr lpBuffer, int nNumberOfBytesToRead, out int lpNumberOfBytesRead, IntPtr lpOverlapped);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
+
     private const int STD_INPUT_HANDLE = -10;
+    private const uint WAIT_OBJECT_0 = 0;
     private static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
     private const uint ENABLE_PROCESSED_INPUT = 0x0001;
     private const uint ENABLE_LINE_INPUT = 0x0002;

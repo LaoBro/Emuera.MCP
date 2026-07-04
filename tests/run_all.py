@@ -148,6 +148,17 @@ def main():
         )
     )
 
+    results.append(
+        (
+            "CLI basic",
+            _run_script(
+                "CLI basic",
+                [sys.executable, str(TESTS_DIR / "test_cli_basic.py"), "--binary", str(binary_path), "--game-dir", str(game_dir)],
+                timeout=60,
+            ),
+        )
+    )
+
     print("\n=== Summary ===")
     all_passed = True
     for name, (passed, code) in results:
