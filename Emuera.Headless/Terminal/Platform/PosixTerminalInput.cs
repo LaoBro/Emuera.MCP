@@ -1,32 +1,33 @@
 using System;
-using System.IO;
+using System.Runtime.InteropServices;
 
 namespace MinorShift.Emuera.Terminal.Platform;
 
 internal sealed class PosixTerminalInput : ITerminalInput
 {
-    private readonly Stream _stdin;
     private bool _sgrMouseEnabled;
     private bool _disposed;
 
     public PosixTerminalInput()
     {
         if (OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
-        _stdin = Console.OpenStandardInput();
     }
 
     public bool HasInputAvailable()
     {
-        // Console.KeyAvailable 在 Unix 上通过 poll(fd, POLLIN, 0) 实现，
-        // 可检测键盘和 VT 鼠标事件（都通过 stdin 传输）
-        return Console.KeyAvailable;
+        var pfd = new pollfd { fd = STDIN_FILENO, events = POLLIN };
+        int ret = poll(ref pfd, 1, 0);
+        return ret > 0;
     }
 
     public int ReadByte()
     {
-        // 调用方约定：先检查 HasInputAvailable，再调用 ReadByte
-        // 阻塞读取单字节
-        int b = _stdin.ReadByte();
+        byte b = 0;
+        unsafe
+        {
+            int ret = read(STDIN_FILENO, (IntPtr)(&b), 1);
+            if (ret <= 0) return -1;
+        }
         return b;
     }
 
@@ -49,5 +50,22 @@ internal sealed class PosixTerminalInput : ITerminalInput
         if (_disposed) return;
         _disposed = true;
         DisableSgrMouse();
+    }
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int read(int fd, IntPtr buf, int count);
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int poll(ref pollfd fds, int nfds, int timeout);
+
+    private const int STDIN_FILENO = 0;
+    private const short POLLIN = 1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct pollfd
+    {
+        public int fd;
+        public short events;
+        public short revents;
     }
 }
