@@ -3,6 +3,7 @@ using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
+using MinorShift.Emuera.Terminal.Platform;
 using MinorShift.Emuera.UI;
 using System;
 using System.Collections.Generic;
@@ -21,7 +22,10 @@ static partial class Program
     {
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
         Console.OutputEncoding = System.Text.Encoding.UTF8;
-        WindowsConsoleHelper.Setup();
+
+        var terminalSetup = CreateTerminalSetup();
+        terminalSetup.TryEnableAnsi();
+
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 
@@ -51,9 +55,14 @@ static partial class Program
         }
 
         if (options.Server)
-            ServerRunner.Run(options.Port);
+            ServerRunner.Run(options.Port, terminalSetup);
         else
-            await HeadlessRunner.RunAsync(paths, options.Protocol, options.TermWidthHint);
+        {
+            using ITerminalInput terminalInput = OperatingSystem.IsWindows()
+                ? new WindowsTerminalInput()
+                : new PosixTerminalInput();
+            await HeadlessRunner.RunAsync(paths, options.Protocol, options.TermWidthHint, terminalSetup, terminalInput);
+        }
     }
 
     // === 路径属性转发（保持共享文件零改动）===
@@ -73,7 +82,13 @@ static partial class Program
     public static List<string> AnalysisFiles = new();
     public static bool DebugMode { get; private set; }
 
-    public static bool AnsiEnabled => WindowsConsoleHelper.AnsiEnabled;
+    private static ITerminalSetup CreateTerminalSetup()
+    {
+        if (OperatingSystem.IsWindows())
+            return new WindowsTerminalSetup();
+
+        return new PosixTerminalSetup();
+    }
 
     static Program()
     {

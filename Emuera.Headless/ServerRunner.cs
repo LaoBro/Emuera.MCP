@@ -1,5 +1,6 @@
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Server;
+using MinorShift.Emuera.Terminal.Platform;
 using System;
 using System.Threading;
 
@@ -7,12 +8,12 @@ namespace MinorShift.Emuera;
 
 internal static class ServerRunner
 {
-    public static void Run(int port)
+    public static void Run(int port, ITerminalSetup terminalSetup)
     {
         Console.Error.WriteLine($"[server] Emuera {AssemblyData.EmueraVersionText} 服务器模式启动");
         Console.Error.WriteLine($"[server] 监听端口: {port}");
 
-        using var server = new HttpGameServer(port);
+        using var server = new HttpGameServer(port, terminalSetup);
         server.Start();
 
         using var shutdown = new ManualResetEventSlim(false);

@@ -10,7 +10,7 @@ namespace MinorShift.Emuera.GameView
     /// </summary>
     internal sealed class VtParser
     {
-        private readonly AgentCliVtInput _owner;
+        private readonly VtInputHandler _owner;
 
         private enum State { Ground, Esc, Csi, SgrMouse }
 
@@ -19,7 +19,7 @@ namespace MinorShift.Emuera.GameView
         private readonly byte[] _utf8Buffer = new byte[4];
         private int _utf8Len;
 
-        internal VtParser(AgentCliVtInput owner)
+        internal VtParser(VtInputHandler owner)
         {
             _owner = owner;
         }

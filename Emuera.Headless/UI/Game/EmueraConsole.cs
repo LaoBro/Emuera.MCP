@@ -5,6 +5,7 @@ using System.Text;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.Terminal.Platform;
 using MinorShift.Emuera.UI;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -26,14 +27,16 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     internal readonly ConsoleTimerManager _timer;
     internal readonly ConsoleRefreshHandler _refresh;
     private readonly IConsoleUI _uiAdapter;
+    private readonly ITerminalSetup _terminalSetup;
 
     // --- Shared state objects required by PrintStringBuffer/ConsoleButtonString ---
     internal readonly PrintStringBuffer printBuffer;
     internal readonly StringMeasure stringMeasure = new();
 
-    public EmueraConsole(IConsoleUI ui)
+    public EmueraConsole(IConsoleUI ui, ITerminalSetup terminalSetup)
     {
         _uiAdapter = ui;
+        _terminalSetup = terminalSetup;
         _state = new ConsoleStateData();
         _stateManager = new ConsoleStateManager(_state, this, ui);
         _printManager = new ConsolePrintManager(_state, this, ui);
@@ -658,7 +661,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
         return Config.DrawableWidth / charWidth;
     }
 
-    private static bool IsAnsiEnabled() => WindowsConsoleHelper.AnsiEnabled || !OperatingSystem.IsWindows();
+    private bool IsAnsiEnabled() => _terminalSetup.IsAnsiEnabled;
 
     // ========================================
     // Agent / Bridge

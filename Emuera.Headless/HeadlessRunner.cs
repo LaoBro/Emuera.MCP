@@ -1,8 +1,10 @@
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
+using MinorShift.Emuera.Terminal.Platform;
 using MinorShift.Emuera.UI;
 using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.Runtime.Config;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +13,7 @@ namespace MinorShift.Emuera;
 
 internal static class HeadlessRunner
 {
-    public static async Task RunAsync(GamePaths paths, string protocolArg, string termWidthHint)
+    public static async Task RunAsync(GamePaths paths, string protocolArg, string termWidthHint, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
     {
         Console.Error.WriteLine($"[headless] Emuera {AssemblyData.EmueraVersionText} 无头模式启动");
         Console.Error.WriteLine($"[headless] 工作目录: {paths.ExeDir}");
@@ -19,9 +21,13 @@ internal static class HeadlessRunner
         Console.Error.WriteLine($"[headless] 字符宽度提示: {termWidthHint}");
 
         var ui = new HeadlessConsole();
-        var console = new EmueraConsole(ui);
+        var console = new EmueraConsole(ui, terminalSetup);
 
-        WindowsConsoleHelper.TrySetConsoleSize();
+        int charWidth = Math.Max(Config.FontSize / 2, 1);
+        int gameColumns = Config.DrawableWidth / charWidth;
+        int gameRows = Config.WindowY / Config.LineHeight;
+        if (gameColumns > 0 && gameRows > 0)
+            terminalSetup.TrySetConsoleSize(gameColumns, gameRows + 4);
 
         string hint = (termWidthHint ?? "auto").Trim().ToLowerInvariant();
         TerminalCharWidthConfig charWidthConfig;
@@ -35,13 +41,13 @@ internal static class HeadlessRunner
         }
         console.CharWidthConfig = charWidthConfig;
 
-        WindowsConsoleHelper.DetectConsoleFont();
+        terminalSetup.DetectFont();
         PrintTerminalGuidance(charWidthConfig);
 
         AgentProtocolBase? protocol;
         try
         {
-            protocol = SelectProtocol(protocolArg, console, ui);
+            protocol = SelectProtocol(protocolArg, console, ui, terminalSetup, terminalInput);
         }
         catch (ArgumentException ex)
         {
@@ -74,19 +80,19 @@ internal static class HeadlessRunner
         }
     }
 
-    private static AgentCliProtocol? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui)
+    private static AgentCliProtocol? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
     {
         return protocolArg.Trim().ToLowerInvariant() switch
         {
-            "auto" => DetectProtocol(console, ui),
-            "cli" => new AgentCliProtocol(console, ui),
+            "auto" => DetectProtocol(console, ui, terminalSetup, terminalInput),
+            "cli" => new AgentCliProtocol(console, ui, terminalSetup, terminalInput),
             "jsonl" => throw new ArgumentException(
                 "stdin 管道 JSONL 模式已废弃（T-024），请使用 --server 模式", nameof(protocolArg)),
             _ => throw new ArgumentException($"未知协议模式: {protocolArg}", nameof(protocolArg))
         };
     }
 
-    private static AgentCliProtocol? DetectProtocol(EmueraConsole console, IConsoleUI ui)
+    private static AgentCliProtocol? DetectProtocol(EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
     {
         // T-024：stdin 管道模式已废弃，非 server 模式仅支持交互式 CLI 终端。
         if (Console.IsInputRedirected)
@@ -104,7 +110,7 @@ internal static class HeadlessRunner
             return null;
         }
 
-        return new AgentCliProtocol(console, ui);
+        return new AgentCliProtocol(console, ui, terminalSetup, terminalInput);
     }
 
     private static void PrintTerminalGuidance(TerminalCharWidthConfig config)

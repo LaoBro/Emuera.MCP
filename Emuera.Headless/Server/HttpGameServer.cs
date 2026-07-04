@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Terminal.Platform;
 
 namespace MinorShift.Emuera.Server;
 
@@ -16,14 +17,16 @@ internal sealed class HttpGameServer : IDisposable
     private const int TurnWaitTimeoutMs = 25000;
 
     private readonly HttpListener _listener;
+    private readonly ITerminalSetup _terminalSetup;
     private Session? _session;
     private readonly object _sessionLock = new();
     private readonly CancellationTokenSource _cts = new();
 
-    public HttpGameServer(int port)
+    public HttpGameServer(int port, ITerminalSetup terminalSetup)
     {
         _listener = new HttpListener();
         _listener.Prefixes.Add($"http://localhost:{port}/");
+        _terminalSetup = terminalSetup;
     }
 
     public void Start()
@@ -107,7 +110,7 @@ internal sealed class HttpGameServer : IDisposable
                 }
 
                 var io = new HttpSessionIO();
-                _session = new Session(io);
+                _session = new Session(io, _terminalSetup);
                 _session.Start();
                 sessionId = _session.Id;
                 createdAt = _session.CreatedAt;

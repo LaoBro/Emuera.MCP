@@ -138,7 +138,7 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>刷新 VT 鼠标命中区域。仅 VT 模式有效。</summary>
-        internal void RefreshButtonRegions(AgentCliVtInput? vtInput, bool force = false)
+        internal void RefreshButtonRegions(VtInputHandler? vtInput, bool force = false)
         {
             if (vtInput == null) return;
 

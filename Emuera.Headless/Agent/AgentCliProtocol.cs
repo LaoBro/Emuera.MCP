@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime;
-using MinorShift.Emuera.UI;
+using MinorShift.Emuera.Terminal.Platform;
 using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
@@ -15,7 +15,9 @@ namespace MinorShift.Emuera.GameView
 
         // VT 模式状态（DA1 探测通过后非 null）
         private AgentCliVtScreen? _screen;
-        private AgentCliVtInput? _vtInput;
+        private VtInputHandler? _vtInput;
+        private readonly ITerminalInput _terminalInput;
+        private readonly ITerminalSetup _terminalSetup;
         private bool _vtCleanupDone;
         private bool _vtHooksRegistered;
 
@@ -31,10 +33,12 @@ namespace MinorShift.Emuera.GameView
 
         internal EmueraConsole GameConsole => console;
 
-        public AgentCliProtocol(EmueraConsole console, IConsoleUI ui)
+        public AgentCliProtocol(EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
             : base(console, ui)
         {
-            _ansiEnabled = WindowsConsoleHelper.AnsiEnabled || !OperatingSystem.IsWindows();
+            _terminalSetup = terminalSetup;
+            _terminalInput = terminalInput;
+            _ansiEnabled = terminalSetup.IsAnsiEnabled;
             _cursor = new TerminalCursor(_ansiEnabled);
             _renderer = new TerminalRenderer(console, () => _screen, _cursor);
             _buttons = new ButtonSelectionMode(
@@ -80,10 +84,10 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         private bool TryRunVtLoop()
         {
-            _vtInput = WindowsVtInput.TryCreate(this);
-            if (_vtInput == null)
+            if (!_terminalSetup.TryProbeDa1())
                 return false;
 
+            _vtInput = new VtInputHandler(this, _terminalInput);
             _screen = new AgentCliVtScreen();
             RegisterVtCleanupHooks();
 
@@ -151,7 +155,7 @@ namespace MinorShift.Emuera.GameView
         /// 超时处理（TINPUT）。返回 true 表示已处理（调用方 continue），false 表示未超时。
         /// vtInput 为 null 时跳过 RefreshButtonRegions（非 VT 路径）。
         /// </summary>
-        private bool HandleTimeout(AgentCliVtInput? vtInput)
+        private bool HandleTimeout(VtInputHandler? vtInput)
         {
             var timeoutMs = console.InputTimeoutMs;
             if (!timeoutMs.HasValue || timeoutMs.Value > 0) return false;

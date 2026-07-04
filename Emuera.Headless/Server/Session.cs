@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Terminal.Platform;
 using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.Server;
@@ -28,11 +29,11 @@ internal sealed class Session : IDisposable
     private bool _finalTurnDelivered;
     private bool _disposed;
 
-    public Session(HttpSessionIO io)
+    public Session(HttpSessionIO io, ITerminalSetup terminalSetup)
     {
         _io = io;
         _ui = new HeadlessConsole();
-        _console = new EmueraConsole(_ui);
+        _console = new EmueraConsole(_ui, terminalSetup);
         _protocol = new AgentJsonlProtocol(_console, _ui, io);
         _console.SetAgentBridge(_protocol);
     }
