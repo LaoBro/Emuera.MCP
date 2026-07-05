@@ -22,6 +22,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="System.CommandLine" Version="2.0.9" />
     <!-- I-14 阶段 C：System.Drawing.Common 已彻底移除
          通过自定义 Emu 类型（EmuColor/EmuPoint/EmuRectangle/EmuSize/EmuFont/EmuFontStyle/EmuRectangleF）

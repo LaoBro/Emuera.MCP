@@ -55,7 +55,7 @@ static partial class Program
         }
 
         if (options.Server)
-            ServerRunner.Run(options.Port, terminalSetup);
+            await ServerRunner.RunAsync(options.Port, terminalSetup);
         else
         {
             using ITerminalInput terminalInput = OperatingSystem.IsWindows()

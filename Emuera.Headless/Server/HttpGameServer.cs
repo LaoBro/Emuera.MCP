@@ -1,93 +1,62 @@
 using System;
 using System.IO;
-using System.Linq;
-using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Terminal.Platform;
 
 namespace MinorShift.Emuera.Server;
 
-internal sealed class HttpGameServer : IDisposable
+internal sealed class KestrelGameServer : IDisposable
 {
-    /// <summary>GET /turn 长轮询超时（毫秒）。超时返回 204。</summary>
     private const int TurnWaitTimeoutMs = 25000;
 
-    private readonly HttpListener _listener;
+    private readonly WebApplication _app;
     private readonly ITerminalSetup _terminalSetup;
     private Session? _session;
     private readonly object _sessionLock = new();
-    private readonly CancellationTokenSource _cts = new();
 
-    public HttpGameServer(int port, ITerminalSetup terminalSetup)
+    public KestrelGameServer(int port, ITerminalSetup terminalSetup)
     {
-        _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://localhost:{port}/");
         _terminalSetup = terminalSetup;
+
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseKestrel();
+        builder.WebHost.UseUrls($"http://localhost:{port}");
+        builder.Logging.ClearProviders();
+        _app = builder.Build();
+
+        MapRoutes();
     }
 
-    public void Start()
+    private void MapRoutes()
     {
-        _listener.Start();
-        Console.Error.WriteLine($"[server] HTTP 监听已启动于 {_listener.Prefixes.First()}");
-        _ = Task.Run(RunLoop);
+        _app.MapPost("/session", (Delegate)HandleCreateSessionAsync);
+        _app.MapGet("/turn", (Delegate)HandleGetTurnAsync);
+        _app.MapPost("/input", (Delegate)HandlePostInputAsync);
+        _app.MapGet("/state", (Delegate)HandleGetStateAsync);
+        _app.MapDelete("/session", (Delegate)HandleDeleteSessionAsync);
     }
 
-    private async Task RunLoop()
+    public async Task StartAsync()
     {
-        while (!_cts.IsCancellationRequested)
-        {
-            try
-            {
-                var context = await _listener.GetContextAsync();
-                // fire-and-forget：async handler 在 await 时自动释放线程，无需 Task.Run 包裹
-                _ = HandleRequestAsync(context, _cts.Token);
-            }
-            catch (ObjectDisposedException)
-            {
-                break;
-            }
-            catch (HttpListenerException)
-            {
-                break;
-            }
-        }
+        await _app.StartAsync();
+        Console.Error.WriteLine("[server] Kestrel 监听已启动");
     }
 
-    private async Task HandleRequestAsync(HttpListenerContext ctx, CancellationToken serverCt)
+    public async Task WaitForShutdownAsync()
     {
-        var req = ctx.Request;
-        var resp = ctx.Response;
-        try
-        {
-            var path = req.Url?.AbsolutePath ?? "/";
-            var method = req.HttpMethod;
-
-            if (method == "POST" && path == "/session") { await HandleCreateSessionAsync(resp, serverCt); return; }
-            if (method == "GET" && path == "/turn") { await HandleGetTurnAsync(resp, serverCt); return; }
-            if (method == "POST" && path == "/input") { await HandlePostInputAsync(req, resp, serverCt); return; }
-            if (method == "GET" && path == "/state") { await HandleGetStateAsync(resp, serverCt); return; }
-            if (method == "DELETE" && path == "/session") { await HandleDeleteSessionAsync(resp, serverCt); return; }
-
-            await WriteJsonAsync(resp, 404, new { error = "Not found" }, serverCt);
-        }
-        catch (OperationCanceledException) when (serverCt.IsCancellationRequested)
-        {
-            // 服务器关闭，静默退出，不写 response
-        }
-        catch (Exception ex)
-        {
-            AgentLog.Instance.Write($"http 500: {ex}");
-            try { await WriteJsonAsync(resp, 500, new { error = "internal error" }, CancellationToken.None); }
-            catch { /* 响应已断开，忽略 */ }
-        }
+        await _app.WaitForShutdownAsync();
     }
 
-    // POST /session → 创建会话。running 中返回 409；已结束自动覆盖。
-    private async Task HandleCreateSessionAsync(HttpListenerResponse resp, CancellationToken serverCt)
+    private IResult HandleCreateSessionAsync()
     {
         bool conflict;
         string? sessionId = null;
@@ -119,13 +88,12 @@ internal sealed class HttpGameServer : IDisposable
         }
 
         if (conflict)
-            await WriteJsonAsync(resp, 409, new { error = "A session is already active" }, serverCt);
-        else
-            await WriteJsonAsync(resp, 201, new { sessionId, createdAt, state }, serverCt);
+            return Results.Json(new { error = "A session is already active" }, statusCode: 409);
+
+        return Results.Json(new { sessionId, createdAt, state }, statusCode: 201);
     }
 
-    // GET /turn → 长轮询获取回合。Quit/Error 后返回最终 turn 一次，之后 404。
-    private async Task HandleGetTurnAsync(HttpListenerResponse resp, CancellationToken serverCt)
+    private async Task<IResult> HandleGetTurnAsync(HttpContext context)
     {
         Session? session;
         lock (_sessionLock)
@@ -134,36 +102,26 @@ internal sealed class HttpGameServer : IDisposable
         }
 
         if (session == null)
-        {
-            await WriteJsonAsync(resp, 404, new { error = "No active session" }, serverCt);
-            return;
-        }
+            return Results.Json(new { error = "No active session" }, statusCode: 404);
 
-        // 预检查：finalTurn 已交付 → 404（快路径，避免无谓 await）
         if (session.IsFinalTurnDelivered)
-        {
-            await WriteJsonAsync(resp, 404, new { error = "Session ended" }, serverCt);
-            return;
-        }
+            return Results.Json(new { error = "Session ended" }, statusCode: 404);
 
-        var result = await session.WaitForTurnAsync(TurnWaitTimeoutMs, serverCt);
+        var result = await session.WaitForTurnAsync(TurnWaitTimeoutMs, context.RequestAborted);
         switch (result.Status)
         {
             case TurnWaitStatus.Turn:
-                // turn 已是 JSON 字符串，直接写 raw bytes 避免双重序列化
-                await WriteRawJsonAsync(resp, 200, result.Turn!, serverCt);
-                return;
+                return Results.Text(result.Turn!, "application/json", Encoding.UTF8, 200);
             case TurnWaitStatus.Timeout:
-                await WriteJsonAsync(resp, 204, new { }, serverCt);
-                return;
+                return Results.NoContent();
             case TurnWaitStatus.Closed:
-                await WriteJsonAsync(resp, 404, new { error = "Session ended" }, serverCt);
-                return;
+                return Results.Json(new { error = "Session ended" }, statusCode: 404);
+            default:
+                return Results.Json(new { error = "unexpected turn wait status" }, statusCode: 500);
         }
     }
 
-    // POST /input → 提交输入。请求体 {"value":"..."}，服务端包装成 JSONL 供 RunLoop 消费。
-    private async Task HandlePostInputAsync(HttpListenerRequest req, HttpListenerResponse resp, CancellationToken serverCt)
+    private async Task<IResult> HandlePostInputAsync(HttpContext context)
     {
         Session? session;
         lock (_sessionLock)
@@ -172,15 +130,12 @@ internal sealed class HttpGameServer : IDisposable
         }
 
         if (session == null)
-        {
-            await WriteJsonAsync(resp, 404, new { error = "No active session" }, serverCt);
-            return;
-        }
+            return Results.Json(new { error = "No active session" }, statusCode: 404);
 
         string? value;
-        using (var reader = new StreamReader(req.InputStream))
+        using (var reader = new StreamReader(context.Request.Body))
         {
-            var body = await reader.ReadToEndAsync(serverCt);
+            var body = await reader.ReadToEndAsync();
             try
             {
                 var input = JsonSerializer.Deserialize<HttpInput>(body);
@@ -188,24 +143,19 @@ internal sealed class HttpGameServer : IDisposable
             }
             catch
             {
-                await WriteJsonAsync(resp, 400, new { error = "Invalid JSON, expected {\"value\":\"...\"}" }, serverCt);
-                return;
+                return Results.Json(new { error = "Invalid JSON, expected {\"value\":\"...\"}" }, statusCode: 400);
             }
         }
 
         if (value == null)
-        {
-            await WriteJsonAsync(resp, 400, new { error = "Missing 'value' field" }, serverCt);
-            return;
-        }
+            return Results.Json(new { error = "Missing 'value' field" }, statusCode: 400);
 
         var jsonl = JsonSerializer.Serialize(new { type = "input", value });
         session.IO.EnqueueInput(jsonl);
-        await WriteJsonAsync(resp, 200, new { received = true }, serverCt);
+        return Results.Json(new { received = true });
     }
 
-    // GET /state → 查询状态。无 session 时返回 state="Idle"。
-    private async Task HandleGetStateAsync(HttpListenerResponse resp, CancellationToken serverCt)
+    private IResult HandleGetStateAsync()
     {
         Session? session;
         lock (_sessionLock)
@@ -214,22 +164,18 @@ internal sealed class HttpGameServer : IDisposable
         }
 
         if (session == null)
-        {
-            await WriteJsonAsync(resp, 200, new { state = "Idle", isRunning = false }, serverCt);
-            return;
-        }
+            return Results.Json(new { state = "Idle", isRunning = false });
 
-        await WriteJsonAsync(resp, 200, new
+        return Results.Json(new
         {
             state = session.StateString,
             isRunning = session.IsRunning,
             sessionId = session.Id,
             createdAt = session.CreatedAt
-        }, serverCt);
+        });
     }
 
-    // DELETE /session → 销毁会话。
-    private async Task HandleDeleteSessionAsync(HttpListenerResponse resp, CancellationToken serverCt)
+    private IResult HandleDeleteSessionAsync()
     {
         bool removed;
         lock (_sessionLock)
@@ -246,26 +192,7 @@ internal sealed class HttpGameServer : IDisposable
             }
         }
 
-        await WriteJsonAsync(resp, removed ? 200 : 404, new { removed }, serverCt);
-    }
-
-    private static async Task WriteJsonAsync(HttpListenerResponse resp, int status, object obj, CancellationToken ct)
-    {
-        resp.StatusCode = status;
-        resp.ContentType = "application/json; charset=utf-8";
-        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(obj));
-        await resp.OutputStream.WriteAsync(bytes.AsMemory(), ct);
-        resp.Close();
-    }
-
-    /// <summary>写入已经是 JSON 字符串的响应（避免双重序列化）。用于 GET /turn 返回 turn。</summary>
-    private static async Task WriteRawJsonAsync(HttpListenerResponse resp, int status, string json, CancellationToken ct)
-    {
-        resp.StatusCode = status;
-        resp.ContentType = "application/json; charset=utf-8";
-        var bytes = Encoding.UTF8.GetBytes(json);
-        await resp.OutputStream.WriteAsync(bytes.AsMemory(), ct);
-        resp.Close();
+        return Results.Json(new { removed }, statusCode: removed ? 200 : 404);
     }
 
     private sealed class HttpInput
@@ -275,12 +202,11 @@ internal sealed class HttpGameServer : IDisposable
 
     public void Dispose()
     {
-        _cts.Cancel();
-        _listener.Close();
         lock (_sessionLock)
         {
             _session?.Dispose();
             _session = null;
         }
+        ((IDisposable)_app).Dispose();
     }
 }

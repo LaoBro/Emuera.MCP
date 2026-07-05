@@ -2,29 +2,19 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Server;
 using MinorShift.Emuera.Terminal.Platform;
 using System;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace MinorShift.Emuera;
 
 internal static class ServerRunner
 {
-    public static void Run(int port, ITerminalSetup terminalSetup)
+    public static async Task RunAsync(int port, ITerminalSetup terminalSetup)
     {
         Console.Error.WriteLine($"[server] Emuera {AssemblyData.EmueraVersionText} 服务器模式启动");
         Console.Error.WriteLine($"[server] 监听端口: {port}");
 
-        using var server = new HttpGameServer(port, terminalSetup);
-        server.Start();
-
-        using var shutdown = new ManualResetEventSlim(false);
-        Console.CancelKeyPress += (_, e) =>
-        {
-            e.Cancel = true;
-            server.Dispose();
-            shutdown.Set();
-        };
-
-        Console.Error.WriteLine("[server] 按 Enter 键或 Ctrl+C 停止服务器...");
-        shutdown.Wait();
+        using var server = new KestrelGameServer(port, terminalSetup);
+        await server.StartAsync();
+        await server.WaitForShutdownAsync();
     }
 }
