@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime;
@@ -13,10 +14,17 @@ namespace MinorShift.Emuera.GameView
 {
     internal class AgentJsonlProtocol : AgentProtocolBase
     {
+        private static readonly JsonSerializerOptions TurnJsonOptions = new()
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        };
+
         private readonly SessionIO _io;
 
         private int VisibleLineCount => Math.Max(1, ui.ClientHeight / Config.LineHeight);
         private string? _pendingRejectReason;
+
+        private const int CurrentProtocolVersion = 1;
 
         public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui, SessionIO io)
             : base(console, ui)
@@ -29,7 +37,7 @@ namespace MinorShift.Emuera.GameView
             if (!await WaitForInputAsync())
                 return null;
 
-            return BuildTurn();
+            return BuildTurn(isInitial: true);
         }
 
         internal override async Task<string?> StepAsync(string input)
@@ -55,15 +63,14 @@ namespace MinorShift.Emuera.GameView
                 // 已被破坏，恢复无意义。Stop 让 RunLoopAsync 下一轮退出，由 Session
                 // 走 finally 路径（BuildFinalTurn + GlobalStatic.Reset）。
                 AgentLog.Instance.Write("step fatal: " + ex);
-                var errorTurn = JsonSerializer.Serialize(new
-                {
-                    text = "",
-                    state = console.State.ToString(),
-                    inputType = (string?)null,
-                    needValue = false,
-                    buttons = Array.Empty<object>(),
-                    error = ex.Message
-                });
+                var errorTurn = JsonSerializer.Serialize(new TurnRecord(
+                    text: "",
+                    state: console.State.ToString(),
+                    inputType: null,
+                    needValue: false,
+                    buttons: new List<ButtonEntry>(),
+                    error: ex.Message
+                ), TurnJsonOptions);
                 Stop();
                 return errorTurn;
             }
@@ -203,21 +210,21 @@ namespace MinorShift.Emuera.GameView
             return false;
         }
 
-        private string BuildTurn()
+        private string BuildTurn(bool isInitial = false)
         {
             var text = console.TakeAgentBuffer();
             var req = console.CurrentRequest;
             string? error = _pendingRejectReason;
             _pendingRejectReason = null;
-            return JsonSerializer.Serialize(new
-            {
-                text,
-                state = console.State.ToString(),
-                inputType = req?.InputType.ToString(),
-                needValue = req?.NeedValue ?? false,
-                buttons = CollectVisibleButtons(),
-                error
-            });
+            return JsonSerializer.Serialize(new TurnRecord(
+                text: text,
+                state: console.State.ToString(),
+                inputType: req?.InputType.ToString(),
+                needValue: req?.NeedValue ?? false,
+                buttons: CollectVisibleButtons(),
+                error: error,
+                protocolVersion: isInitial ? CurrentProtocolVersion : null
+            ), TurnJsonOptions);
         }
 
         /// <summary>
@@ -225,9 +232,9 @@ namespace MinorShift.Emuera.GameView
         /// 只采集当前轮次有效的按钮（Generation == LastButtonGeneration），
         /// 排除历史轮次残留的过期按钮。
         /// </summary>
-        private List<object> CollectVisibleButtons()
+        private List<ButtonEntry> CollectVisibleButtons()
         {
-            var buttons = new List<object>();
+            var buttons = new List<ButtonEntry>();
             var lines = console.DisplayLineList;
             if (lines == null || lines.Count == 0)
                 return buttons;
@@ -247,11 +254,7 @@ namespace MinorShift.Emuera.GameView
                     // Generation=0 的非按钮元素已被 IsButton 过滤；Generation=0 的按钮在旧轮次也是过期的
                     if (btn.Generation != currentGen)
                         continue;
-                    buttons.Add(new
-                    {
-                        label = btn.ToString(),
-                        value = btn.IsInteger ? (object)btn.Input : (object)btn.Inputs
-                    });
+                    buttons.Add(new ButtonEntry(label: btn.ToString(), value: btn.IsInteger ? (object)btn.Input : (object)btn.Inputs));
                 }
             }
             return buttons;

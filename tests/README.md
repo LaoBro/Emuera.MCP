@@ -7,6 +7,7 @@
 - JSONL 协议流程与 buttons schema（经 server 模式驱动，T-024 后 stdin 管道已废弃）。
 - server 单会话 HTTP API。
 - TINPUT timeout server 场景。
+- fatal turn 脚本异常路径（THROW）。
 - I-11 脚本退出后 server 存活。
 
 ## 测试游戏目录
@@ -35,6 +36,7 @@
 python tests/test_jsonl.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 python tests/test_server_single_session.py
 python tests/test_tinput_timeout.py
+python tests/test_fatal_turn.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 python tests/test_force_quit_survival.py
 ```
 
@@ -49,7 +51,8 @@ python tests/run_all.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headle
 1. JSONL 流程 + buttons schema 测试（经 server 模式驱动）。
 2. server 单会话测试。
 3. TINPUT timeout 测试。
-4. I-11 exit survival 测试。
+4. fatal turn 测试（脚本异常路径）。
+5. I-11 exit survival 测试。
 
 在 Windows 命令行中，如果相对路径启动失败，请使用绝对路径，例如：
 

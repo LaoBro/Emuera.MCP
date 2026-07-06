@@ -126,6 +126,24 @@ def main():
 
     results.append(
         (
+            "fatal turn",
+            _run_script(
+                "fatal turn",
+                [
+                    sys.executable,
+                    str(TESTS_DIR / "test_fatal_turn.py"),
+                    "--binary",
+                    str(binary_path),
+                    "--game-dir",
+                    str(game_dir),
+                ],
+                timeout=120,
+            ),
+        )
+    )
+
+    results.append(
+        (
             "I-11 exit survival",
             _run_script(
                 "I-11 exit survival",

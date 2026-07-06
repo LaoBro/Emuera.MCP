@@ -102,6 +102,7 @@ def main():
         check("Agent Test Start" in turn1.get("text", ""), "Turn 1 shows test start", passed, failed)
         check("You entered" not in turn1.get("text", ""), "Turn 1 has not processed an input yet", passed, failed)
         check_buttons(turn1, passed, failed, "Turn 1", expected_buttons=[("[0] Hello", 0), ("[1] Quit", 1)])
+        check(turn1.get("protocolVersion") == 1, "Turn 1 has protocolVersion == 1", passed, failed)
 
         # Turn 2: select [0] Hello → shows second menu.
         s, _ = server.post_input("0")
@@ -114,6 +115,7 @@ def main():
         check("You entered: 0" in turn2.get("text", ""), "Turn 2 shows first input result", passed, failed)
         # Turn 2 should only have current-generation buttons, not stale Turn 1 buttons
         check_buttons(turn2, passed, failed, "Turn 2", expected_buttons=[("[0] World", 0), ("[1] Exit", 1)])
+        check("protocolVersion" not in turn2, "Turn 2 has no protocolVersion field", passed, failed)
 
         # Turn 3: select [0] World → game ends.
         s, _ = server.post_input("0")
@@ -125,6 +127,7 @@ def main():
         check("You entered: 0" in turn3.get("text", ""), "Turn 3 shows second input result", passed, failed)
         check("Agent Test End" in turn3.get("text", ""), "Turn 3 shows end message", passed, failed)
         check(turn3.get("state") == "Quit", "Turn 3 state is Quit", passed, failed)
+        check("protocolVersion" not in turn3, "Turn 3 has no protocolVersion field", passed, failed)
     finally:
         if server is not None:
             try:
