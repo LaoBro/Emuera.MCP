@@ -106,6 +106,15 @@ class ServerProcess:
                 self.proc.wait(timeout=5)
 
 
+def ops_text(turn):
+    """Extract concatenated text from v2 turn ops[] for text-content assertions."""
+    return " ".join(
+        seg.get("text", "") for op in turn.get("ops", [])
+        if op.get("type") == "print"
+        for seg in op.get("segments", [])
+    )
+
+
 def free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))

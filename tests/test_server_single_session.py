@@ -48,8 +48,8 @@ try:
     check(initial_turn_status == 200, f"initial GET /turn returns 200, got {initial_turn_status}")
     initial_turn = json.loads(initial_turn_body)
     check(initial_turn.get("state") == "WaitInput", f"initial turn state is WaitInput, got {initial_turn.get('state')}")
-    check("Agent Test Start" in initial_turn.get("text", ""), "initial turn contains Agent Test Start")
-    check("buttons" in initial_turn, "initial turn contains buttons field")
+    check("text" not in initial_turn, "initial turn has no text field (v2)")
+    check("ops" in initial_turn, "initial turn contains ops field")
 
     input_status, input_body = server.post_input("0")
     check(input_status == 200, f"POST /input returns 200, got {input_status}")
@@ -59,8 +59,8 @@ try:
     check(turn_status == 200, f"GET /turn after input returns 200, got {turn_status}")
     turn = json.loads(turn_body)
     check(turn.get("state") == "WaitInput", f"turn state is WaitInput, got {turn.get('state')}")
-    check("You entered: 0" in turn.get("text", ""), "turn text shows input result")
-    check("buttons" in turn, "turn contains buttons field")
+    check("text" not in turn, "turn has no text field (v2)")
+    check("ops" in turn, "turn contains ops field")
 
     # GET /state 有 session 时返回完整字段
     state_status, state_body = server.get_state()

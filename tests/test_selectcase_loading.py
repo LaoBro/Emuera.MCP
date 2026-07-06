@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
-from emuera_server import copy_test_game_with_erb, start_server
+from emuera_server import copy_test_game_with_erb, ops_text, start_server
 
 passed = 0
 failed = 0
@@ -67,7 +67,7 @@ try:
     check(initial_status == 200, f"initial GET /turn returns 200, got {initial_status}")
     initial = json.loads(initial_body)
     check(initial.get("state") == "WaitInput", f"initial state is WaitInput, got {initial.get('state')}")
-    check("SelectCase Test" in initial.get("text", ""), "initial turn contains test start")
+    check("SelectCase Test" in ops_text(initial), "initial turn contains test start")
     check(initial.get("inputType") == "IntValue", f"initial inputType is IntValue, got {initial.get('inputType')}")
 
     # Submit 0 → triggers CASE 0 branch
@@ -77,8 +77,8 @@ try:
     turn_status, turn_body = server.get_turn(timeout=10)
     check(turn_status == 200, f"GET /turn after CASE 0 returns 200, got {turn_status}")
     turn = json.loads(turn_body)
-    check("You chose: 0" in turn.get("text", ""), "CASE 0 branch executed")
-    check("Done" in turn.get("text", ""), "execution continued past ENDSELECT")
+    check("You chose: 0" in ops_text(turn), "CASE 0 branch executed")
+    check("Done" in ops_text(turn), "execution continued past ENDSELECT")
     check(turn.get("state") == "Quit", f"final state is Quit, got {turn.get('state')}")
 
 finally:

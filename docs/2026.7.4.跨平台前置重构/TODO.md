@@ -1,5 +1,25 @@
 # TODO — 跨平台前置重构后续工作
 
+## P1-5 富 Turn 升级（v2 操作序列模型）（已完成）
+
+详见 [PRD-T5-富Turn升级.md](./PRD-T5-富Turn升级.md)。
+
+完成范围：
+- `TurnRecord` 重写：删除 `text`/`buttons`/`ButtonEntry`，新增 `TurnOp` 层次
+- `TurnOp`/`PrintOp`/`NewLineOp`/`ClearLineOp`/`ClearOp`/`SetBgOp`/`PrintSegment`/`ButtonRef`
+- `EmuColor.ToHex()` 扩展方法
+- `ConsoleStateData._pendingOps` 队列
+- `ConsolePrintManager.AddDisplayLine` emit print+newline ops
+- `ConsolePrintManager.DeleteLine` 新增 `suppressOp` 参数，emit clearline op
+- `ConsolePrintManager.ClearDisplay` emit clear op
+- `ConsolePrintManager.SetBgColor` emit set_bg op
+- `AgentJsonlProtocol.BuildTurn` 改为读 `TakePendingOps`
+- `CurrentProtocolVersion = 2`
+- `CollectVisibleButtons()` 删除
+- `test_jsonl.py` 重写为断言 `ops[]` 结构
+- `test_fatal_turn.py` / `test_server_single_session.py` / `test_tinput_timeout.py` / `test_selectcase_loading.py` 同步更新
+- 所有回归测试通过
+
 ## P1-3 Turn 协议版本化与 Schema 定义（已完成）
 
 详见 [架构评估报告.md](./架构评估报告.md) 任务 3、[ADR-0001](../../adr/0001-turn-protocol-versioning.md)。
@@ -44,14 +64,21 @@ P1-3 的 grilling 决策 7 明确：fatal 路径内联构造 `TurnRecord`，wire
 - 加入 [run_all.py](../../../tests/run_all.py) 回归套件
 - 更新 [tests/README.md](../../../tests/README.md) 的测试清单
 
-## 已排除：富 turn 升级整体推迟
+## P1-5 富 turn 升级（v2 操作序列模型）（已完成）
 
-**来源**：grilling 阶段调研发现 turn schema 当前不满足前端渲染需求，提出 R-05
-~ R-09 五项升级。但用户决定本次先完成 [PRD-T3](./PRD-T3-Turn协议版本化.md) 与
-[PRD-T4](./PRD-T4-FatalTurn测试.md)，富 turn 升级整体推迟到完成后再讨论。
+**详见 [PRD-T5-富Turn升级.md](./PRD-T5-富Turn升级.md)。**
+对应 [ADR-0002](../../adr/0002-turn-v2-operation-sequence.md)。
 
-下面把所有升级项（包括已 grilling 收敛的"范围 B 采集遗漏类"和已排除的"非采集
-遗漏类"）整体记录，作为未来 PRD-T5 的素材。
+grilling 阶段已完成全部 5 个设计决策的考问与收敛：
+1. 范围：R-05（per-segment 样式）+ align（行级对齐）+ R-07（操作序列）合并为
+   v2 op 序列模型；R-06（按钮区域）独立为 PRD-T6；R-09（图片）继续排除。
+2. 架构模型：采用操作序列模型（ops[]），拒绝快照模型（lines[] + 2× 窗口高度）。
+3. 版本策略：v2 干净替换 v1，不保留 v1 字段作降级。
+4. op emit 时机：集中在 `AddDisplayLine` 层，行合并时用 `suppressOp` 抑制
+   spurious clearline。
+5. 测试策略：重写 `test_jsonl.py` 断言 `ops[]` 结构。
+
+下面保留原 grilling 阶段的调研结论作为历史参考。
 
 ### 范围 B：采集遗漏类（数据已存在，turn 字段扩展）
 
@@ -182,30 +209,51 @@ P1-3 的 grilling 决策 7 明确：fatal 路径内联构造 `TurnRecord`，wire
 2. 若是新需求，先在 ERB 协议层定义按钮禁用语义。
 3. 再扩展 turn 字段。
 
-### 富 turn 升级整体设计方向（grilling 阶段未完成的部分）
+### 富 turn 升级整体设计方向（grilling 阶段已完成）
 
-富 turn 升级重启时，应先解决以下设计决策（grilling 未完成）：
+grilling 阶段已收敛全部 5 个设计决策，原"未完成"列表已过时。决策结果汇总：
 
-1. **版本号策略**：是 v2 替换 v1、还是 v2 保留 v1 字段作降级？
-   - grilling 倾向"保留 + 扩展"（v1 `text` 保留，新增 `lines[]` / 富 `buttons[]`），
-     但用户决定暂缓，未最终确认。
-2. **`text` 与 `lines[]` 的关系**：`text` 仍是 `console.TakeAgentBuffer()`
-   的输出（增量），还是改用 `lines[]` 拼接？两者信息部分重叠。
-3. **segment 边界**：`ConsoleButtonString` 的 `strArray` 是按 button 分段，
-   还是按 style 变化分段？影响 `lines[].segments[]` 的设计。
-4. **`CollectVisibleButtons` 的演化**：是扩展返回类型（加 row/col/width/style），
-   还是新写 `CollectVisibleLines`（按行遍历，含 buttons）？
-5. **`ButtonRegionTracker` 在 server 路径的复用**：当前只服务 CLI，server
-   路径是否引入？需要哪些初始化？
+1. **版本号策略**：v2 干净替换 v1，不保留 v1 字段作降级。详见
+   [ADR-0002](../../adr/0002-turn-v2-operation-sequence.md)。
+2. **显示数据模型**：放弃 v1 `text` + `buttons` 双字段快照，改为 `ops[]`
+   操作序列。前端 apply ops 维护 Display State，行为类似扩展功能的终端。
+3. **segment 边界**：按 `ConsoleButtonString`（display chunk）分段，每个 chunk
+   对应一个 `print` op，其 `segments[]` 来自 `chunk.StrArray`。
+4. **`CollectVisibleButtons` 的演化**：删除。v2 不再有独立 `buttons[]` 字段，
+   按钮内联在 `print` op 的 `button` 字段中。
+5. **`ButtonRegionTracker` 在 server 路径的复用**：不引入。R-06 独立为 PRD-T6。
+
+### CLI 双写技术债（PRD-T5 遗留）
+
+v2 保留 `_agentBuffer` 供 CLI 使用，新增 op 队列供 server 使用——`AddDisplayLine`
+同时写两者。这是有意的技术债，详见
+[PRD-T5 CLI 共存策略](./PRD-T5-富Turn升级.md#cli-共存策略双写-_agentbuffer)。
+
+**未来应消除的重复路径**：
+- `_agentBuffer` / `_agentBufferLineCount` / `TakeAgentBuffer` /
+  `WriteToAgentBuffer` / `WriteToAgentBufferNoNewline` / `AppendToAgentBuffer` /
+  `RemoveLastLineFromAgentBuffer`
+- `_pendingEraseRows` / `ConsumePendingEraseRows`
+- `WriteAlignedLine` / `FormatLineForTerminal` / `BuildTerminalLine`
+- `TerminalRenderer.FlushBuffer` 的 `_agentBuffer` 读取路径
+
+**迁移方向**：让 CLI 的 `TerminalRenderer.FlushBuffer` 改为消费 `_pendingOps`
+并 apply 到终端状态（VT 备用屏或自然滚动），消除 `_agentBuffer` 整条路径。此项
+独立立项，不在 PRD-T5 范围。
 
 ### 已完成的相关基础工作
 
-富 turn 升级的前置基础已落地：
+富 turn 升级的全部基础已落地：
 
 - [PRD-T3](./PRD-T3-Turn协议版本化.md)：`TurnRecord` + `ButtonEntry` record
-  + `protocolVersion` 字段。富 turn 升级时在此基础上扩展字段与版本号。
-- [ADR-0001](../../adr/0001-turn-protocol-versioning.md)：记录版本字段策略，
-  富 turn 升级时若改版本策略（如升 v2）应更新或追加 ADR。
-- [CONTEXT.md](../../../CONTEXT.md)：定义 Turn / Initial Turn / Step Turn /
-  Final Turn / Fatal Turn / protocolVersion 等术语，富 turn 升级时新增术语
-  （如 Segment / DisplayLine / ButtonRegion）应同步更新。
+  + `protocolVersion` 字段。v2 在此基础上替换显示数据模型。
+- [PRD-T5](./PRD-T5-富Turn升级.md)：v2 操作序列模型完整规格，grilling 阶段
+  已收敛全部 5 个设计决策。
+- [ADR-0001](../../adr/0001-turn-protocol-versioning.md)：v1 版本字段策略
+  （wire format 字节级不变）。v2 显式 supersede 此约束，但其他决策仍有效。
+- [ADR-0002](../../adr/0002-turn-v2-operation-sequence.md)：v2 操作序列模型
+  决策记录，含 3 条被拒绝的替代方案与 CLI 双写技术债说明。
+- [CONTEXT.md](../../../CONTEXT.md)：已更新 Turn / Fatal Turn / protocolVersion
+  为版本无关描述，新增 Generation 术语与 "Operation Sequence Model (v2)"
+  子章节（Op / Print Op / NewLine Op / ClearLine Op / Clear Op / Set BG Op /
+  Display State / Operation Sequence）。

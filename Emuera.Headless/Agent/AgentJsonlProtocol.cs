@@ -17,6 +17,7 @@ namespace MinorShift.Emuera.GameView
         private static readonly JsonSerializerOptions TurnJsonOptions = new()
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            Converters = { new TurnOpConverter() },
         };
 
         private readonly SessionIO _io;
@@ -24,7 +25,7 @@ namespace MinorShift.Emuera.GameView
         private int VisibleLineCount => Math.Max(1, ui.ClientHeight / Config.LineHeight);
         private string? _pendingRejectReason;
 
-        private const int CurrentProtocolVersion = 1;
+        private const int CurrentProtocolVersion = 2;
 
         public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui, SessionIO io)
             : base(console, ui)
@@ -68,11 +69,10 @@ namespace MinorShift.Emuera.GameView
                 // 此 catch 是防御性兜底，仅捕获 Process 未预料的 C# 异常（如 NRE）。
                 AgentLog.Instance.Write("step fatal: " + ex);
                 var errorTurn = JsonSerializer.Serialize(new TurnRecord(
-                    text: "",
                     state: console.State.ToString(),
                     inputType: null,
                     needValue: false,
-                    buttons: new List<ButtonEntry>(),
+                    ops: new List<TurnOp>(),
                     error: ex.Message
                 ), TurnJsonOptions);
                 Stop();
@@ -216,52 +216,18 @@ namespace MinorShift.Emuera.GameView
 
         private string BuildTurn(bool isInitial = false)
         {
-            var text = console.TakeAgentBuffer();
+            var ops = console.TakePendingOps();
             var req = console.CurrentRequest;
             string? error = _pendingRejectReason;
             _pendingRejectReason = null;
             return JsonSerializer.Serialize(new TurnRecord(
-                text: text,
                 state: console.State.ToString(),
                 inputType: req?.InputType.ToString(),
                 needValue: req?.NeedValue ?? false,
-                buttons: CollectVisibleButtons(),
+                ops: ops,
                 error: error,
                 protocolVersion: isInitial ? CurrentProtocolVersion : null
             ), TurnJsonOptions);
-        }
-
-        /// <summary>
-        /// 收集窗口默认可见区域中所有按钮的标签与对应输入值。
-        /// 只采集当前轮次有效的按钮（Generation == LastButtonGeneration），
-        /// 排除历史轮次残留的过期按钮。
-        /// </summary>
-        private List<ButtonEntry> CollectVisibleButtons()
-        {
-            var buttons = new List<ButtonEntry>();
-            var lines = console.DisplayLineList;
-            if (lines == null || lines.Count == 0)
-                return buttons;
-
-            long currentGen = console.LastButtonGeneration;
-            int start = Math.Max(0, lines.Count - VisibleLineCount);
-            for (int i = start; i < lines.Count; i++)
-            {
-                var line = lines[i];
-                if (line?.Buttons == null)
-                    continue;
-                foreach (var btn in line.Buttons)
-                {
-                    if (btn == null || !btn.IsButton)
-                        continue;
-                    // 只采集当前轮次的按钮（Generation == LastButtonGeneration）
-                    // Generation=0 的非按钮元素已被 IsButton 过滤；Generation=0 的按钮在旧轮次也是过期的
-                    if (btn.Generation != currentGen)
-                        continue;
-                    buttons.Add(new ButtonEntry(label: btn.ToString(), value: btn.IsInteger ? (object)btn.Input : (object)btn.Inputs));
-                }
-            }
-            return buttons;
         }
 
         #endregion

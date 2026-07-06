@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.Primitives;
@@ -469,6 +470,12 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
         _state._agentBuffer.Clear();
         _state._agentBufferLineCount = 0;
         return text;
+    }
+    internal List<TurnOp> TakePendingOps()
+    {
+        var ops = _state._pendingOps.ToList();
+        _state._pendingOps.Clear();
+        return ops;
     }
     internal bool RemoveLastLineFromAgentBuffer()
     {

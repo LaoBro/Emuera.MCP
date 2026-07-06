@@ -62,6 +62,7 @@ internal sealed class ConsolePrintManager
 
     public void ClearDisplay()
     {
+        _state._pendingOps.Add(new ClearOp());
         _state.CBProc?.ClearScreen();
         _state.displayLineList.Clear();
         _state._htmlElementList.Clear();
@@ -137,11 +138,15 @@ internal sealed class ConsolePrintManager
         if (_state.displayLineList.Count != 0 && !_state.displayLineList[^1].IsLineEnd)
         {
             var lastline = _state.displayLineList[^1];
-            DeleteLine(1);
+            DeleteLine(1, suppressOp: true);
             line.ShiftPositionX(lastline.Buttons[^1].PointX + lastline.Buttons[^1].Width);
             line.ChangeStr([.. lastline.Buttons, .. line.Buttons]);
         }
         _state.displayLineList.Add(line);
+
+        EmitPrintOps(line);
+        if (line.IsLineEnd)
+            EmitNewLineOp(line.Align);
 
         _console.WriteAlignedLine(line);
 
@@ -165,8 +170,11 @@ internal sealed class ConsolePrintManager
         }
     }
 
-    public void DeleteLine(int argNum)
+    public void DeleteLine(int argNum, bool suppressOp = false)
     {
+        if (!suppressOp)
+            _state._pendingOps.Add(new ClearLineOp(argNum));
+
         if (Config.CBUseClipboard)
             _state.CBProc!.DelLine(Math.Min(argNum, _state.displayLineList.Count));
         int delNum = 0;
@@ -542,6 +550,7 @@ internal sealed class ConsolePrintManager
 
     public void SetBgColor(EmuColor color)
     {
+        _state._pendingOps.Add(new SetBgOp(color.ToHex()));
         _state.bgColor = color;
         _state.forceTextBoxColor = true;
         if (_state.redraw == ConsoleRedraw.None && _ui.ScrollBar.Value == _ui.ScrollBar.Maximum)
@@ -555,6 +564,64 @@ internal sealed class ConsolePrintManager
         }
         _console.RefreshStrings(true);
         _state._drawStopwatch.Restart();
+    }
+
+    // --- Op emission (v2 turn protocol) ---
+
+    private void EmitPrintOps(ConsoleDisplayLine line)
+    {
+        foreach (var btn in line.Buttons)
+        {
+            var segments = new List<PrintSegment>();
+            foreach (var node in btn.StrArray)
+            {
+                string text;
+                string? color = null;
+                bool? bold = null;
+                bool? italic = null;
+                string? fontname = null;
+
+                if (node is ConsoleStyledString css)
+                {
+                    text = css.Text ?? "";
+                    var style = css.StringStyle;
+                    if (style.ColorChanged)
+                        color = style.Color.ToHex();
+                    if ((style.FontStyle & EmuFontStyle.Bold) != 0)
+                        bold = true;
+                    if ((style.FontStyle & EmuFontStyle.Italic) != 0)
+                        italic = true;
+                    if (style.Fontname != Config.FontName)
+                        fontname = style.Fontname;
+                }
+                else
+                {
+                    text = node.Text ?? "";
+                }
+
+                segments.Add(new PrintSegment(text, color, bold, italic, fontname));
+            }
+
+            ButtonRef? button = null;
+            if (btn.IsButton)
+                button = new ButtonRef(
+                    value: btn.IsInteger ? (object)btn.Input : (object)btn.Inputs,
+                    isInteger: btn.IsInteger
+                );
+
+            _state._pendingOps.Add(new PrintOp(segments, button));
+        }
+    }
+
+    private void EmitNewLineOp(DisplayLineAlignment align)
+    {
+        string? alignStr = align switch
+        {
+            DisplayLineAlignment.CENTER => "center",
+            DisplayLineAlignment.RIGHT => "right",
+            _ => null
+        };
+        _state._pendingOps.Add(new NewLineOp(alignStr));
     }
 
     // --- Log ---

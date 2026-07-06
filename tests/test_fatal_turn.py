@@ -7,11 +7,11 @@ Note: ERB THROW 抛出的 CodeEE 被 Process.DoScript() 内部 catch 捕获并�
 handleException 处理（Process.cs:345），不会传播到 AgentJsonlProtocol.StepAsync
 的 catch 块。StepAsync catch 是防御性兜底，仅捕获 Process 未预料的 C# 异常（如 NRE）。
 因此此测试验证的是 THROW 被 DoScript 处理后的 Error 状态 turn，而非 StepAsync catch
-的 fatal turn（text="" / buttons=[] / error=ex.Message）。
+的 fatal turn（ops=[] / error=ex.Message）。
 
 The test verifies:
-- Initial turn has protocolVersion == 1
-- After THROW, the turn has state=Error with error text in the buffer
+- Initial turn has protocolVersion == 2 and ops[] instead of text/buttons
+- After THROW, the turn has state=Error with error text in ops[]
 - protocolVersion is absent from non-initial turns
 
 Usage:
@@ -29,7 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
-from emuera_server import copy_test_game_with_erb, start_server
+from emuera_server import copy_test_game_with_erb, ops_text, start_server
 
 
 def main():
@@ -74,8 +74,11 @@ ENDIF
         check(initial_status == 200, f"initial GET /turn returns 200, got {initial_status}")
         initial = json.loads(initial_body)
         check(initial.get("state") == "WaitInput", f"initial state is WaitInput, got {initial.get('state')}")
-        check("Fatal Turn Test" in initial.get("text", ""), "initial turn contains Fatal Turn Test")
-        check(initial.get("protocolVersion") == 1, "initial turn has protocolVersion == 1")
+        check("text" not in initial, "initial turn has no text field (v2)")
+        check("buttons" not in initial, "initial turn has no buttons field (v2)")
+        check(initial.get("protocolVersion") == 2, "initial turn has protocolVersion == 2")
+        check("ops" in initial, "initial turn has ops field")
+        check("Fatal Turn Test" in ops_text(initial), "initial turn ops contain Fatal Turn Test")
 
         input_status, _ = server.post_input("0")
         check(input_status == 200, f"POST /input 0 returns 200, got {input_status}")
@@ -86,7 +89,7 @@ ENDIF
             turn_status, turn_body = server.get_turn(timeout=10)
             check(turn_status == 200, f"GET /turn for error returns 200, got {turn_status}")
             turn = json.loads(turn_body)
-            if turn.get("state") == "Error" or ("fatal-test-marker" in turn.get("text", "") and "THROW" in turn.get("text", "")):
+            if turn.get("state") == "Error" or ("fatal-test-marker" in ops_text(turn) and "THROW" in ops_text(turn)):
                 error_turn = turn
                 break
             time.sleep(0.5)
@@ -94,8 +97,11 @@ ENDIF
             check(False, "error turn received within 30s")
 
         if error_turn is not None:
-            check("fatal-test-marker" in error_turn.get("text", ""), "error turn text contains 'fatal-test-marker'")
-            check("THROW" in error_turn.get("text", ""), "error turn text contains THROW error info")
+            check("text" not in error_turn, "error turn has no text field (v2)")
+            check("buttons" not in error_turn, "error turn has no buttons field (v2)")
+            check("ops" in error_turn, "error turn has ops field")
+            check("fatal-test-marker" in ops_text(error_turn), "error turn ops contain 'fatal-test-marker'")
+            check("THROW" in ops_text(error_turn), "error turn ops contain THROW error info")
             check(error_turn.get("state") != "WaitInput", f"error turn state is not WaitInput, got {error_turn.get('state')}")
             check("protocolVersion" not in error_turn, "error turn has no protocolVersion field")
 
