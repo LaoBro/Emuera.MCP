@@ -38,56 +38,19 @@ internal sealed class PosixTerminalSetup : ITerminalSetup, IDisposable
             if (tcgetattr(STDIN_FILENO, raw) != 0)
                 return false;
 
-            byte[] orig = new byte[TermiosBufferSize];
-            Marshal.Copy(raw, orig, 0, TermiosBufferSize);
+            _origTermios = new byte[TermiosBufferSize];
+            Marshal.Copy(raw, _origTermios, 0, TermiosBufferSize);
 
             cfmakeraw(raw);
             if (tcsetattr(STDIN_FILENO, TCSANOW, raw) != 0)
+            {
+                _origTermios = null;
                 return false;
-
-            Console.Write("\x1b[c");
-
-            var pfd = new pollfd { fd = STDIN_FILENO, events = POLLIN };
-            byte[] response = new byte[256];
-            int totalRead = 0;
-            var deadline = DateTime.UtcNow.AddMilliseconds(Da1TimeoutMs);
-            bool responded = false;
-
-            while (DateTime.UtcNow < deadline)
-            {
-                int remaining = Math.Max(0, (int)(deadline - DateTime.UtcNow).TotalMilliseconds);
-                int pr = poll(ref pfd, 1, remaining);
-                if (pr <= 0) break;
-
-                int n;
-                unsafe
-                {
-                    fixed (byte* p = response)
-                    {
-                        n = read(STDIN_FILENO, (IntPtr)(p + totalRead), response.Length - totalRead);
-                    }
-                }
-                if (n <= 0) break;
-
-                totalRead += n;
-                if (ContainsDa1Response(response, totalRead))
-                {
-                    responded = true;
-                    break;
-                }
             }
 
-            if (responded)
-            {
-                _origTermios = new byte[TermiosBufferSize];
-                Buffer.BlockCopy(orig, 0, _origTermios, 0, TermiosBufferSize);
-                _rawModeActive = true;
-                RegisterCleanupHooks();
-                return true;
-            }
-
-            _ = tcsetattr(STDIN_FILENO, TCSANOW, raw);
-            return false;
+            _rawModeActive = true;
+            RegisterCleanupHooks();
+            return true;
         }
         finally
         {
@@ -131,24 +94,6 @@ internal sealed class PosixTerminalSetup : ITerminalSetup, IDisposable
         };
     }
 
-    private static bool ContainsDa1Response(byte[] buffer, int length)
-    {
-        for (int i = 0; i < length - 1; i++)
-        {
-            if (buffer[i] == 0x1B && buffer[i + 1] == (byte)'[')
-            {
-                for (int j = i + 2; j < length; j++)
-                {
-                    if (buffer[j] == (byte)'c')
-                        return true;
-                    if (buffer[j] != ';' && buffer[j] != '?' && (buffer[j] < '0' || buffer[j] > '9'))
-                        break;
-                }
-            }
-        }
-        return false;
-    }
-
     [DllImport("libc", SetLastError = true)]
     private static extern int tcgetattr(int fd, IntPtr termios);
 
@@ -158,16 +103,8 @@ internal sealed class PosixTerminalSetup : ITerminalSetup, IDisposable
     [DllImport("libc")]
     private static extern void cfmakeraw(IntPtr termios);
 
-    [DllImport("libc", SetLastError = true)]
-    private static extern int read(int fd, IntPtr buf, int count);
-
-    [DllImport("libc", SetLastError = true)]
-    private static extern int poll(ref pollfd fds, int nfds, int timeout);
-
     private const int STDIN_FILENO = 0;
     private const int TCSANOW = 0;
-    private const short POLLIN = 1;
-    private const int Da1TimeoutMs = 200;
     private const int TermiosBufferSize = 80;
 
     private byte[]? _origTermios;
