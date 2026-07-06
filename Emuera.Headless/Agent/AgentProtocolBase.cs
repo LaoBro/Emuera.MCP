@@ -47,11 +47,6 @@ namespace MinorShift.Emuera.GameView
             throw new NotSupportedException("TINPUT timeout is not supported by this protocol.");
         }
 
-        internal virtual void WriteOutput(string text, bool newLine = true)
-        {
-            console.AppendToAgentBuffer(text, newLine);
-        }
-
         internal virtual void Stop() => _cts.Cancel();
 
         protected virtual void DispatchInput(string input)

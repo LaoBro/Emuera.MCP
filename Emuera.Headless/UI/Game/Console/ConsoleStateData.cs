@@ -124,11 +124,8 @@ internal sealed class ConsoleStateData
 
     // --- Agent / Headless ---
     internal AgentProtocolBase? agentBridge;
-    internal readonly StringBuilder _agentBuffer = new();
     internal readonly List<TurnOp> _pendingOps = [];
-    internal int _agentBufferLineCount;
     internal bool _needFullRefresh;
-    internal int _pendingEraseRows;
     internal TerminalCharWidthConfig CharWidthConfig = TerminalCharWidthConfig.Default;
 
     // --- Bitmap cache ---

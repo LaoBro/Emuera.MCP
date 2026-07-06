@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
@@ -13,24 +14,99 @@ namespace MinorShift.Emuera.GameView
         private readonly EmueraConsole _console;
         private readonly Func<AgentCliVtScreen?> _getScreen;
         private readonly TerminalCursor _cursor;
+        private readonly bool _ansiEnabled;
+
+        private int _lastRenderedLineNo = -1;
+        private ConsoleDisplayLine? _lastRenderedLastLine;
 
         public TerminalRenderer(
             EmueraConsole console,
             Func<AgentCliVtScreen?> getScreen,
-            TerminalCursor cursor)
+            TerminalCursor cursor,
+            bool ansiEnabled)
         {
             _console = console;
             _getScreen = getScreen;
             _cursor = cursor;
+            _ansiEnabled = ansiEnabled;
         }
 
-        /// <summary>擦除待清理行并输出 agent 缓冲区内容。</summary>
+        /// <summary>Flush pending ops and render displayLineList delta to terminal.</summary>
         internal void FlushBuffer()
         {
-            EraseTerminalRows();
-            string text = _console.TakeAgentBuffer();
-            if (text.Length > 0)
-                Console.Write(text);
+            bool cleared = false;
+            _console.DrainPendingOpsForCli(op =>
+            {
+                switch (op)
+                {
+                    case ClearOp:
+                        {
+                            var s = _getScreen();
+                            if (s != null)
+                                s.ClearScreen();
+                            else
+                                _cursor.ClearScreen();
+                        }
+                        _lastRenderedLineNo = -1;
+                        _lastRenderedLastLine = null;
+                        cleared = true;
+                        break;
+                    case SetBgOp bg:
+                        if (_getScreen() != null && _ansiEnabled)
+                        {
+                            string hex = bg.color.TrimStart('#');
+                            int r = Convert.ToInt32(hex.Substring(0, 2), 16);
+                            int g = Convert.ToInt32(hex.Substring(2, 2), 16);
+                            int b = Convert.ToInt32(hex.Substring(4, 2), 16);
+                            Console.Write($"\x1b[48;2;{r};{g};{b}m");
+                        }
+                        break;
+                }
+            });
+            if (cleared) return;
+
+            var lines = _console.DisplayLineList;
+            if (lines.Count == 0)
+            {
+                _lastRenderedLineNo = -1;
+                _lastRenderedLastLine = null;
+                return;
+            }
+
+            var lastLine = lines[^1];
+            int currentLineNo = lastLine.LineNo;
+
+            if (_lastRenderedLineNo < 0)
+            {
+                FullRefresh();
+                return;
+            }
+
+            if (currentLineNo > _lastRenderedLineNo)
+            {
+                WriteNewLinesSince(lines, _lastRenderedLineNo, _lastRenderedLastLine);
+            }
+            else if (currentLineNo < _lastRenderedLineNo)
+            {
+                int delta = _lastRenderedLineNo - currentLineNo;
+                EraseTerminalRows(delta);
+                if (!ReferenceEquals(_lastRenderedLastLine, lastLine))
+                {
+                    EraseTerminalRows(1);
+                    WriteDisplayLine(lastLine);
+                }
+            }
+            else
+            {
+                if (!ReferenceEquals(_lastRenderedLastLine, lastLine))
+                {
+                    EraseTerminalRows(1);
+                    WriteDisplayLine(lastLine);
+                }
+            }
+
+            _lastRenderedLineNo = currentLineNo;
+            _lastRenderedLastLine = lastLine;
         }
 
         /// <summary>全量重绘可见行。VT 模式用备用屏绝对定位，非 VT 模式用自然滚动。</summary>
@@ -41,9 +117,8 @@ namespace MinorShift.Emuera.GameView
 
             if (screen != null)
             {
-                // VT 模式：备用屏绝对定位重绘，不依赖自然滚动
                 screen.ClearScreen();
-                if (lines.Count == 0) return;
+                if (lines.Count == 0) goto SyncState;
 
                 int consoleHeight = screen.WindowHeight;
                 int visibleLines = Math.Max(consoleHeight - 1, 1);
@@ -57,37 +132,46 @@ namespace MinorShift.Emuera.GameView
                     screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
                 }
 
-                // 光标定位到实际内容末尾的下一行行首，作为输入回显行
                 int drawnRows = Math.Min(visibleLines, lines.Count - startLine);
                 screen.SetCursor(drawnRows, 0);
-                return;
+            }
+            else
+            {
+                _cursor.ClearScreen();
+                if (lines.Count == 0) goto SyncState;
+
+                int height = TerminalCursor.TryGetWindowHeight();
+                int visLines = Math.Max(height - 1, 1);
+                int startLn = Math.Max(0, lines.Count - visLines);
+
+                for (int i = startLn; i < lines.Count; i++)
+                {
+                    string formatted = _console.FormatLineForTerminal(lines[i]);
+                    Console.WriteLine(formatted.Length > 0 ? formatted : "");
+                }
             }
 
-            // 非 VT 模式：Console.WriteLine 自然滚动
-            _cursor.ClearScreen();
-            if (lines.Count == 0) return;
-
-            int height = TerminalCursor.TryGetWindowHeight();
-            int visLines = Math.Max(height - 1, 1);
-            int startLn = Math.Max(0, lines.Count - visLines);
-
-            for (int i = startLn; i < lines.Count; i++)
+        SyncState:
+            if (lines.Count > 0)
             {
-                string formatted = _console.FormatLineForTerminal(lines[i]);
-                Console.WriteLine(formatted.Length > 0 ? formatted : "");
+                _lastRenderedLineNo = lines[^1].LineNo;
+                _lastRenderedLastLine = lines[^1];
+            }
+            else
+            {
+                _lastRenderedLineNo = -1;
+                _lastRenderedLastLine = null;
             }
         }
 
-        /// <summary>擦除 console 标记的待清理行。VT 模式用 ESC[2K，非 VT 模式用空格覆盖。</summary>
-        internal void EraseTerminalRows()
+        /// <summary>擦除指定行数。VT 模式用 ESC[2K，非 VT 模式用空格覆盖。</summary>
+        internal void EraseTerminalRows(int rows)
         {
-            int rows = _console.ConsumePendingEraseRows();
             if (rows <= 0) return;
 
             var screen = _getScreen();
             if (screen != null)
             {
-                // VT 模式：绝对定位 + ESC[2K 清行
                 int currentRow = screen.GetCurrentRow();
                 for (int i = 0; i < rows; i++)
                 {
@@ -99,7 +183,6 @@ namespace MinorShift.Emuera.GameView
                 return;
             }
 
-            // 非 VT 模式：写空格覆盖
             _cursor.Save(out int savedLeft, out int savedTop);
             int consoleWidth = TerminalCursor.TryGetWindowWidth();
 
@@ -112,6 +195,43 @@ namespace MinorShift.Emuera.GameView
             }
 
             _cursor.Set(0, Math.Max(savedTop - rows, 0));
+        }
+
+        private void WriteDisplayLine(ConsoleDisplayLine line)
+        {
+            string text = _console.FormatLineForTerminal(line);
+            if (line.IsLineEnd)
+                Console.WriteLine(text);
+            else
+                Console.Write(text);
+        }
+
+        private void WriteNewLinesSince(
+            List<ConsoleDisplayLine> lines,
+            int lastRenderedLineNo,
+            ConsoleDisplayLine? lastRenderedLastLine)
+        {
+            int startIdx = -1;
+            for (int i = lines.Count - 1; i >= 0; i--)
+            {
+                if (lines[i].LineNo <= lastRenderedLineNo)
+                {
+                    startIdx = i + 1;
+                    break;
+                }
+            }
+            if (startIdx < 0) startIdx = 0;
+
+            if (lastRenderedLastLine != null
+                && !lastRenderedLastLine.IsLineEnd
+                && startIdx > 0)
+            {
+                EraseTerminalRows(1);
+                startIdx--;
+            }
+
+            for (int i = startIdx; i < lines.Count; i++)
+                WriteDisplayLine(lines[i]);
         }
     }
 }

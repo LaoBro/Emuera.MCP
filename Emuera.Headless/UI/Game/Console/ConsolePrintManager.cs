@@ -148,8 +148,6 @@ internal sealed class ConsolePrintManager
         if (line.IsLineEnd)
             EmitNewLineOp(line.Align);
 
-        _console.WriteAlignedLine(line);
-
         _state.lineNo++;
         if (line.IsLogicalLine && _state.displayLineList[^1].IsLineEnd)
             _state.logicalLineCount++;
@@ -216,8 +214,6 @@ internal sealed class ConsolePrintManager
             _state.displayLineList.RemoveAt(0);
         _state.deletedLines -= num;
 
-        if (!_console.RemoveLastLineFromAgentBuffer())
-            _state._pendingEraseRows++;
     }
 
     public ConsoleDisplayLine? BufferToSingleLine(bool force, bool temporary)

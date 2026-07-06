@@ -438,62 +438,24 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
         _state._needFullRefresh = false;
         return v;
     }
-    public int ConsumePendingEraseRows()
-    {
-        int rows = _state._pendingEraseRows;
-        _state._pendingEraseRows = 0;
-        return rows;
-    }
-    public void AppendToAgentBuffer(string text, bool newLine)
-    {
-        if (newLine) _state._agentBuffer.AppendLine(text);
-        else _state._agentBuffer.Append(text);
-    }
+
 
     // ========================================
-    // AgentBuffer methods (from AgentBuffer.cs partial)
+    // Pending ops management
     // ========================================
 
-    internal void WriteToAgentBuffer(string text)
-    {
-        _state._agentBuffer.AppendLine(text);
-        _state._agentBufferLineCount++;
-    }
-    internal void WriteToAgentBufferNoNewline(string text)
-    {
-        _state._agentBuffer.Append(text);
-        _state._agentBufferLineCount++;
-    }
-    internal string TakeAgentBuffer()
-    {
-        var text = _state._agentBuffer.ToString();
-        _state._agentBuffer.Clear();
-        _state._agentBufferLineCount = 0;
-        return text;
-    }
     internal List<TurnOp> TakePendingOps()
     {
         var ops = _state._pendingOps.ToList();
         _state._pendingOps.Clear();
         return ops;
     }
-    internal bool RemoveLastLineFromAgentBuffer()
+
+    internal void DrainPendingOpsForCli(Action<TurnOp> action)
     {
-        if (_state._agentBufferLineCount <= 0) return false;
-        string content = _state._agentBuffer.ToString();
-        if (content.Length <= 1)
-        {
-            _state._agentBuffer.Clear();
-            _state._agentBufferLineCount--;
-            return true;
-        }
-        int lastNewline = content.LastIndexOf('\n', content.Length - 2, content.Length - 1);
-        if (lastNewline < 0)
-            _state._agentBuffer.Clear();
-        else
-            _state._agentBuffer.Remove(lastNewline, _state._agentBuffer.Length - lastNewline);
-        _state._agentBufferLineCount--;
-        return true;
+        foreach (var op in _state._pendingOps)
+            action(op);
+        _state._pendingOps.Clear();
     }
 
     // ========================================
@@ -523,39 +485,6 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
                 break;
         }
         return TerminalDisplayWidth.ReplaceForTerminal(output, CharWidthConfig);
-    }
-
-    internal void WriteAlignedLine(ConsoleDisplayLine line)
-    {
-        string text = BuildTerminalLine(line, out int textWidth);
-        if (textWidth == 0 && text.Length == 0)
-        {
-            if (line.IsLineEnd) WriteToAgentBuffer("");
-            else WriteToAgentBufferNoNewline("");
-            return;
-        }
-        int gameWidth = GetGameColumnWidth();
-        string styledText = IsAnsiEnabled() ? FormatLineWithAnsi(line) : text;
-        string output;
-        switch (line.Align)
-        {
-            case DisplayLineAlignment.CENTER:
-                int padC = Math.Max((gameWidth - textWidth) / 2, 0);
-                output = new string(' ', padC) + styledText;
-                break;
-            case DisplayLineAlignment.RIGHT:
-                int padR = Math.Max(gameWidth - textWidth, 0);
-                output = new string(' ', padR) + styledText;
-                break;
-            default:
-                output = styledText;
-                break;
-        }
-        output = TerminalDisplayWidth.ReplaceForTerminal(output, CharWidthConfig);
-        if (line.IsLineEnd)
-            WriteToAgentBuffer(output);
-        else
-            WriteToAgentBufferNoNewline(output);
     }
 
     private static string BuildTerminalLine(ConsoleDisplayLine line, out int displayWidth)

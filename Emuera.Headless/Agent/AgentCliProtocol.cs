@@ -40,7 +40,7 @@ namespace MinorShift.Emuera.GameView
             _terminalInput = terminalInput;
             _ansiEnabled = terminalSetup.IsAnsiEnabled;
             _cursor = new TerminalCursor(_ansiEnabled);
-            _renderer = new TerminalRenderer(console, () => _screen, _cursor);
+            _renderer = new TerminalRenderer(console, () => _screen, _cursor, _ansiEnabled);
             _buttons = new ButtonSelectionMode(
                 console,
                 () => _screen,
@@ -434,6 +434,12 @@ namespace MinorShift.Emuera.GameView
         private void EraseInputLine()
         {
             WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
+        }
+
+        private static void WriteOutput(string text, bool newLine = true)
+        {
+            if (newLine) Console.WriteLine(text);
+            else Console.Write(text);
         }
 
         protected override void OnInputRejected(string reason)
