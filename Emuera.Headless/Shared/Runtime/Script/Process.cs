@@ -351,6 +351,9 @@ internal sealed partial class Process(EmueraConsole view)
 			if (ec is GameExitException)
 				throw;
 #endif
+			// ERB THROW / 除零等脚本级异常（CodeEE）在此处被 handleException 捕获并处理，
+			// 不会传播到协议层（AgentJsonlProtocol.StepAsync / AgentCliProtocol.RunCliLoop）
+			// 的 catch 块。StepAsync catch 是防御性兜底，仅捕获 Process 未预料的 C# 异常。
 			LogicalLine currentLine = state.ErrorLine;
 			if (currentLine != null && currentLine is NullLine)
 				currentLine = null!;

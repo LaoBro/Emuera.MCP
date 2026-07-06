@@ -62,6 +62,10 @@ namespace MinorShift.Emuera.GameView
                 // I-08：脚本运行期异常一律 fatal。Process 内部状态（指令指针/栈帧/变量表）
                 // 已被破坏，恢复无意义。Stop 让 RunLoopAsync 下一轮退出，由 Session
                 // 走 finally 路径（BuildFinalTurn + GlobalStatic.Reset）。
+                //
+                // 注意：ERB THROW / 除零等脚本级异常被 Process.DoScript() 内部捕获并处理
+                // （Process.cs:345 catch → handleException），不会传播到此 catch 块。
+                // 此 catch 是防御性兜底，仅捕获 Process 未预料的 C# 异常（如 NRE）。
                 AgentLog.Instance.Write("step fatal: " + ex);
                 var errorTurn = JsonSerializer.Serialize(new TurnRecord(
                     text: "",

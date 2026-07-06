@@ -1,10 +1,13 @@
 """Test: Fatal turn structure on script runtime exception.
 
 Verifies that when an ERB script throws (THROW), the server returns a turn
-with a proper error structure. The THROW is caught by Process.DoScript()
-which sets console state to Error, so the resulting turn is an Error-state
-turn (not the StepAsync catch fatal turn, which is a defense-in-depth that
-only triggers on unexpected C# exceptions).
+with a proper error structure.
+
+Note: ERB THROW 抛出的 CodeEE 被 Process.DoScript() 内部 catch 捕获并交由
+handleException 处理（Process.cs:345），不会传播到 AgentJsonlProtocol.StepAsync
+的 catch 块。StepAsync catch 是防御性兜底，仅捕获 Process 未预料的 C# 异常（如 NRE）。
+因此此测试验证的是 THROW 被 DoScript 处理后的 Error 状态 turn，而非 StepAsync catch
+的 fatal turn（text="" / buttons=[] / error=ex.Message）。
 
 The test verifies:
 - Initial turn has protocolVersion == 1
