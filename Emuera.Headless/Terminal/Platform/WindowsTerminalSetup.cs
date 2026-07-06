@@ -101,6 +101,12 @@ internal sealed class WindowsTerminalSetup : ITerminalSetup
         if (!OperatingSystem.IsWindows()) return false;
         if (Console.IsInputRedirected) return false;
 
+        // VT 处理已由 TryEnableAnsi 成功启用（SetConsoleMode 成功通过），
+        // 跳过 DA1 探测。ConPTY 下 DA1 无响应但 VT 完全可用，以
+        // SetConsoleMode 成功作为 VT 能力判定依据更可靠。
+        if (IsAnsiEnabled)
+            return true;
+
         IntPtr stdin = GetStdHandle(STD_INPUT_HANDLE);
         if (stdin == IntPtr.Zero || stdin == INVALID_HANDLE_VALUE) return false;
 
