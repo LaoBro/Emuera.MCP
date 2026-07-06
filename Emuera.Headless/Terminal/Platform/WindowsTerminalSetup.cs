@@ -96,12 +96,10 @@ internal sealed class WindowsTerminalSetup : ITerminalSetup
         }
     }
 
-    public bool TryProbeDa1()
+    public bool TryPrepareVtInput()
     {
         if (!OperatingSystem.IsWindows()) return false;
         if (Console.IsInputRedirected) return false;
-        // VT 能力已由 TryEnableAnsi 的 SetConsoleMode 成功与否决定，
-        // 无需 DA1 探测（ConPTY 下 DA1 始终无响应但 VT 完全可用）。
         return IsAnsiEnabled;
     }
 

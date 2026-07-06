@@ -8,5 +8,5 @@ internal interface ITerminalSetup
     bool IsAnsiEnabled { get; }
     bool TrySetConsoleSize(int cols, int rows);
     string? DetectFont();
-    bool TryProbeDa1();
+    bool TryPrepareVtInput();
 }

@@ -6,5 +6,5 @@ internal sealed class NullTerminalSetup : ITerminalSetup
     public bool TryEnableAnsi() => false;
     public bool TrySetConsoleSize(int cols, int rows) => true;
     public string? DetectFont() => null;
-    public bool TryProbeDa1() => false;
+    public bool TryPrepareVtInput() => false;
 }

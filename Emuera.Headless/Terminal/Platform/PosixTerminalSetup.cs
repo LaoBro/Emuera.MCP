@@ -26,7 +26,7 @@ internal sealed class PosixTerminalSetup : ITerminalSetup, IDisposable
 
     public string? DetectFont() => null;
 
-    public bool TryProbeDa1()
+    public bool TryPrepareVtInput()
     {
         if (OperatingSystem.IsWindows()) return false;
         if (_rawModeActive) return true;

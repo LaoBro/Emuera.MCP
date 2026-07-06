@@ -84,7 +84,7 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         private bool TryRunVtLoop()
         {
-            if (!_terminalSetup.TryProbeDa1())
+            if (!_terminalSetup.TryPrepareVtInput())
                 return false;
 
             _vtInput = new VtInputHandler(this, _terminalInput);
