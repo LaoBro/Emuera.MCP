@@ -15,6 +15,8 @@ Emuera/obj/*
 Emuera.Headless/bin/*
 Emuera.Headless/obj/*
 Emuera.Headless/publish/*
+docs/agents/*
+docs/adr/*
 docs/2026.6.16.mouse-input/spikes/*
 docs/2026.6.23.vt-input/spikes/*
 
@@ -33,3 +35,5 @@ CLAUDE.md
 test_game/setting.json
 test_game/emuera.config
 .trae/rules/git-commit-message.md
+skills-lock.json
+CONTEXT.md
