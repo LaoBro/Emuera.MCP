@@ -64,15 +64,28 @@ namespace MinorShift.Emuera.GameView
             // T-024：stdin 管道路径已移除，仅支持交互式终端（VT 或 ConsoleKey 降级）。
             try
             {
-                _renderer.FlushBuffer();
-                if (!TryRunVtLoop())
+                // 注意：不在 VT 路径启用前 FlushBuffer。
+                // Initialize() 阶段 @SYSTEM_TITLE 产生的 SetBgOp 等 pendingOps
+                // 必须等到 _screen 就绪后由 RunAgentLoop 内部首次 FlushBuffer 消费，
+                // 否则 VT 路径下 SetBgOp 会被提前消费（_screen==null）导致转义不发。
+                if (TryRunVtLoop())
+                {
+                    Console.Error.WriteLine("[headless] 终端路径: VT（备用屏 + SGR mouse + DA1 探测）");
+                    Console.Error.Flush();
+                }
+                else
+                {
+                    Console.Error.WriteLine("[headless] 终端路径: 降级（ConsoleKey，无 VT 备用屏）");
+                    Console.Error.WriteLine("[headless]   原因: ANSI 未启用或 stdin 被重定向");
+                    Console.Error.WriteLine("[headless]   影响: SETBGCOLOR/SETCOLOR 等 VT 转义不会发出，鼠标点击不支持");
+                    Console.Error.WriteLine("[headless]   如需 VT 路径，请在真实交互式终端运行");
                     RunAgentLoop(new ConsoleKeyLoopStrategy(this));
+                }
                 _renderer.FlushBuffer();
             }
             catch (Exception ex)
             {
                 AgentLog.Instance.Write("cli fatal: " + ex);
-                try { Console.Error.WriteLine($"[fatal] {ex.Message}"); } catch { }
                 Stop();
             }
         }
