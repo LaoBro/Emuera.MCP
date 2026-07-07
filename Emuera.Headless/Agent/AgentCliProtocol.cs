@@ -61,30 +61,36 @@ namespace MinorShift.Emuera.GameView
             // 脚本运行期异常一律 fatal——Process 内部状态不可逆，恢复无意义。
             // VT 终端恢复由 RegisterVtCleanupHooks（AppDomain.UnhandledException /
             // ProcessExit）的多钩子保障，finally 块只负责 VT 路径。
-            // T-024：stdin 管道路径已移除，仅支持交互式终端（VT 或 ConsoleKey 降级）。
+            // ADR-0005：CLI 协议层改为 VT-only。VT 初始化失败抛 HeadlessFatalException，
+            // 由 HeadlessRunner 捕获并非零退出——不再静默降级到残缺体验。
             try
             {
                 // 注意：不在 VT 路径启用前 FlushBuffer。
                 // Initialize() 阶段 @SYSTEM_TITLE 产生的 SetBgOp 等 pendingOps
                 // 必须等到 _screen 就绪后由 RunAgentLoop 内部首次 FlushBuffer 消费，
                 // 否则 VT 路径下 SetBgOp 会被提前消费（_screen==null）导致转义不发。
-                if (TryRunVtLoop())
+                if (!_terminalSetup.TryPrepareVtInput())
                 {
-                    Console.Error.WriteLine("[headless] 终端路径: VT（备用屏 + SGR mouse + DA1 探测）");
-                    Console.Error.Flush();
+                    throw new HeadlessFatalException(
+                        "VT 终端初始化失败：ANSI 未启用或 stdin 被重定向。" +
+                        "请在真实交互式终端运行（如 Windows Terminal / ConPTY / 现代 SSH），" +
+                        "或改用 --server 模式。");
                 }
-                else
-                {
-                    Console.Error.WriteLine("[headless] 终端路径: 降级（ConsoleKey，无 VT 备用屏）");
-                    Console.Error.WriteLine("[headless]   原因: ANSI 未启用或 stdin 被重定向");
-                    Console.Error.WriteLine("[headless]   影响: SETBGCOLOR/SETCOLOR 等 VT 转义不会发出，鼠标点击不支持");
-                    Console.Error.WriteLine("[headless]   如需 VT 路径，请在真实交互式终端运行");
-                    RunAgentLoop(new ConsoleKeyLoopStrategy(this));
-                }
+
+                Console.Error.WriteLine("[headless] 终端路径: VT（备用屏 + SGR mouse + DA1 探测）");
+                Console.Error.Flush();
+
+                RunVtLoop();
                 _renderer.FlushBuffer();
             }
             catch (Exception ex)
             {
+                // HeadlessFatalException 不在此处记录——向上传播到 HeadlessRunner 统一处理。
+                if (ex is HeadlessFatalException)
+                {
+                    Stop();
+                    throw;
+                }
                 AgentLog.Instance.Write("cli fatal: " + ex);
                 Stop();
             }
@@ -93,14 +99,13 @@ namespace MinorShift.Emuera.GameView
         #region Main loops
 
         /// <summary>
-        /// 尝试启动 VT 路径：DA1 探测 → 备用屏 → SGR mouse → 主循环轮询。
-        /// DA1 探测失败时返回 false，调用方走降级路径。
+        /// 启动 VT 路径主循环：DA1 探测 → 备用屏 → SGR mouse → 主循环轮询。
+        /// 调用前 <see cref="ITerminalSetup.TryPrepareVtInput"/> 必须已返回 true（VT-only）。
+        /// VT 终端恢复由 RegisterVtCleanupHooks（AppDomain.UnhandledException /
+        /// ProcessExit）的多钩子保障，finally 块负责禁用 mouse + 退出备用屏。
         /// </summary>
-        private bool TryRunVtLoop()
+        private void RunVtLoop()
         {
-            if (!_terminalSetup.TryPrepareVtInput())
-                return false;
-
             _vtInput = new VtInputHandler(this, _terminalInput);
             _screen = new AgentCliVtScreen();
             RegisterVtCleanupHooks();
@@ -119,8 +124,6 @@ namespace MinorShift.Emuera.GameView
                 // VtInput.Dispose 负责前两步，VtScreen.Dispose 负责第三步
                 CleanupVt();
             }
-
-            return true;
         }
 
         /// <summary>

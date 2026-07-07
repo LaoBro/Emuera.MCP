@@ -58,10 +58,9 @@ static partial class Program
             await ServerRunner.RunAsync(options.Port, terminalSetup);
         else
         {
-            using ITerminalInput terminalInput = OperatingSystem.IsWindows()
-                ? new WindowsTerminalInput()
-                : new PosixTerminalInput();
-            await HeadlessRunner.RunAsync(paths, options.Protocol, options.TermWidthHint, terminalSetup, terminalInput);
+            // ITerminalInput 在 HeadlessRunner 内创建：CLI 模式专属，stdin 重定向
+            // 等环境错误由 HeadlessRunner 的 HeadlessFatalException 捕获块统一处理。
+            await HeadlessRunner.RunAsync(paths, options.Protocol, options.TermWidthHint, terminalSetup);
         }
     }
 

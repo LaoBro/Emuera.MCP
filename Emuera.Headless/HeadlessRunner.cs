@@ -13,13 +13,51 @@ namespace MinorShift.Emuera;
 
 internal static class HeadlessRunner
 {
-    public static async Task RunAsync(GamePaths paths, string protocolArg, string termWidthHint, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
+    public static async Task RunAsync(GamePaths paths, string protocolArg, string termWidthHint, ITerminalSetup terminalSetup)
     {
         Console.Error.WriteLine($"[headless] Emuera {AssemblyData.EmueraVersionText} 无头模式启动");
         Console.Error.WriteLine($"[headless] 工作目录: {paths.ExeDir}");
         Console.Error.WriteLine($"[headless] 协议模式: {protocolArg}");
         Console.Error.WriteLine($"[headless] 字符宽度提示: {termWidthHint}");
 
+        try
+        {
+            ITerminalInput terminalInput;
+            try
+            {
+                terminalInput = OperatingSystem.IsWindows()
+                    ? new WindowsTerminalInput()
+                    : new PosixTerminalInput();
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException)
+            {
+                // stdin 重定向 / 终端不支持 raw 模式等环境错误——视为 fatal。
+                // ADR-0005：CLI 协议层 VT-only，无法在非交互式终端运行。
+                throw new HeadlessFatalException(
+                    "终端输入初始化失败：" + ex.Message + "。" +
+                    "请在真实交互式终端运行（如 Windows Terminal / ConPTY / 现代 SSH），" +
+                    "或改用 --server 模式。",
+                    ex);
+            }
+            using (terminalInput)
+            {
+                await RunAsyncCore(paths, protocolArg, termWidthHint, terminalSetup, terminalInput);
+            }
+        }
+        catch (HeadlessFatalException ex)
+        {
+            // ADR-0005：CLI 协议层 VT 初始化失败等不可恢复的环境问题。
+            // 输出 stderr 提示（含原因 + 解决方案）+ 写 AgentLog，然后非零退出。
+            Console.Error.WriteLine($"[headless] 致命错误: {ex.Message}");
+            Console.Error.WriteLine("[headless] 进程将以非零退出码终止。");
+            Console.Error.Flush();
+            AgentLog.Instance.Write("HeadlessFatalException: " + ex);
+            Environment.Exit(1);
+        }
+    }
+
+    private static async Task RunAsyncCore(GamePaths paths, string protocolArg, string termWidthHint, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
+    {
         var ui = new HeadlessConsole();
         var console = new EmueraConsole(ui, terminalSetup);
 
@@ -78,6 +116,7 @@ internal static class HeadlessRunner
         {
             // 脚本 QUIT/EXIT：静默退出 0
         }
+        // HeadlessFatalException 不在此处捕获——向上传播到 RunAsync 统一处理。
     }
 
     private static AgentCliProtocol? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput)

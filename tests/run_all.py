@@ -177,6 +177,18 @@ def main():
         )
     )
 
+    results.append(
+        (
+            "VT-only fatal exit",
+            _run_script(
+                "VT-only fatal exit",
+                [sys.executable, str(TESTS_DIR / "test_vt_only.py")],
+                env=env,
+                timeout=60,
+            ),
+        )
+    )
+
     print("\n=== Summary ===")
     all_passed = True
     for name, (passed, code) in results:
