@@ -1,8 +1,80 @@
 # TODO — 跨平台前置重构后续工作
 
-## P1-5 富 Turn 升级（v2 操作序列模型）（已完成）
+## 已完成
 
-详见 [PRD-T5-富Turn升级.md](./PRD-T5-富Turn升级.md)。
+### P0-1 终端抽象层提取
+
+详见 [架构评估报告.md](./架构评估报告.md) 第四章 P0-1。
+对应 git commits：`440b6f3` / `5fffdc6` / `746671e` / `35521e4` / `f574445` / `34d7045`。
+
+完成范围：
+- 新建 `Emuera.Headless/Terminal/Platform/` 目录
+- 提取 `ITerminalSetup` 接口（`TryEnableAnsi` / `IsAnsiEnabled` / `TrySetConsoleSize` /
+  `DetectFont` / `TryPrepareVtInput`）
+- 提取 `ITerminalInput` 接口（`HasInputAvailable` / `ReadByte` / `EnableSgrMouse` /
+  `DisableSgrMouse`，`IDisposable`）
+- Windows 实现：`WindowsTerminalSetup`（P/Invoke `kernel32`：`GetStdHandle` /
+  `SetConsoleMode` / `GetCurrentConsoleFontEx` 等）+ `WindowsTerminalInput`
+  （VT 输入模式 + `ReadFile` + `WaitForSingleObject`）
+- Posix 实现：`PosixTerminalSetup`（`tcgetattr` / `tcsetattr` / `cfmakeraw`
+  raw mode + 退出恢复 hook）+ `PosixTerminalInput`（`poll` + `read` 非阻塞 I/O）
+- `NullTerminalSetup` 空实现（Server 模式用）
+- `VtInputHandler` 改为依赖 `ITerminalInput`
+- `Program` 按 `OperatingSystem.IsWindows()` 选择 `WindowsTerminalInput` /
+  `PosixTerminalInput` 与 `WindowsTerminalSetup` / `PosixTerminalSetup`
+- `EmueraConsole` / `AgentCliProtocol` / `HeadlessRunner` / `Session` /
+  `KestrelGameServer` 构造函数改为依赖 `ITerminalSetup` / `ITerminalInput`
+- 删除 `WindowsConsoleHelper.cs` + `Win32ConsoleInterop.cs`（功能并入平台实现）
+
+实现差异（vs 原方案）：
+- 原方案提议单个 `ITerminalPlatform` 接口，实际拆分为 `ITerminalSetup` +
+  `ITerminalInput` 两个接口（职责分离更清晰）
+- `TerminalDisplayWidth.DetectCharWidths()` 仍用 `Console.SetCursorPosition`
+  直接探测（`Console` 类在 Unix 通过 VT 转义实现，跨平台可用，未抽象到平台接口）
+
+预期达成：CLI 模式可在 Linux/macOS 终端工作。
+
+### P0-2 HTTP 服务器替换为 Kestrel
+
+详见 [架构评估报告.md](./架构评估报告.md) 第四章 P0-2。
+对应 git commit：`591a02c`。
+
+完成范围：
+- `Emuera.Headless/Server/HttpGameServer.cs` 内部类重写为
+  `KestrelGameServer`（基于 `WebApplication` + `UseKestrel()` + `UseUrls`）
+- 路由通过 `_app.MapPost/MapGet/MapDelete` 注册
+  （`/session` POST/DELETE、`/turn` GET、`/input` POST、`/state` GET）
+- `ServerRunner.cs` 改用 `KestrelGameServer`
+- `Emuera.Headless.csproj` 添加
+  `<FrameworkReference Include="Microsoft.AspNetCore.App" />`
+- `Session` / `SessionIO` / `HttpSessionIO` 层不变（只替换传输层）
+- 删除 `HttpListener` 依赖（代码中已无引用）
+
+预期达成：Server 模式在 Linux/macOS 上开箱可用；为 WebSocket 铺路。
+
+### P1-3 Turn 协议版本化（v1）
+
+详见 [PRD-T3-Turn协议版本化.md](./PRD-T3-Turn协议版本化.md)、
+[ADR-0001](../../adr/0001-turn-protocol-versioning.md)。
+
+- `TurnRecord` + `ButtonEntry` record 落地
+- `protocolVersion: 1` 仅出现在 initial turn
+- wire format 字节级不变（除 initial turn 多 `protocolVersion` 字段）
+- `test_jsonl.py` 扩展断言 `protocolVersion`
+
+### P1-4 Fatal turn 结构断言测试
+
+详见 [PRD-T4-FatalTurn测试.md](./PRD-T4-FatalTurn测试.md)。
+对应 issue #3（已关闭）。
+
+- `test_fatal_turn.py` 落地：复制 `test_game` 注入抛异常 ERB，断言 fatal turn 结构
+- v2 升级时（PRD-T5）已同步更新断言为 `ops == []`
+
+### P1-5 富 Turn 升级（v2 操作序列模型）
+
+详见 [PRD-T5-富Turn升级.md](./PRD-T5-富Turn升级.md)、
+[ADR-0002](../../adr/0002-turn-v2-operation-sequence.md)。
+对应 issue #4 / #5 / #6（均已关闭）。
 
 完成范围：
 - `TurnRecord` 重写：删除 `text`/`buttons`/`ButtonEntry`，新增 `TurnOp` 层次
@@ -20,240 +92,104 @@
 - `test_fatal_turn.py` / `test_server_single_session.py` / `test_tinput_timeout.py` / `test_selectcase_loading.py` 同步更新
 - 所有回归测试通过
 
-## P1-3 Turn 协议版本化与 Schema 定义（已完成）
+### PRD-T6 CLI 双写技术债消除（displayLineList delta）
 
-详见 [架构评估报告.md](./架构评估报告.md) 任务 3、[ADR-0001](../../adr/0001-turn-protocol-versioning.md)。
+详见 [PRD-T6-CLI双写消除.md](./PRD-T6-CLI双写消除.md)、
+[ADR-0003](../../adr/0003-cli-rendering-displayline-delta.md)。
+对应 issue #7 / #8 / #9（均已关闭）。
 
 完成范围：
-- `TurnRecord` + `ButtonEntry` record 落地
-- `protocolVersion: 1` 仅出现在 initial turn
-- wire format 字节级不变（除 initial turn 多 `protocolVersion` 字段）
-- `test_jsonl.py` 扩展断言 `protocolVersion`
+- `TerminalRenderer.FlushBuffer` 改为读 `displayLineList` delta：持有
+  `_lastRenderedLineNo` + `_lastRenderedLastLine`（reference），三分支逻辑
+  （`>` 新增行 / `<` 删除行 / `==` && `!ReferenceEquals` merge 替换）
+- 新增 `DrainPendingOpsForCli(Action<TurnOp>)` 回调式 drain，CLI 仅动作于
+  `ClearOp` / `SetBgOp`，其余 op drain 但不动作
+- `AddDisplayLine` 删除 `WriteAlignedLine` 调用（消除双写）
+- Input echo 改直接 `Console.Write`（`WriteOutput` 移到 `AgentCliProtocol`，
+  删除 `AppendToAgentBuffer`）
+- `FullRefresh` 末尾同步 `_lastRenderedLineNo` / `_lastRenderedLastLine`
+- VT 模式获得 `set_bg` 能力（`ESC[48;2;r;g;bm`，新 feature 红利）
+- 删除双写状态：`_agentBuffer` / `_agentBufferLineCount` /
+  `TakeAgentBuffer` / `WriteToAgentBuffer` / `WriteToAgentBufferNoNewline` /
+  `AppendToAgentBuffer` / `RemoveLastLineFromAgentBuffer` /
+  `_pendingEraseRows` / `ConsumePendingEraseRows` / `WriteAlignedLine`
+- 接口瘦身：`IConsoleStateView` 仅保留 `ConsumeNeedFullRefresh`
+- `test_cli_basic.py` 扩展为 ConPTY smoke test 覆盖
+  clearline/clear/setbg/merge/alignment 路径
+- VT 模式 set_bg ConPTY smoke test 落地
 
-## 已转 PRD：fatal turn 结构断言
+已知风险接受：
+- `LineNo` wraparound（`int.MaxValue` 回 0）极罕见但会导致 delta 失步，
+  失步后 `FullRefresh` 可恢复
+- `FullRefresh` 忘同步 delta tracking state 会让后续 `FlushBuffer` 全错——
+  实现已处理（`FullRefresh` 末尾同步）
 
-**已转 [PRD-T4-FatalTurn测试.md](./PRD-T4-FatalTurn测试.md)。**
+## 已取消
 
-原 TODO 内容保留如下作为历史记录：
+### P1-4：IConsoleUI.Invoke 调度器抽象
 
-### 背景
+原计划：`IConsoleUI` 添加 `Task InvokeAsync(Func<Task>)` 方法，让未来 Web 前端
+可注入 `SynchronizationContext` 或 `Dispatcher`（详见
+[架构评估报告.md](./架构评估报告.md) 第四章 P1-4）。
 
-P1-3 的 grilling 决策 7 明确：fatal 路径内联构造 `TurnRecord`，wire format
-保持 `text=""` / `buttons=[]` / `error=ex.Message` 不变。但 [test_jsonl.py](../../../tests/test_jsonl.py)
-当前不覆盖 fatal 场景——`test_game/erb/TEST.ERB` 不会抛异常。
+**取消理由**：原前提"未来 Web 前端实现可注入 `SynchronizationContext`"假设前端
+与 Headless 同进程。实际架构采用 HTTP/JSON 协议解耦（参见 `KestrelGameServer` +
+`HttpSessionIO`）：Web 前端是独立进程，通过 `/turn` / `/input` 端点与 Headless
+通信，不直接调用 `IConsoleUI`。`IConsoleUI` 在 Headless 模式下永远是
+`HeadlessConsole` 空实现，游戏引擎仍单线程跑，同步 `Invoke(Action)` 已满足需求。
+前端自身的异步 UI 调度由前端框架处理，与 Headless 无关。
 
-### TODO
+代码现状佐证：
+- `IConsoleUI.Invoke(Action)` 仍是同步方法，未添加 `InvokeAsync`
+- `HeadlessConsole.Invoke` 直接同步执行 `action?.Invoke()`
+- 4 个调用方（`AgentJsonlProtocol` / `ConsoleRefreshHandler` /
+  `ConsoleTimerManager`）全部同步使用
 
-新增 fatal turn 结构断言测试。建议参照 [test_tinput_timeout.py](../../../tests/test_tinput_timeout.py)
-的模式：
+## 后续工作
 
-1. 复制 `test_game` 到临时目录。
-2. 覆盖 `erb/TEST.ERB` 在特定路径抛出异常（如除零、未定义函数调用）。
-3. 启动 server，`POST /session` → `GET /turn`（initial）→ `POST /input` 推进到
-   抛异常点 → `GET /turn` 取 fatal turn。
-4. 断言 fatal turn 结构：
-   - `state` 不是 `WaitInput`（应为 `Error` 或游戏崩溃后的稳态）
-   - `text == ""`
-   - `buttons == []`
-   - `error` 字段存在且为字符串
-   - `protocolVersion` 字段不存在（fatal turn 不是 initial turn）
+### 富 Turn 升级排除项（独立立项）
 
-### 验收标准
+PRD-T5 grilling 阶段明确排除以下三项，待条件成熟后独立立项：
 
-- 测试独立可执行：`python tests/test_fatal_turn.py --binary <path> --game-dir test_game`
-- 加入 [run_all.py](../../../tests/run_all.py) 回归套件
-- 更新 [tests/README.md](../../../tests/README.md) 的测试清单
+- **R-06 按钮区域**（`PointX` / `Width` / `row` / `col`）：立项为 PRD-T6，待 v2
+  落地后评估是否还需要服务端坐标。v2 的 `print.button` 已足够让前端自行做命中
+  测试。
+- **R-09 图片元数据**：`PrintImg` / `PrintShape` 在 v2 降级为
+  `print(node.ToString())`。真正的图片暴露等 Headless 实现 sprite 加载
+  （`AppContents.GetSprite` 非空实现）后再立项。
+- **LLM 兼容层**：v2 不保留 `text` 字段作 LLM 降级。LLM 交互由前端层中转——
+  前端把 op 序列渲染成纯文本再喂给 LLM。
 
-## P1-5 富 turn 升级（v2 操作序列模型）（已完成）
+### 架构评估报告待办
 
-**详见 [PRD-T5-富Turn升级.md](./PRD-T5-富Turn升级.md)。**
-对应 [ADR-0002](../../adr/0002-turn-v2-operation-sequence.md)。
+详见 [架构评估报告.md](./架构评估报告.md) 第四章。以下任务独立于 Turn 协议演进，
+按优先级排列：
 
-grilling 阶段已完成全部 5 个设计决策的考问与收敛：
-1. 范围：R-05（per-segment 样式）+ align（行级对齐）+ R-07（操作序列）合并为
-   v2 op 序列模型；R-06（按钮区域）独立为 PRD-T6；R-09（图片）继续排除。
-2. 架构模型：采用操作序列模型（ops[]），拒绝快照模型（lines[] + 2× 窗口高度）。
-3. 版本策略：v2 干净替换 v1，不保留 v1 字段作降级。
-4. op emit 时机：集中在 `AddDisplayLine` 层，行合并时用 `suppressOp` 抑制
-   spurious clearline。
-5. 测试策略：重写 `test_jsonl.py` 断言 `ops[]` 结构。
+#### P2-5：EmueraConsole 门面瘦身
 
-下面保留原 grilling 阶段的调研结论作为历史参考。
+- **目标**：减少 30+ 属性的公开表面
+- **方向**：按职责分组到 `IConsoleState`/`IConsoleInput`/`IConsolePrint` 只读接口
 
-### 范围 B：采集遗漏类（数据已存在，turn 字段扩展）
+#### P2-6：Shared 子树债务清零（渐进）
 
-这三项在 grilling 阶段确认属于"采集遗漏"性质——数据在内部已存在，只需扩展
-`CollectVisibleButtons` / 新增 turn 字段。
+- **目标**：逐步移除 `.editorconfig` 对 `Shared/**` 的警告抑制
+- **方向**：按 T-022 计划逐步修复 nullable 警告，最终全项目
+  `TreatWarningsAsErrors` 无抑制
 
-#### R-05 富文本 turn（segment 级样式）
+#### P2-7：AgentCliProtocol 拆分
 
-**调研结论**：
-- [StringStyle](../../../Emuera.Headless/Shared/UI\Game/StringStyle.cs#L10) 是
-  `struct`，5 个字段：`Color` / `ButtonColor` / `ColorChanged` / `FontStyle`
-  （bold/italic/regular 枚举）/ `Fontname`。**没有 size 字段**——字号由
-  `Config.FontSize` 全局驱动。
-- 存储粒度是 **per-segment** 而非 per-line：链路是
-  `ConsoleDisplayLine.buttons[] (ConsoleButtonString)` →
-  `ConsoleButtonString.strArray[] (AConsoleDisplayNode)` →
-  `ConsoleStyledString.StringStyle`。一行可有多个 button、每个 button 可有多个
-  不同 style 的段。
-- 用户"行样式缺失"成立但描述有偏差——真实存储粒度是 per-segment。
+- **目标**：441 行的 CLI 协议类拆分为可维护的小组件
+- **方向**：`LoopStrategy` 子类提取为独立文件，VT 模式管理提取为
+  `VtSessionManager`
 
-**未来方向**：
-- `BuildTurn()` 新增 `lines[]` 字段，每行包含 `segments[]`（text + style.color
-  + style.bold + style.italic）。
-- `text` 字段保留作纯文本降级。
-- turn 版本号升到 `protocolVersion: 2`。
+## 基础文档索引
 
-#### R-06 按钮区域数据
-
-**调研结论**：
-- [ButtonRegionTracker](../../../Emuera.Headless/Agent/ButtonRegionTracker.cs)
-  已计算坐标，`Region` record 含 `Row` / `Left` / `Right` / `Button` /
-  `Generation`——是字符列宽（East-Asian-Width 感知），**非像素**。
-- 用途仅 `HitTest(row, col)` 一个消费者，供 CLI 模式 `ButtonSelectionMode`
-  做键盘/鼠标命中测试。**完全没有暴露给 turn JSON**——server/JSONL 路径不读
-  `_regions`。
-- `ConsoleButtonString` 也持有 `PointX` / `Width` 字段。
-
-**未来方向**：
-- `buttons[]` 扩展 `row` / `col` / `width` 字段，复用 `ButtonRegionTracker`
-  的坐标计算逻辑。
-- 前端可渲染可点击按钮。
-
-#### 布局对齐信息
-
-**调研结论**：
-- [ConsoleDisplayLine.align](../../../Emuera.Headless/Shared/UI/Game/ConsoleDisplayLine.cs#L16-L21)
-  字段持 `DisplayLineAlignment { LEFT=0, CENTER=1, RIGHT=2 }`。
-- `PrintC` / `PrintButtonC` 等会设置对齐。一旦 `aligned=true` 就冻结。
-- turn 完全不输出 `align`——`CollectVisibleButtons` 只读 `btn.IsButton` /
-  `btn.Generation` / `btn.ToString()` / `btn.Input/Inputs`，不读 `line.Align`。
-
-**未来方向**：
-- `lines[]` 字段中每个 line 带 `align` 字段（`"left"` / `"center"` / `"right"`）。
-- 前端可还原居中/右对齐排版。
-
-### 范围 C：非采集遗漏类（已排除，独立立项）
-
-下列三项因性质不同被排除，作为后续独立工作：
-
-#### R-07 操作序列 turn（CLEARLINE / REUSELASTLINE / REPLACE）
-
-**性质**：新设计，非"加字段"。
-
-**调研结论**：
-- [CLEARLINE](../../../Emuera.Headless/Shared/Runtime/Script/Statements/Instraction.Child.cs#L679-L693)
-  通过 `ConsolePrintManager.DeleteLine` 直接 `RemoveAt` 从 list 末尾硬删——
-  **无 tombstone / soft-delete / 标记位**。
-- `ReuseLastLine` 在本 headless 代码库中**零匹配**——这个原语根本不存在。
-- 当前 turn 输出形态是"增量文本 + 当前可见窗口快照"混合，不是操作序列。
-
-**为何排除**：要做"操作序列"必须新建事件流（在 `ConsolePrintManager.DeleteLine`
-里 emit event、`BuildTurn` 收集 pending ops），是架构级变更。应单独立项，
-不与"采集遗漏"富 turn 混在一起。
-
-**未来立项建议**：
-1. 先定义领域语义——"操作"的边界（CLEARLINE 是删 N 行、REUSELASTLINE 是否需要
-   新增 ERB 指令、REPLACE 替换哪一行）。
-2. 设计 `ops[]` 字段的 schema——`{op: "clearline", n: 3}` / `{op: "replace", row: 5, ...}`。
-3. 在 `ConsolePrintManager` 引入 op emit 点，`BuildTurn` 收集 pending ops。
-4. 验证与 `text` 增量字段的关系——保留 `text` 作为降级，还是用 `ops[]` 完全替代。
-
-#### R-09 图片元数据 / Sprite 暴露
-
-**性质**：暴露空实现，会误导前端。
-
-**调研结论**：
-- `ConsoleImagePart` 结构上能携带图片资源名（`ResourceName` / `ButtonResourceName` /
-  `MappingGraphName` + `AltText`）。
-- 但 Headless 下 [AppContents.GetSprite](../../../Emuera.Headless/Shared/UI/Game/Image/AppContents.cs#L25)
-  恒返回 `null`，`ConsoleImagePart` 构造时 `cImage == null` 进入 fallback 分支
-  把 `Text = AltText`（即原始 `<img src='...' srcb='...' .../>` HTML 标签字符串）。
-- [HeadlessImageContext.DrawImage](../../../Emuera.Headless/Headless/HeadlessImageContext.cs#L8-L14)
-  是 `{ }` 空操作。
-- [EmueraConsole.AddBackgroundImage](../../../Emuera.Headless/UI/Game/EmueraConsole.cs#L395)
-  是 `{ }` 空 stub（SETBGIMAGE）。
-
-**为何排除**：turn 暴露的图片字段只能是 `<img .../>` 文本占位——不是富数据。
-前端拿到这个字段会以为"有图片可用"，实际只有 HTML 字符串。应该等 Headless
-真正实现 sprite 加载后再加 turn 字段。
-
-**未来立项建议**：
-1. 先实现 Headless 的 sprite 加载（[AppContents.GetSprite](../../../Emuera.Headless/Shared/UI/Game/Image/AppContents.cs#L25)
-   的非空实现）——这是前置工作。
-2. 再决定 turn 字段形态：暴露 `ConsoleImagePart` 的 `ResourceName` + 期望尺寸，
-   还是暴露已加载的 sprite 二进制（通过 HTTP 端点 `/resources/<name>`）。
-3. 与 HTML_PRINT 语义对齐——HTML_PRINT 输出的 HTML 字符串里嵌入的 `<img>` 标签
-   与 turn 暴露的图片字段，关系如何？
-
-#### 按钮"显示/禁用状态"字段
-
-**性质**：底层概念不存在。
-
-**调研结论**：
-- 搜索 `ButtonEnable|buttonEnable|disable.*button|button.*disabled` 等模式，
-  **没有任何 per-button enabled/disabled 字段**。
-- `ConsoleButtonString` 持有的状态只有：`IsButton`、`IsInteger`、`Input`、
-  `Inputs`、`Generation`、`PointX`、`Width`、`Title`、`ErrPos`。
-- `SKIPDISP` 是进程级布尔标志（[Process.ScriptProc.cs#L563-L587](../../../Emuera.Headless/Shared/Runtime/Script/Process.ScriptProc.cs#L563-L587)），
-  控制后续 PrintXxx 是否真正写入 buffer——**不是按钮级 disable**。
-
-**为何排除**：用户描述的"按钮显示/禁用状态"在 Emuera 原版协议层面不存在。
-即"缺失"的不是字段而是底层根本无此概念。若未来前端需要"按钮禁用"语义，
-应先在 ERB 协议层定义（如新增 `DISABLEBUTTON` 指令、或扩展 button 的属性），
-再考虑 turn 暴露。
-
-**未来立项建议**：
-1. 先确认前端"按钮禁用"的真实场景——是 SKIPDISP 后的渲染差异，还是新需求。
-2. 若是新需求，先在 ERB 协议层定义按钮禁用语义。
-3. 再扩展 turn 字段。
-
-### 富 turn 升级整体设计方向（grilling 阶段已完成）
-
-grilling 阶段已收敛全部 5 个设计决策，原"未完成"列表已过时。决策结果汇总：
-
-1. **版本号策略**：v2 干净替换 v1，不保留 v1 字段作降级。详见
-   [ADR-0002](../../adr/0002-turn-v2-operation-sequence.md)。
-2. **显示数据模型**：放弃 v1 `text` + `buttons` 双字段快照，改为 `ops[]`
-   操作序列。前端 apply ops 维护 Display State，行为类似扩展功能的终端。
-3. **segment 边界**：按 `ConsoleButtonString`（display chunk）分段，每个 chunk
-   对应一个 `print` op，其 `segments[]` 来自 `chunk.StrArray`。
-4. **`CollectVisibleButtons` 的演化**：删除。v2 不再有独立 `buttons[]` 字段，
-   按钮内联在 `print` op 的 `button` 字段中。
-5. **`ButtonRegionTracker` 在 server 路径的复用**：不引入。R-06 独立为 PRD-T6。
-
-### CLI 双写技术债（PRD-T5 遗留）
-
-v2 保留 `_agentBuffer` 供 CLI 使用，新增 op 队列供 server 使用——`AddDisplayLine`
-同时写两者。这是有意的技术债，详见
-[PRD-T5 CLI 共存策略](./PRD-T5-富Turn升级.md#cli-共存策略双写-_agentbuffer)。
-
-**未来应消除的重复路径**：
-- `_agentBuffer` / `_agentBufferLineCount` / `TakeAgentBuffer` /
-  `WriteToAgentBuffer` / `WriteToAgentBufferNoNewline` / `AppendToAgentBuffer` /
-  `RemoveLastLineFromAgentBuffer`
-- `_pendingEraseRows` / `ConsumePendingEraseRows`
-- `WriteAlignedLine` / `FormatLineForTerminal` / `BuildTerminalLine`
-- `TerminalRenderer.FlushBuffer` 的 `_agentBuffer` 读取路径
-
-**迁移方向**：让 CLI 的 `TerminalRenderer.FlushBuffer` 改为消费 `_pendingOps`
-并 apply 到终端状态（VT 备用屏或自然滚动），消除 `_agentBuffer` 整条路径。此项
-独立立项，不在 PRD-T5 范围。
-
-### 已完成的相关基础工作
-
-富 turn 升级的全部基础已落地：
-
-- [PRD-T3](./PRD-T3-Turn协议版本化.md)：`TurnRecord` + `ButtonEntry` record
-  + `protocolVersion` 字段。v2 在此基础上替换显示数据模型。
-- [PRD-T5](./PRD-T5-富Turn升级.md)：v2 操作序列模型完整规格，grilling 阶段
-  已收敛全部 5 个设计决策。
+- [PRD-T3](./PRD-T3-Turn协议版本化.md)：v1 版本化
+- [PRD-T4](./PRD-T4-FatalTurn测试.md)：fatal turn 测试
+- [PRD-T5](./PRD-T5-富Turn升级.md)：v2 操作序列模型
+- [PRD-T6](./PRD-T6-CLI双写消除.md)：CLI 双写技术债消除（displayLineList delta）
 - [ADR-0001](../../adr/0001-turn-protocol-versioning.md)：v1 版本字段策略
-  （wire format 字节级不变）。v2 显式 supersede 此约束，但其他决策仍有效。
-- [ADR-0002](../../adr/0002-turn-v2-operation-sequence.md)：v2 操作序列模型
-  决策记录，含 3 条被拒绝的替代方案与 CLI 双写技术债说明。
-- [CONTEXT.md](../../../CONTEXT.md)：已更新 Turn / Fatal Turn / protocolVersion
-  为版本无关描述，新增 Generation 术语与 "Operation Sequence Model (v2)"
-  子章节（Op / Print Op / NewLine Op / ClearLine Op / Clear Op / Set BG Op /
-  Display State / Operation Sequence）。
+- [ADR-0002](../../adr/0002-turn-v2-operation-sequence.md)：v2 操作序列模型决策
+- [ADR-0003](../../adr/0003-cli-rendering-displayline-delta.md)：CLI 渲染层 displayLineList delta 决策
+- [CONTEXT.md](../../CONTEXT.md)：领域术语表（含 Operation Sequence Model 子章节）
+- [架构评估报告.md](./架构评估报告.md)：P0/P1/P2 全局任务清单
