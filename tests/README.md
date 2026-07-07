@@ -95,8 +95,9 @@ T-024 后 stdin 管道 CLI 模式已废弃，`AgentCliProtocol` 仅支持交互�
 | `clear` | 启动时 ClearOp | `\x1b[2J` 转义序列已发出；游戏文本正确显示 |
 | `merge` | 连续两次 PRINT（无 NewLine） | "HelloWorld" 作为合并字符串出现 |
 | `alignment` | PRINTC "AlignCheck" | 文本前有前导空格（PrintC 对齐填充，默认 25 字符） |
+| `setbg` | SETBGCOLOR 0xFF0000 → PRINTL | `\x1b[48;2;255;0;0m` VT 背景色 escape 出现在输出字节流中 |
 
-> **注意：** CLEAR 指令是 C# 内部调用（`ClearDisplay()`），非可用 ERB 命令；`test_cli_clear` 验证的是启动时 `ConsoleStateManager.Initialize()` 发出的系统 ClearOp。
+> **注意：** CLEAR 指令是 C# 内部调用（`ClearDisplay()`），非可用 ERB 命令；`test_cli_clear` 验证的是启动时 `ConsoleStateManager.Initialize()` 发出的系统 ClearOp。`test_cli_setbg` 仅对 VT 路径生效（ConPTY 默认开启 ANSI），非 VT 路径无背景色能力，不覆盖。
 
 非 Windows 或无 pywinpty 时自动跳过。`run_all.py` 已包含 CLI 测试。
 

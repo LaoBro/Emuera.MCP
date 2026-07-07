@@ -1,6 +1,6 @@
 """Basic CLI mode test + ConPTY regression smoke tests for PRD-T6.
 
-Tests: happy path, clearline, clear, merge, alignment.
+Tests: happy path, clearline, clear, merge, alignment, setbg.
 Requires Windows 10 18309+ and pywinpty (pip install pywinpty).
 Skipped automatically on non-Windows or when pywinpty is unavailable.
 """
@@ -82,6 +82,14 @@ QUIT
 
 ERB_ALIGNMENT = """@SYSTEM_TITLE
 PRINTC AlignCheck
+INPUT
+QUIT
+"""
+
+ERB_SETBG = """@SYSTEM_TITLE
+SETBGCOLOR 0xFF0000
+PRINTL RedBackground
+PRINTL [0] Done
 INPUT
 QUIT
 """
@@ -236,6 +244,13 @@ def test_cli_alignment(binary, game_dir):
         check(False, "No leading spaces before centered text")
 
 
+def test_cli_setbg(binary, game_dir):
+    """SETBGCOLOR: VT escape sequence for background color emitted."""
+    text = _capture_cli_with_erb(binary, ERB_SETBG)
+    check(f"{ESC}[48;2;255;0;0m" in text, "VT set_bg escape for red (0xFF0000) emitted")
+    check("RedBackground" in text, "Text after SETBGCOLOR visible")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", help="Path to Emuera.Headless binary")
@@ -252,6 +267,7 @@ def main():
     test_cli_clear(binary_path, game_dir)
     test_cli_merge(binary_path, game_dir)
     test_cli_alignment(binary_path, game_dir)
+    test_cli_setbg(binary_path, game_dir)
 
     print(f"\n=== CLI basic test: {passed} passed, {failed} failed ===")
     sys.exit(1 if failed else 0)

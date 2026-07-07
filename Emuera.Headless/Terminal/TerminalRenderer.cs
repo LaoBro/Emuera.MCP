@@ -18,6 +18,7 @@ namespace MinorShift.Emuera.GameView
 
         private int _lastRenderedLineNo = -1;
         private ConsoleDisplayLine? _lastRenderedLastLine;
+        private string? _currentBgHex;
 
         public TerminalRenderer(
             EmueraConsole console,
@@ -52,14 +53,9 @@ namespace MinorShift.Emuera.GameView
                         cleared = true;
                         break;
                     case SetBgOp bg:
+                        _currentBgHex = bg.color;
                         if (_getScreen() != null && _ansiEnabled)
-                        {
-                            string hex = bg.color.TrimStart('#');
-                            int r = Convert.ToInt32(hex.Substring(0, 2), 16);
-                            int g = Convert.ToInt32(hex.Substring(2, 2), 16);
-                            int b = Convert.ToInt32(hex.Substring(4, 2), 16);
-                            Console.Write($"\x1b[48;2;{r};{g};{b}m");
-                        }
+                            WriteBgEscape(bg.color);
                         break;
                 }
             });
@@ -118,6 +114,10 @@ namespace MinorShift.Emuera.GameView
             if (screen != null)
             {
                 screen.ClearScreen();
+
+                if (_currentBgHex != null && _ansiEnabled)
+                    WriteBgEscape(_currentBgHex);
+
                 if (lines.Count == 0) goto SyncState;
 
                 int consoleHeight = screen.WindowHeight;
@@ -195,6 +195,16 @@ namespace MinorShift.Emuera.GameView
             }
 
             _cursor.Set(0, Math.Max(savedTop - rows, 0));
+        }
+
+        private static void WriteBgEscape(string? hexColor)
+        {
+            if (hexColor == null) return;
+            string hex = hexColor.TrimStart('#');
+            int r = Convert.ToInt32(hex.Substring(0, 2), 16);
+            int g = Convert.ToInt32(hex.Substring(2, 2), 16);
+            int b = Convert.ToInt32(hex.Substring(4, 2), 16);
+            Console.Write($"\x1b[48;2;{r};{g};{b}m");
         }
 
         private void WriteDisplayLine(ConsoleDisplayLine line)
