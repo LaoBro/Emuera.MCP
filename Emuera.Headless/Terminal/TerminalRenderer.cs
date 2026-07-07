@@ -7,13 +7,14 @@ namespace MinorShift.Emuera.GameView
     /// <summary>
     /// 终端输出渲染：刷新屏幕、擦除行、刷新缓冲区。
     /// ADR-0005：VT-only 后原 <c>_ansiEnabled</c> 字段已删除，调用方假设 ANSI 可用。
+    /// ADR-0005 Issue 4：删除 <c>_screen == null</c> 降级分支与 <c>_cursor</c> 字段，
+    /// 调用方保证 <see cref="AgentCliVtScreen"/> 在 VT 主循环内必非 null。
     /// 从 AgentCliProtocol 拆分以隔离终端输出逻辑。
     /// </summary>
     internal sealed class TerminalRenderer
     {
         private readonly EmueraConsole _console;
         private readonly Func<AgentCliVtScreen?> _getScreen;
-        private readonly TerminalCursor _cursor;
 
         private int _lastRenderedLineNo = -1;
         private ConsoleDisplayLine? _lastRenderedLastLine;
@@ -21,12 +22,10 @@ namespace MinorShift.Emuera.GameView
 
         public TerminalRenderer(
             EmueraConsole console,
-            Func<AgentCliVtScreen?> getScreen,
-            TerminalCursor cursor)
+            Func<AgentCliVtScreen?> getScreen)
         {
             _console = console;
             _getScreen = getScreen;
-            _cursor = cursor;
         }
 
         /// <summary>Flush pending ops and render displayLineList delta to terminal.</summary>
@@ -38,21 +37,14 @@ namespace MinorShift.Emuera.GameView
                 switch (op)
                 {
                     case ClearOp:
-                        {
-                            var s = _getScreen();
-                            if (s != null)
-                                s.ClearScreen();
-                            else
-                                _cursor.ClearScreen();
-                        }
+                        _getScreen()!.ClearScreen();
                         _lastRenderedLineNo = -1;
                         _lastRenderedLastLine = null;
                         cleared = true;
                         break;
                     case SetBgOp bg:
                         _currentBgHex = bg.color;
-                        if (_getScreen() != null)
-                            WriteBgEscape(bg.color);
+                        WriteBgEscape(bg.color);
                         break;
                     case ClearLineOp:
                         // CLEARLINE N 后 displayLineList 末尾行被删除、LineNo 回退，
@@ -119,98 +111,58 @@ namespace MinorShift.Emuera.GameView
             _lastRenderedLastLine = lastLine;
         }
 
-        /// <summary>全量重绘可见行。VT 模式用备用屏绝对定位，非 VT 模式用自然滚动。</summary>
+        /// <summary>全量重绘可见行。ADR-0005 Issue 4：删除非 VT 降级分支，仅保留 VT 备用屏绝对定位路径。</summary>
         internal void FullRefresh()
         {
             var lines = _console.DisplayLineList;
-            var screen = _getScreen();
+            var screen = _getScreen()!;
 
-            if (screen != null)
-            {
-                screen.ClearScreen();
+            screen.ClearScreen();
 
-                if (_currentBgHex != null)
-                    WriteBgEscape(_currentBgHex);
+            if (_currentBgHex != null)
+                WriteBgEscape(_currentBgHex);
 
-                if (lines.Count == 0) goto SyncState;
-
-                int consoleHeight = screen.WindowHeight;
-                int visibleLines = Math.Max(consoleHeight - 1, 1);
-                int startLine = Math.Max(0, lines.Count - visibleLines);
-
-                for (int i = 0; i < visibleLines && (startLine + i) < lines.Count; i++)
-                {
-                    int lineIndex = startLine + i;
-                    int viewportRow = i;
-                    string formatted = TerminalLineFormatter.FormatLineForTerminal(
-                        lines[lineIndex], _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true);
-                    screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
-                }
-
-                int drawnRows = Math.Min(visibleLines, lines.Count - startLine);
-                screen.SetCursor(drawnRows, 0);
-            }
-            else
-            {
-                _cursor.ClearScreen();
-                if (lines.Count == 0) goto SyncState;
-
-                int height = TerminalCursor.TryGetWindowHeight();
-                int visLines = Math.Max(height - 1, 1);
-                int startLn = Math.Max(0, lines.Count - visLines);
-
-                for (int i = startLn; i < lines.Count; i++)
-                {
-                    string formatted = TerminalLineFormatter.FormatLineForTerminal(
-                        lines[i], _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true);
-                    Console.WriteLine(formatted.Length > 0 ? formatted : "");
-                }
-            }
-
-        SyncState:
-            if (lines.Count > 0)
-            {
-                _lastRenderedLineNo = lines[^1].LineNo;
-                _lastRenderedLastLine = lines[^1];
-            }
-            else
+            if (lines.Count == 0)
             {
                 _lastRenderedLineNo = -1;
                 _lastRenderedLastLine = null;
+                return;
             }
+
+            int consoleHeight = screen.WindowHeight;
+            int visibleLines = Math.Max(consoleHeight - 1, 1);
+            int startLine = Math.Max(0, lines.Count - visibleLines);
+
+            for (int i = 0; i < visibleLines && (startLine + i) < lines.Count; i++)
+            {
+                int lineIndex = startLine + i;
+                int viewportRow = i;
+                string formatted = TerminalLineFormatter.FormatLineForTerminal(
+                    lines[lineIndex], _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true);
+                screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
+            }
+
+            int drawnRows = Math.Min(visibleLines, lines.Count - startLine);
+            screen.SetCursor(drawnRows, 0);
+
+            _lastRenderedLineNo = lines[^1].LineNo;
+            _lastRenderedLastLine = lines[^1];
         }
 
-        /// <summary>擦除指定行数。VT 模式用 ESC[2K，非 VT 模式用空格覆盖。</summary>
+        /// <summary>擦除指定行数。ADR-0005 Issue 4：删除非 VT 空格覆盖分支，仅保留 VT ESC[2K 路径。</summary>
         internal void EraseTerminalRows(int rows)
         {
             if (rows <= 0) return;
 
-            var screen = _getScreen();
-            if (screen != null)
-            {
-                int currentRow = screen.GetCurrentRow();
-                for (int i = 0; i < rows; i++)
-                {
-                    int targetRow = currentRow - 1 - i;
-                    if (targetRow < 0) break;
-                    screen.ClearLine(targetRow);
-                }
-                screen.SetCursor(0, Math.Max(currentRow - rows, 0));
-                return;
-            }
-
-            _cursor.Save(out int savedLeft, out int savedTop);
-            int consoleWidth = TerminalCursor.TryGetWindowWidth();
-
+            var screen = _getScreen()!;
+            int currentRow = screen.GetCurrentRow();
             for (int i = 0; i < rows; i++)
             {
-                int targetTop = savedTop - 1 - i;
-                if (targetTop < 0) break;
-                _cursor.Set(0, targetTop);
-                TerminalCursor.TryWrite(new string(' ', consoleWidth));
+                int targetRow = currentRow - 1 - i;
+                if (targetRow < 0) break;
+                screen.ClearLine(targetRow);
             }
-
-            _cursor.Set(0, Math.Max(savedTop - rows, 0));
+            screen.SetCursor(0, Math.Max(currentRow - rows, 0));
         }
 
         private static void WriteBgEscape(string? hexColor)

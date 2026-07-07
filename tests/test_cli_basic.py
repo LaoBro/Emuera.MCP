@@ -239,17 +239,18 @@ def test_cli_clearline(binary, game_dir):
 
 
 def test_cli_clear(binary, game_dir):
-    """Startup ClearOp: VT 路径下发 ESC[2J；降级路径走 Console.Clear/分隔线，仅校验文本可见。"""
+    """Startup ClearOp: VT 路径下发 ESC[2J。
+
+    ADR-0005 Issue 4：降级路径已删除（VT-only fatal），探测到降级标志或未识别到路径标志均视为 FAIL。
+    """
     text = _capture_cli_with_erb(binary, ERB_STARTUP)
     vt_active, detected = detect_vt_path(text)
     if not detected:
-        warn("未识别到终端路径标志（日志缺失），仅校验文本可见性")
+        check(False, "未识别到终端路径标志（日志缺失，视为回归）")
     elif vt_active:
         check(f"{ESC}[2J" in text, f"VT 路径: 清屏转义 {ESC}[2J 发出")
     else:
-        # 降级路径下 Console.Clear() 在 ConPTY 下行为不一致（可能发 ESC[2J 也可能不发），
-        # 此处不强制断言转义序列，仅校验清屏后游戏文本可见。
-        warn("降级路径: ClearOp 转义序列不强制校验（Console.Clear 行为环境相关）")
+        check(False, "降级路径不应再出现（ADR-0005 已改为 VT-only fatal）")
     check("GameStartMarker" in text, "Game text visible after clear")
 
 
@@ -278,26 +279,27 @@ def test_cli_alignment(binary, game_dir):
 
 
 def test_cli_setbg(binary, game_dir):
-    """SETBGCOLOR: VT 路径下发 ESC[48;2;255;0;0m 转义；降级路径不发（设计如此），仅校验文本可见。
+    """SETBGCOLOR: VT 路径下发 ESC[48;2;255;0;0m 转义。
 
     ConPTY 限制：ConPTY 会消费 24-bit color SGR 序列（ESC[48;2;R;G;Bm），
     不传递给捕获端。因此自动化测试中即使 VT 路径正确发出转义也无法检测到。
     此处改为：VT 路径下若未检测到转义则发 WARN（非 FAIL），提示需手动验证。
+
+    ADR-0005 Issue 4：降级路径已删除（VT-only fatal），探测到降级标志或未识别到路径标志均视为 FAIL。
+    warn 机制仅保留用于 ConPTY 24-bit color SGR 限制场景。
     """
     text = _capture_cli_with_erb(binary, ERB_SETBG)
     vt_active, detected = detect_vt_path(text)
     bg_escape = f"{ESC}[48;2;255;0;0m"
     if not detected:
-        warn("未识别到终端路径标志（日志缺失），仅校验文本可见性")
+        check(False, "未识别到终端路径标志（日志缺失，视为回归）")
     elif vt_active:
         if bg_escape in text:
             check(True, "VT 路径: SETBGCOLOR 发出 ESC[48;2;255;0;0m 转义")
         else:
             warn("VT 路径: SETBGCOLOR 转义未捕获（ConPTY 消费 24-bit color SGR，需手动验证）")
     else:
-        warn("降级路径: SETBGCOLOR VT 转义不会发出（非 VT 终端不支持 SGR）")
-        if bg_escape in text:
-            warn("意外: 降级路径下仍检测到 SETBGCOLOR 转义，请核查路径探测逻辑")
+        check(False, "降级路径不应再出现（ADR-0005 已改为 VT-only fatal）")
     check("RedBackground" in text, "Text after SETBGCOLOR visible")
 
 

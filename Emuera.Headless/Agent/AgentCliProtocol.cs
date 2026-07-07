@@ -25,7 +25,6 @@ namespace MinorShift.Emuera.GameView
         private int _lastWindowWidth = -1;
         private int _lastWindowHeight = -1;
 
-        private readonly TerminalCursor _cursor;
         private readonly ButtonSelectionMode _buttons;
         private readonly CountdownRenderer _countdown;
         private readonly TerminalRenderer _renderer;
@@ -38,15 +37,15 @@ namespace MinorShift.Emuera.GameView
             _terminalSetup = terminalSetup;
             _terminalInput = terminalInput;
             // ADR-0005：VT-only 后 ANSI 始终可用，_ansiEnabled 字段已删除。
-            _cursor = new TerminalCursor();
-            _renderer = new TerminalRenderer(console, () => _screen, _cursor);
+            // ADR-0005 Issue 4：删除降级渲染分支后 _cursor/_requestFullRefresh 字段已移除，
+            // 渲染器假设 _screen 在 VT 主循环内必非 null。
+            _renderer = new TerminalRenderer(console, () => _screen);
             _buttons = new ButtonSelectionMode(
                 console,
                 () => _screen,
-                _renderer.FullRefresh,
                 input => DispatchInput(input),
                 ClearInputBuffer);
-            _countdown = new CountdownRenderer(console, () => _screen, _cursor);
+            _countdown = new CountdownRenderer(console, () => _screen);
         }
 
         internal override Task<string?> GetInitialTurnAsync() => Task.FromResult<string?>(null);
@@ -78,8 +77,9 @@ namespace MinorShift.Emuera.GameView
                 Console.Error.WriteLine("[headless] 终端路径: VT（备用屏 + SGR mouse + DA1 探测）");
                 Console.Error.Flush();
 
+                // ADR-0005 Issue 4：删除外层 FlushBuffer——RunVtLoop 的循环末尾已刷新最终状态，
+                // CleanupVt() 在 finally 中将 _screen 置 null 后再 FlushBuffer 会走到已删除的降级分支。
                 RunVtLoop();
-                _renderer.FlushBuffer();
             }
             catch (Exception ex)
             {
@@ -188,7 +188,7 @@ namespace MinorShift.Emuera.GameView
             console.SubmitTimeout();
             _renderer.FlushBuffer();
             _buttons.SyncButtonState();
-            _buttons.RefreshButtonRegions(_vtInput, force: false);
+            _buttons.RefreshButtonRegions(_vtInput!, force: false);
             return true;
         }
 
@@ -202,12 +202,11 @@ namespace MinorShift.Emuera.GameView
         /// <summary>VT 解析器输出的 ConsoleKeyInfo 入口，复用现有 ProcessKey 分支。</summary>
         internal void ProcessKeyFromVt(ConsoleKeyInfo key) => ProcessKey(key);
 
-        /// <summary>检测终端尺寸变化，返回 true 时调用方触发 FullRefresh。</summary>
+        /// <summary>检测终端尺寸变化，返回 true 时调用方触发 FullRefresh。ADR-0005 Issue 4：_screen 在 VT 主循环内必非 null。</summary>
         private bool CheckResize()
         {
-            if (_screen == null) return false;
-            int w = _screen.WindowWidth;
-            int h = _screen.WindowHeight;
+            int w = _screen!.WindowWidth;
+            int h = _screen!.WindowHeight;
             if (w == _lastWindowWidth && h == _lastWindowHeight) return false;
             _lastWindowWidth = w;
             _lastWindowHeight = h;

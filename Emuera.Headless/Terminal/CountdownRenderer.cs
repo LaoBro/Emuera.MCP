@@ -4,15 +4,15 @@ using MinorShift.Emuera.UI.Game;
 namespace MinorShift.Emuera.GameView
 {
     /// <summary>
-    /// 倒计时行渲染：在终端固定行覆盖写入倒计时文本，支持 VT 绝对定位与非 VT 光标定位。
+    /// 倒计时行渲染：在终端固定行覆盖写入倒计时文本。
     /// ADR-0005：VT-only 后原 <c>_ansiEnabled</c> 字段已删除，ANSI 路径直接走。
+    /// ADR-0005 Issue 4：删除非 VT 光标定位分支与 <c>_cursor</c> 字段，仅保留 VT 绝对定位。
     /// 从 AgentCliProtocol 拆分以隔离倒计时显示状态。
     /// </summary>
     internal sealed class CountdownRenderer
     {
         private readonly EmueraConsole _console;
         private readonly Func<AgentCliVtScreen?> _getScreen;
-        private readonly TerminalCursor _cursor;
 
         // 倒计时行状态（viewport row，备用屏下与 buffer row 等价）
         private int _countdownLineRow = -1;
@@ -21,12 +21,10 @@ namespace MinorShift.Emuera.GameView
 
         public CountdownRenderer(
             EmueraConsole console,
-            Func<AgentCliVtScreen?> getScreen,
-            TerminalCursor cursor)
+            Func<AgentCliVtScreen?> getScreen)
         {
             _console = console;
             _getScreen = getScreen;
-            _cursor = cursor;
         }
 
         /// <summary>检测倒计时状态变化并刷新显示；倒计时结束时重置。</summary>
@@ -51,26 +49,15 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
-        /// <summary>用超时消息覆盖倒计时行。</summary>
+        /// <summary>用超时消息覆盖倒计时行。ADR-0005 Issue 4：删除非 VT 光标定位分支，仅保留 VT 绝对定位。</summary>
         internal void Overwrite(string newText)
         {
             if (_countdownLineRow < 0) return;
 
             string padded = PadToWidth(newText, _lastCountdownWidth, out int newWidth);
 
-            var screen = _getScreen();
-            if (screen != null)
-            {
-                // VT 模式：绝对定位 + 清行尾
-                screen.WriteLineAt(_countdownLineRow, padded);
-            }
-            else
-            {
-                _cursor.Save(out int left, out int top);
-                _cursor.Set(0, _countdownLineRow);
-                TerminalCursor.TryWrite($"\x1b[2K{padded}");
-                _cursor.Set(left, top);
-            }
+            // VT 模式：绝对定位 + 清行尾
+            _getScreen()!.WriteLineAt(_countdownLineRow, padded);
 
             _lastCountdownText = newText;
             _lastCountdownWidth = Math.Max(newWidth, _lastCountdownWidth);

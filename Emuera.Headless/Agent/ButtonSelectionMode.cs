@@ -8,13 +8,14 @@ namespace MinorShift.Emuera.GameView
     /// <summary>
     /// 按钮选择模式：管理方向键导航、高亮、确认，以及 VT 鼠标区域同步。
     /// ADR-0005：VT-only 后原 <c>_ansiEnabled</c> 字段已删除，ANSI 路径直接走。
+    /// ADR-0005 Issue 4：删除 <c>_getScreen() != null</c> / <c>vtInput == null</c>
+    /// 降级分支与 <c>_requestFullRefresh</c> 字段，调用方保证 VT 主循环内必非 null。
     /// 从 AgentCliProtocol 拆分以隔离按钮相关状态与逻辑。
     /// </summary>
     internal sealed class ButtonSelectionMode
     {
         private readonly EmueraConsole _console;
         private readonly Func<AgentCliVtScreen?> _getScreen;
-        private readonly Action _requestFullRefresh;
         private readonly Action<string> _dispatchInput;
         private readonly Action _clearInputBuffer;
 
@@ -27,13 +28,11 @@ namespace MinorShift.Emuera.GameView
         public ButtonSelectionMode(
             EmueraConsole console,
             Func<AgentCliVtScreen?> getScreen,
-            Action requestFullRefresh,
             Action<string> dispatchInput,
             Action clearInputBuffer)
         {
             _console = console;
             _getScreen = getScreen;
-            _requestFullRefresh = requestFullRefresh;
             _dispatchInput = dispatchInput;
             _clearInputBuffer = clearInputBuffer;
         }
@@ -127,7 +126,7 @@ namespace MinorShift.Emuera.GameView
                         _console.SetSelectingButton(newPositions[_selectedButtonIndex].Button);
                         if (oldRow >= 0) RedrawButtonLine(oldRow);
                         int newRow = newPositions[_selectedButtonIndex].Row;
-                        if (newRow != oldRow && _getScreen() != null)
+                        if (newRow != oldRow)
                             RedrawButtonLine(newRow);
                     }
                 }
@@ -138,11 +137,9 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
-        /// <summary>刷新 VT 鼠标命中区域。仅 VT 模式有效。</summary>
-        internal void RefreshButtonRegions(VtInputHandler? vtInput, bool force = false)
+        /// <summary>刷新 VT 鼠标命中区域。ADR-0005 Issue 4：VT-only 后 vtInput 必非 null。</summary>
+        internal void RefreshButtonRegions(VtInputHandler vtInput, bool force = false)
         {
-            if (vtInput == null) return;
-
             // 非按钮模式或无请求时清除所有区域，防止过期按钮被点击触发
             var req = _console.CurrentRequest;
             if (req == null || req.InputType == InputType.EnterKey || req.InputType == InputType.AnyKey)
@@ -161,7 +158,7 @@ namespace MinorShift.Emuera.GameView
             var lines = _console.DisplayLineList;
             if (lines == null || lines.Count == 0) return;
 
-            int windowHeight = _getScreen()?.WindowHeight ?? TerminalCursor.TryGetWindowHeight();
+            int windowHeight = _getScreen()!.WindowHeight;
             int visibleLines = Math.Min(Math.Max(windowHeight - 1, 1), lines.Count);
             int startLine = Math.Max(0, lines.Count - visibleLines);
 
@@ -196,7 +193,7 @@ namespace MinorShift.Emuera.GameView
             var lines = _console.DisplayLineList;
             if (lines == null || lines.Count == 0) return result;
 
-            int windowHeight = _getScreen()?.WindowHeight ?? TerminalCursor.TryGetWindowHeight();
+            int windowHeight = _getScreen()!.WindowHeight;
             int visibleLines = Math.Min(Math.Max(windowHeight - 1, 1), lines.Count);
             int startLine = Math.Max(0, lines.Count - visibleLines);
 
@@ -241,36 +238,28 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>
         /// 重绘指定 viewport 行的按钮内容（含选中高亮）。
-        /// VT 模式用绝对定位单行重绘，非 VT 模式退化为 FullRefresh。
+        /// ADR-0005 Issue 4：删除非 VT FullRefresh 退化分支，仅保留 VT 绝对定位单行重绘。
         /// </summary>
         private void RedrawButtonLine(int viewportRow)
         {
-            var screen = _getScreen();
-            if (screen != null)
-            {
-                int savedRow, savedCol;
-                try { savedRow = Console.CursorTop; savedCol = Console.CursorLeft; }
-                catch (Exception) { /* 光标位置探测失败，用 0,0 */ savedRow = 0; savedCol = 0; }
+            var screen = _getScreen()!;
+            int savedRow, savedCol;
+            try { savedRow = Console.CursorTop; savedCol = Console.CursorLeft; }
+            catch (Exception) { /* 光标位置探测失败，用 0,0 */ savedRow = 0; savedCol = 0; }
 
-                var lines = _console.DisplayLineList;
-                int windowHeight = screen.WindowHeight;
-                int visibleLines = Math.Min(Math.Max(windowHeight - 1, 1), lines.Count);
-                int startLine = Math.Max(0, lines.Count - visibleLines);
-                int lineIndex = startLine + viewportRow;
-                if (lineIndex >= 0 && lineIndex < lines.Count)
-                {
-                    string formatted = TerminalLineFormatter.FormatLineForTerminal(
-                        lines[lineIndex], _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true);
-                    screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
-                }
-
-                screen.SetCursor(savedRow, savedCol);
-            }
-            else
+            var lines = _console.DisplayLineList;
+            int windowHeight = screen.WindowHeight;
+            int visibleLines = Math.Min(Math.Max(windowHeight - 1, 1), lines.Count);
+            int startLine = Math.Max(0, lines.Count - visibleLines);
+            int lineIndex = startLine + viewportRow;
+            if (lineIndex >= 0 && lineIndex < lines.Count)
             {
-                // 非 VT 模式无法定位单行，退化为全量刷新
-                _requestFullRefresh();
+                string formatted = TerminalLineFormatter.FormatLineForTerminal(
+                    lines[lineIndex], _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true);
+                screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
             }
+
+            screen.SetCursor(savedRow, savedCol);
         }
 
         private void ProcessButtonModeKey(ConsoleKeyInfo key)
@@ -318,7 +307,7 @@ namespace MinorShift.Emuera.GameView
                 _selectedButtonIndex = newIdx;
                 _console.SetSelectingButton(_buttonPositions[newIdx].Button);
                 RedrawButtonLine(oldRow);
-                if (newRow != oldRow && _getScreen() != null)
+                if (newRow != oldRow)
                     RedrawButtonLine(newRow);
             }
         }
