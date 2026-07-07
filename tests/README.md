@@ -38,6 +38,8 @@ python tests/test_server_single_session.py
 python tests/test_tinput_timeout.py
 python tests/test_fatal_turn.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 python tests/test_force_quit_survival.py
+python tests/test_cli_basic.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+python tests/test_cli_basic.py --game-dir test_game  # 自动查找 binary
 ```
 
 也可以用一个入口运行常规回归：
@@ -53,6 +55,7 @@ python tests/run_all.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headle
 3. TINPUT timeout 测试。
 4. fatal turn 测试（脚本异常路径）。
 5. I-11 exit survival 测试。
+6. CLI 交互模式基础测试（happy path + ConPTY smoke tests）。
 
 在 Windows 命令行中，如果相对路径启动失败，请使用绝对路径，例如：
 
@@ -79,9 +82,23 @@ T-024 后 stdin 管道 JSONL 模式已废弃，`AgentJsonlProtocol` 仅由 serve
 5. `POST /input {"value":"0"}` 推进游戏。
 6. 验证第二轮菜单和最终 `Quit` 状态。
 
-## CLI 交互模式
+## CLI 交互模式（ConPTY smoke test）
 
-T-024 后 stdin 管道 CLI 模式已废弃，`AgentCliProtocol` 仅支持交互式终端（VT 路径或 `ConsoleKey` 降级路径）。交互式 CLI 无法在无 TTY 的 CI 环境中自动化，协议层覆盖由 server 模式测试承担；终端渲染与按键处理需在真实终端中手动验证。
+T-024 后 stdin 管道 CLI 模式已废弃，`AgentCliProtocol` 仅支持交互式终端（VT 路径或 `ConsoleKey` 降级路径）。交互式 CLI 的终端渲染通过 `test_cli_basic.py` 在 Windows ConPTY（pywinpty）中进行黑盒验证。
+
+`test_cli_basic.py` 通过 `PtyProcess.spawn` 启动 CLI 子进程，捕获原始 ConPTY 输出（含 VT 序列），验证以下路径：
+
+| 测试 | 注入 ERB | 验证点 |
+|------|----------|--------|
+| happy path | 标准 TEST.ERB（PRINTL/INPUT/QUIT） | 菜单文本、按钮选择、推进到第二屏 |
+| `clearline` | PRINTL → CLEARLINE 1 → PRINTL | 被删行内容不在输出中；后续行正常显示 |
+| `clear` | 启动时 ClearOp | `\x1b[2J` 转义序列已发出；游戏文本正确显示 |
+| `merge` | 连续两次 PRINT（无 NewLine） | "HelloWorld" 作为合并字符串出现 |
+| `alignment` | PRINTC "AlignCheck" | 文本前有前导空格（PrintC 对齐填充，默认 25 字符） |
+
+> **注意：** CLEAR 指令是 C# 内部调用（`ClearDisplay()`），非可用 ERB 命令；`test_cli_clear` 验证的是启动时 `ConsoleStateManager.Initialize()` 发出的系统 ClearOp。
+
+非 Windows 或无 pywinpty 时自动跳过。`run_all.py` 已包含 CLI 测试。
 
 ## TINPUT timeout 测试
 
