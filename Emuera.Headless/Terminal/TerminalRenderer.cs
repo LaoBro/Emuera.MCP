@@ -57,6 +57,13 @@ namespace MinorShift.Emuera.GameView
                         if (_getScreen() != null && _ansiEnabled)
                             WriteBgEscape(bg.color);
                         break;
+                    case ClearLineOp:
+                        // CLEARLINE N 后 displayLineList 末尾行被删除、LineNo 回退，
+                        // 后续可能重印同 LineNo 的新行。重置 delta tracking 迫使走 FullRefresh，
+                        // 避免增量分支因 LineNo 相等/回环漏掉重绘导致按钮区域与终端显示错位。
+                        _lastRenderedLineNo = -1;
+                        _lastRenderedLastLine = null;
+                        break;
                 }
             });
             if (cleared) return;
@@ -78,22 +85,32 @@ namespace MinorShift.Emuera.GameView
                 return;
             }
 
+            // 上一轮 FlushBuffer 末行 IsLineEnd=false（PRINTN/PRINTC 等）时，
+            // CLI 协议在回合间会写输入提示/回显，光标已不在该行末尾。
+            // 增量擦除依赖光标位置会擦错行，改走 FullRefresh（绝对定位）最安全。
+            if (_lastRenderedLastLine != null && !_lastRenderedLastLine.IsLineEnd)
+            {
+                FullRefresh();
+                return;
+            }
+
             if (currentLineNo > _lastRenderedLineNo)
             {
                 WriteNewLinesSince(lines, _lastRenderedLineNo, _lastRenderedLastLine);
             }
             else if (currentLineNo < _lastRenderedLineNo)
             {
-                int delta = _lastRenderedLineNo - currentLineNo;
-                EraseTerminalRows(delta);
-                if (!ReferenceEquals(_lastRenderedLastLine, lastLine))
-                {
-                    EraseTerminalRows(1);
-                    WriteDisplayLine(lastLine);
-                }
+                // 删行场景：LineNo 回退，增量擦除涉及 IsLineEnd 光标位置复杂性。
+                // ClearLineOp 已在 drain 时重置 tracking 走 FullRefresh，此分支仅处理
+                // LineNo 回环等罕见边界，直接全量重绘最安全。
+                FullRefresh();
+                return;
             }
             else
             {
+                // LineNo 不变但行对象变更：擦除末行后重写。
+                // IsLineEnd=false 的情况已在上方由 FullRefresh 处理，
+                // 到这里 _lastRenderedLastLine.IsLineEnd 必为 true。
                 if (!ReferenceEquals(_lastRenderedLastLine, lastLine))
                 {
                     EraseTerminalRows(1);
@@ -235,14 +252,8 @@ namespace MinorShift.Emuera.GameView
             }
             if (startIdx < 0) startIdx = 0;
 
-            if (lastRenderedLastLine != null
-                && !lastRenderedLastLine.IsLineEnd
-                && startIdx > 0)
-            {
-                EraseTerminalRows(1);
-                startIdx--;
-            }
-
+            // IsLineEnd=false 的上一行已在 FlushBuffer 入口由 FullRefresh 处理，
+            // 到此处的 lastRenderedLastLine.IsLineEnd 必为 true，光标在下一行行首。
             for (int i = startIdx; i < lines.Count; i++)
                 WriteDisplayLine(lines[i]);
         }
