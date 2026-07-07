@@ -2,15 +2,12 @@ using System;
 
 namespace MinorShift.Emuera.GameView
 {
+    /// <summary>
+    /// 终端光标操作。ADR-0005：VT-only 后所有方法直接走 ANSI 路径，
+    /// 原 <c>_ansi</c> 字段及非 ANSI 分支已删除。
+    /// </summary>
     internal sealed class TerminalCursor
     {
-        private readonly bool _ansi;
-
-        public TerminalCursor(bool ansiEnabled)
-        {
-            _ansi = ansiEnabled;
-        }
-
         public void Save(out int left, out int top)
         {
             try { left = Console.CursorLeft; top = Console.CursorTop; }
@@ -19,50 +16,32 @@ namespace MinorShift.Emuera.GameView
 
         public void Set(int left, int top)
         {
-            if (_ansi)
-                TryWrite($"\x1b[{top + 1};{left + 1}H");
-            else
-                TrySetCursorPosition(left, top);
+            TryWrite($"\x1b[{top + 1};{left + 1}H");
         }
 
         public void ClearLine()
         {
-            if (_ansi)
-            {
-                TryWrite("\x1b[2K\r");
-                return;
-            }
-            int top = Console.CursorTop;
-            int width = TryGetWindowWidth();
-            TrySetCursorPosition(0, top);
-            TryWrite(new string(' ', width - 1));
-            TrySetCursorPosition(0, top);
+            TryWrite("\x1b[2K\r");
         }
 
+        /// <summary>
+        /// 清屏。ADR-0005：VT-only 后仅保留 ANSI 路径（ESC[2J + ESC[H）。
+        /// 原 Console.Clear() + === 分隔线 fallback 已删除。
+        /// </summary>
         public void ClearScreen()
         {
-            bool cleared = false;
-            try { Console.Clear(); cleared = true; }
-            catch (Exception) { /* Console.Clear 在 redirected 下失败，忽略 */ }
-
-            if (!cleared && _ansi)
-            {
-                try { Console.Write("\x1b[2J\x1b[H"); cleared = true; }
-                catch (Exception) { /* ANSI clear 失败，忽略 */ }
-            }
-
-            if (!cleared)
-                Console.WriteLine(new string('=', Math.Max(TryGetWindowWidth() - 1, 20)));
+            try { Console.Write("\x1b[2J\x1b[H"); }
+            catch (Exception) { /* redirected console 写入失败，忽略 */ }
         }
 
         public void SaveAnsi()
         {
-            if (_ansi) TryWrite("\x1b7");
+            TryWrite("\x1b7");
         }
 
         public void RestoreAnsi()
         {
-            if (_ansi) TryWrite("\x1b8");
+            TryWrite("\x1b8");
         }
 
         public static void TryWrite(string text)

@@ -26,7 +26,6 @@ namespace MinorShift.Emuera.GameView
         private int _lastWindowHeight = -1;
 
         private readonly TerminalCursor _cursor;
-        private readonly bool _ansiEnabled;
         private readonly ButtonSelectionMode _buttons;
         private readonly CountdownRenderer _countdown;
         private readonly TerminalRenderer _renderer;
@@ -38,17 +37,16 @@ namespace MinorShift.Emuera.GameView
         {
             _terminalSetup = terminalSetup;
             _terminalInput = terminalInput;
-            _ansiEnabled = terminalSetup.IsAnsiEnabled;
-            _cursor = new TerminalCursor(_ansiEnabled);
-            _renderer = new TerminalRenderer(console, () => _screen, _cursor, _ansiEnabled);
+            // ADR-0005：VT-only 后 ANSI 始终可用，_ansiEnabled 字段已删除。
+            _cursor = new TerminalCursor();
+            _renderer = new TerminalRenderer(console, () => _screen, _cursor);
             _buttons = new ButtonSelectionMode(
                 console,
                 () => _screen,
                 _renderer.FullRefresh,
                 input => DispatchInput(input),
-                ClearInputBuffer,
-                _ansiEnabled);
-            _countdown = new CountdownRenderer(console, () => _screen, _cursor, _ansiEnabled);
+                ClearInputBuffer);
+            _countdown = new CountdownRenderer(console, () => _screen, _cursor);
         }
 
         internal override Task<string?> GetInitialTurnAsync() => Task.FromResult<string?>(null);

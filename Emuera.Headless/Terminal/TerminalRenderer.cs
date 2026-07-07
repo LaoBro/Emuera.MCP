@@ -6,7 +6,7 @@ namespace MinorShift.Emuera.GameView
 {
     /// <summary>
     /// 终端输出渲染：刷新屏幕、擦除行、刷新缓冲区。
-    /// 支持 VT 备用屏绝对定位与非 VT 自然滚动两种模式。
+    /// ADR-0005：VT-only 后原 <c>_ansiEnabled</c> 字段已删除，调用方假设 ANSI 可用。
     /// 从 AgentCliProtocol 拆分以隔离终端输出逻辑。
     /// </summary>
     internal sealed class TerminalRenderer
@@ -14,7 +14,6 @@ namespace MinorShift.Emuera.GameView
         private readonly EmueraConsole _console;
         private readonly Func<AgentCliVtScreen?> _getScreen;
         private readonly TerminalCursor _cursor;
-        private readonly bool _ansiEnabled;
 
         private int _lastRenderedLineNo = -1;
         private ConsoleDisplayLine? _lastRenderedLastLine;
@@ -23,13 +22,11 @@ namespace MinorShift.Emuera.GameView
         public TerminalRenderer(
             EmueraConsole console,
             Func<AgentCliVtScreen?> getScreen,
-            TerminalCursor cursor,
-            bool ansiEnabled)
+            TerminalCursor cursor)
         {
             _console = console;
             _getScreen = getScreen;
             _cursor = cursor;
-            _ansiEnabled = ansiEnabled;
         }
 
         /// <summary>Flush pending ops and render displayLineList delta to terminal.</summary>
@@ -54,7 +51,7 @@ namespace MinorShift.Emuera.GameView
                         break;
                     case SetBgOp bg:
                         _currentBgHex = bg.color;
-                        if (_getScreen() != null && _ansiEnabled)
+                        if (_getScreen() != null)
                             WriteBgEscape(bg.color);
                         break;
                     case ClearLineOp:
@@ -132,7 +129,7 @@ namespace MinorShift.Emuera.GameView
             {
                 screen.ClearScreen();
 
-                if (_currentBgHex != null && _ansiEnabled)
+                if (_currentBgHex != null)
                     WriteBgEscape(_currentBgHex);
 
                 if (lines.Count == 0) goto SyncState;
@@ -146,7 +143,7 @@ namespace MinorShift.Emuera.GameView
                     int lineIndex = startLine + i;
                     int viewportRow = i;
                     string formatted = TerminalLineFormatter.FormatLineForTerminal(
-                        lines[lineIndex], _console.SelectingButton, _console.CharWidthConfig, _ansiEnabled);
+                        lines[lineIndex], _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true);
                     screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
                 }
 
@@ -165,7 +162,7 @@ namespace MinorShift.Emuera.GameView
                 for (int i = startLn; i < lines.Count; i++)
                 {
                     string formatted = TerminalLineFormatter.FormatLineForTerminal(
-                        lines[i], _console.SelectingButton, _console.CharWidthConfig, _ansiEnabled);
+                        lines[i], _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true);
                     Console.WriteLine(formatted.Length > 0 ? formatted : "");
                 }
             }
@@ -229,7 +226,7 @@ namespace MinorShift.Emuera.GameView
         private void WriteDisplayLine(ConsoleDisplayLine line)
         {
             string text = TerminalLineFormatter.FormatLineForTerminal(
-                line, _console.SelectingButton, _console.CharWidthConfig, _ansiEnabled);
+                line, _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true);
             if (line.IsLineEnd)
                 Console.WriteLine(text);
             else
