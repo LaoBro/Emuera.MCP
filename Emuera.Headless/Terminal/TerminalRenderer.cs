@@ -128,7 +128,8 @@ namespace MinorShift.Emuera.GameView
                 {
                     int lineIndex = startLine + i;
                     int viewportRow = i;
-                    string formatted = _console.FormatLineForTerminal(lines[lineIndex]);
+                    string formatted = TerminalLineFormatter.FormatLineForTerminal(
+                        lines[lineIndex], _console.SelectingButton, _console.CharWidthConfig, _ansiEnabled);
                     screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
                 }
 
@@ -146,7 +147,8 @@ namespace MinorShift.Emuera.GameView
 
                 for (int i = startLn; i < lines.Count; i++)
                 {
-                    string formatted = _console.FormatLineForTerminal(lines[i]);
+                    string formatted = TerminalLineFormatter.FormatLineForTerminal(
+                        lines[i], _console.SelectingButton, _console.CharWidthConfig, _ansiEnabled);
                     Console.WriteLine(formatted.Length > 0 ? formatted : "");
                 }
             }
@@ -209,7 +211,8 @@ namespace MinorShift.Emuera.GameView
 
         private void WriteDisplayLine(ConsoleDisplayLine line)
         {
-            string text = _console.FormatLineForTerminal(line);
+            string text = TerminalLineFormatter.FormatLineForTerminal(
+                line, _console.SelectingButton, _console.CharWidthConfig, _ansiEnabled);
             if (line.IsLineEnd)
                 Console.WriteLine(text);
             else

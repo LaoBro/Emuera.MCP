@@ -100,7 +100,7 @@ internal sealed class ConsoleButtonString
 		if (mask != null)
 		{
 			var offsetX = pointX - PointX - mask.PointX - Config.DrawingParam_ShapePositionShift;
-			var offsetY = pointY - parent.GetLinePointY(ParentLine.LineNo) - mask.Top;
+			var offsetY = pointY - 0 - mask.Top;
 			if (offsetX > 0 && offsetX < mask.Width && offsetY > 0 && offsetY < mask.Bottom - mask.Top)
 				return mask.GetMappingColor(offsetX, offsetY);
 		}

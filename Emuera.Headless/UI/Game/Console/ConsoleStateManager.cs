@@ -65,7 +65,7 @@ internal sealed class ConsoleStateManager
         GlobalStatic.Process = _state.process!;
         if (Program.DebugMode && Config.DebugShowWindow)
         {
-            _console.OpenDebugDialog();
+            // OpenDebugDialog: WinForms-only stub removed in Headless
             _ui.Focus();
         }
         _console.ClearDisplay();
@@ -362,7 +362,7 @@ internal sealed class ConsoleStateManager
                 _console.RefreshStrings(true);
                 return;
             }
-            _console.OpenDebugDialog();
+            // OpenDebugDialog: WinForms-only stub removed in Headless
         }
         else
         {
@@ -372,7 +372,7 @@ internal sealed class ConsoleStateManager
                 _console.RefreshStrings(true);
                 return;
             }
-            _console.DebugCommand(com, Config.ChangeMasterNameIfDebug, false);
+            // DebugCommand: WinForms-only stub removed in Headless
             _console.PrintFlush(false);
         }
         _console.RefreshStrings(true);

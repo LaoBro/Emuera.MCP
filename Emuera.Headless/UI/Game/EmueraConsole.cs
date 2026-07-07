@@ -34,7 +34,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     internal readonly PrintStringBuffer printBuffer;
     internal readonly StringMeasure stringMeasure = new();
 
-    public EmueraConsole(IConsoleUI ui, ITerminalSetup terminalSetup)
+    internal EmueraConsole(IConsoleUI ui, ITerminalSetup terminalSetup)
     {
         _uiAdapter = ui;
         _terminalSetup = terminalSetup;
@@ -57,38 +57,38 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
 
     internal ConsoleState State => _state.State;
     internal InputRequest? CurrentRequest => _state.inputReq;
-    public IConsoleUI UIAdapter => _uiAdapter;
-    public bool Enabled => _uiAdapter.Created;
+    internal IConsoleUI UIAdapter => _uiAdapter;
+    internal bool Enabled => _uiAdapter.Created;
     internal bool IsActive => _uiAdapter.IsActive;
-    public bool MesSkip { get => _state.MesSkip; set => _state.MesSkip = value; }
-    public InputRequest? inputReq { get => _state.inputReq; set => _state.inputReq = value; }
-    public bool IsTimeOut => _state.isTimeout;
-    public InputType NowInputType => _state.inputReq!.InputType;
-    public List<ConsoleDisplayLine> DisplayLineList => _state.displayLineList;
-    public PrintStringBuffer PrintBuffer => printBuffer;
-    public Dictionary<int, List<AConsoleDisplayNode>>? EscapedParts => _state.escapedParts;
-    public int GetLineNo => _state.lineNo;
-    public long LineCount => _state.logicalLineCount;
-    public long DeletedLines => _state.deletedLines;
-    public ConsoleButtonString? SelectingButton => _state.selectingButton;
-    public ConsoleButtonString? PointingSring => _state.pointingString;
-    public bool AlwaysRefresh { get => _state.AlwaysRefresh; set => _state.AlwaysRefresh = value; }
-    public bool RunERBFromMemory { get => _state.runningERBfromMemory; set => _state.runningERBfromMemory = value; }
-    public bool LastLineIsTemporary => _printManager.LastLineIsTemporary;
-    public bool LastLineIsEmpty => _printManager.LastLineIsEmpty;
-    public bool EmptyLine => printBuffer.IsEmpty;
-    public bool noOutputLog { get => _state.noOutputLog; set => _state.noOutputLog = value; }
-    public EmuColor bgColor { get => _state.bgColor; set => _state.bgColor = value; }
-    public bool UseUserStyle { get => _state.UseUserStyle; set => _state.UseUserStyle = value; }
-    public bool UseSetColorStyle { get => _state.UseSetColorStyle; set => _state.UseSetColorStyle = value; }
-    public StringStyle StringStyle => _state.userStyle;
-    public DisplayLineAlignment Alignment { get => _state.alignment; set => _state.alignment = value; }
-    public bool UpdatedGeneration { get => _state.updatedGeneration; set => _state.updatedGeneration = value; }
-    public int LastButtonGeneration => (int)_state.lastButtonGeneration;
-    public int NewButtonGeneration => (int)_state.newButtonGeneration;
-    public ConsoleRedraw Redraw => _state.redraw;
-    public StringMeasure StrMeasure => stringMeasure;
-    public bool IsRunning
+    internal bool MesSkip { get => _state.MesSkip; set => _state.MesSkip = value; }
+    internal InputRequest? inputReq { get => _state.inputReq; set => _state.inputReq = value; }
+    internal bool IsTimeOut => _state.isTimeout;
+    internal InputType NowInputType => _state.inputReq!.InputType;
+    internal List<ConsoleDisplayLine> DisplayLineList => _state.displayLineList;
+    internal PrintStringBuffer PrintBuffer => printBuffer;
+    internal Dictionary<int, List<AConsoleDisplayNode>>? EscapedParts => _state.escapedParts;
+    internal int GetLineNo => _state.lineNo;
+    internal long LineCount => _state.logicalLineCount;
+    internal long DeletedLines => _state.deletedLines;
+    internal ConsoleButtonString? SelectingButton => _state.selectingButton;
+    internal ConsoleButtonString? PointingSring => _state.pointingString;
+    internal bool AlwaysRefresh { get => _state.AlwaysRefresh; set => _state.AlwaysRefresh = value; }
+    internal bool RunERBFromMemory { get => _state.runningERBfromMemory; set => _state.runningERBfromMemory = value; }
+    internal bool LastLineIsTemporary => _printManager.LastLineIsTemporary;
+    internal bool LastLineIsEmpty => _printManager.LastLineIsEmpty;
+    internal bool EmptyLine => printBuffer.IsEmpty;
+    internal bool noOutputLog { get => _state.noOutputLog; set => _state.noOutputLog = value; }
+    internal EmuColor bgColor { get => _state.bgColor; set => _state.bgColor = value; }
+    internal bool UseUserStyle { get => _state.UseUserStyle; set => _state.UseUserStyle = value; }
+    internal bool UseSetColorStyle { get => _state.UseSetColorStyle; set => _state.UseSetColorStyle = value; }
+    internal StringStyle StringStyle => _state.userStyle;
+    internal DisplayLineAlignment Alignment { get => _state.alignment; set => _state.alignment = value; }
+    internal bool UpdatedGeneration { get => _state.updatedGeneration; set => _state.updatedGeneration = value; }
+    internal int LastButtonGeneration => (int)_state.lastButtonGeneration;
+    internal int NewButtonGeneration => (int)_state.newButtonGeneration;
+    internal ConsoleRedraw Redraw => _state.redraw;
+    internal StringMeasure StrMeasure => stringMeasure;
+    internal bool IsRunning
     {
         get
         {
@@ -96,7 +96,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
             return _state.State == ConsoleState.Running || _state.runningERBfromMemory;
         }
     }
-    public bool IsInProcess
+    internal bool IsInProcess
     {
         get
         {
@@ -106,8 +106,8 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
             return _state.State == ConsoleState.Running || _state.runningERBfromMemory;
         }
     }
-    public bool IsError => _state.State == ConsoleState.Error;
-    public bool IsWaitingEnterKey
+    internal bool IsError => _state.State == ConsoleState.Error;
+    internal bool IsWaitingEnterKey
     {
         get
         {
@@ -124,7 +124,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
             return false;
         }
     }
-    public bool IsWaitAnyKey
+    internal bool IsWaitAnyKey
     {
         get
         {
@@ -132,15 +132,15 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
             return _state.State == ConsoleState.WaitInput && _state.inputReq?.InputType == InputType.AnyKey;
         }
     }
-    public bool IsWaintingOnePhrase => _state.State == ConsoleState.WaitInput && _state.inputReq?.OneInput == true;
-    public bool IsWaintingInputWithMouse => _state.State == ConsoleState.WaitInput && _state.inputReq?.MouseInput == true;
-    public bool IsRunningTimer => _state.State == ConsoleState.WaitInput && (_state.inputReq?.Timelimit ?? 0) > 0 && !_state.isTimeout;
-    public bool IsWaitingPrimitive => _state.State == ConsoleState.WaitInput && _state.inputReq?.InputType == InputType.PrimitiveMouseKey;
-    public bool ButtonIsSelected(ConsoleButtonString button) => _state.selectingButton == button;
-    public bool ButtonIsPointing(ConsoleButtonString button) => _state.pointingStrings.Contains(button);
-    public int ClientWidth => _uiAdapter.ClientWidth;
-    public int ClientHeight => _uiAdapter.ClientHeight;
-    public string? SelectedString
+    internal bool IsWaintingOnePhrase => _state.State == ConsoleState.WaitInput && _state.inputReq?.OneInput == true;
+    internal bool IsWaintingInputWithMouse => _state.State == ConsoleState.WaitInput && _state.inputReq?.MouseInput == true;
+    internal bool IsRunningTimer => _state.State == ConsoleState.WaitInput && (_state.inputReq?.Timelimit ?? 0) > 0 && !_state.isTimeout;
+    internal bool IsWaitingPrimitive => _state.State == ConsoleState.WaitInput && _state.inputReq?.InputType == InputType.PrimitiveMouseKey;
+    internal bool ButtonIsSelected(ConsoleButtonString button) => _state.selectingButton == button;
+    internal bool ButtonIsPointing(ConsoleButtonString button) => _state.pointingStrings.Contains(button);
+    internal int ClientWidth => _uiAdapter.ClientWidth;
+    internal int ClientHeight => _uiAdapter.ClientHeight;
+    internal string? SelectedString
     {
         get
         {
@@ -163,33 +163,33 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // Lifecycle delegation
     // ========================================
 
-    public System.Threading.Tasks.Task Initialize() => _stateManager.Initialize();
-    public void Quit() => _stateManager.Quit();
-    public void ForceQuit() => _stateManager.ForceQuit();
-    public void ThrowTitleError(bool error) => _stateManager.ThrowTitleError(error);
-    public void ThrowError(bool playSound) => _stateManager.ThrowError(playSound);
-    public void GotoTitle() => _stateManager.GotoTitle();
-    public void GotoTitleAndLoadAndRepeatInput() => _stateManager.GotoTitleAndLoadAndRepeatInput();
-    public System.Threading.Tasks.Task ReloadErb() => _stateManager.ReloadErb();
-    public void ReloadErbFinished() => _stateManager.ReloadErbFinished();
-    public System.Threading.Tasks.Task ReloadPartialErb(List<string> path) => _stateManager.ReloadPartialErb(path);
-    public System.Threading.Tasks.Task ReloadFolder(string erbPath) => _stateManager.ReloadFolder(erbPath);
-    public void ReloadResource() => _stateManager.ReloadResource();
-    public void Await(int time) => _stateManager.Await(time);
+    internal System.Threading.Tasks.Task Initialize() => _stateManager.Initialize();
+    internal void Quit() => _stateManager.Quit();
+    internal void ForceQuit() => _stateManager.ForceQuit();
+    internal void ThrowTitleError(bool error) => _stateManager.ThrowTitleError(error);
+    internal void ThrowError(bool playSound) => _stateManager.ThrowError(playSound);
+    internal void GotoTitle() => _stateManager.GotoTitle();
+    internal void GotoTitleAndLoadAndRepeatInput() => _stateManager.GotoTitleAndLoadAndRepeatInput();
+    internal System.Threading.Tasks.Task ReloadErb() => _stateManager.ReloadErb();
+    internal void ReloadErbFinished() => _stateManager.ReloadErbFinished();
+    internal System.Threading.Tasks.Task ReloadPartialErb(List<string> path) => _stateManager.ReloadPartialErb(path);
+    internal System.Threading.Tasks.Task ReloadFolder(string erbPath) => _stateManager.ReloadFolder(erbPath);
+    internal void ReloadResource() => _stateManager.ReloadResource();
+    internal void Await(int time) => _stateManager.Await(time);
 
     // ========================================
     // Input delegation
     // ========================================
 
-    public void WaitInput(InputRequest req) => _inputHandler.WaitInput(req);
-    public void ReadAnyKey(bool anykey = false, bool stopMesskip = false) => _inputHandler.ReadAnyKey(anykey, stopMesskip);
-    public void PressEnterKey(bool keySkip, string input, bool changedByMouse) => _inputHandler.PressEnterKey(keySkip, input, changedByMouse);
-    public void InputMouseKey(int type, int result1, int result2, int result3, int result4, long result5) => _inputHandler.InputMouseKey(type, result1, result2, result3, result4, result5);
-    public void MouseWheel(EmuPoint point, int delta) => _inputHandler.MouseWheel(point, delta);
-    public void MouseDown(EmuPoint point, int button) => _inputHandler.MouseDown(point, button);
-    public void PressPrimitiveKey(int keycode, int keydata, int keymod) => _inputHandler.PressPrimitiveKey(keycode, keydata, keymod);
-    public bool MoveMouse(EmuPoint point) => _inputHandler.MoveMouse(point);
-    public void LeaveMouse() => _inputHandler.LeaveMouse();
+    internal void WaitInput(InputRequest req) => _inputHandler.WaitInput(req);
+    internal void ReadAnyKey(bool anykey = false, bool stopMesskip = false) => _inputHandler.ReadAnyKey(anykey, stopMesskip);
+    internal void PressEnterKey(bool keySkip, string input, bool changedByMouse) => _inputHandler.PressEnterKey(keySkip, input, changedByMouse);
+    internal void InputMouseKey(int type, int result1, int result2, int result3, int result4, long result5) => _inputHandler.InputMouseKey(type, result1, result2, result3, result4, result5);
+    internal void MouseWheel(EmuPoint point, int delta) => _inputHandler.MouseWheel(point, delta);
+    internal void MouseDown(EmuPoint point, int button) => _inputHandler.MouseDown(point, button);
+    internal void PressPrimitiveKey(int keycode, int keydata, int keymod) => _inputHandler.PressPrimitiveKey(keycode, keydata, keymod);
+    internal bool MoveMouse(EmuPoint point) => _inputHandler.MoveMouse(point);
+    internal void LeaveMouse() => _inputHandler.LeaveMouse();
     internal void SetSelectingButton(ConsoleButtonString? button) => _inputHandler.SetSelectingButton(button);
     internal List<ConsoleButtonString> CollectCurrentButtons()
     {
@@ -202,71 +202,71 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // Print delegation
     // ========================================
 
-    public void Print(string str, bool lineEnd = true) => _printManager.Print(str, lineEnd);
-    public void PrintSingleLine(string str) => _printManager.PrintSingleLine(str);
-    public void PrintSingleLine(string str, bool temporary) => _printManager.PrintSingleLine(str, temporary);
-    public void PrintC(string str, bool alignmentRight) => _printManager.PrintC(str, alignmentRight);
-    public void PrintFlush(bool force) => _printManager.PrintFlush(force);
-    public void PrintSystemLine(string str) => _printManager.PrintSystemLine(str);
-    public void PrintError(string str) => _printManager.PrintError(str);
+    internal void Print(string str, bool lineEnd = true) => _printManager.Print(str, lineEnd);
+    internal void PrintSingleLine(string str) => _printManager.PrintSingleLine(str);
+    internal void PrintSingleLine(string str, bool temporary) => _printManager.PrintSingleLine(str, temporary);
+    internal void PrintC(string str, bool alignmentRight) => _printManager.PrintC(str, alignmentRight);
+    internal void PrintFlush(bool force) => _printManager.PrintFlush(force);
+    internal void PrintSystemLine(string str) => _printManager.PrintSystemLine(str);
+    internal void PrintError(string str) => _printManager.PrintError(str);
     internal void PrintErrorButton(string str, ScriptPosition? pos, int level = 0) => _printManager.PrintErrorButton(str, pos, level);
-    public void PrintWarning(string str, ScriptPosition? position, int level) => _printManager.PrintWarning(str, position, level);
-    public void PrintTemporaryLine(string str) => _printManager.PrintTemporaryLine(str);
-    public void PrintBar() => _printManager.PrintBar();
-    public void printCustomBar(string barStr, bool isConst) => _printManager.PrintCustomBar(barStr, isConst);
-    public void PrintButton(string str, string p) => _printManager.PrintButton(str, p);
-    public void PrintButton(string str, long p) => _printManager.PrintButton(str, p);
+    internal void PrintWarning(string str, ScriptPosition? position, int level) => _printManager.PrintWarning(str, position, level);
+    internal void PrintTemporaryLine(string str) => _printManager.PrintTemporaryLine(str);
+    internal void PrintBar() => _printManager.PrintBar();
+    internal void printCustomBar(string barStr, bool isConst) => _printManager.PrintCustomBar(barStr, isConst);
+    internal void PrintButton(string str, string p) => _printManager.PrintButton(str, p);
+    internal void PrintButton(string str, long p) => _printManager.PrintButton(str, p);
     internal void PrintButtonC(string str, string p, bool isRight) => _printManager.PrintButtonC(str, p, isRight);
     internal void PrintButtonC(string str, long p, bool isRight) => _printManager.PrintButtonC(str, p, isRight);
     internal void PrintPlain(string str) => _printManager.PrintPlain(str);
-    public void PrintHtml(string str, bool toPrintBuffer) => _printManager.PrintHtml(str, toPrintBuffer);
-    public void PrintHTMLIsland(string html) => _printManager.PrintHTMLIsland(html);
-    public void ClearHTMLIsland() => _printManager.ClearHTMLIsland();
-    public void PrintImg(string name, string nameb, string namem, Utils.MixedNum height, Utils.MixedNum width, Utils.MixedNum ypos) => _printManager.PrintImg(name, nameb, namem, height, width, ypos);
-    public void PrintShape(string type, Utils.MixedNum[] param) => _printManager.PrintShape(type, param);
-    public ConsoleDisplayLine[]? GetDisplayLines(long lineNo) => _printManager.GetDisplayLines(lineNo);
-    public ConsoleDisplayLine[]? PopDisplayingLines() => _printManager.PopDisplayingLines();
+    internal void PrintHtml(string str, bool toPrintBuffer) => _printManager.PrintHtml(str, toPrintBuffer);
+    internal void PrintHTMLIsland(string html) => _printManager.PrintHTMLIsland(html);
+    internal void ClearHTMLIsland() => _printManager.ClearHTMLIsland();
+    internal void PrintImg(string name, string nameb, string namem, Utils.MixedNum height, Utils.MixedNum width, Utils.MixedNum ypos) => _printManager.PrintImg(name, nameb, namem, height, width, ypos);
+    internal void PrintShape(string type, Utils.MixedNum[] param) => _printManager.PrintShape(type, param);
+    internal ConsoleDisplayLine[]? GetDisplayLines(long lineNo) => _printManager.GetDisplayLines(lineNo);
+    internal ConsoleDisplayLine[]? PopDisplayingLines() => _printManager.PopDisplayingLines();
     internal ConsoleDisplayLine? PrintPlainwithSingleLine(string str) => _printManager.PrintPlainwithSingleLine(str);
-    public void PrintPlainWithSingleLineFix(string str) => _printManager.PrintPlainWithSingleLineFix(str);
-    public ConsoleDisplayLine? BufferToSingleLine(bool force, bool temporary) => _printManager.BufferToSingleLine(force, temporary);
-    public void ClearText() => _printManager.ClearText();
+    internal void PrintPlainWithSingleLineFix(string str) => _printManager.PrintPlainWithSingleLineFix(str);
+    internal ConsoleDisplayLine? BufferToSingleLine(bool force, bool temporary) => _printManager.BufferToSingleLine(force, temporary);
+    internal void ClearText() => _printManager.ClearText();
 
     // ========================================
     // Line management
     // ========================================
 
-    public void ClearDisplay() => _printManager.ClearDisplay();
-    public void deleteLine(int argNum) => _printManager.DeleteLine(argNum);
-    public void changeLastLine(string str) { _printManager.DeleteLine(1); _printManager.PrintSingleLine(str, false); }
-    public void ChangeLastLine(string str) => changeLastLine(str);
-    public void ForceStopTimer() => _timer.ForceStopTimer();
-    public void NewLine() { PrintFlush(true); RefreshStrings(false); }
+    internal void ClearDisplay() => _printManager.ClearDisplay();
+    internal void deleteLine(int argNum) => _printManager.DeleteLine(argNum);
+    internal void changeLastLine(string str) { _printManager.DeleteLine(1); _printManager.PrintSingleLine(str, false); }
+    internal void ChangeLastLine(string str) => changeLastLine(str);
+    internal void ForceStopTimer() => _timer.ForceStopTimer();
+    internal void NewLine() { PrintFlush(true); RefreshStrings(false); }
 
     // ========================================
     // Style delegation
     // ========================================
 
-    public void SetStringStyle(EmuFontStyle fs) => _printManager.SetStringStyle(fs);
-    public void SetStringStyle(EmuColor color) => _printManager.SetStringStyle(color);
-    public void SetFont(string fontname) => _printManager.SetFont(fontname);
-    public void ResetStyle() => _printManager.ResetStyle();
-    public void SetBgColor(EmuColor color) => _printManager.SetBgColor(color);
+    internal void SetStringStyle(EmuFontStyle fs) => _printManager.SetStringStyle(fs);
+    internal void SetStringStyle(EmuColor color) => _printManager.SetStringStyle(color);
+    internal void SetFont(string fontname) => _printManager.SetFont(fontname);
+    internal void ResetStyle() => _printManager.ResetStyle();
+    internal void SetBgColor(EmuColor color) => _printManager.SetBgColor(color);
 
     // ========================================
     // Bar / StBar delegation
     // ========================================
 
-    public string getStBar(string barStr) => _printManager.GetStBar(barStr);
-    public string? getDefStBar() => _printManager.GetDefStBar();
-    public void setStBar(string barStr) => _printManager.SetStBar(barStr);
+    internal string getStBar(string barStr) => _printManager.GetStBar(barStr);
+    internal string? getDefStBar() => _printManager.GetDefStBar();
+    internal void setStBar(string barStr) => _printManager.SetStBar(barStr);
 
     // ========================================
     // Log delegation
     // ========================================
 
-    public bool OutputLog(string? filename, bool hideInfo) => _printManager.OutputLog(filename, hideInfo);
-    public bool OutputSystemLog(string filename) => _printManager.OutputSystemLog(filename);
-    public string GetLog(bool hideInfo) => _printManager.GetLog(hideInfo);
+    internal bool OutputLog(string? filename, bool hideInfo) => _printManager.OutputLog(filename, hideInfo);
+    internal bool OutputSystemLog(string filename) => _printManager.OutputSystemLog(filename);
+    internal string GetLog(bool hideInfo) => _printManager.GetLog(hideInfo);
 
     // ========================================
     // Timer delegation
@@ -277,15 +277,15 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     internal bool IsDisplayTimeActive => _timer.IsDisplayTimeActive;
     internal string? TimeUpMessage => _timer.TimeUpMessage;
     internal string BuildCountdownText() => _timer.BuildCountdownText();
-    public void setRedrawTimer(int tickcount) => _timer.SetRedrawTimer(tickcount);
-    public void forceStopTimer() => _timer.ForceStopTimer();
+    internal void setRedrawTimer(int tickcount) => _timer.SetRedrawTimer(tickcount);
+    internal void forceStopTimer() => _timer.ForceStopTimer();
 
     // ========================================
     // Refresh delegation
     // ========================================
 
-    public void RefreshStrings(bool force_Paint) => _refresh.RefreshStrings(force_Paint);
-    public void SetRedraw(long i) => _refresh.SetRedraw(i);
+    internal void RefreshStrings(bool force_Paint) => _refresh.RefreshStrings(force_Paint);
+    internal void SetRedraw(long i) => _refresh.SetRedraw(i);
     internal void VerticalScrollBarUpdate() => _refresh.VerticalScrollBarUpdate();
 
     // ========================================
@@ -321,33 +321,31 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // Debug delegation
     // ========================================
 
-    public void DebugPrint(string str)
+    internal void DebugPrint(string str)
     {
         if (!Program.DebugMode) return;
         _state.dConsoleLog.Append(str);
     }
-    public void DebugClear() => _state.dConsoleLog.Remove(0, _state.dConsoleLog.Length);
-    public void DebugNewLine()
+    internal void DebugClear() => _state.dConsoleLog.Remove(0, _state.dConsoleLog.Length);
+    internal void DebugNewLine()
     {
         if (!Program.DebugMode) return;
         _state.dConsoleLog.Append(Environment.NewLine);
     }
-    public string DebugConsoleLog => _state.dConsoleLog.ToString();
-    public void OpenDebugDialog() { } // headless stub
-    public string? DebugTitle => _state.debugTitle;
-    public void DebugCommand(string com, bool munchkin, bool outputDebugConsole) { } // headless stub
-    public void DebugAddTraceLog(string str)
+    internal string DebugConsoleLog => _state.dConsoleLog.ToString();
+    internal string? DebugTitle => _state.debugTitle;
+    internal void DebugAddTraceLog(string str)
     {
         if (!Program.DebugMode || _state.runningERBfromMemory) return;
         _state.dTraceLogList.Add(str);
     }
-    public void DebugRemoveTraceLog()
+    internal void DebugRemoveTraceLog()
     {
         if (!Program.DebugMode || _state.runningERBfromMemory) return;
         if (_state.dTraceLogList.Count > 0)
             _state.dTraceLogList.RemoveAt(_state.dTraceLogList.Count - 1);
     }
-    public void DebugClearTraceLog()
+    internal void DebugClearTraceLog()
     {
         if (!Program.DebugMode || _state.runningERBfromMemory) return;
         _state.dTraceLogList.Clear();
@@ -357,7 +355,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // Window delegation
     // ========================================
 
-    public void SetWindowTitle(string str)
+    internal void SetWindowTitle(string str)
     {
         if (Program.DebugMode)
         {
@@ -367,59 +365,22 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
         else
             _uiAdapter.Text = str;
     }
-    public string GetWindowTitle()
+    internal string GetWindowTitle()
     {
         if (Program.DebugMode && _state.debugTitle != null)
             return _state.debugTitle;
         return _uiAdapter.Text;
     }
-    public void SetEmueraVersionInfo(string str) => _uiAdapter.TextBox.Text = str;
+    internal void SetEmueraVersionInfo(string str) => _uiAdapter.TextBox.Text = str;
 
     // ========================================
     // Mouse helpers
     // ========================================
 
-    public EmuPoint GetMousePosition() => _uiAdapter.GetMousePosition();
+    internal EmuPoint GetMousePosition() => _uiAdapter.GetMousePosition();
 
     // ========================================
-    // WinForms stubs (no-ops in headless)
-    // ========================================
-
-    public void CBG_Clear() { }
-    public void CBG_ClearRange(int zmin, int zmax) { }
-    public void CBG_ClearButton() { }
-    public void CBG_ClearBMap() { }
-    public bool CBG_SetGraphics(GraphicsImage gra, int x, int y, int zdepth) => false;
-    public bool CBG_SetImage(ASprite image, int x, int y, int zdepth) => false;
-    public bool CBG_SetButtonMap(GraphicsImage gra) => false;
-    public bool CBG_SetButtonImage(int buttonValue, ASprite imageN, ASprite imageB, int x, int y, int zdepth, string? tooltip = null) => false;
-    public void AddBackgroundImage(string name, long depth, float opacity) { }
-    public void ClearBackgroundImage() { }
-    public void RemoveBackground(string key) { }
-    public void ValidateBackground(int width, int height) { }
-    public void SetToolTipColor(EmuColor foreColor, EmuColor backColor) { }
-    public void SetToolTipDelay(int delay) { }
-    public void SetToolTipDuration(int duration) { }
-    public void SetToolTipFontName(string fn) { }
-    public void SetToolTipFontSize(long fs) { }
-    public void SetToolTipFormat(long f) { }
-    public void SetToolTipImg(bool b) { }
-    public void CustomToolTip(bool b) { }
-
-    // Bitmap cache stubs
-    public const nint bitmapCacheArrayCap = 256;
-    public ConsoleButtonString[] bitmapCacheArray = new ConsoleButtonString[bitmapCacheArrayCap];
-    public nint bitmapCacheArrayIndex = 0;
-    public bool bitmapCacheEnabledForNextNextLine { get => _state.bitmapCacheEnabledForNextLine; set => _state.bitmapCacheEnabledForNextLine = value; }
-
-    // Rikaichan stub
-    public object? rikaichan;
-
-    // Clipboard stub
-    public readonly ClipboardProcessor? CBProc = null;
-
-    // ========================================
-    // Terminal rendering (from AgentBridge.cs partial)
+    // IConsoleStateView implementation (from AgentBridge.cs partial)
     // ========================================
 
     internal TerminalCharWidthConfig CharWidthConfig
@@ -427,10 +388,6 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
         get => _state.CharWidthConfig;
         set => _state.CharWidthConfig = value;
     }
-
-    // ========================================
-    // IConsoleStateView implementation (from AgentBridge.cs partial)
-    // ========================================
 
     public bool ConsumeNeedFullRefresh()
     {
@@ -459,147 +416,6 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     }
 
     // ========================================
-    // Terminal rendering helpers (from AgentBridge.cs)
-    // ========================================
-
-    internal string FormatLineForTerminal(ConsoleDisplayLine line)
-    {
-        string text = BuildTerminalLine(line, out int textWidth);
-        if (textWidth == 0 && text.Length == 0)
-            return "";
-        int gameWidth = GetGameColumnWidth();
-        string styledText = IsAnsiEnabled() ? FormatLineWithAnsi(line) : text;
-        string output;
-        switch (line.Align)
-        {
-            case DisplayLineAlignment.CENTER:
-                int padC = Math.Max((gameWidth - textWidth) / 2, 0);
-                output = new string(' ', padC) + styledText;
-                break;
-            case DisplayLineAlignment.RIGHT:
-                int padR = Math.Max(gameWidth - textWidth, 0);
-                output = new string(' ', padR) + styledText;
-                break;
-            default:
-                output = styledText;
-                break;
-        }
-        return TerminalDisplayWidth.ReplaceForTerminal(output, CharWidthConfig);
-    }
-
-    private static string BuildTerminalLine(ConsoleDisplayLine line, out int displayWidth)
-    {
-        var sb = new StringBuilder();
-        int width = 0;
-        int charWidth = Math.Max(Config.FontSize / 2, 1);
-        foreach (var button in line.Buttons)
-        {
-            foreach (var node in button.StrArray)
-            {
-                switch (node)
-                {
-                    case ConsoleStyledString:
-                        string txt = node.Text ?? "";
-                        sb.Append(txt);
-                        width += TerminalDisplayWidth.GetDisplayWidth(txt);
-                        break;
-                    case ConsoleSpacePart:
-                        int spaceCount = Math.Max(node.Width / charWidth, 0);
-                        sb.Append(new string(' ', spaceCount));
-                        width += spaceCount;
-                        break;
-                    case ConsoleImagePart:
-                    case ConsoleRectangleShapePart:
-                        break;
-                    case ConsoleDivPart div:
-                        if (div.Children != null)
-                        {
-                            foreach (var child in div.Children)
-                            {
-                                string childText = BuildTerminalLine(child, out int childWidth);
-                                sb.Append(childText);
-                                width += childWidth;
-                            }
-                        }
-                        break;
-                    default:
-                        string fallback = node.Text ?? "";
-                        sb.Append(fallback);
-                        width += TerminalDisplayWidth.GetDisplayWidth(fallback);
-                        break;
-                }
-            }
-        }
-        displayWidth = width;
-        return sb.ToString();
-    }
-
-    private string FormatLineWithAnsi(ConsoleDisplayLine line)
-    {
-        var sb = new StringBuilder();
-        EmuColor? lastColor = null;
-        EmuFontStyle lastFontStyle = EmuFontStyle.Regular;
-        int charWidth = Math.Max(Config.FontSize / 2, 1);
-        foreach (var button in line.Buttons)
-        {
-            bool isSelected = ButtonIsSelected(button);
-            if (isSelected) sb.Append("\x1b[7m");
-            foreach (var node in button.StrArray)
-            {
-                switch (node)
-                {
-                    case ConsoleStyledString css:
-                        var style = css.StringStyle;
-                        if (lastColor != style.Color || lastFontStyle != style.FontStyle)
-                        {
-                            if (lastColor != null || lastFontStyle != EmuFontStyle.Regular)
-                            {
-                                sb.Append("\x1b[0m");
-                                if (isSelected) sb.Append("\x1b[7m");
-                            }
-                            sb.Append($"\x1b[38;2;{style.Color.R};{style.Color.G};{style.Color.B}m");
-                            if ((style.FontStyle & EmuFontStyle.Bold) != 0) sb.Append("\x1b[1m");
-                            if ((style.FontStyle & EmuFontStyle.Italic) != 0) sb.Append("\x1b[3m");
-                            lastColor = style.Color;
-                            lastFontStyle = style.FontStyle;
-                        }
-                        sb.Append(node.Text ?? "");
-                        break;
-                    case ConsoleSpacePart:
-                        int spaceCount = Math.Max(node.Width / charWidth, 0);
-                        sb.Append(new string(' ', spaceCount));
-                        break;
-                    case ConsoleImagePart:
-                    case ConsoleRectangleShapePart:
-                        break;
-                    case ConsoleDivPart div:
-                        if (div.Children != null)
-                        {
-                            foreach (var child in div.Children)
-                                sb.Append(FormatLineWithAnsi(child));
-                        }
-                        break;
-                    default:
-                        sb.Append(node.Text ?? "");
-                        break;
-                }
-            }
-            if (isSelected) sb.Append("\x1b[27m");
-        }
-        if (lastColor != null || lastFontStyle != EmuFontStyle.Regular)
-            sb.Append("\x1b[0m");
-        return sb.ToString();
-    }
-
-    private static int GetGameColumnWidth()
-    {
-        int charWidth = Math.Max(Config.FontSize / 2, 1);
-        return Config.DrawableWidth / charWidth;
-    }
-
-    private bool IsAnsiEnabled() => _terminalSetup.IsAnsiEnabled;
-
-    // ========================================
     // Agent / Bridge
     // ========================================
 
@@ -610,23 +426,9 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // Button generation helpers
     // ========================================
 
-    public void forceUpdateGeneration() => _inputHandler.ForceUpdateGeneration();
-    public bool bitmapCacheEnabledForNextLine { get => _state.bitmapCacheEnabledForNextLine; set => _state.bitmapCacheEnabledForNextLine = value; }
-    public bool updatedGeneration { get => _state.updatedGeneration; set => _state.updatedGeneration = value; }
-
-    // ========================================
-    // GetLinePointY (used by ConsoleButtonString)
-    // ========================================
-
-    public int GetLinePointY(int lineNo)
-    {
-        int pointY = _uiAdapter.ClientHeight - Config.LineHeight;
-        int bottomLineNo = _uiAdapter.ScrollBar.Value - 1;
-        if (_state.displayLineList.Count - 1 < bottomLineNo)
-            bottomLineNo = _state.displayLineList.Count - 1;
-        pointY -= (bottomLineNo - lineNo) * Config.LineHeight;
-        return pointY;
-    }
+    internal void forceUpdateGeneration() => _inputHandler.ForceUpdateGeneration();
+    internal bool bitmapCacheEnabledForNextLine { get => _state.bitmapCacheEnabledForNextLine; set => _state.bitmapCacheEnabledForNextLine = value; }
+    internal bool updatedGeneration { get => _state.updatedGeneration; set => _state.updatedGeneration = value; }
 
     // ========================================
     // Dispose

@@ -128,10 +128,6 @@ internal sealed class ConsoleStateData
     internal bool _needFullRefresh;
     internal TerminalCharWidthConfig CharWidthConfig = TerminalCharWidthConfig.Default;
 
-    // --- Bitmap cache ---
-    public const nint bitmapCacheArrayCap = 256;
-    internal ConsoleButtonString[] bitmapCacheArray = new ConsoleButtonString[bitmapCacheArrayCap];
-    internal nint bitmapCacheArrayIndex = 0;
     internal bool bitmapCacheEnabledForNextLine;
 
     internal ConsoleStateData()

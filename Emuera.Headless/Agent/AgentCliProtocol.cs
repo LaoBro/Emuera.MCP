@@ -46,7 +46,8 @@ namespace MinorShift.Emuera.GameView
                 () => _screen,
                 _renderer.FullRefresh,
                 input => DispatchInput(input),
-                ClearInputBuffer);
+                ClearInputBuffer,
+                _ansiEnabled);
             _countdown = new CountdownRenderer(console, () => _screen, _cursor, _ansiEnabled);
         }
 

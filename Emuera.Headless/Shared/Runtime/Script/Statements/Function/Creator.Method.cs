@@ -6604,7 +6604,7 @@ internal static partial class FunctionMethodCreator
 		{
 			//if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
 			//	throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
-			exm.Console.CBG_Clear();
+			// CBG_Clear: WinForms-only stub removed in Headless
 			return 1;
 		}
 	}
@@ -6627,7 +6627,7 @@ internal static partial class FunctionMethodCreator
 			long y64 = arguments[1].GetIntValue(exm);
 			unchecked
 			{
-				exm.Console.CBG_ClearRange((int)x64, (int)y64);
+				// CBG_ClearRange: WinForms-only stub removed in Headless
 			}
 			return 1;
 		}
@@ -6647,7 +6647,7 @@ internal static partial class FunctionMethodCreator
 		{
 			//if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
 			//	throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
-			exm.Console.CBG_ClearButton();
+			// CBG_ClearButton: WinForms-only stub removed in Headless
 			return 1;
 		}
 	}
@@ -6666,7 +6666,7 @@ internal static partial class FunctionMethodCreator
 		{
 			//if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
 			//	throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
-			exm.Console.CBG_ClearBMap();
+			// CBG_ClearBMap: WinForms-only stub removed in Headless
 			return 1;
 		}
 	}
@@ -6695,7 +6695,7 @@ internal static partial class FunctionMethodCreator
 			if (z64 < int.MinValue || z64 > int.MaxValue || z64 == 0)
 				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, z64, 3 + 1));
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRangeExcept.Text, Name, 4, z64, int.MinValue, int.MaxValue, 0));
-			exm.Console.CBG_SetGraphics(g, p.X, p.Y, (int)z64);
+			// CBG_SetGraphics: WinForms-only stub removed in Headless
 			return 1;
 
 		}
@@ -6721,7 +6721,7 @@ internal static partial class FunctionMethodCreator
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated || GraphicsImage.Bitmap == null)
 				return 0;
-			exm.Console.CBG_SetButtonMap(g);
+			// CBG_SetButtonMap: WinForms-only stub removed in Headless
 			return 1;
 
 		}
@@ -6752,8 +6752,7 @@ internal static partial class FunctionMethodCreator
 			if (z64 < int.MinValue || z64 > int.MaxValue || z64 == 0)
 				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, z64, 3 + 1));
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRangeExcept.Text, Name, 4, z64, int.MinValue, int.MaxValue, 0));
-			if (!exm.Console.CBG_SetImage(img, p.X, p.Y, (int)z64))
-				return 0;
+			// CBG_SetImage: WinForms-only stub removed in Headless
 			return 1;
 
 		}
@@ -6815,8 +6814,7 @@ internal static partial class FunctionMethodCreator
 			string tooltip = null!;
 			if (arguments.Count > 6)
 				tooltip = arguments[6].GetStrValue(exm);
-			if (!exm.Console.CBG_SetButtonImage((int)b64, imgN, imgB, p.X, p.Y, (int)z64, tooltip))
-				return 0;
+			// CBG_SetButtonImage: WinForms-only stub removed in Headless
 			return 1;
 
 		}

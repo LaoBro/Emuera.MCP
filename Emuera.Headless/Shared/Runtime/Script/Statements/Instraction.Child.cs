@@ -1585,7 +1585,7 @@ internal sealed partial class FunctionIdentifier
 			{
 				opacity = long.Parse(arg.TermList[2].GetStrValue(exm)) / 255.0f;
 			}
-			exm.Console.AddBackgroundImage(bgName, bgDepth, opacity);
+			// AddBackgroundImage: WinForms-only stub removed in Headless
 		}
 	}
 	private sealed class REMOVEBGIMAGE_Instruction : AInstruction
@@ -1601,7 +1601,7 @@ internal sealed partial class FunctionIdentifier
 			ExpressionArrayArgument arg = (ExpressionArrayArgument)func.Argument;
 			string bgName;
 			bgName = arg.TermList[0].GetStrValue(exm);
-			exm.Console.RemoveBackground(bgName);
+			// RemoveBackground: WinForms-only stub removed in Headless
 		}
 	}
 	private sealed class CLEARBGIMAGE_Instruction : AInstruction
@@ -1614,7 +1614,7 @@ internal sealed partial class FunctionIdentifier
 
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
-			exm.Console.ClearBackgroundImage();
+			// ClearBackgroundImage: WinForms-only stub removed in Headless
 		}
 	}
 
@@ -2131,7 +2131,7 @@ internal sealed partial class FunctionIdentifier
 				throw new CodeEE(string.Format(trerror.ArgIsOoRColorCode.Text, "2"));
 			EmuColor fc = EmuColor.FromArgb((int)foreColor >> 16, (int)foreColor >> 8 & 0xFF, (int)foreColor & 0xFF);
 			EmuColor bc = EmuColor.FromArgb((int)backColor >> 16, (int)backColor >> 8 & 0xFF, (int)backColor & 0xFF);
-			exm.Console.SetToolTipColor(fc, bc);
+			// SetToolTipColor: WinForms-only stub removed in Headless
 			return;
 		}
 	}
@@ -2153,7 +2153,7 @@ internal sealed partial class FunctionIdentifier
 				delay = arg.Term.GetIntValue(exm);
 			if (delay < 0 || delay > int.MaxValue)
 				throw new CodeEE(trerror.ArgIsOoR.Text);
-			exm.Console.SetToolTipDelay((int)delay);
+			// SetToolTipDelay: WinForms-only stub removed in Headless
 			return;
 		}
 	}
@@ -2177,7 +2177,7 @@ internal sealed partial class FunctionIdentifier
 				throw new CodeEE(trerror.ArgIsOoR.Text);
 			if (duration > short.MaxValue)
 				duration = short.MaxValue;
-			exm.Console.SetToolTipDuration((int)duration);
+			// SetToolTipDuration: WinForms-only stub removed in Headless
 			return;
 		}
 	}
@@ -2952,7 +2952,7 @@ internal sealed partial class FunctionIdentifier
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
 			ExpressionArgument fn = (ExpressionArgument)func.Argument;
-			exm.Console.SetToolTipFontName(fn.Term.GetStrValue(exm));
+			// SetToolTipFontName: WinForms-only stub removed in Headless
 		}
 	}
 	private sealed class TOOLTIP_SETFONTSIZE_Instruction : AInstruction
@@ -2968,7 +2968,7 @@ internal sealed partial class FunctionIdentifier
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
 			ExpressionArgument fs = (ExpressionArgument)func.Argument;
-			exm.Console.SetToolTipFontSize(fs.Term.GetIntValue(exm));
+			// SetToolTipFontSize: WinForms-only stub removed in Headless
 		}
 	}
 	private sealed class TOOLTIP_CUSTOM_Instruction : AInstruction
@@ -2983,11 +2983,8 @@ internal sealed partial class FunctionIdentifier
 
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
-			ExpressionArgument b = (ExpressionArgument)func.Argument;
-			if (b.Term.GetIntValue(exm) == 0)
-				exm.Console.CustomToolTip(false);
-			else
-				exm.Console.CustomToolTip(true);
+			// CustomToolTip: WinForms-only stub removed in Headless
+			_ = (ExpressionArgument)func.Argument;
 		}
 	}
 	private sealed class TOOLTIP_FORMAT_Instruction : AInstruction
@@ -3003,7 +3000,7 @@ internal sealed partial class FunctionIdentifier
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
 			ExpressionArgument i = (ExpressionArgument)func.Argument;
-			exm.Console.SetToolTipFormat(i.Term.GetIntValue(exm));
+			// SetToolTipFormat: WinForms-only stub removed in Headless
 		}
 	}
 	private sealed class TOOLTIP_IMG_Instruction : AInstruction
@@ -3019,7 +3016,7 @@ internal sealed partial class FunctionIdentifier
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
 			ExpressionArgument i = (ExpressionArgument)func.Argument;
-			exm.Console.SetToolTipImg(i.Term.GetIntValue(exm) != 0);
+			// SetToolTipImg: WinForms-only stub removed in Headless
 		}
 	}
 	#endregion

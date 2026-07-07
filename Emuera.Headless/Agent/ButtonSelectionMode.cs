@@ -17,6 +17,7 @@ namespace MinorShift.Emuera.GameView
         private readonly Action<string> _dispatchInput;
         private readonly Action _clearInputBuffer;
 
+        private readonly bool _ansiEnabled;
         private bool _buttonMode;
         private List<ButtonPos> _buttonPositions = [];
         private int _selectedButtonIndex = -1;
@@ -28,13 +29,15 @@ namespace MinorShift.Emuera.GameView
             Func<AgentCliVtScreen?> getScreen,
             Action requestFullRefresh,
             Action<string> dispatchInput,
-            Action clearInputBuffer)
+            Action clearInputBuffer,
+            bool ansiEnabled)
         {
             _console = console;
             _getScreen = getScreen;
             _requestFullRefresh = requestFullRefresh;
             _dispatchInput = dispatchInput;
             _clearInputBuffer = clearInputBuffer;
+            _ansiEnabled = ansiEnabled;
         }
 
         public bool IsButtonMode => _buttonMode;
@@ -170,7 +173,8 @@ namespace MinorShift.Emuera.GameView
                 var line = lines[lineIndex];
                 if (line?.Buttons == null || line.Buttons.Length == 0) continue;
 
-                string formatted = _console.FormatLineForTerminal(line);
+                string formatted = TerminalLineFormatter.FormatLineForTerminal(
+                    line, _console.SelectingButton, _console.CharWidthConfig, _ansiEnabled);
                 // viewport row = i（备用屏绝对坐标，与 SGR mouse 的 Cy-1 同一空间）
                 vtInput.RecordLineRegions(formatted, i, line.Buttons, currentGen);
             }
@@ -214,7 +218,8 @@ namespace MinorShift.Emuera.GameView
                 var line = lines[lineIndex];
                 if (line?.Buttons == null || line.Buttons.Length == 0) continue;
 
-                string formatted = _console.FormatLineForTerminal(line);
+                string formatted = TerminalLineFormatter.FormatLineForTerminal(
+                    line, _console.SelectingButton, _console.CharWidthConfig, _ansiEnabled);
                 int column = TerminalDisplayWidth.LeadingDisplayWidth(formatted);
 
                 foreach (var btn in line.Buttons)
@@ -256,7 +261,8 @@ namespace MinorShift.Emuera.GameView
                 int lineIndex = startLine + viewportRow;
                 if (lineIndex >= 0 && lineIndex < lines.Count)
                 {
-                    string formatted = _console.FormatLineForTerminal(lines[lineIndex]);
+                    string formatted = TerminalLineFormatter.FormatLineForTerminal(
+                        lines[lineIndex], _console.SelectingButton, _console.CharWidthConfig, _ansiEnabled);
                     screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
                 }
 
