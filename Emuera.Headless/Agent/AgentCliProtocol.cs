@@ -103,6 +103,7 @@ namespace MinorShift.Emuera.GameView
         /// 调用前 <see cref="ITerminalSetup.TryPrepareVtInput"/> 必须已返回 true（VT-only）。
         /// VT 终端恢复由 RegisterVtCleanupHooks（AppDomain.UnhandledException /
         /// ProcessExit）的多钩子保障，finally 块负责禁用 mouse + 退出备用屏。
+        /// ADR-0005：原 LoopStrategy 策略模式已删除，主循环逻辑直接内联（VT-only）。
         /// </summary>
         private void RunVtLoop()
         {
@@ -116,7 +117,51 @@ namespace MinorShift.Emuera.GameView
                 _screen.EnterAlternateScreen();
                 _vtInput.EnableSgrMouse();
 
-                RunAgentLoop(new VtLoopStrategy(this));
+                // resize 检测基线
+                _lastWindowWidth = _screen.WindowWidth;
+                _lastWindowHeight = _screen.WindowHeight;
+
+                var token = StopToken;
+                // 游戏进入 Quit/Error 后立即退出循环，避免 CLI 空转等待永远不会到来的输入。
+                while (!token.IsCancellationRequested && !IsGameExited())
+                {
+                    if (console.ConsumeNeedFullRefresh())
+                    {
+                        _renderer.FlushBuffer();
+                        _renderer.FullRefresh();
+                        _countdown.Reset();
+                        _buttons.SyncButtonState();
+                        _buttons.RefreshButtonRegions(_vtInput, force: true);
+                        continue;
+                    }
+
+                    // VT 输入轮询：有输入时连续读取并 Feed（不等待/不更新 countdown）；
+                    // 无输入时检查超时、更新 countdown、短暂等待。
+                    if (_vtInput.HasInputAvailable())
+                    {
+                        int b = _vtInput.ReadByte();
+                        if (b >= 0)
+                            _vtInput.Feed((byte)b);
+                    }
+                    else
+                    {
+                        if (HandleTimeout())
+                            continue;
+                        _countdown.Update();
+                        token.WaitHandle.WaitOne(PollIntervalMs);
+                    }
+
+                    // 末尾刷新：resize 检测 + FlushBuffer + SyncButtonState + RefreshButtonRegions
+                    if (CheckResize())
+                    {
+                        _renderer.FullRefresh();
+                        _buttons.RefreshButtonRegions(_vtInput, force: true);
+                    }
+
+                    _renderer.FlushBuffer();
+                    _buttons.SyncButtonState();
+                    _buttons.RefreshButtonRegions(_vtInput, force: false);
+                }
             }
             finally
             {
@@ -126,53 +171,15 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
-        /// <summary>
-        /// 通用主循环模板：处理 NeedFullRefresh、末尾刷新，输入读取与超时/等待策略由 <paramref name="strategy"/> 注入。
-        /// VT 与非 VT 路径共享此模板，差异通过策略封装。
-        /// </summary>
-        private void RunAgentLoop(LoopStrategy strategy)
-        {
-            var token = StopToken;
-            strategy.Initialize();
-
-            // 游戏进入 Quit/Error 后立即退出循环，避免 CLI 空转等待永远不会到来的输入。
-            // 顶部检查顺带覆盖 Initialize 失败（state 已是 Error）的场景。
-            while (!token.IsCancellationRequested && !IsGameExited())
-            {
-                if (console.ConsumeNeedFullRefresh())
-                {
-                    _renderer.FlushBuffer();
-                    _renderer.FullRefresh();
-                    _countdown.Reset();
-                    _buttons.SyncButtonState();
-                    strategy.RefreshButtonRegionsAfterRefresh(force: true);
-                    continue;
-                }
-
-                if (strategy.Poll(token) == PollOutcome.Continue)
-                    continue;
-
-                if (strategy.CheckResize())
-                {
-                    _renderer.FullRefresh();
-                    strategy.RefreshButtonRegionsAfterRefresh(force: true);
-                }
-
-                _renderer.FlushBuffer();
-                _buttons.SyncButtonState();
-                strategy.RefreshButtonRegionsAfterRefresh(force: false);
-            }
-        }
-
         /// <summary>游戏是否已进入终止状态（Quit/Error），用于主循环退出判定。</summary>
         private bool IsGameExited() =>
             console.State is ConsoleState.Quit or ConsoleState.Error;
 
         /// <summary>
         /// 超时处理（TINPUT）。返回 true 表示已处理（调用方 continue），false 表示未超时。
-        /// vtInput 为 null 时跳过 RefreshButtonRegions（非 VT 路径）。
+        /// ADR-0005：VT-only 后 _vtInput 必非 null，移除原可空参数。
         /// </summary>
-        private bool HandleTimeout(VtInputHandler? vtInput)
+        private bool HandleTimeout()
         {
             var timeoutMs = console.InputTimeoutMs;
             if (!timeoutMs.HasValue || timeoutMs.Value > 0) return false;
@@ -183,97 +190,8 @@ namespace MinorShift.Emuera.GameView
             console.SubmitTimeout();
             _renderer.FlushBuffer();
             _buttons.SyncButtonState();
-            _buttons.RefreshButtonRegions(vtInput, force: false);
+            _buttons.RefreshButtonRegions(_vtInput, force: false);
             return true;
-        }
-
-        /// <summary>策略轮询结果。</summary>
-        private enum PollOutcome
-        {
-            /// <summary>需要模板执行末尾刷新（CheckResize + FlushBuffer + SyncButtonState + RefreshButtonRegions）。</summary>
-            NeedTailRefresh,
-            /// <summary>策略已自行完成本轮所有处理（含末尾刷新或超时），模板直接 continue。</summary>
-            Continue,
-        }
-
-        /// <summary>
-        /// 主循环策略基类：封装 VT/非 VT 路径的输入读取、超时检查、countdown/等待时机差异。
-        /// </summary>
-        private abstract class LoopStrategy
-        {
-            protected readonly AgentCliProtocol _owner;
-            protected LoopStrategy(AgentCliProtocol owner) { _owner = owner; }
-
-            /// <summary>循环开始前的初始化（如 resize 检测基线）。</summary>
-            public abstract void Initialize();
-            /// <summary>
-            /// 处理一轮输入读取、超时检查、countdown 更新与等待。
-            /// 返回 <see cref="PollOutcome.NeedTailRefresh"/> 时模板执行末尾刷新；
-            /// 返回 <see cref="PollOutcome.Continue"/> 时模板直接 continue。
-            /// </summary>
-            public abstract PollOutcome Poll(System.Threading.CancellationToken token);
-            /// <summary>检测终端尺寸变化，返回 true 时模板触发 FullRefresh。</summary>
-            public virtual bool CheckResize() => false;
-            /// <summary>在 NeedFullRefresh/超时/末尾刷新后同步 VT 鼠标命中区域。非 VT 路径为空操作。</summary>
-            public virtual void RefreshButtonRegionsAfterRefresh(bool force) { }
-        }
-
-        /// <summary>VT 路径策略：有输入时连续处理（不等待/不更新 countdown），无输入时检查超时并等待；末尾由模板刷新。</summary>
-        private sealed class VtLoopStrategy : LoopStrategy
-        {
-            public VtLoopStrategy(AgentCliProtocol owner) : base(owner) { }
-
-            public override void Initialize()
-            {
-                var screen = _owner._screen!;
-                _owner._lastWindowWidth = screen.WindowWidth;
-                _owner._lastWindowHeight = screen.WindowHeight;
-            }
-
-            public override PollOutcome Poll(System.Threading.CancellationToken token)
-            {
-                var vtInput = _owner._vtInput!;
-                if (vtInput.HasInputAvailable())
-                {
-                    int b = vtInput.ReadByte();
-                    if (b >= 0)
-                        vtInput.Feed((byte)b);
-                }
-                else
-                {
-                    if (_owner.HandleTimeout(vtInput))
-                        return PollOutcome.Continue;
-                    _owner._countdown.Update();
-                    token.WaitHandle.WaitOne(PollIntervalMs);
-                }
-                return PollOutcome.NeedTailRefresh;
-            }
-
-            public override bool CheckResize() => _owner.CheckResize();
-
-            public override void RefreshButtonRegionsAfterRefresh(bool force)
-                => _owner._buttons.RefreshButtonRegions(_owner._vtInput, force);
-        }
-
-        /// <summary>非 VT 路径策略：每轮检查超时、更新 countdown、读取按键、末尾刷新与等待均在 Poll 内完成。</summary>
-        private sealed class ConsoleKeyLoopStrategy : LoopStrategy
-        {
-            public ConsoleKeyLoopStrategy(AgentCliProtocol owner) : base(owner) { }
-
-            public override void Initialize() { }
-
-            public override PollOutcome Poll(System.Threading.CancellationToken token)
-            {
-                if (_owner.HandleTimeout(null))
-                    return PollOutcome.Continue;
-                _owner._countdown.Update();
-                if (Console.KeyAvailable)
-                    _owner.ProcessKey(Console.ReadKey(true));
-                _owner._renderer.FlushBuffer();
-                _owner._buttons.SyncButtonState();
-                token.WaitHandle.WaitOne(PollIntervalMs);
-                return PollOutcome.Continue;
-            }
         }
 
         #endregion
