@@ -1097,10 +1097,7 @@ internal sealed partial class VariableData : IDisposable
 		}
 		foreach (var key in GlobalStatic.ConstantData.SaveXmls)
 		{
-			if (DataXmlDocument.ContainsKey(key))
-			{
-				DataXmlDocument.Remove(key);
-			}
+			DataXmlDocument.Remove(key);
 		}
 		foreach (var key in GlobalStatic.ConstantData.SaveDTs)
 		{
@@ -1122,10 +1119,7 @@ internal sealed partial class VariableData : IDisposable
 		}
 		foreach (var key in GlobalStatic.ConstantData.GlobalSaveXmls)
 		{
-			if (DataXmlDocument.ContainsKey(key))
-			{
-				DataXmlDocument.Remove(key);
-			}
+			DataXmlDocument.Remove(key);
 		}
 		foreach (var key in GlobalStatic.ConstantData.GlobalSaveDTs)
 		{
@@ -1146,10 +1140,7 @@ internal sealed partial class VariableData : IDisposable
 		}
 		foreach (var key in GlobalStatic.ConstantData.StaticXmls)
 		{
-			if (DataXmlDocument.ContainsKey(key))
-			{
-				DataXmlDocument.Remove(key);
-			}
+			DataXmlDocument.Remove(key);
 		}
 		foreach (var key in GlobalStatic.ConstantData.StaticDTs)
 		{

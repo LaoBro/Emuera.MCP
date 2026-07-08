@@ -31,7 +31,7 @@
 | CA1862 | 8 | 2 | 性能 | `string.Equals` 加 `StringComparison` |
 | CA2211 | 6 | 1 | 可靠性 | 非私有静态字段（EncodingHandler.cs） |
 | CA1514 | 6 | 2 | 性能 | 去掉 `Substring` 冗余长度参数 |
-| CA1853 | 6 | 1 | 性能 | 字典 lookup 模式优化（VariableData.cs） |
+| CA1853 | 6 | 1 | 性能 | 字典 lookup 模式优化（VariableData.cs）；**已于 2026-07-08 清理（实际 3 处，日志重复计为 6；ContainsKey+Remove → 直接 Remove，撤销抑制）** |
 | CA1829 | 6 | 1 | 性能 | `.Count()` → `.Length`/`.Count` |
 | CA2208 | 4 | 1 | 可靠性 | `ArgumentException` 参数名 |
 | CA1846 | 4 | 2 | 性能 | `Substring` → `AsSpan` |
@@ -65,7 +65,7 @@
 | GraphicsImage.cs | 52 | CA1822 (52) |
 | Creator.Method.cs | 50 | CA1854 (34) + CA1862 (6) + CA1834 (2) + 其他 |
 | HtmlManager.cs | 38 | CA1834 (30) + CA1514 (2) + CA1845/CA1846/CA1862 |
-| VariableData.cs | 30 | CA1854 (24) + CA1853 (6) |
+| VariableData.cs | 30 | CA1854 (24) + CA1853 (6)；**CA1853 已于 2026-07-08 清理（3 处）** |
 | VariableCode.cs | 26 | CA1069 (26) |
 
 ## 3. 清理路线图（按批次）
@@ -191,6 +191,7 @@ dotnet_diagnostic.CA2016.severity = none
 | 4 | CA1822 | 66 | 66 | ✅ 已完成 |
 | 5 | CA1069/CA2208/CA2211/CS0162/CS0164/CA2263/CA1507 | 50 | 27 | ✅ 已完成 |
 | 6 | SYSLIB0014 | 2 | 1 | ✅ 已完成 |
+| - | CA1853 | 6 | 3 | ✅ 已完成（2026-07-08，VariableData.cs 3 处 ContainsKey+Remove → 直接 Remove，撤销抑制） |
 | - | CA1416（保留） | 5+4 | 9 | ⏸️ 自有代码段 4 处保留抑制；**Shared 段 5 处 2026-07-08 已消除（方案 B）** |
 
 ---

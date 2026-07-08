@@ -3,7 +3,7 @@
 # - Emuera.Headless/Shared/ 子树是 T-023 物理迁移自 Emuera/ 的历史共享源码
 #   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Headless 构建被历史代码警告淹没
 # - Emuera.Headless/ 自有源码（排除 Shared/）保持默认 AnalysisMode=Minimum 行为，新代码警告仍可见
-# - 阶段 2（T-022）将逐步撤销本文件的抑制，启用 nullable + TreatWarningsAsErrors
+# - 阶段 2（T-022）已逐步撤销本文件的抑制，启用 nullable + TreatWarningsAsErrors
 #
 # 注意：.NET 的 .editorconfig 不支持 `dotnet_analyzer_diagnostic.severity = none` 全局语法，
 #       必须逐条列出 dotnet_diagnostic.<CAxxxx>.severity = none。
@@ -21,53 +21,11 @@ tab_width = 4
 # 此约定跨 Emuera / Emuera.Headless 共享，全局抑制
 dotnet_diagnostic.CS8981.severity = none
 
-# ===== Emuera.Headless/Shared 历史共享源码：抑制分析器噪音 =====
-# T-023 物理迁移自 Emuera/；责任在历史代码，Headless 暂不修改
+# ===== Emuera.Headless/Shared 历史共享源码（抑制已清零） =====
+# T-023 物理迁移自 Emuera/。T-022 阶段 4 已将所有历史 CA/CS 抑制清零
+# （含 CA1416 Shared 段 2026-07-08 方案 B 消除），当前 Shared/ 无残留抑制。
+# 清理记录见 docs/2026.7.4.T-022阶段4-Shared历史警告清理/T-022阶段4-Shared历史警告清理.md
 [Emuera.Headless/Shared/**]
-# 历史代码的潜在 nullable/未赋值/不可达代码警告：阶段 2（T-022）统一处理
-# CS0472 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-# CS0649 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-# CS0162 已清理（T-022 阶段 4，2026-07-04，死代码删除）
-# CS0164 已清理（T-022 阶段 4，2026-07-04，未引用标签删除）
-# SYSLIB0014 已清理（T-022 阶段 4，2026-07-04，WebClient → HttpClient 静态单例）
-
-# Nullable 引用类型（CS86xx）：历史代码无 nullable 标注，T-022 阶段 3 全量抑制
-# <Nullable>enable</Nullable> 保留，但 Shared/ 历史代码暂不要求 nullable-clean
-# 如后续新增历史文件触发其他 CS86xx，按需在此追加
-# CS8618 已清理（T-022 阶段 3，2026-07-04）
-# CS8625 已清理（T-022 阶段 3，2026-07-04）
-
-# .NET 分析器 CA 规则（按基线构建统计的 22 个 ID 显式抑制）
-# 性能类
-# CA1507 已清理（T-022 阶段 4，2026-07-04，字符串 → nameof）
-# CA1514 已清理（T-022 阶段 4，2026-07-04）
-# CA1806 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-# CA1816 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-# CA1822 已清理（T-022 阶段 4，2026-07-04）
-# CA1829 已清理（T-022 阶段 4，2026-07-04）
-# CA1830 已清理（T-022 阶段 4，2026-07-04）
-# CA1834 已清理（T-022 阶段 4，2026-07-04）
-# CA1835 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-# CA1845 已清理（T-022 阶段 4，2026-07-04）
-# CA1846 已清理（T-022 阶段 4，2026-07-04）
-dotnet_diagnostic.CA1853.severity = none   # 字典 lookup 优化
-# CA1854 已清理（T-022 阶段 4，2026-07-04）
-# CA1858 已清理（T-022 阶段 4，2026-07-04）
-# CA1859 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-# CA1862 已清理（T-022 阶段 4，2026-07-04）
-# CA1864 已清理（T-022 阶段 4，2026-07-04）
-# CA1875 已清理（T-022 阶段 4，2026-07-04）
-# CA2249 已清理（T-022 阶段 4，2026-07-04）
-# 可靠性/正确性
-# CA1069 已清理（T-022 阶段 4，2026-07-04，VariableCode.cs 局部 #pragma 抑制）
-# CA2208 已清理（T-022 阶段 4，2026-07-04，ArgumentException 参数名 → nameof）
-# CA2211 已清理（T-022 阶段 4，2026-07-04，字段加 readonly）
-# 平台兼容性 CA1416：Shared 原 Strings.StrConv（5 处）已于 2026-07-08 替换为跨平台
-# StringConverter（Emuera.Headless/Shared/Runtime/Utils/StringConverter.cs），不再调用 Windows 专用 API，
-# Shared 段 CA1416 = 0，抑制行已删除。
-# 用法
-# CA2016 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
-# CA2263 已清理（T-022 阶段 4，2026-07-04，优先泛型方法重载）
 
 # ===== Emuera.Headless 自有源码 =====
 # T-022 阶段 3：Headless 模式固有警告抑制
