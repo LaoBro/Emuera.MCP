@@ -33,6 +33,8 @@ internal sealed class HttpSessionIO : SessionIO
         _hub = hub ?? throw new ArgumentNullException(nameof(hub));
     }
 
+    internal OutputHub Hub => _hub;
+
     /// <summary>
     /// 异步读取一行输入。
     /// Channel 关闭后返回 null（同步版 ReadLine 行为一致）。

@@ -26,8 +26,7 @@ internal sealed class KestrelGameServer : IDisposable
 
     private readonly WebApplication _app;
     private readonly ITerminalSetup _terminalSetup;
-    private Session? _session;
-    private OutputHub? _hub;
+    private volatile Session? _session;
     private readonly object _sessionLock = new();
 
     public KestrelGameServer(int port, ITerminalSetup terminalSetup)
@@ -89,9 +88,7 @@ internal sealed class KestrelGameServer : IDisposable
                     _session = null;
                 }
 
-                var hub = new OutputHub();
-                var io = new HttpSessionIO(hub);
-                _hub = hub;
+                var io = new HttpSessionIO(new OutputHub());
                 _session = new Session(io, _terminalSetup);
                 _session.Start();
                 sessionId = _session.Id;
@@ -108,11 +105,7 @@ internal sealed class KestrelGameServer : IDisposable
 
     private async Task<IResult> HandleGetTurnAsync(HttpContext context)
     {
-        Session? session;
-        lock (_sessionLock)
-        {
-            session = _session;
-        }
+        var session = _session;
 
         if (session == null)
             return Results.Json(new { error = "No active session" }, statusCode: 404);
@@ -136,11 +129,7 @@ internal sealed class KestrelGameServer : IDisposable
 
     private async Task<IResult> HandlePostInputAsync(HttpContext context)
     {
-        Session? session;
-        lock (_sessionLock)
-        {
-            session = _session;
-        }
+        var session = _session;
 
         if (session == null)
             return Results.Json(new { error = "No active session" }, statusCode: 404);
@@ -175,11 +164,7 @@ internal sealed class KestrelGameServer : IDisposable
 
     private IResult HandleGetStateAsync()
     {
-        Session? session;
-        lock (_sessionLock)
-        {
-            session = _session;
-        }
+        var session = _session;
 
         if (session == null)
             return Results.Json(new { state = "Idle", isRunning = false });
@@ -202,7 +187,6 @@ internal sealed class KestrelGameServer : IDisposable
             {
                 _session.Dispose();
                 _session = null;
-                _hub = null;
                 removed = true;
             }
             else
@@ -220,72 +204,58 @@ internal sealed class KestrelGameServer : IDisposable
     }
 
     /// <summary>
-    /// WS 输入帧 DTO：仅接受 <c>{"type":"input","value":"..."}</c>。
-    /// value 限制为字符串，与 HTTP <c>POST /input</c> 的 <see cref="HttpInput"/> 行为对称
-    /// （非字符串 value 被拒绝），保证喂入 <c>EnqueueInput</c> 的 jsonl 格式一致。
-    /// </summary>
-    private sealed record WsInput(string? type, string? value);
-
-    /// <summary>
     /// GET /ws —— WebSocket 旁路传输端点（Hub 旁路模式，非另一个 SessionIO）。
     ///
     /// 生命周期：
-    /// - 升级门禁（5a）：无活跃 session 时接受升级后立即以下发关闭码 4004 退回，提示"请先创建会话"。
-    /// - 有 session：接受升级，从 <see cref="OutputHub"/> 订阅输出（每产生一个 turn 推一帧裸 JSON 文本），
-    ///   并接收客户端输入帧喂入同一输入 Channel。
-    /// - 任一侧结束 / WS 关闭 → 取消另一循环并退订；session 结束（hub.Complete）以 WS 关闭帧通知。
+    /// - 无活跃 session 时接受升级后立即以下发关闭码 4004 退回。
+    /// - 有 session：锁内完成 accept→re-check→subscribe 原子序列，避免 session 被
+    ///   另一线程 DELETE+POST 替换后仍从旧 hub 订阅。
+    /// - 任一侧结束 / WS 关闭 → 取消另一循环并退订；session 结束（hub.Complete）以 WS
+    ///   关闭帧通知。
     /// </summary>
     private async Task HandleWebSocketAsync(HttpContext context)
     {
-        // 非 WS 请求直接拒绝（无论有无 session）。
         if (!context.WebSockets.IsWebSocketRequest)
         {
             context.Response.StatusCode = 400;
             return;
         }
 
-        Session? session;
-        OutputHub? hub;
+        using var ws = await context.WebSockets.AcceptWebSocketAsync();
+
+        ChannelReader<string>? reader = null;
+        Session? session = null;
+        OutputHub? hub = null;
+
         lock (_sessionLock)
         {
             session = _session;
-            hub = _hub;
+            if (session is { HasEnded: false })
+            {
+                hub = session.IO.Hub;
+                reader = hub?.Subscribe();
+            }
         }
 
-        // 升级门禁（生命周期 5a）：无活跃 session / 已结束 → 接受升级后立即以关闭码 4004 退回。
-        if (session == null || hub == null || session.HasEnded)
-        {
-            using var rejected = await context.WebSockets.AcceptWebSocketAsync();
-            await rejected.CloseAsync(WsCloseNoActiveSession, "No active session", CancellationToken.None);
-            return;
-        }
-
-        using var ws = await context.WebSockets.AcceptWebSocketAsync();
-
-        // 握手期间 session 可能被 DELETE：再次确认仍活跃，否则下发布局一致的 4004。
-        // （re-check 与后续 Subscribe 之间无 await，竞态窗口可忽略；即使极小概率落到
-        //  NormalClosure，语义上 session 已结束，客户端应重建会话。）
-        if (session.HasEnded)
+        if (reader == null)
         {
             await ws.CloseAsync(WsCloseNoActiveSession, "No active session", CancellationToken.None);
             return;
         }
 
-        var reader = hub.Subscribe();
         using var cts = new CancellationTokenSource();
 
         try
         {
-            // 发送循环与接收循环任一结束即收尾（取消另一侧 + 退订 + 关闭 WS）。
             await Task.WhenAny(
                 SendLoopAsync(ws, reader, cts.Token),
-                ReceiveLoopAsync(ws, session, cts.Token)
+                ReceiveLoopAsync(ws, session!, cts.Token)
             );
         }
         finally
         {
             cts.Cancel();
-            hub.Unsubscribe(reader);
+            hub!.Unsubscribe(reader);
             try
             {
                 if (ws.State is WebSocketState.Open or WebSocketState.CloseReceived or WebSocketState.CloseSent)
@@ -293,11 +263,9 @@ internal sealed class KestrelGameServer : IDisposable
             }
             catch (WebSocketException)
             {
-                // 客户端可能已先关闭，忽略。
             }
             catch (OperationCanceledException)
             {
-                // 取消，忽略。
             }
         }
     }
@@ -361,21 +329,11 @@ internal sealed class KestrelGameServer : IDisposable
         }
     }
 
-    /// <summary>校验 WS 输入帧并喂入同一条输入 Channel（与 POST /input 完全相同路径）。</summary>
+    /// <summary>WS 输入帧已是 <c>{"type":"input","value":"..."}</c> 格式，直接入队。
+    /// 协议层 <c>AgentJsonlProtocol</c> 会校验 <c>type=="input"</c>，无效帧自然被忽略。</summary>
     private static void HandleWsInput(string text, Session session)
     {
-        try
-        {
-            var cmd = JsonSerializer.Deserialize<WsInput>(text);
-            if (cmd is null || cmd.type != "input" || cmd.value == null)
-                return;
-
-            session.IO.EnqueueInput(BuildInputJsonl(cmd.value));
-        }
-        catch (JsonException)
-        {
-            // 非法 JSON：忽略该帧，不中断连接。
-        }
+        session.IO.EnqueueInput(text);
     }
 
     public void Dispose()
@@ -384,7 +342,6 @@ internal sealed class KestrelGameServer : IDisposable
         {
             _session?.Dispose();
             _session = null;
-            _hub = null;
         }
         ((IDisposable)_app).Dispose();
     }
