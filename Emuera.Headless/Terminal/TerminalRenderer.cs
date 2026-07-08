@@ -20,6 +20,12 @@ namespace MinorShift.Emuera.GameView
         private ConsoleDisplayLine? _lastRenderedLastLine;
         private string? _currentBgHex;
 
+        /// <summary>
+        /// auto-follow 回调：FlushBuffer 检测到新行且 offset>0 时，归零 offset + FullRefresh 后调用，
+        /// 让 AgentCliProtocol 同步状态栏/倒计时/按钮区域。ADR-0006。
+        /// </summary>
+        internal Action? OnScrollAutoFollow { get; set; }
+
         public TerminalRenderer(
             EmueraConsole console,
             Func<AgentCliVtScreen?> getScreen)
@@ -38,6 +44,12 @@ namespace MinorShift.Emuera.GameView
                 {
                     case ClearOp:
                         _getScreen()!.ClearScreen();
+                        // ADR-0006：ClearOp 触发 auto-follow，归零 Scroll Offset。
+                        if (_getScreen()!.ScrollOffset > 0)
+                        {
+                            _getScreen()!.ResetScroll();
+                            OnScrollAutoFollow?.Invoke();
+                        }
                         _lastRenderedLineNo = -1;
                         _lastRenderedLastLine = null;
                         cleared = true;
@@ -85,7 +97,27 @@ namespace MinorShift.Emuera.GameView
 
             if (currentLineNo > _lastRenderedLineNo)
             {
-                WriteNewLinesSince(lines, _lastRenderedLineNo, _lastRenderedLastLine);
+                // ADR-0006：新输出到达时 auto-follow 归零 offset。增量分支假设光标在底部，
+                // offset>0 时光标在状态栏行，必须走 FullRefresh（绝对定位）。
+                var screen = _getScreen();
+                if (screen != null && screen.ScrollOffset > 0)
+                {
+                    screen.ResetScroll();
+                    FullRefresh();
+                    OnScrollAutoFollow?.Invoke();
+                }
+                // 内容超出视口时必须走 FullRefresh：WriteNewLinesSince 依赖 Console.WriteLine
+                // 的自然光标推进，但光标在底部行时 \n 会触发终端滚动，ConPTY 不会把滚出
+                // 视口的字节重新发送给 master，导致后续行永远渲染不出来。
+                // FullRefresh 用绝对定位（WriteLineAt）重绘整个可见区，不依赖滚动。
+                else if (screen != null && lines.Count > screen.WindowHeight - 1)
+                {
+                    FullRefresh();
+                }
+                else
+                {
+                    WriteNewLinesSince(lines, _lastRenderedLineNo, _lastRenderedLastLine);
+                }
             }
             else if (currentLineNo < _lastRenderedLineNo)
             {
@@ -111,7 +143,8 @@ namespace MinorShift.Emuera.GameView
             _lastRenderedLastLine = lastLine;
         }
 
-        /// <summary>全量重绘可见行。ADR-0005 Issue 4：删除非 VT 降级分支，仅保留 VT 备用屏绝对定位路径。</summary>
+        /// <summary>全量重绘可见行。ADR-0005 Issue 4：删除非 VT 降级分支，仅保留 VT 备用屏绝对定位路径。
+        /// ADR-0006：读 _screen.ScrollOffset 计算 startLine + visibleLines，offset>0 时渲染更早切片并缩小可见区（底部留状态栏）。</summary>
         internal void FullRefresh()
         {
             var lines = _console.DisplayLineList;
@@ -129,9 +162,13 @@ namespace MinorShift.Emuera.GameView
                 return;
             }
 
-            int consoleHeight = screen.WindowHeight;
-            int visibleLines = Math.Max(consoleHeight - 1, 1);
-            int startLine = Math.Max(0, lines.Count - visibleLines);
+            int offset = screen.ScrollOffset;
+            // 复用 AgentCliVtScreen.GetVisibleLines()：offset=0 → consoleHeight-1，offset>0 → consoleHeight-2。
+            int visibleLines = screen.GetVisibleLines();
+            // offset>0 时回看历史：startLine 向前移动 offset 行。
+            int startLine = offset > 0
+                ? Math.Max(0, lines.Count - visibleLines - offset)
+                : Math.Max(0, lines.Count - visibleLines);
 
             for (int i = 0; i < visibleLines && (startLine + i) < lines.Count; i++)
             {

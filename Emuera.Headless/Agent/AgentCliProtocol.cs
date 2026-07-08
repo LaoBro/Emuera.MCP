@@ -9,6 +9,15 @@ using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
 {
+    /// <summary>Scroll Mode 滚动热键动作（ADR-0006 Issue 003）。</summary>
+    internal enum ScrollAction
+    {
+        Home,
+        End,
+        PageUp,
+        PageDown,
+    }
+
     internal sealed class AgentCliProtocol : AgentProtocolBase
     {
         private readonly StringBuilder _buf = new();
@@ -28,8 +37,13 @@ namespace MinorShift.Emuera.GameView
         private readonly ButtonSelectionMode _buttons;
         private readonly CountdownRenderer _countdown;
         private readonly TerminalRenderer _renderer;
+        // ADR-0006：Scroll Status Bar 渲染器，独立于 TerminalRenderer。
+        private ScrollStatusBarRenderer? _scrollStatusBar;
 
         internal EmueraConsole GameConsole => console;
+
+        /// <summary>当前 Scroll Offset（供 VtInputHandler 只读门卫读取）。_screen 为 null 时返回 0。</summary>
+        internal int ScrollOffset => _screen?.ScrollOffset ?? 0;
 
         public AgentCliProtocol(EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
             : base(console, ui)
@@ -46,6 +60,14 @@ namespace MinorShift.Emuera.GameView
                 input => DispatchInput(input),
                 ClearInputBuffer);
             _countdown = new CountdownRenderer(console, () => _screen);
+            // ADR-0006：auto-follow 回调——FlushBuffer 检测到新行/ClearOp 且 offset>0 时
+            // 归零 offset + FullRefresh 后调用，同步状态栏/倒计时/按钮区域。
+            _renderer.OnScrollAutoFollow = () =>
+            {
+                _scrollStatusBar?.Render(0);
+                _countdown.Reset();
+                _buttons.RefreshButtonRegions(_vtInput!, force: true);
+            };
         }
 
         internal override Task<string?> GetInitialTurnAsync() => Task.FromResult<string?>(null);
@@ -107,6 +129,7 @@ namespace MinorShift.Emuera.GameView
         {
             _vtInput = new VtInputHandler(this, _terminalInput);
             _screen = new AgentCliVtScreen();
+            _scrollStatusBar = new ScrollStatusBarRenderer(() => _screen);
             RegisterVtCleanupHooks();
 
             try
@@ -125,6 +148,8 @@ namespace MinorShift.Emuera.GameView
                 {
                     if (console.ConsumeNeedFullRefresh())
                     {
+                        // ADR-0006 Issue 004：ConsumeNeedFullRefresh 归零 Scroll Offset 后再 FullRefresh。
+                        ResetScrollIfActive();
                         _renderer.FlushBuffer();
                         _renderer.FullRefresh();
                         _countdown.Reset();
@@ -139,7 +164,9 @@ namespace MinorShift.Emuera.GameView
                     {
                         int b = _vtInput.ReadByte();
                         if (b >= 0)
+                        {
                             _vtInput.Feed((byte)b);
+                        }
                     }
                     else
                     {
@@ -152,7 +179,14 @@ namespace MinorShift.Emuera.GameView
                     // 末尾刷新：resize 检测 + FlushBuffer + SyncButtonState + RefreshButtonRegions
                     if (CheckResize())
                     {
+                        // ADR-0006 Issue 004：resize 后将 offset 钳到新 max。
+                        int oldOffset = _screen!.ScrollOffset;
+                        int newOffset = _screen!.ClampScroll(console.DisplayLineList.Count);
                         _renderer.FullRefresh();
+                        // FullRefresh 已 ClearScreen，状态栏需在 FullRefresh 之后补绘。
+                        _scrollStatusBar?.Render(newOffset);
+                        if (oldOffset > 0 && newOffset == 0)
+                            _countdown.Reset();
                         _buttons.RefreshButtonRegions(_vtInput, force: true);
                     }
 
@@ -176,6 +210,8 @@ namespace MinorShift.Emuera.GameView
         /// <summary>
         /// 超时处理（TINPUT）。返回 true 表示已处理（调用方 continue），false 表示未超时。
         /// ADR-0005：VT-only 后 _vtInput 必非 null，移除原可空参数。
+        /// ADR-0006：SubmitTimeout 产生新输出后走 FlushBuffer 新行路径，auto-follow 归零 offset
+        /// （由 TerminalRenderer.FlushBuffer 内部处理，此处无需显式 reset）。
         /// </summary>
         private bool HandleTimeout()
         {
@@ -190,6 +226,76 @@ namespace MinorShift.Emuera.GameView
             _buttons.SyncButtonState();
             _buttons.RefreshButtonRegions(_vtInput!, force: false);
             return true;
+        }
+
+        #endregion
+
+        #region Scroll dispatch (ADR-0006)
+
+        /// <summary>滚轮事件分发（cb=64/65 → delta=±3）。由 VtInputHandler.OnMouseEvent 调用。</summary>
+        internal void DispatchWheel(int delta)
+        {
+            var screen = _screen;
+            if (screen == null) return;
+            int lineCount = console.DisplayLineList.Count;
+            int oldOffset = screen.ScrollOffset;
+            int newOffset = screen.ScrollBy(delta, lineCount);
+            if (newOffset == oldOffset) return;
+            ApplyScrollChange();
+        }
+
+        /// <summary>键盘滚动热键分发（PgUp/PgDn/Home/End）。由 VtInputHandler.OnKeyEvent 调用。</summary>
+        internal void DispatchScroll(ScrollAction action)
+        {
+            var screen = _screen;
+            if (screen == null) return;
+            int lineCount = console.DisplayLineList.Count;
+            int oldOffset = screen.ScrollOffset;
+
+            int newOffset;
+            switch (action)
+            {
+                case ScrollAction.Home:
+                    // 滚到顶：ScrollTo(int.MaxValue) 钳到 max。
+                    newOffset = screen.ScrollTo(int.MaxValue, lineCount);
+                    break;
+                case ScrollAction.End:
+                    // 回底退出 Scroll Mode。
+                    newOffset = screen.ScrollTo(0, lineCount);
+                    break;
+                case ScrollAction.PageUp:
+                    newOffset = screen.ScrollBy(screen.GetVisibleLines(), lineCount);
+                    break;
+                case ScrollAction.PageDown:
+                    newOffset = screen.ScrollBy(-screen.GetVisibleLines(), lineCount);
+                    break;
+                default:
+                    return;
+            }
+            if (newOffset == oldOffset) return;
+            ApplyScrollChange();
+        }
+
+        /// <summary>offset 变化后同步渲染：FullRefresh + 状态栏 + 倒计时 reset（若归零）+ 按钮区域。</summary>
+        private void ApplyScrollChange()
+        {
+            _renderer.FullRefresh();
+            int offset = _screen!.ScrollOffset;
+            _scrollStatusBar!.Render(offset);
+            // offset 从 >0 转回 0 时重新探测倒计时行位置（Scroll Mode 期间 CursorTop-1 失效）。
+            if (offset == 0)
+                _countdown.Reset();
+            _buttons.RefreshButtonRegions(_vtInput!, force: true);
+        }
+
+        /// <summary>ConsumeNeedFullRefresh 路径调用：若 offset>0 则归零 + 渲染状态栏(0)。</summary>
+        private void ResetScrollIfActive()
+        {
+            if (_screen != null && _screen.ScrollOffset > 0)
+            {
+                _screen.ResetScroll();
+                _scrollStatusBar?.Render(0);
+            }
         }
 
         #endregion
@@ -246,11 +352,15 @@ namespace MinorShift.Emuera.GameView
             CleanupVt();
         }
 
-        /// <summary>幂等清理：禁用 SGR mouse → 恢复 input mode → 退出备用屏。</summary>
+        /// <summary>幂等清理：禁用 SGR mouse → 恢复 input mode → 退出备用屏。
+        /// ADR-0006：退出前恢复光标可见（Scroll Mode 可能隐藏了光标）。</summary>
         private void CleanupVt()
         {
             if (_vtCleanupDone) return;
             _vtCleanupDone = true;
+
+            try { _scrollStatusBar?.RestoreCursor(); }
+            catch (Exception ex) { AgentLog.Instance.Write("scroll status bar restore cursor failed: " + ex); }
 
             try { _vtInput?.Dispose(); }
             catch (Exception ex) { AgentLog.Instance.Write("vt input dispose failed: " + ex); }
@@ -260,6 +370,7 @@ namespace MinorShift.Emuera.GameView
 
             _vtInput = null;
             _screen = null;
+            _scrollStatusBar = null;
         }
 
         #endregion

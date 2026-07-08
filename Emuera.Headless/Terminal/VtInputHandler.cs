@@ -65,6 +65,29 @@ internal sealed class VtInputHandler : IDisposable
             return;
         }
 
+        // ADR-0006：滚动热键（PgUp/PgDn/Home/End）始终路由到 DispatchScroll，不进入普通输入路径。
+        // offset=0 时 PgUp/Home 进入 Scroll Mode；End/PgDn 在 offset=0 时为 no-op
+        // （ScrollTo(0)/ScrollBy(-n) 钳到 0 → newOffset==oldOffset → DispatchScroll 提前返回）。
+        switch (key)
+        {
+            case ConsoleKey.PageUp:
+                _host.DispatchScroll(ScrollAction.PageUp);
+                return;
+            case ConsoleKey.PageDown:
+                _host.DispatchScroll(ScrollAction.PageDown);
+                return;
+            case ConsoleKey.Home:
+                _host.DispatchScroll(ScrollAction.Home);
+                return;
+            case ConsoleKey.End:
+                _host.DispatchScroll(ScrollAction.End);
+                return;
+        }
+
+        // ADR-0006：Scroll Mode 只读门卫。offset>0 时丢弃所有非滚动键，
+        // 避免污染输入缓冲区（不进入 ProcessKey / ButtonSelectionMode.HandleKey）。
+        if (_host.ScrollOffset > 0) return;
+
         var keyInfo = new ConsoleKeyInfo(ch, key, false, false, false);
         _host.ProcessKeyFromVt(keyInfo);
     }
@@ -76,6 +99,18 @@ internal sealed class VtInputHandler : IDisposable
             DispatchPrimitiveMouseKey(row, col, buttonCode, isPress);
             return;
         }
+
+        // ADR-0006：滚轮事件（SGR mouse cb=64/65）始终处理，不依赖 isPress。
+        // cb=64 → 滚轮上（delta=+3，回看历史）；cb=65 → 滚轮下（delta=-3，回底）。
+        if (buttonCode == 64 || buttonCode == 65)
+        {
+            int delta = buttonCode == 64 ? 3 : -3;
+            _host.DispatchWheel(delta);
+            return;
+        }
+
+        // Scroll Mode 下忽略鼠标左键点击（cb=0）等所有其他鼠标事件，避免误触旧 Generation 按钮。
+        if (_host.ScrollOffset > 0) return;
 
         if (!isPress || buttonCode != 0) return;
 

@@ -78,9 +78,13 @@ namespace MinorShift.Emuera.GameView
         /// <summary>鼠标点击时退出按钮模式（若有）。</summary>
         internal void ExitButtonMode() => ExitButtonModeCore();
 
-        /// <summary>同步按钮位置状态，按需进入/退出选择模式或更新高亮。</summary>
+        /// <summary>同步按钮位置状态，按需进入/退出选择模式或更新高亮。
+        /// ADR-0006：Scroll Mode（offset>0）下跳过——按钮命中区由 RefreshButtonRegions 清空，
+        /// 不维护选择模式状态（避免误触旧 Generation 按钮）。</summary>
         internal void SyncButtonState()
         {
+            if (_getScreen()?.ScrollOffset > 0) return;
+
             bool shouldHaveButtons = false;
             List<ButtonPos> newPositions = [];
 
@@ -137,9 +141,19 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
-        /// <summary>刷新 VT 鼠标命中区域。ADR-0005 Issue 4：VT-only 后 vtInput 必非 null。</summary>
+        /// <summary>刷新 VT 鼠标命中区域。ADR-0005 Issue 4：VT-only 后 vtInput 必非 null。
+        /// ADR-0006：Scroll Mode（offset>0）下走 ClearRegions 分支，不 SyncButtonState——
+        /// 避免点击触发旧 Generation 按钮分发导致 input rejection。</summary>
         internal void RefreshButtonRegions(VtInputHandler vtInput, bool force = false)
         {
+            // ADR-0006：Scroll Mode 下清空命中区，不更新 _lastRegionGeneration
+            // （退出 scroll mode 时由 force=true 路径重建）。
+            if (_getScreen()?.ScrollOffset > 0)
+            {
+                vtInput.ClearRegions();
+                return;
+            }
+
             // 非按钮模式或无请求时清除所有区域，防止过期按钮被点击触发
             var req = _console.CurrentRequest;
             if (req == null || req.InputType == InputType.EnterKey || req.InputType == InputType.AnyKey)

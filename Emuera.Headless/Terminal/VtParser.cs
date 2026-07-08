@@ -143,7 +143,25 @@ namespace MinorShift.Emuera.GameView
                 case (byte)'F': // End
                     _owner.OnKeyEvent(ConsoleKey.End, '\0');
                     break;
+                case (byte)'~': // CSI ~ 序列：param 5=PgUp, 6=PgDn（ADR-0006）
+                    HandleCsiTilde();
+                    break;
                 // 'c' = DA1 响应，忽略；其他 CSI 序列忽略
+            }
+        }
+
+        private void HandleCsiTilde()
+        {
+            string p = _params.ToString();
+            switch (p)
+            {
+                case "5":
+                    _owner.OnKeyEvent(ConsoleKey.PageUp, '\0');
+                    break;
+                case "6":
+                    _owner.OnKeyEvent(ConsoleKey.PageDown, '\0');
+                    break;
+                // 其他 ~ 序列（F1-F4 等）忽略
             }
         }
 
