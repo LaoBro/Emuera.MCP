@@ -9,7 +9,7 @@
 
 - **构建环境**：`<Nullable>enable</Nullable>` + `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` + `EnableNETAnalyators=true` + `AnalysisMode=Minimum`。
 - **策略**：历史代码（`Shared/`）原则不重构逻辑，只做"让编译器静默"的最小改动，保持运行时行为不变。与阶段 3 同构。
-- **保留项**：`CA1416`（平台兼容性）是 Headless 必用 Windows API 的合理抑制，**不清理**，最终保留在 .editorconfig。
+- **保留项**：`CA1416`（平台兼容性）**真实触发、非死配置**，保留抑制。真实触发点：`Shared` 内 `ExpressionMediator.cs`/`Creator.Method.cs` 的 `Strings.StrConv`（共 5 处，非 `#if !HEADLESS` 隔离）、`Emuera.Headless` 自有代码 `WindowsTerminalSetup.cs` 的 `Console.BufferWidth/Window*` 等（4 处）。详见 `docs\2026.7.4.T-022阶段4-Shared历史警告清理\CA1416_Shared_分析.md`（2026-07-08 复核）。
 
 ## 2. 现状数据（2026-07-04 实际构建所得）
 
@@ -141,7 +141,7 @@ dotnet_diagnostic.CA2016.severity = none
 
 | ID | 理由 |
 | :--- | :--- |
-| CA1416 | Headless 必用 Windows 专用 API（Font/PrivateFontCollection/Console.BufferWidth），合理抑制 |
+| CA1416 | **仅自有代码段保留**：`WindowsTerminalSetup.cs` 的 `Console.Buffer*/Window*`（4 处）仍需抑制。**Shared 段已于 2026-07-08 用方案 B 彻底消除**（5 处 `Strings.StrConv` 替换为跨平台 `StringConverter`，`.editorconfig` Shared 段抑制行已删除） |
 
 ## 4. 标准操作流程（SOP）
 
@@ -173,13 +173,13 @@ dotnet_diagnostic.CA2016.severity = none
 - **最小改动**：不重构历史逻辑，优先机械修复。
 - **保留运行时行为**：`static` 化、`TryGetValue` 改写不得改变执行路径。
 - **接口契约**：实现成员签名必须严格匹配接口定义。
-- **永久保留项需注释**：`CA1416` 等保留抑制行需在 `.editorconfig` 注释中说明理由。
+- **永久保留项需注释**：保留抑制行需在 `.editorconfig` 注释中说明理由。`CA1416` 为真实触发的保留项（详见上文），当前 Shared 段仅此一项。
 
 ## 7. 验证标准
 
 - `dotnet build Emuera.Headless/Emuera.Headless.csproj --no-incremental` 结果为 **0 警告 0 错误**。
 - 对应 ID 已从 `.editorconfig` 删除（保留项除外）。
-- `[Emuera.Headless/Shared/**]` 段最终仅保留 `CA1416`（及后续新增的合理保留项）。
+- `[Emuera.Headless/Shared/**]` 段最终仅保留 `CA1416`（真实触发，Shared 内 Strings.StrConv 5 处），仅后续新增的合理保留项按需追加。
 
 ## 8. 进度跟踪
 
@@ -191,4 +191,89 @@ dotnet_diagnostic.CA2016.severity = none
 | 4 | CA1822 | 66 | 66 | ✅ 已完成 |
 | 5 | CA1069/CA2208/CA2211/CS0162/CS0164/CA2263/CA1507 | 50 | 27 | ✅ 已完成 |
 | 6 | SYSLIB0014 | 2 | 1 | ✅ 已完成 |
-| - | CA1416（永久保留） | - | - | ⏸️ 保留 |
+| - | CA1416（保留） | 5+4 | 9 | ⏸️ 自有代码段 4 处保留抑制；**Shared 段 5 处 2026-07-08 已消除（方案 B）** |
+
+---
+
+## 9. CA1416 消除专项（2026-07-08 新增计划）
+
+> 阶段 4 主线（批次 1–6）已全部完成。CA1416 原是唯一的保留项，且为**真实触发**（非死配置）。
+> 本节原计划将其从 Shared 段彻底消除，作为后续独立任务。**2026-07-08 已按方案 B 执行完成**（见 9.7）。
+
+### 9.1 真实触发点清单
+
+Shared 段（5 处，全为 `Microsoft.VisualBasic.Strings.StrConv`，日文假名/全半角转换，仅 Windows 支持）：
+
+| 文件 | 行 | 调用 | 语义 |
+| :--- | :---: | :--- | :--- |
+| `Runtime/Script/Statements/ExpressionMediator.cs` | 69 | `Strings.StrConv(str, VbStrConv.Katakana, 0x0411)` | 片假名化 |
+| `Runtime/Script/Statements/ExpressionMediator.cs` | 73 | `Strings.StrConv(str, VbStrConv.Hiragana \| VbStrConv.Wide, 0x0411)` | 平假名 + 全角 |
+| `Runtime/Script/Statements/ExpressionMediator.cs` | 75 | `Strings.StrConv(str, VbStrConv.Hiragana, 0x0411)` | 平假名化 |
+| `Runtime/Script/Statements/Function/Creator.Method.cs` | 4571 | `Strings.StrConv(str, VbStrConv.Narrow, Config.Language)` | 半角化（STR_FORM） |
+| `Runtime/Script/Statements/Function/Creator.Method.cs` | 4573 | `Strings.StrConv(str, VbStrConv.Wide, Config.Language)` | 全角化（STR_FORM） |
+
+> 注意：这些调用**不在** `#if !HEADLESS` 分支内（I-14 隔离未覆盖），故在 Headless 编译路径中真实参与编译并触发 CA1416。
+> 自有代码段另有 4 处（`WindowsTerminalSetup.cs` 的 `Console.BufferWidth/BufferHeight/WindowWidth/WindowHeight` .set），
+> 不在本 Shared 专项范围内，需另行处理（见 9.5）。
+
+### 9.2 方案对比
+
+| 方案 | 做法 | 评价 |
+| :--- | :--- | :--- |
+| **A. 平台守卫 + 跨平台回退** | `if (OperatingSystem.IsWindows()) return Strings.StrConv(...); else return CrossPlatformConvert(...);` | ✅ 真消除 CA1416；需为非 Windows 实现等价转换（Unicode 映射表）；Headless 实际只跑 Windows，回退分支极少执行 |
+| **B. 整体替换 StrConv** | 自实现跨平台全半角/假名转换，彻底去掉 `Microsoft.VisualBasic` 依赖 | ✅ 最干净，顺带减依赖；需保证与 VB `LCMapString` 行为一致（尤其日文），需测试 |
+| C. 加 `[SupportedOSPlatform("windows")]` | 给 `ConvertStringType` / `GetStrValue` 打特性 | ⚠️ 仅把警告上推给调用方，未真消除；且与 Headless `net10.0` 跨平台定位矛盾，**不采用** |
+| D. 保留抑制（现状） | 不动 | 当前务实做法，属"掩盖"非"解决" |
+
+### 9.3 推荐执行方案：B（整体替换）
+
+理由：一次性消除 Shared 段 CA1416 并移除 `Microsoft.VisualBasic` 依赖，避免方案 A 的双实现维护成本；
+转换语义明确（全角↔半角、片假名↔平假名均为 Unicode 码点区间映射），可实现为纯跨平台函数。
+
+**实现要点**：
+1. 新建 `Shared/Runtime/Utils/StringConverter.cs`（或并入既有工具类），提供：
+   - `ToFullWidth(string)` / `ToHalfWidth(string)`：映射 `U+0021–U+007E` ↔ `U+FF01–U+FF5E`（含空格 `U+0020 ↔ U+3000`）。
+   - `ToKatakana(string)` / `ToHiragana(string)`：映射平假名 `U+3041–U+3096` ↔ 片假名 `U+30A1–U+30F6`。
+   - 组合标志（`Hiragana | Wide`）按位分步应用。
+2. `ExpressionMediator.ConvertStringType`：三处 `Strings.StrConv` → 调用上述函数（保持 `0x0411` 日文 locale 语义）。
+3. `Creator.Method.cs` `GetStrValue`（STR_FORM 的 Half/Full 分支）：`VbStrConv.Narrow/Wide` → `ToHalfWidth/ToFullWidth`；`Config.Language` 参数可忽略（跨平台实现与 locale 无关，但需确认日文游戏场景下无差异）。
+4. **不引入行为回归**：原 `Strings.StrConv` 对空/非字母字符原样返回，自实现需保持同等退化行为。
+
+### 9.4 验收门槛（与阶段 4 一致）
+
+1. 修改后全量构建 `0 警告 0 错误`（`TreatWarningsAsErrors=true`，**务必用真实配置，勿用 `-p:AnalysisMode=All` 覆盖**，否则会漏报）。
+2. 从 `.editorconfig` `[Emuera.Headless/Shared/**]` 段删除 `dotnet_diagnostic.CA1416.severity = none` 行，重建确认 Shared 不再触发 CA1416（0 个）。
+3. **行为一致性测试**：选取含 `STR_FORM` 全/半角、`@ 片假名`/`@ 平假名` 转换的 ERB 脚本，在 Windows 上对比替换前后输出字节一致；建议补充单元测试覆盖 `StringConverter` 各映射。
+4. 同步将本节结论回填进度跟踪表（第 8 节 CA1416 行由"保留"改为"已消除"）。
+
+### 9.5 范围外（不在本专项）
+
+- 自有代码 `WindowsTerminalSetup.cs` 的 4 处 `Console.Buffer*/Window*`：需单独任务，方案同 A（守卫 + 跨平台终端尺寸获取回退）或 B。
+- 消除后 `.editorconfig` `[Emuera.Headless/**]`（自有代码段）的 CA1416 抑制行保留至该任务完成。
+
+### 9.6 踩坑提醒
+
+- **切勿凭 `-p:AnalysisMode=All` 全量构建的"0 CA1416"判定抑制可删**：该覆盖会改变分析器行为/被缓存，曾导致误判死配置、删抑制后真实构建 9 错误。验证必须基于**项目真实配置** + **真实触发点**。
+- 实现跨平台转换时禁用 `Microsoft.VisualBasic` 后，检查 `Shared` 内是否还有其他 `Strings.` / `Microsoft.VisualBasic.` 引用（若有，一并迁移或保留依赖）。
+
+### 9.7 执行结果（2026-07-08 已完成 ✅）
+
+**方案 B 已落地**，Shared 段 CA1416 彻底消除，真实配置全量构建 **0 警告 0 错误**（CA1416 = 0）。
+
+**改动清单**
+1. 新增 `Shared/Runtime/Utils/StringConverter.cs`（纯跨平台，无 Windows/`Microsoft.VisualBasic` 依赖）：
+   - `internal enum StrConvFlags`（值与 `VbStrConv` 对齐：Katakana=16 / Hiragana=32 / Wide=4 / Narrow=8 / Hiragana|Wide 组合）。
+   - `Convert(string, StrConvFlags, int locale)`：按位分步应用，调用形态与原 `Strings.StrConv(str, flags, locale)` **完全一致**（同标志、同 locale 参数），行为差异完全由实现决定。
+   - `ToKatakana` / `ToHiragana`（平片假名偏移 0x60，扩展假名 30F4–30F6 与长音记号 30FC 不转换，与 VB 一致）、`ToFullWidth` / `ToHalfWidth`（ASCII `U+0021–U+007E ↔ U+FF01–U+FF5E`、半角片假名 `U+FF61–U+FF9F` 经 NFKC 合成预成字；命名匹配 §9.3 规范要求的 `ToFullWidth`/`ToHalfWidth`）。
+   - 关键细节：反斜杠 `U+005C` 与全角反斜杠 `U+FF3C` 不做全半角互换（VB 在日语区域下保留）；基础字 + 半角浊点/半浊点组合经 NFKC 合成预成字；日元 `U+00A5` 全局归一化为 `U+005C`，全角日元 `U+FFE5` 仅在 HalfWidth 归一化（与 VB 行为一致）。
+2. `ExpressionMediator.cs`：3 处 `Strings.StrConv(...)` → `StringConverter.Convert(...)`，并移除 `using Microsoft.VisualBasic;`。
+3. `Creator.Method.cs`：2 处 `Microsoft.VisualBasic.Strings.StrConv(...)` → `StringConverter.Convert(...)`（STR_FORM 的 Half/Full 分支）。
+4. `.editorconfig`：`[Emuera.Headless/Shared/**]` 段删除 `dotnet_diagnostic.CA1416.severity = none`（注释改为说明已消除）；`[Emuera.Headless/**]` 自有代码段 4 处抑制保留。
+
+**行为一致性验证（关键）**
+- 用 Windows 上真实的 `Microsoft.VisualBasic.Strings.StrConv` 作 oracle，对 **2455 组**输入（标准假名单字符全扫描、ASCII/半角片假名、浊点/半浊点组合、现实短语、反斜杠/日元变体，5 种标志组合 × 日语 locale 0x0411）逐项比对：`MISMATCH=0, ORACLE_ERR=0`。
+- **已知与 VB 的有意差异（改进而非回归）**：VB6 的 `LCMapString` 对扩展兼容假名 `U+3095/U+3096/U+30F4–U+30FA` 输出字面 `?`（VB bug，原 Emuera 亦有此 bug）；`StringConverter` 保留这些字符原样（如 `関ヶ原` 的 `ヶ` 不再变成 `?`）。标准假名与 ASCII 全半角 100% 一致。
+
+**遗留**
+- 自有代码段 `WindowsTerminalSetup.cs` 的 4 处 `Console.Buffer*/Window*` 仍为 CA1416 保留项，需另立任务消除（方案 A：平台守卫 + 跨平台终端尺寸回退）。
+- `Shared` 内已无任何 `Microsoft.VisualBasic` 代码引用；项目级 `Microsoft.VisualBasic` 包引用保留（非 Shared 部分可能仍用，且移除包引用超出本专项范围）。

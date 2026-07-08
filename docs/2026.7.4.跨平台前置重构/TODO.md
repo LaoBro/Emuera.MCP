@@ -124,6 +124,22 @@
 - `FullRefresh` 忘同步 delta tracking state 会让后续 `FlushBuffer` 全错——
   实现已处理（`FullRefresh` 末尾同步）
 
+#### P2-5：EmueraConsole 门面瘦身（按 ADR-0004 收缩路线已完成）
+
+详见 [架构评估报告.md](./架构评估报告.md) 第四章 P2-5、[ADR-0004](../../adr/0004-emueraconsole-facade-shrink.md)。
+
+- 原方向（`IConsoleState`/`IConsoleInput`/`IConsolePrint` 接口提取）被 ADR-0004
+  supersede，改为"先收缩后评估"
+- 完成范围（代码已落地）：
+  - `EmueraConsole` 改为 `internal sealed`，公开成员仅剩 `ConsumeNeedFullRefresh`
+    （`IConsoleStateView` 实现）+ `Dispose`
+  - Print 20+ 方法由 `public` 降为 `internal`
+  - 删除 WinForms 死代码：`CBG_*` / `rikaichan` / `CBProc` / `GetLinePointY`
+  - 终端格式方法 `FormatLineForTerminal` / `FormatLineWithAnsi` / `BuildTerminalLine` /
+    `GetGameColumnWidth` 外移至 `Terminal/TerminalLineFormatter.cs`（纯函数、零依赖）
+  - Agent 层仅依赖窄接口 `IConsoleStateView`，不依赖整个 facade
+- 预期达成：EmueraConsole 公开表面从约 50 成员降至约 2，门面瘦身目标达成
+
 ## 已取消
 
 ### P1-4：IConsoleUI.Invoke 调度器抽象
@@ -145,6 +161,24 @@
 - 4 个调用方（`AgentJsonlProtocol` / `ConsoleRefreshHandler` /
   `ConsoleTimerManager`）全部同步使用
 
+### P2-7：AgentCliProtocol 拆分
+
+原计划：`AgentCliProtocol.cs`（报告评估时描述 441 行）拆分为可维护小组件，
+`LoopStrategy` 子类提取为独立文件，VT 模式管理提取为 `VtSessionManager`
+（详见 [架构评估报告.md](./架构评估报告.md) 第四章 P2-7）。
+
+**取消理由**：报告评估时（2026.7.4）的描述基于预 ADR-0005 状态。ADR-0005
+（VT-only 重构，2026.7.7）已删除 `LoopStrategy`/`VtLoopStrategy`/
+`ConsoleKeyLoopStrategy` 策略类并将主循环内联，同时将渲染/按钮/倒计时逻辑提取至
+`TerminalRenderer`/`ButtonSelectionMode`/`CountdownRenderer`，VT 屏幕/输入生命周期
+外移至 `AgentCliVtScreen`/`VtInputHandler`。当前 `AgentCliProtocol.cs` 约 382 行，
+原 P2-7 目标已被 ADR-0005 实质吞并。ADR-0005 明确拒绝"保留 LoopStrategy 抽象以备
+扩展"并立下"避免预期式抽象"原则，继续按原描述拆分等于为拆而拆、踩中该原则。
+
+代码现状佐证：
+- `AgentCliProtocol.cs` 无嵌套策略类；注释 `// ADR-0005：原 LoopStrategy 策略模式已删除，主循环逻辑直接内联（VT-only）`
+- `TerminalRenderer`/`ButtonSelectionMode`/`CountdownRenderer`/`AgentCliVtScreen`/`VtInputHandler` 均为独立文件
+
 ## 后续工作
 
 ### 富 Turn 升级排除项（独立立项）
@@ -165,22 +199,11 @@ PRD-T5 grilling 阶段明确排除以下三项，待条件成熟后独立立项�
 详见 [架构评估报告.md](./架构评估报告.md) 第四章。以下任务独立于 Turn 协议演进，
 按优先级排列：
 
-#### P2-5：EmueraConsole 门面瘦身
-
-- **目标**：减少 30+ 属性的公开表面
-- **方向**：按职责分组到 `IConsoleState`/`IConsoleInput`/`IConsolePrint` 只读接口
-
 #### P2-6：Shared 子树债务清零（渐进）
 
 - **目标**：逐步移除 `.editorconfig` 对 `Shared/**` 的警告抑制
 - **方向**：按 T-022 计划逐步修复 nullable 警告，最终全项目
   `TreatWarningsAsErrors` 无抑制
-
-#### P2-7：AgentCliProtocol 拆分
-
-- **目标**：441 行的 CLI 协议类拆分为可维护的小组件
-- **方向**：`LoopStrategy` 子类提取为独立文件，VT 模式管理提取为
-  `VtSessionManager`
 
 ## 基础文档索引
 

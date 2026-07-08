@@ -62,8 +62,9 @@ dotnet_diagnostic.CA1853.severity = none   # 字典 lookup 优化
 # CA1069 已清理（T-022 阶段 4，2026-07-04，VariableCode.cs 局部 #pragma 抑制）
 # CA2208 已清理（T-022 阶段 4，2026-07-04，ArgumentException 参数名 → nameof）
 # CA2211 已清理（T-022 阶段 4，2026-07-04，字段加 readonly）
-# 平台兼容性（Headless 路径不触发 WinForms/COM，但共享源码含 Windows 专用 API）
-dotnet_diagnostic.CA1416.severity = none
+# 平台兼容性 CA1416：Shared 原 Strings.StrConv（5 处）已于 2026-07-08 替换为跨平台
+# StringConverter（Emuera.Headless/Shared/Runtime/Utils/StringConverter.cs），不再调用 Windows 专用 API，
+# Shared 段 CA1416 = 0，抑制行已删除。
 # 用法
 # CA2016 已清理（T-022 阶段 4，2026-07-04，0 警告自然消亡）
 # CA2263 已清理（T-022 阶段 4，2026-07-04，优先泛型方法重载）
@@ -72,7 +73,7 @@ dotnet_diagnostic.CA1416.severity = none
 # T-022 阶段 3：Headless 模式固有警告抑制
 # [Emuera.Headless/**] 覆盖自有源码；[Emuera.Headless/Shared/**] 更具体，优先于本段
 [Emuera.Headless/**]
-# CA1416：Headless 必然使用 Windows 专用 API（Font/PrivateFontCollection/Console.BufferWidth）
+# CA1416：Headless 自有代码 WindowsTerminalSetup.cs 使用 Console.BufferWidth/Window* 等 Windows 专用 API（自有代码 4 处）
 dotnet_diagnostic.CA1416.severity = none
 # CS0649：反射赋值或占位字段（tooltip_img/rikaichan 等）
 dotnet_diagnostic.CS0649.severity = none
