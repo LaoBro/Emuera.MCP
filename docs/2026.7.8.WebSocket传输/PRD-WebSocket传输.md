@@ -208,7 +208,8 @@ Fatal turn：`ops: []` + `error`（与 PRD-T5 fatal 路径一致）。Session �
 - [ADR-0001](../../adr/0001-turn-protocol-versioning.md)：`protocolVersion` 仅
   initial turn 的约束，WS 客户端连上即获得，无需 WS 专属版本协商。
 - 落地后建议补 **ADR-0003**：记录"Hub 旁路 vs 平行 SessionIO""裸帧 vs envelope"
-  "WS/HTTP 并存" 三项决策与被拒绝的替代方案。
+  "WS/HTTP 并存" 三项决策与被拒绝的替代方案。已落地，见
+  [ADR-0003](../../adr/0003-websocket-hub-bypass.md)。
 
 ### 与 grill-me 设计审查关系
 

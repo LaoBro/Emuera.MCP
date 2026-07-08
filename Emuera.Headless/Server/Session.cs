@@ -155,6 +155,30 @@ internal sealed class Session : IDisposable
         _protocol?.Stop();
         _io?.Close();
         _console?.Dispose();
+
+        // 等待游戏循环（含其 finally 中的清理）彻底结束，避免旧 loop 仍在使用全局静态时
+        // 提前释放/复用 GlobalStatic。否则高频 create→delete→create 下，新会话 Initialize
+        // 会复用到未清空的 GlobalStatic.Console，导致首帧以续作形态产出（缺 protocolVersion）。
+        try
+        {
+            _gameTask?.GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            AgentLog.Instance.Write("session game loop ended with error during dispose: " + ex);
+        }
+
+        // TODO#6：同步清空 GlobalStatic 全局状态，确保紧随其后的 new Session 拿到干净状态，
+        // 消除单会话拆除竞态。Reset 幂等（_resetCalled 防重复），与 GameLoopAsync finally 中的
+        // 调用互不冲突；join 之后旧 loop 已不再引用 GlobalStatic，此处重置无悬空风险。
+        try
+        {
+            GlobalStatic.Reset();
+        }
+        catch (Exception ex)
+        {
+            AgentLog.Instance.Write("GlobalStatic.Reset failed during dispose: " + ex.Message);
+        }
     }
 }
 
