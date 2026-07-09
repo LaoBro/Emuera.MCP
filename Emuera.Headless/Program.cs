@@ -46,14 +46,7 @@ static partial class Program
 
         paths.Validate();
 
-        if (Directory.Exists(paths.FontDir))
-        {
-            foreach (string fontFile in Directory.GetFiles(paths.FontDir, "*.ttf", SearchOption.AllDirectories))
-                GlobalStatic.Pfc.AddFontFile(fontFile);
-            foreach (string fontFile in Directory.GetFiles(paths.FontDir, "*.otf", SearchOption.AllDirectories))
-                GlobalStatic.Pfc.AddFontFile(fontFile);
-        }
-
+        // 字体加载迁移至 runners 内 scope 打开后执行（ADR-0008：Pfc 是实例成员，随 scope 生灭）
         if (options.Server)
             await ServerRunner.RunAsync(options.Port, terminalSetup);
         else
@@ -87,6 +80,20 @@ static partial class Program
             return new WindowsTerminalSetup();
 
         return new PosixTerminalSetup();
+    }
+
+    /// <summary>
+    /// 加载字体文件到当前 scope 的 GlobalStatic.Pfc。
+    /// 必须在 OpenScope() 之后调用（ADR-0008：Pfc 是实例成员，随 scope 生灭）。
+    /// </summary>
+    internal static void LoadFonts()
+    {
+        var fontDir = GamePaths.Current.FontDir;
+        if (!Directory.Exists(fontDir)) return;
+        foreach (string fontFile in Directory.GetFiles(fontDir, "*.ttf", SearchOption.AllDirectories))
+            GlobalStatic.Pfc.AddFontFile(fontFile);
+        foreach (string fontFile in Directory.GetFiles(fontDir, "*.otf", SearchOption.AllDirectories))
+            GlobalStatic.Pfc.AddFontFile(fontFile);
     }
 
     static Program()

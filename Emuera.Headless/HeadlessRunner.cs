@@ -103,20 +103,26 @@ internal static class HeadlessRunner
 
         console.SetAgentBridge(protocol);
 
-        try
+        // ADR-0008：会话作用域 scope——包住 Initialize+RunLoop 块。
+        // scope.Dispose 自动 Pfc.Dispose + Current 归 null，替代旧的 Reset()。
+        using (var scope = GlobalStatic.OpenScope())
         {
-            await console.Initialize();
+            Program.LoadFonts();
+            try
+            {
+                await console.Initialize();
 
-            if (protocol is AgentCliProtocol cli)
-                cli.RunCliLoop();
-            else
-                Console.Error.WriteLine("[headless] 无法启动终端交互；请使用 --protocol cli 或 --server 模式");
+                if (protocol is AgentCliProtocol cli)
+                    cli.RunCliLoop();
+                else
+                    Console.Error.WriteLine("[headless] 无法启动终端交互；请使用 --protocol cli 或 --server 模式");
+            }
+            catch (GameExitException)
+            {
+                // 脚本 QUIT/EXIT：静默退出 0
+            }
+            // HeadlessFatalException 不在此处捕获——向上传播到 RunAsync 统一处理。
         }
-        catch (GameExitException)
-        {
-            // 脚本 QUIT/EXIT：静默退出 0
-        }
-        // HeadlessFatalException 不在此处捕获——向上传播到 RunAsync 统一处理。
     }
 
     private static AgentCliProtocol? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
