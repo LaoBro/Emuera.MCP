@@ -16,6 +16,8 @@ Emuera/obj/*
 Emuera.Headless/bin/*
 Emuera.Headless/obj/*
 Emuera.Headless/publish/*
+Emuera.Headless.Tests/bin/*
+Emuera.Headless.Tests/obj/*
 docs/agents/*
 docs/adr/*
 docs/2026.6.16.mouse-input/spikes/*
