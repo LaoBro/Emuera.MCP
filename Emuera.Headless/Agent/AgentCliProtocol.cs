@@ -323,13 +323,15 @@ namespace MinorShift.Emuera.GameView
             _buttons.RefreshButtonRegions(_vtInput!, force: true);
         }
 
-        /// <summary>ConsumeNeedFullRefresh 路径调用：若 offset>0 则归零 + 渲染状态栏(0)。</summary>
+        /// <summary>ConsumeNeedFullRefresh 路径调用：若 offset>0 则清旧状态栏 + 归零。
+        /// ClearStatusBar 必须在 ResetScroll 之前调用——此时屏幕仍是 offset>0 旧布局，
+        /// row consoleHeight-2 是旧状态栏行；归零后的 FullRefresh 会重绘 offset=0 布局。</summary>
         private void ResetScrollIfActive()
         {
             if (_screen != null && _screen.ScrollOffset > 0)
             {
+                _scrollStatusBar?.ClearStatusBar();
                 _screen.ResetScroll();
-                _scrollStatusBar?.Render(0);
             }
         }
 

@@ -176,7 +176,117 @@ class CliSession:
 
 
 # ---------------------------------------------------------------------------
-# Issue 001: 滚动 tracer（键盘热键覆盖滚轮等价的滚动逻辑）
+# AnsiScreen：简化 ANSI 终端屏幕模拟，用于验证渲染状态。
+# 只支持 ClearScreen(2J)/ClearLine(2K)/ClearToEOL(K)/光标定位(H)/普通文本，
+# 足以检测 ADR-0006 滚动渲染 bug（ClearLine 擦除最后一行内容）。
+# ---------------------------------------------------------------------------
+
+
+class AnsiScreen:
+    def __init__(self, rows, cols):
+        self.rows = rows
+        self.cols = cols
+        self.buf = [[" "] * cols for _ in range(rows)]
+        self.cur_row = 0
+        self.cur_col = 0
+
+    def feed(self, data):
+        i = 0
+        n = len(data)
+        while i < n:
+            c = data[i]
+            if c == "\x1b" and i + 1 < n and data[i + 1] == "[":
+                j = i + 2
+                while j < n and not (0x40 <= ord(data[j]) <= 0x7e):
+                    j += 1
+                if j < n:
+                    self._handle_csi(data[i + 2:j], data[j])
+                    i = j + 1
+                    continue
+                i += 1
+            elif c == "\x1b" and i + 1 < n and data[i + 1] == "]":
+                k = data.find("\x07", i)
+                if k < 0:
+                    k = data.find("\x1b\\", i)
+                    i = k + 2 if k >= 0 else i + 1
+                    continue
+                i = k + 1
+                continue
+            elif c == "\x1b":
+                i += 2
+                continue
+            elif c == "\n":
+                self.cur_row = min(self.cur_row + 1, self.rows - 1)
+                self.cur_col = 0
+                i += 1
+            elif c == "\r":
+                self.cur_col = 0
+                i += 1
+            elif c == "\b":
+                self.cur_col = max(0, self.cur_col - 1)
+                i += 1
+            else:
+                if 0 <= self.cur_row < self.rows and 0 <= self.cur_col < self.cols:
+                    self.buf[self.cur_row][self.cur_col] = c
+                if self.cur_col < self.cols - 1:
+                    self.cur_col += 1
+                i += 1
+
+    def _handle_csi(self, params, cmd):
+        if cmd == "H" or cmd == "f":
+            parts = params.split(";")
+            r = int(parts[0]) - 1 if parts and parts[0] else 0
+            c = int(parts[1]) - 1 if len(parts) > 1 and parts[1] else 0
+            self.cur_row = max(0, min(r, self.rows - 1))
+            self.cur_col = max(0, min(c, self.cols - 1))
+        elif cmd == "J":
+            p = params.strip()
+            if p == "" or p == "0":
+                for col in range(self.cur_col, self.cols):
+                    self.buf[self.cur_row][col] = " "
+                for r in range(self.cur_row + 1, self.rows):
+                    for col in range(self.cols):
+                        self.buf[r][col] = " "
+            elif p == "2":
+                for r in range(self.rows):
+                    for col in range(self.cols):
+                        self.buf[r][col] = " "
+                self.cur_row = 0
+                self.cur_col = 0
+        elif cmd == "K":
+            p = params.strip()
+            if p == "" or p == "0":
+                for col in range(self.cur_col, self.cols):
+                    self.buf[self.cur_row][col] = " "
+            elif p == "2":
+                for col in range(self.cols):
+                    self.buf[self.cur_row][col] = " "
+            elif p == "1":
+                for col in range(0, self.cur_col + 1):
+                    self.buf[self.cur_row][col] = " "
+        elif cmd == "A":
+            self.cur_row = max(0, self.cur_row - (int(params) if params else 1))
+        elif cmd == "B":
+            self.cur_row = min(self.rows - 1, self.cur_row + (int(params) if params else 1))
+        elif cmd == "C":
+            self.cur_col = min(self.cols - 1, self.cur_col + (int(params) if params else 1))
+        elif cmd == "D":
+            self.cur_col = max(0, self.cur_col - (int(params) if params else 1))
+
+    def line(self, row):
+        if 0 <= row < self.rows:
+            return "".join(self.buf[row]).rstrip()
+        return ""
+
+    def find_row(self, text):
+        for r in range(self.rows):
+            if text in self.line(r):
+                return r
+        return -1
+
+
+# ---------------------------------------------------------------------------
+# Issue 001: 滚动 tracer（键盘热键覆盖滚轮等价逻辑）
 # ---------------------------------------------------------------------------
 
 
@@ -230,6 +340,44 @@ def test_scroll_down_returns_to_bottom(binary):
             sess.sleep(0.5)
             text = sess.text()
             check("ScrollLine50" in text[-2000:], "滚回底部后末尾标记可见")
+        finally:
+            sess.close()
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_scroll_to_bottom_preserves_last_line(binary):
+    """ADR-0006 回归：向上滚动后回到底部，最后一行内容不应被状态栏 ClearLine 擦除。
+
+    原 bug：ApplyScrollChange 在 FullRefresh（重绘 offset=0 布局，最后一行内容画到
+    row consoleHeight-2）之后调用 Render(0)，而 Render(0) 无条件 ClearLine(consoleHeight-2)
+    ——该行在 offset=0 布局下是最后一行内容所在行，被擦成空行，呈现为 prompt 行。
+    按钮区域由随后的 RefreshButtonRegions(force=true) 按 offset=0 重新记录在该 row，
+    故视觉擦除不影响点击命中——解释了"渲染错误但按钮逻辑保留"。
+    用 AnsiScreen 重放 PTY 输出，检查最后一行内容在最终屏幕上仍非空。
+    """
+    temp_dir, game_dir = copy_test_game_with_erb(_make_overflow_erb(50))
+    try:
+        sess = CliSession(binary, game_dir)
+        try:
+            assert sess.wait_for("ScrollLine50", timeout=10), "启动输出可见"
+            sess.sleep(0.5)
+            # 进入 Scroll Mode
+            sess.inject(PGUP)
+            sess.sleep(0.5)
+            assert SCROLL_BAR_MARKER in sess.text(), "已进入 Scroll Mode"
+            # End 回底
+            sess.inject(END_KEY)
+            sess.sleep(0.8)
+            # 用 AnsiScreen 重放累计 PTY 输出，检查最终屏幕状态
+            screen = AnsiScreen(80, 200)
+            screen.feed(sess.text())
+            last_row = screen.find_row("[0] Done")
+            check(last_row >= 0, f"回底后最后一行内容 [0] Done 仍在屏幕上（row={last_row}）")
+            check(
+                last_row >= 0 and screen.line(last_row).strip() != "",
+                "最后一行内容未被 ClearLine 擦成空行",
+            )
         finally:
             sess.close()
     finally:
@@ -637,6 +785,7 @@ def main():
     print("=== Issue 001: 滚动 tracer（键盘热键覆盖滚轮等价逻辑） ===")
     test_scroll_up_shows_status_bar_and_history(binary_path)
     test_scroll_down_returns_to_bottom(binary_path)
+    test_scroll_to_bottom_preserves_last_line(binary_path)
     test_content_fits_viewport_no_scroll_mode(binary_path)
     test_auto_follow_via_full_refresh(binary_path)
 
