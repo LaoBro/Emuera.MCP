@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Architecture review — Emuera.Headless</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 5 4; }
+      .leak { stroke: #dc2626; }
+      .deep-box { background: linear-gradient(135deg, #0f172a, #1e293b); color: #e2e8f0; }
+      .shallow-box { background: #fef3c7; }
+      .diag-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .badge-strong { background:#059669; color:white; }
+      .badge-explore { background:#d97706; color:white; }
+      .badge-spec { background:#64748b; color:white; }
+      .callout-adr { background:#fffbeb; border-left:3px solid #d97706; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+
+      <header class="border-b border-slate-300 pb-6">
+        <div class="flex items-baseline justify-between flex-wrap gap-4">
+          <h1 class="text-3xl font-serif tracking-tight">架构深化候选 — Emuera.Headless</h1>
+          <span class="text-sm text-slate-500 mono">2026-07-10</span>
+        </div>
+        <div class="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+          <span class="flex items-center gap-1"><span class="inline-block w-4 h-3 border border-slate-400 bg-white"></span>module</span>
+          <span class="flex items-center gap-1"><span class="inline-block w-4 h-3 border-2 border-slate-700 bg-slate-800"></span>deep module</span>
+          <span class="flex items-center gap-1"><span class="inline-block w-8 h-px border-t-2 border-dashed border-slate-500"></span>seam</span>
+          <span class="flex items-center gap-1"><span class="inline-block w-8 h-px border-t-2 border-red-600"></span>leakage</span>
+          <span class="ml-auto">用户关切：单元测试 · 跨平台构建 · Web 前端 · Shared 遗留臃肿</span>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-12">
+
+        <!-- ============ Candidate 1: GlobalStatic ============ -->
+        <article class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100">
+            <div class="flex items-center justify-between flex-wrap gap-3">
+              <h2 class="text-xl font-serif">1. GlobalStatic 进程级单例 — 单元测试的锁眼</h2>
+              <div class="flex gap-2">
+                <span class="badge-strong text-xs px-2 py-1 rounded">Strong</span>
+                <span class="text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 mono">in-process</span>
+              </div>
+            </div>
+            <div class="mt-3 mono text-sm text-slate-600">
+              Emuera.Headless/GlobalStatic.cs · UI/Game/EmueraConsole.cs · Shared/Runtime/Script/Process.cs · Server/Session.cs
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-0 border-b border-slate-100">
+            <!-- Before -->
+            <div class="p-6 border-r border-slate-100">
+              <div class="diag-label text-slate-500 mb-2">Before — 静态单例，所有模块穿墙读取</div>
+              <div class="rounded border border-slate-300 bg-slate-50 p-4 h-72 flex flex-col">
+                <div class="deep-box rounded px-3 py-2 text-center text-xs font-semibold mb-3">GlobalStatic（static，9 字段，lock 断言）</div>
+                <div class="flex-1 grid grid-cols-2 gap-2 text-xs">
+                  <div class="bg-white border border-slate-300 rounded p-2 text-center">EmueraConsole<br><span class="text-slate-400">→ GlobalStatic.Console</span></div>
+                  <div class="bg-white border border-slate-300 rounded p-2 text-center">Process<br><span class="text-slate-400">→ GlobalStatic.Process</span></div>
+                  <div class="bg-white border border-slate-300 rounded p-2 text-center">Session<br><span class="text-slate-400">→ Reset()</span></div>
+                  <div class="bg-white border border-slate-300 rounded p-2 text-center">JsonlProtocol<br><span class="text-slate-400">→ 间接经 Console</span></div>
+                </div>
+                <div class="mt-2 text-center text-xs text-red-600">进程级 static：测试无法隔离，并发即崩</div>
+              </div>
+            </div>
+            <!-- After -->
+            <div class="p-6">
+              <div class="diag-label text-slate-500 mb-2">After — 会话作用域实例，依赖经构造注入</div>
+              <div class="rounded border border-slate-300 bg-slate-50 p-4 h-72 flex flex-col justify-center">
+                <div class="text-center text-xs text-slate-500 mb-3">seam</div>
+                <div class="deep-box rounded px-3 py-3 text-center text-xs font-semibold mb-3">SessionContext（实例，持有 console/process/...）</div>
+                <div class="flex justify-center gap-3 text-xs">
+                  <div class="bg-white border-2 border-slate-700 rounded p-2 text-center">测试 new SessionContext(fake)<br><span class="text-emerald-600">无需进程状态</span></div>
+                </div>
+                <div class="mt-3 text-center text-xs text-slate-500">EmueraConsole/Process 接收依赖，不读 static</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-6 space-y-3">
+            <p class="text-sm"><span class="font-semibold">Problem.</span> 9 个核心字段是进程级 <code class="mono text-xs bg-slate-100 px-1">static</code>，lock + 断言式单赋值。EmueraConsole、Process、Session 全部穿墙读写 <code class="mono text-xs bg-slate-100 px-1">GlobalStatic.X</code>。任何 C# 单元测试要么先完整初始化整条链（Config→Process→EmueraConsole），要么污染进程状态影响下一个测试。</p>
+            <p class="text-sm"><span class="font-semibold">Solution.</span> 把 GlobalStatic 的 9 字段收敛为一个会话作用域实例，经构造注入。进程级 static 退化为单实例 holder（仅 Server/CLI 入口持有一次）。</p>
+            <ul class="text-sm space-y-1">
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">leverage</span>：一个 SessionContext 接口，N 个调用点不再读 static</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">locality</span>：会话生命周期 bug 集中到一处，不再散落 4 模块</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">interface 是测试面</span>：测试注入 fake SessionContext，无需 ERB/Config/字体</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2">解锁 EmueraConsole / Process / Session 的隔离单测</li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- ============ Candidate 2: Config ============ -->
+        <article class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100">
+            <div class="flex items-center justify-between flex-wrap gap-3">
+              <h2 class="text-xl font-serif">2. Config 静态上帝类 — 144 个 public static 成员</h2>
+              <div class="flex gap-2">
+                <span class="badge-strong text-xs px-2 py-1 rounded">Strong</span>
+                <span class="text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 mono">local-substitutable</span>
+              </div>
+            </div>
+            <div class="mt-3 mono text-sm text-slate-600">
+              Shared/Runtime/Config/Config.cs (659 行) · ConfigData.cs (925 行) · ConfigCode.cs · ConfigItem.cs · JSON/JSONConfig.cs
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-0 border-b border-slate-100">
+            <!-- Before: mass diagram -->
+            <div class="p-6 border-r border-slate-100">
+              <div class="diag-label text-slate-500 mb-2">Before — 接口面 ≈ 实现面（shallow）</div>
+              <div class="rounded border border-slate-300 bg-slate-50 p-4 h-72 flex items-end justify-center gap-6">
+                <div class="flex flex-col items-center">
+                  <div class="shallow-box border border-amber-400 w-20" style="height:140px"></div>
+                  <div class="text-xs mt-1 mono">interface<br>(144 static)</div>
+                </div>
+                <div class="flex flex-col items-center">
+                  <div class="bg-slate-200 border border-slate-400 w-20" style="height:165px"></div>
+                  <div class="text-xs mt-1 mono">implementation<br>(659 行)</div>
+                </div>
+              </div>
+              <div class="mt-2 text-center text-xs text-red-600">Config.Foo 全仓散落，无法替换</div>
+            </div>
+            <!-- After -->
+            <div class="p-6">
+              <div class="diag-label text-slate-500 mb-2">After — 配置作为实例穿越 seam</div>
+              <div class="rounded border border-slate-300 bg-slate-50 p-4 h-72 flex flex-col justify-center">
+                <div class="text-center text-xs text-slate-500 mb-2">seam</div>
+                <div class="deep-box rounded px-3 py-4 text-center text-xs font-semibold mb-3">
+                  ConfigData（实例）<br><span class="text-slate-400 text-[10px]">读 emuera.config → 持有全部值</span>
+                </div>
+                <div class="flex justify-center gap-2 text-xs">
+                  <div class="bg-white border border-slate-300 rounded px-2 py-1">FontFactory ← config</div>
+                  <div class="bg-white border border-slate-300 rounded px-2 py-1">Process ← config</div>
+                </div>
+                <div class="mt-3 text-center text-xs text-emerald-600">测试注入 fake ConfigData</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-6 space-y-3">
+            <p class="text-sm"><span class="font-semibold">Problem.</span> <code class="mono text-xs bg-slate-100 px-1">Config</code> 是 659 行纯静态类，<strong>144 个 <code class="mono text-xs">public static</code> 成员</strong>。全仓 <code class="mono text-xs bg-slate-100 px-1">Config.FontName</code> / <code class="mono text-xs bg-slate-100 px-1">Config.UseSaveFolder</code> 散落调用。删除测试：删掉 Config，144 处调用全部塌缩到调用方 — 复杂度集中，证明它在赚钱。但它的 interface 与 implementation 几乎同宽（每个 static 属性就是一行 delegation），是教科书级 shallow module。</p>
+            <p class="text-sm"><span class="font-semibold">Solution.</span> ConfigData 升为实例（已存在 925 行数据类，只需去掉 static），加载 emuera.config 后作为依赖注入。FontFactory / Process / EmueraConsole 接收 ConfigData 而非读 static。</p>
+            <ul class="text-sm space-y-1">
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">depth</span>：加载逻辑沉到实现，interface 只剩"取值"</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">locality</span>：配置解析 bug 集中到 ConfigData 一处</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">leverage</span>：一个 ConfigData 实例，N 个消费者，测试用 fake</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2">Shared 债务清零（P2-6）的前提：static 去掉后 nullable 警告才可逐条修</li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- ============ Candidate 3: Process god object ============ -->
+        <article class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100">
+            <div class="flex items-center justify-between flex-wrap gap-3">
+              <h2 class="text-xl font-serif">3. Process — 3636 行 god object，与 GlobalStatic 双向耦合</h2>
+              <div class="flex gap-2">
+                <span class="badge-explore text-xs px-2 py-1 rounded">Worth exploring</span>
+                <span class="text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 mono">in-process</span>
+              </div>
+            </div>
+            <div class="mt-3 mono text-sm text-slate-600">
+              Shared/Runtime/Script/Process.cs (603) + .CalledFunction (331) + .ScriptProc (972) + .State (590) + .SystemProc (1140) = 3636 行
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-0 border-b border-slate-100">
+            <!-- Before: call graph collapse -->
+            <div class="p-6 border-r border-slate-100">
+              <div class="diag-label text-slate-500 mb-2">Before — 单类吞下脚本/状态/系统指令/函数调用</div>
+              <div class="rounded border border-slate-300 bg-slate-50 p-3 h-72">
+                <pre class="mermaid text-xs">
+flowchart TB
+  P["Process\n(3636 行, 5 partials)"]
+  P --> SP["ScriptProc\n972 行"]
+  P --> SY["SystemProc\n1140 行"]
+  P --> ST["State\n590 行"]
+  P --> CF["CalledFunction\n331 行"]
+  P -.leak.-> GS["GlobalStatic.*"]
+  SP -.leak.-> GS
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class P,SP,SY,ST,CF leak
+                </pre>
+              </div>
+            </div>
+            <!-- After -->
+            <div class="p-6">
+              <div class="diag-label text-slate-500 mb-2">After — 按 ERB 生命周期切深 seam</div>
+              <div class="rounded border border-slate-300 bg-slate-50 p-3 h-72">
+                <pre class="mermaid text-xs">
+flowchart TB
+  subgraph D["深模块：ScriptRuntime（实例）"]
+    direction TB
+    L[Loader]
+    E[Evaluator]
+    S[StatementDispatch]
+  end
+  D --> CTX["SessionContext\n(经构造注入)"]
+  classDef deep fill:#1e293b,color:#e2e8f0,stroke:#0f172a;
+  class D deep
+                </pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-6 space-y-3">
+            <p class="text-sm"><span class="font-semibold">Problem.</span> ERB 引擎核心被塞进一个 partial 类：脚本执行、系统指令、状态管理、函数调用四职责混在 3636 行里。<code class="mono text-xs bg-slate-100 px-1">Process.Initialize</code> 直接写 <code class="mono text-xs">GlobalStatic.GameBaseData</code> 等 9 字段 — 与候选 1 双向耦合。无法在测试里实例化 Process 而不拉起整个引擎。</p>
+            <p class="text-sm"><span class="font-semibold">Solution.</span> 沿 ERB 生命周期（加载 / 求值 / 指令派发 / 状态）切 seam。Process 收敛为派发入口，partial 各自升为深模块，依赖经 SessionContext 注入而非 GlobalStatic。</p>
+            <ul class="text-sm space-y-1">
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">locality</span>：ERB 指令 bug 集中到 StatementDispatch，不再混在 1140 行 SystemProc</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">depth</span>：Evaluator 的 interface 远小于当前 Process 的 17+ public 方法</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2">风险最高：引擎核心，回归面大；需 ADR 护航</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2">依赖候选 1（GlobalStatic 解除）先落地</li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- ============ Candidate 4: Web frontend seam ============ -->
+        <article class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100">
+            <div class="flex items-center justify-between flex-wrap gap-3">
+              <h2 class="text-xl font-serif">4. Web 前端接缝过浅 — ops 是 displayLineList 的有损投影</h2>
+              <div class="flex gap-2">
+                <span class="badge-strong text-xs px-2 py-1 rounded">Strong</span>
+                <span class="text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 mono">ports &amp; adapters</span>
+              </div>
+            </div>
+            <div class="mt-3 mono text-sm text-slate-600">
+              Agent/TurnRecord.cs · Server/KestrelGameServer.cs · Terminal/TerminalRenderer.cs · Agent/ButtonRegionTracker.cs · Shared/UI/Game/ConsoleDisplayLine.cs
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-0 border-b border-slate-100">
+            <!-- Before: cross-section -->
+            <div class="p-6 border-r border-slate-100">
+              <div class="diag-label text-slate-500 mb-2">Before — CLI 走富模型，Web 走有损 op 流</div>
+              <div class="rounded border border-slate-300 bg-slate-50 p-4 h-72 flex flex-col justify-center gap-2 text-xs">
+                <div class="bg-slate-800 text-slate-100 rounded px-3 py-2">displayLineList（富：行/段/按钮/样式/坐标）</div>
+                <div class="flex gap-2 items-center">
+                  <div class="flex-1 bg-white border-l-4 border-emerald-600 rounded px-2 py-1">CLI TerminalRenderer<br><span class="text-slate-500">直接读 displayLineList</span></div>
+                  <div class="text-slate-400">←</div>
+                </div>
+                <div class="flex gap-2 items-center">
+                  <div class="flex-1 bg-white border-l-4 border-red-500 rounded px-2 py-1">Web /ws + /turn<br><span class="text-slate-500">仅 ops[]（print/newline/clearline/clear/set_bg）</span></div>
+                  <div class="text-red-500 text-center text-[10px]">有损<br>投影</div>
+                </div>
+                <div class="text-center text-xs text-red-600">无全屏路由 · 无回放 · 按钮无几何 · 图像退化为文本</div>
+              </div>
+            </div>
+            <!-- After -->
+            <div class="p-6">
+              <div class="diag-label text-slate-500 mb-2">After — 单一深接缝：DisplayState module</div>
+              <div class="rounded border border-slate-300 bg-slate-50 p-4 h-72 flex flex-col justify-center">
+                <div class="text-center text-xs text-slate-500 mb-2">seam</div>
+                <div class="deep-box rounded px-3 py-4 text-center text-xs font-semibold mb-3">
+                  DisplayState module<br><span class="text-slate-400 text-[10px]">全量快照 + 增量 ops + 按钮几何 + 资源引用</span>
+                </div>
+                <div class="flex justify-center gap-2 text-xs">
+                  <div class="bg-white border-2 border-slate-700 rounded px-2 py-1">CLI renderer</div>
+                  <div class="bg-white border-2 border-slate-700 rounded px-2 py-1">Web /ws</div>
+                  <div class="bg-white border-2 border-slate-700 rounded px-2 py-1">测试</div>
+                </div>
+                <div class="mt-3 text-center text-xs text-emerald-600">两 adapter 证明 seam 真实</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-6 space-y-3">
+            <p class="text-sm"><span class="font-semibold">Problem.</span> CLI 的 <code class="mono text-xs bg-slate-100 px-1">TerminalRenderer</code> 直接读 <code class="mono text-xs bg-slate-100 px-1">displayLineList</code>（富：行/段/按钮/样式/坐标）；Web 只拿到 <code class="mono text-xs bg-slate-100 px-1">TurnRecord.ops[]</code>（print/newline/clearline/clear/set_bg）。<code class="mono text-xs">ButtonRef</code> 只有 value 无几何，前端须重写 <code class="mono text-xs">ButtonRegionTracker</code>。无全屏路由，WS 晚加入者无回放。图像 <code class="mono text-xs">PrintImg</code> 退化为 <code class="mono text-xs">node.ToString()</code>。</p>
+            <p class="text-sm"><span class="font-semibold">Solution.</span> 收敛为单一 DisplayState module：全量快照路由（首次/重连）+ 增量 ops + 按钮几何 + 资源引用。CLI 与 Web 同为 adapter。</p>
+            <ul class="text-sm space-y-1">
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">leverage</span>：一个接口，CLI/Web/测试三个 adapter</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">depth</span>：渲染状态全部藏在实现后，前端不再重写终端逻辑</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">interface 是测试面</span>：快照/增量可单测，无需真实游戏</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2">两个 adapter（CLI + Web）证明 seam 真实存在</li>
+            </ul>
+            <div class="callout-adr p-3 text-xs text-slate-700">
+              <span class="font-semibold">⚠ 与 ADR-0003 的 v1 范围部分冲突</span> — 该 ADR 接受"晚加入者不回放历史"。但 Web 前端若无初始全屏状态根本无法渲染，摩擦真实。建议重开 ADR-0003 评估"v1 快照路由"是否纳入。
+            </div>
+          </div>
+        </article>
+
+        <!-- ============ Candidate 5: Dead Image/Plugin code ============ -->
+        <article class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100">
+            <div class="flex items-center justify-between flex-wrap gap-3">
+              <h2 class="text-xl font-serif">5. Shared/UI/Game/Image + PluginSystem — HEADLESS 下死代码</h2>
+              <div class="flex gap-2">
+                <span class="badge-spec text-xs px-2 py-1 rounded">Speculative</span>
+                <span class="text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 mono">dead code</span>
+              </div>
+            </div>
+            <div class="mt-3 mono text-sm text-slate-600">
+              Shared/UI/Game/Image/*.cs (9 文件) · Shared/Utils/PluginSystem/*.cs (6 文件) · Shared/UI/Game/HtmlManager.cs
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-0 border-b border-slate-100">
+            <!-- Before -->
+            <div class="p-6 border-r border-slate-100">
+              <div class="diag-label text-slate-500 mb-2">Before — 编译进产物，运行时不可达</div>
+              <div class="rounded border border-slate-300 bg-slate-50 p-4 h-72 flex flex-col justify-center gap-2 text-xs">
+                <div class="bg-white border border-slate-300 rounded px-3 py-2">AppContents.GetSprite → <span class="text-red-600">null（headless）</span></div>
+                <div class="bg-white border border-slate-300 rounded px-3 py-2">PrintImg / PrintShape → <span class="text-red-600">print(ToString())</span></div>
+                <div class="bg-white border border-slate-300 rounded px-3 py-2">Image/ 9 文件 · PluginSystem 6 文件</div>
+                <div class="bg-white border border-slate-300 rounded px-3 py-2">HtmlManager</div>
+                <div class="text-center text-xs text-slate-500 mt-2">全部编译进 dll，零运行时调用</div>
+              </div>
+            </div>
+            <!-- After -->
+            <div class="p-6">
+              <div class="diag-label text-slate-500 mb-2">After — 删除或条件编译隔离</div>
+              <div class="rounded border border-slate-300 bg-slate-50 p-4 h-72 flex flex-col justify-center text-xs">
+                <div class="bg-white border-2 border-slate-700 rounded px-3 py-3 text-center">
+                  Headless 产物<br><span class="text-slate-500">无 Image/PluginSystem 死重</span>
+                </div>
+                <div class="mt-3 text-center text-slate-500">未来需图像时，经候选 4 的<br>DisplayState 资源引用重新引入</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-6 space-y-3">
+            <p class="text-sm"><span class="font-semibold">Problem.</span> <code class="mono text-xs bg-slate-100 px-1">AppContents.GetSprite</code> 在 headless 返回 null，<code class="mono text-xs">PrintImg</code>/<code class="mono text-xs">PrintShape</code> 已降级为文本。Image/ 子树 9 文件（AImage/ConstImage/CroppedImage/GraphicsImage/ImgUtils…）与 PluginSystem 6 文件被编译进产物但运行时不可达。Shared 债务噪音的主要来源。</p>
+            <p class="text-sm"><span class="font-semibold">Solution.</span> 直接删除或 <code class="mono text-xs bg-slate-100 px-1">#if !HEADLESS</code> 隔离。未来 Web 前端需要图像时，经候选 4 的 DisplayState 资源引用 seam 重新设计，而非复活 WinForms 图像栈。</p>
+            <ul class="text-sm space-y-1">
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2"><span class="font-medium">locality</span>：Shared 警告噪音减少，真实债务可见</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2">删除测试：删掉后复杂度不重现 — 纯死代码</li>
+              <li class="before:content-['→'] before:text-slate-400 before:mr-2">不阻塞任何新功能；优先级最低</li>
+            </ul>
+          </div>
+        </article>
+
+      </section>
+
+      <!-- ============ Top recommendation ============ -->
+      <section id="top-recommendation" class="bg-slate-900 text-slate-100 rounded-lg p-8">
+        <div class="flex items-baseline justify-between flex-wrap gap-3 mb-4">
+          <h2 class="text-2xl font-serif">首推：候选 1 — GlobalStatic 进程级单例</h2>
+          <span class="badge-strong text-xs px-2 py-1 rounded">Strong</span>
+        </div>
+        <p class="text-sm text-slate-300 leading-relaxed">
+          它是用户四项关切的<span class="text-white font-medium">共同锁眼</span>。GlobalStatic 解除前，C# 单元测试无法隔离（关切 1），Web 前端无法获得可测试的会话工厂（关切 3），Shared 重构（候选 2/3）因 static 双向耦合而无从下手（关切 4）。跨平台构建（关切 2）已基本就绪，但 Config/FontFactory 仍读 static — 解除 GlobalStatic 是它们可实例化的前提。
+        </p>
+        <p class="text-sm text-slate-300 leading-relaxed mt-3">
+          <span class="font-medium text-white">删除测试通过</span>：删掉 GlobalStatic，9 字段复杂度会集中重现到 EmueraConsole / Process / Session 三处 — 它在赚钱，但当前以 static 形态赚钱，<span class="text-white">深化为实例后杠杆翻倍</span>。候选 2（Config）是其自然后续，候选 3（Process）依赖它先落地，候选 4（Web seam）在其之上才能建可测试的会话工厂。
+        </p>
+        <a href="#candidates" class="inline-block mt-4 text-xs text-sky-400 hover:text-sky-300">↑ 回到候选列表</a>
+      </section>
+
+      <footer class="text-xs text-slate-400 text-center pt-6 border-t border-slate-200">
+        词汇：module · interface · implementation · depth · seam · adapter · leverage · locality · 领域术语见 CONTEXT.md
+      </footer>
+
+    </main>
+  </body>
+</html>
