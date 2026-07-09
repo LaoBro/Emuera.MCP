@@ -277,7 +277,6 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     internal long InputTimelimit => _timer.InputTimelimit;
     internal bool IsDisplayTimeActive => _timer.IsDisplayTimeActive;
     internal string? TimeUpMessage => _timer.TimeUpMessage;
-    internal string BuildCountdownText() => _timer.BuildCountdownText();
     internal string BuildCountdownText(long elapsedMs) => _timer.BuildCountdownText(elapsedMs);
     internal void setRedrawTimer(int tickcount) => _timer.SetRedrawTimer(tickcount);
     internal void forceStopTimer() => _timer.ForceStopTimer();

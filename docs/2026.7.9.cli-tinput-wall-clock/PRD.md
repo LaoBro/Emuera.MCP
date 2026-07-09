@@ -48,7 +48,7 @@ Server 模式不受影响——它已用 `CancellationTokenSource.CancelAfter` �
 
 ### ConsoleTimerManager（UI/Game/Console 层）
 - 新增 `InputTimelimit` 属性：返回当前 `WaitInput` 的超时阈值（毫秒），0 表示无超时。供 CLI `HandleTimeout` 读取阈值，绕过 `InputTimeoutMs` 的 stopwatch 依赖。
-- 新增 `BuildCountdownText(long elapsedMs)` 重载：接受外部传入的 elapsed，计算 `remainingMs = Timelimit - elapsedMs`。原无参版保留（server 模式不调新重载）。
+- 新增 `BuildCountdownText(long elapsedMs)` 重载：接受外部传入的 elapsed，计算 `remainingMs = Timelimit - elapsedMs`。原无参版（依赖 `_genericTimerStopwatch`）无调用方，已删除。
 
 ### AgentCliProtocol（Agent 协议层）
 - 新增 `private DateTime? WaitInputEnteredAt` 字段。

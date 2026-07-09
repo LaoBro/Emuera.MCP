@@ -15,6 +15,7 @@ ApplyScrollChange），因此键盘热键测试覆盖了完整的滚动行为。
 
 非 Windows 或无 pywinpty 时自动跳过。
 """
+import re
 import shutil
 import sys
 import threading
@@ -99,6 +100,23 @@ def _make_tinput_overflow_erb(n=50, timeout_ms=2500):
     lines.append("INPUT")
     lines.append("QUIT")
     return "\n".join(lines) + "\n"
+
+
+def _make_tinput_countdown_erb(timeout_ms=3000):
+    """生成启用 DisplayTime 的 TINPUT 倒计时 ERB。
+
+    TINPUT 参数顺序：time, def, disp, timeout_msg, mouse。
+    disp=1 启用倒计时显示，终端会在 WaitInput 期间覆盖渲染 "剩余{秒数}" 文本。
+    """
+    return (
+        "@SYSTEM_TITLE\n"
+        "PRINTL CountdownStart\n"
+        f'TINPUT {timeout_ms}, 7, 1, "TIMEUP_MARKER", 0\n'
+        'PRINTFORML RESULT={RESULT}\n'
+        "PRINTL [0] Done\n"
+        "INPUT\n"
+        "QUIT\n"
+    )
 
 
 class CliSession:
@@ -353,6 +371,39 @@ def test_auto_follow_on_new_output(binary):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def test_tinput_countdown_decrements(binary):
+    """ADR-0007：TINPUT 倒计时显示随挂钟 elapsed 递减（非静止）。
+
+    用 disp=1 启用 DisplayTime，TINPUT 3000ms。启动后应依次出现
+    "残り 3.0" → "残り 2.9" → ... 等递减值，至少捕获到两个不同的倒计时文本
+    即可证明挂钟 elapsed 计时生效（而非停在初始值）。
+    """
+    temp_dir, game_dir = copy_test_game_with_erb(_make_tinput_countdown_erb(timeout_ms=3000))
+    try:
+        sess = CliSession(binary, game_dir)
+        try:
+            assert sess.wait_for("CountdownStart", timeout=10), "启动并进入 WaitInput"
+            sess.sleep(0.3)
+
+            # 采样 ~1.5s 的倒计时文本，去重收集不同的剩余值
+            # Lang.cs 默认 "残り "（日语），按实际渲染文本匹配
+            seen_values = set()
+            deadline = time.time() + 2.0
+            pattern = re.compile(r"残り\s*(\d+\.\d)")
+            while time.time() < deadline:
+                for m in pattern.finditer(sess.text()):
+                    seen_values.add(m.group(1))
+                if len(seen_values) >= 2:
+                    break
+                time.sleep(0.2)
+
+            check(len(seen_values) >= 2, f"倒计时递减（至少 2 个不同值），实际: {sorted(seen_values)}")
+        finally:
+            sess.close()
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 # ---------------------------------------------------------------------------
 # Issue 002: 只读门卫 + 状态栏
 # ---------------------------------------------------------------------------
@@ -591,6 +642,7 @@ def main():
 
     print("\n=== ADR-0007: TINPUT 挂钟计时 ===")
     test_tinput_timeout_triggers(binary_path)
+    test_tinput_countdown_decrements(binary_path)
     test_auto_follow_on_new_output(binary_path)
 
     print("\n=== Issue 002: 只读门卫 + 状态栏 ===")

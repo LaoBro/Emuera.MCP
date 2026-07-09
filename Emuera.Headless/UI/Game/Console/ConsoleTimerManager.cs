@@ -157,18 +157,17 @@ internal sealed class ConsoleTimerManager
 
     internal string? TimeUpMessage => _state.inputReq?.TimeUpMes;
 
-    internal string BuildCountdownText()
-    {
-        if (_state.inputReq == null) return "";
-        var remainingMs = _state.inputReq.Timelimit - _state._genericTimerStopwatch.ElapsedMilliseconds;
-        return trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}";
-    }
-
     /// <summary>基于外部传入的 elapsed 计算倒计时文本。ADR-0007：CLI 模式用挂钟 elapsed，绕过 stopwatch。</summary>
     internal string BuildCountdownText(long elapsedMs)
     {
         if (_state.inputReq == null) return "";
-        var remainingMs = _state.inputReq.Timelimit - elapsedMs;
+        long remainingMs = _state.inputReq.Timelimit - elapsedMs;
+        return FormatRemaining(remainingMs);
+    }
+
+    /// <summary>格式化剩余毫秒为倒计时文本，负值钳零。</summary>
+    private static string FormatRemaining(long remainingMs)
+    {
         if (remainingMs < 0) remainingMs = 0;
         return trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}";
     }
