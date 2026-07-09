@@ -40,6 +40,10 @@ namespace MinorShift.Emuera.GameView
         // ADR-0006：Scroll Status Bar 渲染器，独立于 TerminalRenderer。
         private ScrollStatusBarRenderer? _scrollStatusBar;
 
+        // ADR-0007：CLI 模式 TINPUT 挂钟计时。记录进入 WaitInput 状态的时刻。
+        // null 表示不在 WaitInput 或计时已失效。genericTimer stopwatch 在 CLI 不启动，改用此字段。
+        private DateTime? _waitInputEnteredAt;
+
         internal EmueraConsole GameConsole => console;
 
         /// <summary>当前 Scroll Offset（供 VtInputHandler 只读门卫读取）。_screen 为 null 时返回 0。</summary>
@@ -150,6 +154,8 @@ namespace MinorShift.Emuera.GameView
                     {
                         // ADR-0006 Issue 004：ConsumeNeedFullRefresh 归零 Scroll Offset 后再 FullRefresh。
                         ResetScrollIfActive();
+                        // ADR-0007：auto-follow 路径触发后清空计时上下文，避免误触发上一轮超时。
+                        _waitInputEnteredAt = null;
                         _renderer.FlushBuffer();
                         _renderer.FullRefresh();
                         _countdown.Reset();
@@ -158,8 +164,27 @@ namespace MinorShift.Emuera.GameView
                         continue;
                     }
 
-                    // VT 输入轮询：有输入时连续读取并 Feed（不等待/不更新 countdown）；
-                    // 无输入时检查超时、更新 countdown、短暂等待。
+                    // ADR-0007：维护 WaitInputEnteredAt 生命周期。
+                    // InputTimeoutMs == null 表示不在 WaitInput 或无超时设置 → 清空。
+                    // 进入 WaitInput 且有超时但未记录 → 记录当前时刻。
+                    var timeoutMs = console.InputTimeoutMs;
+                    if (!timeoutMs.HasValue)
+                    {
+                        _waitInputEnteredAt = null;
+                    }
+                    else if (!_waitInputEnteredAt.HasValue && console.InputTimelimit > 0)
+                    {
+                        _waitInputEnteredAt = DateTime.UtcNow;
+                    }
+
+                    // ADR-0007：超时检查必须在输入处理之前，确保 poll 每轮都检查挂钟 elapsed，
+                    // 不会被连续的输入读取饿死。
+                    if (HandleTimeout())
+                        continue;
+
+                    // VT 输入轮询：有真实字节时连续读取并 Feed；无字节时更新 countdown 并短暂等待。
+                    // ADR-0007：WindowsTerminalInput 用后台线程读 stdin 入队，HasInputAvailable
+                    // 检查队列而非 WaitForSingleObject，避免 phantom 事件误报导致 ReadFile 阻塞。
                     if (_vtInput.HasInputAvailable())
                     {
                         int b = _vtInput.ReadByte();
@@ -170,9 +195,11 @@ namespace MinorShift.Emuera.GameView
                     }
                     else
                     {
-                        if (HandleTimeout())
-                            continue;
-                        _countdown.Update();
+                        // ADR-0007：传入挂钟 elapsed 给 CountdownRenderer，绕过 stopwatch。
+                        long elapsedMs = _waitInputEnteredAt.HasValue
+                            ? (long)(DateTime.UtcNow - _waitInputEnteredAt.Value).TotalMilliseconds
+                            : 0;
+                        _countdown.Update(elapsedMs);
                         token.WaitHandle.WaitOne(PollIntervalMs);
                     }
 
@@ -182,6 +209,8 @@ namespace MinorShift.Emuera.GameView
                         // ADR-0006 Issue 004：resize 后将 offset 钳到新 max。
                         int oldOffset = _screen!.ScrollOffset;
                         int newOffset = _screen!.ClampScroll(console.DisplayLineList.Count);
+                        // ADR-0007：auto-follow 路径触发后清空计时上下文。
+                        _waitInputEnteredAt = null;
                         _renderer.FullRefresh();
                         // FullRefresh 已 ClearScreen，状态栏需在 FullRefresh 之后补绘。
                         _scrollStatusBar?.Render(newOffset);
@@ -215,13 +244,19 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         private bool HandleTimeout()
         {
-            var timeoutMs = console.InputTimeoutMs;
-            if (!timeoutMs.HasValue || timeoutMs.Value > 0) return false;
+            // ADR-0007：CLI 模式用挂钟计时，绕过失效的 genericTimer stopwatch。
+            if (!_waitInputEnteredAt.HasValue) return false;
+            long timelimit = console.InputTimelimit;
+            if (timelimit <= 0) return false;
+            var elapsed = (long)(DateTime.UtcNow - _waitInputEnteredAt.Value).TotalMilliseconds;
+            if (elapsed < timelimit) return false;
 
             _countdown.Overwrite(console.TimeUpMessage ?? "");
             _countdown.Reset();
             ClearInputBuffer();
             console.SubmitTimeout();
+            // SubmitTimeout 推进脚本后立即清空计时上下文，避免残留触发下一轮
+            _waitInputEnteredAt = null;
             _renderer.FlushBuffer();
             _buttons.SyncButtonState();
             _buttons.RefreshButtonRegions(_vtInput!, force: false);

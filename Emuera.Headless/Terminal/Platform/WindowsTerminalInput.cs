@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace MinorShift.Emuera.Terminal.Platform;
 
@@ -10,6 +12,14 @@ internal sealed class WindowsTerminalInput : ITerminalInput
     private bool _inputModeSet;
     private bool _sgrMouseEnabled;
     private bool _disposed;
+
+    // ADR-0007：后台读取线程。控制台句柄的 ReadFile 是阻塞调用，且 WaitForSingleObject
+    // 在 ConPTY 下会误报 signaled（phantom 事件 / 焦点 / 非键盘事件），导致 poll 循环中
+    // ReadFile 阻塞、TINPUT 超时饿死。专用线程阻塞在 ReadFile 上将字节推入无锁队列，
+    // poll 循环非阻塞地出队——既保证不丢字节，又让超时检查每轮都能执行。
+    private readonly Thread _readerThread;
+    private readonly ConcurrentQueue<byte> _readQueue = new();
+    private volatile bool _stopping;
 
     public WindowsTerminalInput()
     {
@@ -23,35 +33,44 @@ internal sealed class WindowsTerminalInput : ITerminalInput
         if (!GetConsoleMode(_stdinHandle, out _originalInputMode))
             throw new InvalidOperationException("GetConsoleMode failed");
 
+        // 只启用 VT 输入。ConPTY/终端将键盘、SGR 鼠标、resize 全部以 VT 序列投递到 stdin，
+        // 无需 legacy 事件标志（ENABLE_WINDOW_INPUT / ENABLE_MOUSE_INPUT）。
         uint newMode = (_originalInputMode
                         | ENABLE_VIRTUAL_TERMINAL_INPUT
-                        | ENABLE_EXTENDED_FLAGS
-                        | ENABLE_WINDOW_INPUT
-                        | ENABLE_MOUSE_INPUT)
+                        | ENABLE_EXTENDED_FLAGS)
                       & ~ENABLE_PROCESSED_INPUT
                       & ~ENABLE_ECHO_INPUT
                       & ~ENABLE_LINE_INPUT
-                      & ~ENABLE_QUICK_EDIT_MODE;
+                      & ~ENABLE_QUICK_EDIT_MODE
+                      & ~ENABLE_WINDOW_INPUT
+                      & ~ENABLE_MOUSE_INPUT;
 
         if (!SetConsoleMode(_stdinHandle, newMode))
             throw new InvalidOperationException("SetConsoleMode failed");
 
         _inputModeSet = true;
+
+        _readerThread = new Thread(ReaderLoop) { IsBackground = true, Name = "vt-stdin-reader" };
+        _readerThread.Start();
     }
 
-    public bool HasInputAvailable()
-        => WaitForSingleObject(_stdinHandle, 0) == WAIT_OBJECT_0;
-
-    public unsafe int ReadByte()
+    private unsafe void ReaderLoop()
     {
         byte[] buf = new byte[1];
-        fixed (byte* p = buf)
+        while (!_stopping)
         {
-            if (!ReadFile(_stdinHandle, (IntPtr)p, 1, out int read, IntPtr.Zero) || read == 0)
-                return -1;
+            fixed (byte* p = buf)
+            {
+                if (!ReadFile(_stdinHandle, (IntPtr)p, 1, out int read, IntPtr.Zero) || read == 0)
+                    break; // EOF 或错误
+            }
+            _readQueue.Enqueue(buf[0]);
         }
-        return buf[0];
     }
+
+    public bool HasInputAvailable() => !_readQueue.IsEmpty;
+
+    public int ReadByte() => _readQueue.TryDequeue(out byte b) ? b : -1;
 
     public void EnableSgrMouse()
     {
@@ -71,14 +90,17 @@ internal sealed class WindowsTerminalInput : ITerminalInput
     {
         if (_disposed) return;
         _disposed = true;
+        _stopping = true;
 
         DisableSgrMouse();
 
         if (_inputModeSet && _stdinHandle != IntPtr.Zero && _stdinHandle != INVALID_HANDLE_VALUE)
         {
+            // 恢复原始模式可能解除 ReadFile 阻塞（模式变更触发控制台刷新输入状态）。
             SetConsoleMode(_stdinHandle, _originalInputMode);
             _inputModeSet = false;
         }
+        // 后台线程为 IsBackground=true，进程退出时自动终止；不 Join（ReadFile 可能仍阻塞）。
     }
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -96,11 +118,7 @@ internal sealed class WindowsTerminalInput : ITerminalInput
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ReadFile(IntPtr hFile, IntPtr lpBuffer, int nNumberOfBytesToRead, out int lpNumberOfBytesRead, IntPtr lpOverlapped);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
-
     private const int STD_INPUT_HANDLE = -10;
-    private const uint WAIT_OBJECT_0 = 0;
     private static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
     private const uint ENABLE_PROCESSED_INPUT = 0x0001;
     private const uint ENABLE_LINE_INPUT = 0x0002;

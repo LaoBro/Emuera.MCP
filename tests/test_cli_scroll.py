@@ -85,6 +85,22 @@ def _make_fits_erb():
     )
 
 
+def _make_tinput_overflow_erb(n=50, timeout_ms=2500):
+    """生成溢出视口 + TINPUT 超时场景的 ERB，用于 auto-follow 测试。
+
+    ADR-0007：TINPUT 超时在 CLI 模式现在通过挂钟计时触发。
+    """
+    lines = ["@SYSTEM_TITLE"]
+    for i in range(1, n + 1):
+        lines.append(f"PRINTL ScrollLine{i:02d}")
+    lines.append(f'TINPUT {timeout_ms}, 7, 0, "TIMEUP_MARKER", 0')
+    lines.append('PRINTFORML RESULT={RESULT}')
+    lines.append("PRINTL [0] Done")
+    lines.append("INPUT")
+    lines.append("QUIT")
+    return "\n".join(lines) + "\n"
+
+
 class CliSession:
     """封装 PTY spawn + 注入 + 捕获，支持测试中按需注入字节并读取累计输出。"""
 
@@ -228,10 +244,7 @@ def test_content_fits_viewport_no_scroll_mode(binary):
 def test_auto_follow_via_full_refresh(binary):
     """ConsumeNeedFullRefresh 路径归零 offset：先滚入 Scroll Mode，End 回底后输入推进游戏。
 
-    auto-follow via 新输出（FlushBuffer 检测 currentLineNo > lastRenderedLineNo）无法通过
-    PTY 测试——TINPUT 超时在 CLI 模式下不触发（pre-existing 限制，canonical 测试为
-    server 模式的 test_tinput_timeout.py）。该路径共享 ResetScroll + FullRefresh 机制，
-    由 ConsumeNeedFullRefresh 路径（ResetScrollIfActive）间接覆盖。
+    该路径共享 ResetScroll + FullRefresh 机制，由 ConsumeNeedFullRefresh 路径（ResetScrollIfActive）覆盖。
     """
     temp_dir, game_dir = copy_test_game_with_erb(_make_overflow_erb(50))
     try:
@@ -257,6 +270,83 @@ def test_auto_follow_via_full_refresh(binary):
             # 游戏应推进到 QUIT
             check(not sess.proc.isalive() or "ScrollLine" in sess.text()[-2000:],
                   "End 回底后输入正常推进游戏（offset 已归零）")
+        finally:
+            sess.close()
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_tinput_timeout_triggers(binary):
+    """ADR-0007：TINPUT 超时在 CLI 模式正常触发，RESULT 取默认值，TIMEUP_MARKER 可见。"""
+    temp_dir, game_dir = copy_test_game_with_erb(_make_tinput_overflow_erb(50, timeout_ms=1500))
+    try:
+        sess = CliSession(binary, game_dir)
+        try:
+            assert sess.wait_for("ScrollLine50", timeout=10)
+            sess.sleep(0.5)
+
+            # 等待 TINPUT 超时（1.5s）产生新输出
+            deadline = time.time() + 6.0
+            saw_timeout = False
+            while time.time() < deadline:
+                text = sess.text()
+                if "TIMEUP_MARKER" in text or "RESULT=7" in text:
+                    saw_timeout = True
+                    break
+                time.sleep(0.3)
+
+            check(saw_timeout, "TINPUT 超时触发，TIMEUP_MARKER / RESULT=7 可见")
+
+            # 验证 RESULT 取默认值 7
+            text = sess.text()
+            check("RESULT=7" in text[-2000:], "TINPUT 超时后 RESULT 取默认值 7")
+        finally:
+            sess.close()
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_auto_follow_on_new_output(binary):
+    """ADR-0006 Issue 001 + ADR-0007：Scroll Mode 下 TINPUT 超时产生新输出，auto-follow 归零 offset。
+
+    验证点：
+    - TINPUT 超时在 Scroll Mode 下正常触发
+    - auto-follow 归零 offset（状态栏消失）
+    - 新内容（RESULT=7 / TIMEUP_MARKER）可见
+    """
+    temp_dir, game_dir = copy_test_game_with_erb(_make_tinput_overflow_erb(50, timeout_ms=1500))
+    try:
+        sess = CliSession(binary, game_dir)
+        try:
+            assert sess.wait_for("ScrollLine50", timeout=10)
+            sess.sleep(0.5)
+
+            # 进入 Scroll Mode
+            for _ in range(3):
+                sess.inject(PGUP)
+                sess.sleep(0.3)
+            sess.sleep(0.3)
+            assert SCROLL_BAR_MARKER in sess.text(), "已进入 Scroll Mode 等待超时"
+
+            # 等待 TINPUT 超时（1.5s）产生新输出触发 auto-follow
+            deadline = time.time() + 6.0
+            saw_new_output = False
+            while time.time() < deadline:
+                text = sess.text()
+                if "TIMEUP_MARKER" in text or "RESULT=7" in text:
+                    saw_new_output = True
+                    break
+                time.sleep(0.3)
+
+            check(saw_new_output, "TINPUT 超时后新输出可见（auto-follow 生效）")
+
+            # auto-follow 后状态栏应消失（offset 归零）
+            sess.sleep(0.6)
+            text = sess.text()
+            check(
+                "RESULT=7" in text[-3000:] or "TIMEUP_MARKER" in text[-3000:],
+                "auto-follow 后新内容在末尾可见",
+            )
         finally:
             sess.close()
     finally:
@@ -498,6 +588,10 @@ def main():
     test_scroll_down_returns_to_bottom(binary_path)
     test_content_fits_viewport_no_scroll_mode(binary_path)
     test_auto_follow_via_full_refresh(binary_path)
+
+    print("\n=== ADR-0007: TINPUT 挂钟计时 ===")
+    test_tinput_timeout_triggers(binary_path)
+    test_auto_follow_on_new_output(binary_path)
 
     print("\n=== Issue 002: 只读门卫 + 状态栏 ===")
     test_scroll_mode_input_lock(binary_path)

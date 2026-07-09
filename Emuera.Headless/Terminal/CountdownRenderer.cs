@@ -28,8 +28,9 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>检测倒计时状态变化并刷新显示；倒计时结束时重置。
-        /// ADR-0006：Scroll Mode（offset>0）下跳过 Update，不在历史行上覆盖倒计时。</summary>
-        internal void Update()
+        /// ADR-0006：Scroll Mode（offset>0）下跳过 Update，不在历史行上覆盖倒计时。
+        /// ADR-0007：接受外部传入的 elapsedMs（CLI 挂钟），绕过失效的 stopwatch。</summary>
+        internal void Update(long elapsedMs)
         {
             // Scroll Mode 下跳过：光标在状态栏行，CursorTop-1 探测的倒计时行位置失效，
             // 且在历史切片上覆盖倒时会污染历史视图。
@@ -37,7 +38,7 @@ namespace MinorShift.Emuera.GameView
 
             if (_console.IsDisplayTimeActive)
             {
-                string currentText = _console.BuildCountdownText();
+                string currentText = _console.BuildCountdownText(elapsedMs);
                 if (currentText != _lastCountdownText)
                 {
                     if (_countdownLineRow < 0)

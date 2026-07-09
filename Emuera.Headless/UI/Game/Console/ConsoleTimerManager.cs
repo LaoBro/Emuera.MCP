@@ -148,6 +148,10 @@ internal sealed class ConsoleTimerManager
         }
     }
 
+    /// <summary>当前 WaitInput 的超时阈值（毫秒）。0 表示无超时。ADR-0007：CLI 模式读取此值配合 WaitInputEnteredAt 挂钟计时。</summary>
+    internal long InputTimelimit =>
+        (_state.State == ConsoleState.WaitInput && _state.inputReq != null) ? _state.inputReq.Timelimit : 0;
+
     internal bool IsDisplayTimeActive =>
         _state.State == ConsoleState.WaitInput && _state.inputReq != null && _state.inputReq.DisplayTime && _state.inputReq.Timelimit > 0;
 
@@ -157,6 +161,15 @@ internal sealed class ConsoleTimerManager
     {
         if (_state.inputReq == null) return "";
         var remainingMs = _state.inputReq.Timelimit - _state._genericTimerStopwatch.ElapsedMilliseconds;
+        return trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}";
+    }
+
+    /// <summary>基于外部传入的 elapsed 计算倒计时文本。ADR-0007：CLI 模式用挂钟 elapsed，绕过 stopwatch。</summary>
+    internal string BuildCountdownText(long elapsedMs)
+    {
+        if (_state.inputReq == null) return "";
+        var remainingMs = _state.inputReq.Timelimit - elapsedMs;
+        if (remainingMs < 0) remainingMs = 0;
         return trsl.Remaining.Text + $"{remainingMs / 1000.0f:0.0}";
     }
 }
