@@ -15,6 +15,7 @@ namespace MinorShift.Emuera.GameView
     internal sealed class ButtonSelectionMode
     {
         private readonly EmueraConsole _console;
+        private readonly ScrollController _scroll;
         private readonly Func<AgentCliVtScreen?> _getScreen;
         private readonly Action<string> _dispatchInput;
         private readonly Action _clearInputBuffer;
@@ -27,11 +28,13 @@ namespace MinorShift.Emuera.GameView
 
         public ButtonSelectionMode(
             EmueraConsole console,
+            ScrollController scroll,
             Func<AgentCliVtScreen?> getScreen,
             Action<string> dispatchInput,
             Action clearInputBuffer)
         {
             _console = console;
+            _scroll = scroll;
             _getScreen = getScreen;
             _dispatchInput = dispatchInput;
             _clearInputBuffer = clearInputBuffer;
@@ -83,7 +86,7 @@ namespace MinorShift.Emuera.GameView
         /// 不维护选择模式状态（避免误触旧 Generation 按钮）。</summary>
         internal void SyncButtonState()
         {
-            if (_getScreen()?.ScrollOffset > 0) return;
+            if (_scroll.ScrollOffset > 0) return;
 
             bool shouldHaveButtons = false;
             List<ButtonPos> newPositions = [];
@@ -148,7 +151,7 @@ namespace MinorShift.Emuera.GameView
         {
             // ADR-0006：Scroll Mode 下清空命中区，不更新 _lastRegionGeneration
             // （退出 scroll mode 时由 force=true 路径重建）。
-            if (_getScreen()?.ScrollOffset > 0)
+            if (_scroll.ScrollOffset > 0)
             {
                 vtInput.ClearRegions();
                 return;

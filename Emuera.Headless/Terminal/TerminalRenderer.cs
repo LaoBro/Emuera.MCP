@@ -14,6 +14,7 @@ namespace MinorShift.Emuera.GameView
     internal sealed class TerminalRenderer
     {
         private readonly EmueraConsole _console;
+        private readonly ScrollController _scroll;
         private readonly Func<AgentCliVtScreen?> _getScreen;
 
         private int _lastRenderedLineNo = -1;
@@ -28,9 +29,11 @@ namespace MinorShift.Emuera.GameView
 
         public TerminalRenderer(
             EmueraConsole console,
+            ScrollController scroll,
             Func<AgentCliVtScreen?> getScreen)
         {
             _console = console;
+            _scroll = scroll;
             _getScreen = getScreen;
         }
 
@@ -45,9 +48,9 @@ namespace MinorShift.Emuera.GameView
                     case ClearOp:
                         _getScreen()!.ClearScreen();
                         // ADR-0006：ClearOp 触发 auto-follow，归零 Scroll Offset。
-                        if (_getScreen()!.ScrollOffset > 0)
+                        if (_scroll.ScrollOffset > 0)
                         {
-                            _getScreen()!.ResetScroll();
+                            _scroll.Reset();
                             OnScrollAutoFollow?.Invoke();
                         }
                         _lastRenderedLineNo = -1;
@@ -100,9 +103,9 @@ namespace MinorShift.Emuera.GameView
                 // ADR-0006：新输出到达时 auto-follow 归零 offset。增量分支假设光标在底部，
                 // offset>0 时光标在状态栏行，必须走 FullRefresh（绝对定位）。
                 var screen = _getScreen();
-                if (screen != null && screen.ScrollOffset > 0)
+                if (screen != null && _scroll.ScrollOffset > 0)
                 {
-                    screen.ResetScroll();
+                    _scroll.Reset();
                     FullRefresh();
                     OnScrollAutoFollow?.Invoke();
                 }
@@ -144,7 +147,8 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>全量重绘可见行。ADR-0005 Issue 4：删除非 VT 降级分支，仅保留 VT 备用屏绝对定位路径。
-        /// ADR-0006：读 _screen.ScrollOffset 计算 startLine + visibleLines，offset>0 时渲染更早切片并缩小可见区（底部留状态栏）。</summary>
+        /// ADR-0006：读 ScrollController.ScrollOffset 计算 startLine + visibleLines，offset>0 时渲染更早切片并缩小可见区（底部留状态栏）。
+        /// ADR-0009：offset 从 ScrollController 读，visibleLines 内联算（删 AgentCliVtScreen.GetVisibleLines 薄包装）。</summary>
         internal void FullRefresh()
         {
             var lines = _console.DisplayLineList;
@@ -162,9 +166,11 @@ namespace MinorShift.Emuera.GameView
                 return;
             }
 
-            int offset = screen.ScrollOffset;
-            // 复用 AgentCliVtScreen.GetVisibleLines()：offset=0 → consoleHeight-1，offset>0 → consoleHeight-2。
-            int visibleLines = screen.GetVisibleLines();
+            int offset = _scroll.ScrollOffset;
+            // ADR-0009：visibleLines 内联算——offset=0 → consoleHeight-1（无状态栏），offset>0 → consoleHeight-2（底部留状态栏）。
+            int visibleLines = offset > 0
+                ? Math.Max(1, screen.WindowHeight - 2)
+                : Math.Max(1, screen.WindowHeight - 1);
             // offset>0 时回看历史：startLine 向前移动 offset 行。
             int startLine = offset > 0
                 ? Math.Max(0, lines.Count - visibleLines - offset)

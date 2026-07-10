@@ -12,6 +12,7 @@ namespace MinorShift.Emuera.GameView
     internal sealed class CountdownRenderer
     {
         private readonly EmueraConsole _console;
+        private readonly Func<int> _getScrollOffset;
         private readonly Func<AgentCliVtScreen?> _getScreen;
 
         // 倒计时行状态（viewport row，备用屏下与 buffer row 等价）
@@ -21,20 +22,23 @@ namespace MinorShift.Emuera.GameView
 
         public CountdownRenderer(
             EmueraConsole console,
+            Func<int> getScrollOffset,
             Func<AgentCliVtScreen?> getScreen)
         {
             _console = console;
+            _getScrollOffset = getScrollOffset;
             _getScreen = getScreen;
         }
 
         /// <summary>检测倒计时状态变化并刷新显示；倒计时结束时重置。
         /// ADR-0006：Scroll Mode（offset>0）下跳过 Update，不在历史行上覆盖倒计时。
-        /// ADR-0007：接受外部传入的 elapsedMs（CLI 挂钟），绕过失效的 stopwatch。</summary>
+        /// ADR-0007：接受外部传入的 elapsedMs（CLI 挂钟），绕过失效的 stopwatch。
+        /// ADR-0009：offset 从 Func<int> 读（替代 Func<AgentCliVtScreen?>）。</summary>
         internal void Update(long elapsedMs)
         {
             // Scroll Mode 下跳过：光标在状态栏行，CursorTop-1 探测的倒计时行位置失效，
             // 且在历史切片上覆盖倒时会污染历史视图。
-            if (_getScreen()?.ScrollOffset > 0) return;
+            if (_getScrollOffset() > 0) return;
 
             if (_console.IsDisplayTimeActive)
             {

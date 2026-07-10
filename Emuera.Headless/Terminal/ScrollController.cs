@@ -1,0 +1,79 @@
+using System;
+
+namespace MinorShift.Emuera.GameView
+{
+    /// <summary>
+    /// 纯逻辑视口偏移控制器（ADR-0009）。
+    /// 持有 ScrollOffset + 算术（ScrollBy/ScrollTo/Clamp/Reset）+ ScrollChanged 事件 + _scrollVisibleLines（构造注入）。
+    /// ScrollBy/ScrollTo/Clamp 在 offset 变化时 raise 事件，Reset() 静默（系统归零由调用方编排渲染）。
+    /// 替代 AgentCliVtScreen 的 scroll 算术职责——screen 只保留 VT I/O。
+    /// </summary>
+    internal sealed class ScrollController
+    {
+        private int _scrollVisibleLines;
+        private int _scrollOffset;
+
+        /// <param name="scrollVisibleLines">Scroll Mode 视口高度（= WindowHeight - 2，底部留状态栏）。</param>
+        internal ScrollController(int scrollVisibleLines)
+        {
+            _scrollVisibleLines = Math.Max(1, scrollVisibleLines);
+        }
+
+        /// <summary>当前视口偏移。0 = 跟随底部（正常模式）；>0 = 回看历史（Scroll Mode）。</summary>
+        internal int ScrollOffset => _scrollOffset;
+
+        /// <summary>是否处于 Scroll Mode（offset > 0）。</summary>
+        internal bool IsScrollMode => _scrollOffset > 0;
+
+        /// <summary>offset 变化时 raise（用户主动滚动路径）。Reset() 不 raise（系统归零静默）。</summary>
+        internal event Action<int>? ScrollChanged;
+
+        /// <summary>相对偏移滚动 delta 行；正=向上回看历史，负=向下回底。钳到 [0, maxOffset]。返回新 offset。</summary>
+        internal int ScrollBy(int delta, int lineCount)
+            => SetScrollOffset(_scrollOffset + delta, lineCount);
+
+        /// <summary>设置绝对 offset；钳到 [0, maxOffset]。返回新 offset。</summary>
+        internal int ScrollTo(int target, int lineCount)
+            => SetScrollOffset(target, lineCount);
+
+        /// <summary>将当前 offset 钳到新 max（resize 后调用）。返回新 offset。</summary>
+        internal int Clamp(int lineCount)
+        {
+            if (_scrollOffset <= 0) { _scrollOffset = 0; return 0; }
+            int maxOffset = MaxOffset(lineCount);
+            int newOffset = Math.Min(_scrollOffset, maxOffset);
+            return UpdateAndMaybeRaise(newOffset);
+        }
+
+        /// <summary>归零 offset（auto-follow / ClearOp / ConsumeNeedFullRefresh 调用）。静默不 raise 事件。</summary>
+        internal void Reset() => _scrollOffset = 0;
+
+        /// <summary>更新视口高度（resize 后调用）。不自动 clamp——下次 ScrollBy/Clamp 才生效。</summary>
+        internal void UpdateVisibleLines(int newVisibleLines)
+        {
+            _scrollVisibleLines = Math.Max(1, newVisibleLines);
+        }
+
+        private int SetScrollOffset(int target, int lineCount)
+        {
+            if (target <= 0) { return UpdateAndMaybeRaise(0); }
+            int maxOffset = MaxOffset(lineCount);
+            int newOffset = Math.Min(target, maxOffset);
+            return UpdateAndMaybeRaise(newOffset);
+        }
+
+        private int UpdateAndMaybeRaise(int newOffset)
+        {
+            int oldOffset = _scrollOffset;
+            _scrollOffset = newOffset;
+            if (newOffset != oldOffset)
+            {
+                ScrollChanged?.Invoke(newOffset);
+            }
+            return newOffset;
+        }
+
+        private int MaxOffset(int lineCount)
+            => Math.Max(0, lineCount - _scrollVisibleLines);
+    }
+}

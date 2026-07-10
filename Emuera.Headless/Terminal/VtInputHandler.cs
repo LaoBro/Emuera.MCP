@@ -6,13 +6,13 @@ namespace MinorShift.Emuera.GameView;
 
 internal sealed class VtInputHandler : IDisposable
 {
-    private readonly AgentCliProtocol _host;
+    private readonly IVtHost _host;
     private readonly ITerminalInput _input;
     private readonly ButtonRegionTracker _tracker = new();
     private readonly VtParser _parser;
     private bool _disposed;
 
-    internal VtInputHandler(AgentCliProtocol host, ITerminalInput input)
+    internal VtInputHandler(IVtHost host, ITerminalInput input)
     {
         _host = host;
         _input = input;
@@ -57,7 +57,7 @@ internal sealed class VtInputHandler : IDisposable
             else if (ch == '\x1b') key = ConsoleKey.Escape;
         }
 
-        if (_host.GameConsole.IsWaitingPrimitive)
+        if (_host.IsWaitingPrimitive)
         {
             int keycode = (int)key;
             int keydata = (int)ch;
@@ -94,7 +94,7 @@ internal sealed class VtInputHandler : IDisposable
 
     internal void OnMouseEvent(int row, int col, int buttonCode, bool isPress)
     {
-        if (_host.GameConsole.IsWaitingPrimitive)
+        if (_host.IsWaitingPrimitive)
         {
             DispatchPrimitiveMouseKey(row, col, buttonCode, isPress);
             return;
