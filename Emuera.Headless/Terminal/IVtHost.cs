@@ -4,18 +4,15 @@ using MinorShift.Emuera.UI.Game;
 namespace MinorShift.Emuera.GameView
 {
     /// <summary>
-    /// VtInputHandler 的依赖倒置接口（ADR-0009）。
+    /// VtInputHandler 的依赖倒置接口（ADR-0009 / ADR-0010）。
     /// AgentCliProtocol 实现它，内部把 scroll 成员（ScrollOffset/DispatchWheel/DispatchScroll）委托给 ScrollController。
-    /// IsWaitingPrimitive 门卫通过接口暴露，让 fake host 能绕过 primitive 路径（不需真实 EmueraConsole）。
-    /// 测试用 fake IVtHost 隔离 VtInputHandler 路由测试。
+    /// ADR-0010：移除 GameConsole 属性，改为直接暴露 PressPrimitiveKey/InputMouseKey 原语分发方法，
+    /// 让 VtInputHandler 不再依赖 EmueraConsole 类型，fake host 可用 spy 计数器测试 primitive 路径。
     /// </summary>
     internal interface IVtHost
     {
         /// <summary>请求退出（Ctrl+C / CancelKeyPress）。</summary>
         void RequestExit();
-
-        /// <summary>游戏控制台（用于调 PressPrimitiveKey / InputMouseKey，仅 primitive 路径）。</summary>
-        EmueraConsole GameConsole { get; }
 
         /// <summary>是否在 primitive 输入等待状态（TINPUT #xxx）。门卫读取，false 时绕过 primitive 路径。</summary>
         bool IsWaitingPrimitive { get; }
@@ -37,5 +34,11 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>鼠标点击未命中的分发（推进 AnyKey/EnterKey）。</summary>
         void DispatchMouseMiss();
+
+        /// <summary>primitive 键盘输入分发（IsWaitingPrimitive=true 时由 OnKeyEvent 调用）。</summary>
+        void PressPrimitiveKey(int keycode, int keydata, int keymod);
+
+        /// <summary>primitive 鼠标输入分发（IsWaitingPrimitive=true 时由 OnMouseEvent 调用）。</summary>
+        void InputMouseKey(int type, int result1, int result2, int result3, int result4, long result5);
     }
 }

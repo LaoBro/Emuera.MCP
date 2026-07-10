@@ -4,7 +4,7 @@ using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView;
 
-internal sealed class VtInputHandler : IDisposable
+internal sealed class VtInputHandler : IDisposable, IVtEventSink
 {
     private readonly IVtHost _host;
     private readonly ITerminalInput _input;
@@ -40,9 +40,9 @@ internal sealed class VtInputHandler : IDisposable
 
     #endregion
 
-    #region Event dispatch (called by VtParser)
+    #region Event dispatch (called by VtParser via IVtEventSink)
 
-    internal void OnKeyEvent(ConsoleKey key, char ch)
+    void IVtEventSink.OnKeyEvent(ConsoleKey key, char ch)
     {
         if (ch == '\x03')
         {
@@ -61,7 +61,7 @@ internal sealed class VtInputHandler : IDisposable
         {
             int keycode = (int)key;
             int keydata = (int)ch;
-            _host.GameConsole.PressPrimitiveKey(keycode, keydata, 0);
+            _host.PressPrimitiveKey(keycode, keydata, 0);
             return;
         }
 
@@ -92,7 +92,7 @@ internal sealed class VtInputHandler : IDisposable
         _host.ProcessKeyFromVt(keyInfo);
     }
 
-    internal void OnMouseEvent(int row, int col, int buttonCode, bool isPress)
+    void IVtEventSink.OnMouseEvent(int row, int col, int buttonCode, bool isPress)
     {
         if (_host.IsWaitingPrimitive)
         {
@@ -126,7 +126,7 @@ internal sealed class VtInputHandler : IDisposable
         if (buttonCode == 64 || buttonCode == 65)
         {
             int delta = buttonCode == 64 ? -120 : 120;
-            _host.GameConsole.InputMouseKey(2, delta, col, row, 0, 0);
+            _host.InputMouseKey(2, delta, col, row, 0, 0);
             return;
         }
 
@@ -142,7 +142,7 @@ internal sealed class VtInputHandler : IDisposable
 
         if (windowsButton == 0) return;
 
-        _host.GameConsole.InputMouseKey(1, windowsButton, col, row, 0, 0);
+        _host.InputMouseKey(1, windowsButton, col, row, 0, 0);
     }
 
     #endregion

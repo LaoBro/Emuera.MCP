@@ -10,7 +10,7 @@ namespace MinorShift.Emuera.GameView
     /// </summary>
     internal sealed class VtParser
     {
-        private readonly VtInputHandler _owner;
+        private readonly IVtEventSink _sink;
 
         private enum State { Ground, Esc, Csi, SgrMouse }
 
@@ -19,9 +19,9 @@ namespace MinorShift.Emuera.GameView
         private readonly byte[] _utf8Buffer = new byte[4];
         private int _utf8Len;
 
-        internal VtParser(VtInputHandler owner)
+        internal VtParser(IVtEventSink sink)
         {
-            _owner = owner;
+            _sink = sink;
         }
 
         internal void Feed(byte b)
@@ -45,7 +45,7 @@ namespace MinorShift.Emuera.GameView
 
             if (b == 0x03) // Ctrl+C
             {
-                _owner.OnKeyEvent((ConsoleKey)0, '\x03');
+                _sink.OnKeyEvent((ConsoleKey)0, '\x03');
                 return;
             }
 
@@ -56,7 +56,7 @@ namespace MinorShift.Emuera.GameView
                 if (expected < 0)
                 {
                     // 无效 UTF-8 首字节，作为单字节 Latin-1 派发
-                    _owner.OnKeyEvent((ConsoleKey)0, (char)b);
+                    _sink.OnKeyEvent((ConsoleKey)0, (char)b);
                     return;
                 }
                 _utf8Buffer[0] = b;
@@ -93,7 +93,7 @@ namespace MinorShift.Emuera.GameView
             }
 
             // ESC 单独作为按键
-            _owner.OnKeyEvent(ConsoleKey.Escape, '\x1b');
+            _sink.OnKeyEvent(ConsoleKey.Escape, '\x1b');
             _state = State.Ground;
 
             // 重新处理当前字节
@@ -126,22 +126,22 @@ namespace MinorShift.Emuera.GameView
             switch (b)
             {
                 case (byte)'A': // ↑
-                    _owner.OnKeyEvent(ConsoleKey.UpArrow, '\0');
+                    _sink.OnKeyEvent(ConsoleKey.UpArrow, '\0');
                     break;
                 case (byte)'B': // ↓
-                    _owner.OnKeyEvent(ConsoleKey.DownArrow, '\0');
+                    _sink.OnKeyEvent(ConsoleKey.DownArrow, '\0');
                     break;
                 case (byte)'C': // →
-                    _owner.OnKeyEvent(ConsoleKey.RightArrow, '\0');
+                    _sink.OnKeyEvent(ConsoleKey.RightArrow, '\0');
                     break;
                 case (byte)'D': // ←
-                    _owner.OnKeyEvent(ConsoleKey.LeftArrow, '\0');
+                    _sink.OnKeyEvent(ConsoleKey.LeftArrow, '\0');
                     break;
                 case (byte)'H': // Home
-                    _owner.OnKeyEvent(ConsoleKey.Home, '\0');
+                    _sink.OnKeyEvent(ConsoleKey.Home, '\0');
                     break;
                 case (byte)'F': // End
-                    _owner.OnKeyEvent(ConsoleKey.End, '\0');
+                    _sink.OnKeyEvent(ConsoleKey.End, '\0');
                     break;
                 case (byte)'~': // CSI ~ 序列：param 5=PgUp, 6=PgDn（ADR-0006）
                     HandleCsiTilde();
@@ -156,10 +156,10 @@ namespace MinorShift.Emuera.GameView
             switch (p)
             {
                 case "5":
-                    _owner.OnKeyEvent(ConsoleKey.PageUp, '\0');
+                    _sink.OnKeyEvent(ConsoleKey.PageUp, '\0');
                     break;
                 case "6":
-                    _owner.OnKeyEvent(ConsoleKey.PageDown, '\0');
+                    _sink.OnKeyEvent(ConsoleKey.PageDown, '\0');
                     break;
                 // 其他 ~ 序列（F1-F4 等）忽略
             }
@@ -181,7 +181,7 @@ namespace MinorShift.Emuera.GameView
                     int col = cx - 1;
                     bool isPress = b == (byte)'M';
 
-                    _owner.OnMouseEvent(row, col, cb, isPress);
+                    _sink.OnMouseEvent(row, col, cb, isPress);
                 }
                 _state = State.Ground;
                 return;
@@ -197,7 +197,7 @@ namespace MinorShift.Emuera.GameView
             {
                 string s = Encoding.UTF8.GetString(_utf8Buffer, 0, _utf8Len);
                 if (s.Length > 0)
-                    _owner.OnKeyEvent((ConsoleKey)0, s[0]);
+                    _sink.OnKeyEvent((ConsoleKey)0, s[0]);
             }
             catch
             {

@@ -47,10 +47,16 @@ namespace MinorShift.Emuera.GameView
         // null 表示不在 WaitInput 或计时已失效。genericTimer stopwatch 在 CLI 不启动，改用此字段。
         private DateTime? _waitInputEnteredAt;
 
-        EmueraConsole IVtHost.GameConsole => console;
-
         /// <summary>是否在 primitive 输入等待状态。ADR-0009：通过 IVtHost 暴露给 VtInputHandler 门卫。</summary>
         bool IVtHost.IsWaitingPrimitive => console.IsWaitingPrimitive;
+
+        /// <summary>ADR-0010：primitive 键盘输入分发，委托给 EmueraConsole。</summary>
+        void IVtHost.PressPrimitiveKey(int keycode, int keydata, int keymod)
+            => console.PressPrimitiveKey(keycode, keydata, keymod);
+
+        /// <summary>ADR-0010：primitive 鼠标输入分发，委托给 EmueraConsole。</summary>
+        void IVtHost.InputMouseKey(int type, int result1, int result2, int result3, int result4, long result5)
+            => console.InputMouseKey(type, result1, result2, result3, result4, result5);
 
         /// <summary>当前 Scroll Offset（IVtHost 门卫读取）。ADR-0009：从 ScrollController 读。</summary>
         int IVtHost.ScrollOffset => _scroll.ScrollOffset;
