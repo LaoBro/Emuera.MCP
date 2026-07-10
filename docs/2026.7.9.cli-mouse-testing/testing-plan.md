@@ -2,7 +2,7 @@
 
 - **日期**: 2026-07-09
 - **关联**: [experiment-results.md](./experiment-results.md)（实验证明 PTY 拦截 SGR mouse）、ADR-0006、ADR-0007
-- **状态**: 推荐方案，待实施
+- **状态**: 已实施，验收通过（2026-07-11；C1–C8 全绿，D 注释已按 experiment-results.md 修正，CI 仓库无配置故 N/A）
 
 ## 背景
 
@@ -145,7 +145,7 @@ Mock `AgentCliProtocol` 或用最小 fixture，设 `console.State == WaitInput`�
 
 ## 验收标准
 
-- [ ] test_cli_scroll.py 注释更新为基于实验的准确描述（D）
-- [ ] .NET 测试项目创建，C1-C8 全部实现并通过（C）
-- [ ] C1-C8 覆盖：VtParser 解析、HitTest、Generation、Scroll Mode 门卫、DispatchMouseClick/Miss/Wheel、primitive 模式
-- [ ] CI 集成（若仓库有 CI）
+- [x] test_cli_scroll.py 注释更新为基于实验的准确描述（D，2026-07-11 修正 ?1000h 误述）
+- [x] .NET 测试项目创建，C1-C8 全部实现并通过（C，84 测试全过）
+- [x] C1-C8 覆盖：VtParser 解析、HitTest、Generation、Scroll Mode 门卫、DispatchMouseClick/Miss/Wheel、primitive 模式
+- [x] CI 集成（若仓库有 CI）— 仓库无 CI 配置，N/A

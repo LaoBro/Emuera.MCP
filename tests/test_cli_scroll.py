@@ -8,10 +8,14 @@
   - 热键翻页：PgUp/PgDn/Home/End
   - 边界 no-op：底部时 End 不产生视觉抖动
 
-SGR 鼠标滚轮事件 (cb=64/65) 无法通过 ConPTY/winpty PTY 注入：
-ConPTY 在应用启用 ?1000h 后会拦截输入侧的 SGR mouse 序列，不转发到应用 stdin。
-鼠标滚轮与键盘热键共享同一滚动逻辑（DispatchWheel/DispatchScroll → ScrollBy/ScrollTo →
-ApplyScrollChange），因此键盘热键测试覆盖了完整的滚动行为。
+SGR 鼠标事件 (cb=64/65 滚轮, cb=0 点击) 无法通过 pywinpty PTY 注入测试。
+实验验证（docs/2026.7.9.cli-mouse-testing/experiment-results.md）：
+  - pywinpty ConPTY + winpty 两个 backend 都拦截 SGR mouse 输入字节
+  - 最小 EchoMouse 实验（设 ENABLE_VIRTUAL_TERMINAL_INPUT + raw ReadFile）确认
+    键盘 CSI 序列到达但 SGR mouse 序列不到达——拦截发生在 PTY host 层
+  - 应用端 VtParser 无 ?1000h 检查，若字节到达必然解析
+鼠标功能覆盖改为 .NET 单元测试（docs/2026.7.9.cli-mouse-testing/testing-plan.md C 部分）。
+PTY 集成测试仅覆盖键盘热键（DispatchWheel/DispatchScroll 共享 ApplyScrollChange 逻辑）。
 
 非 Windows 或无 pywinpty 时自动跳过。
 """

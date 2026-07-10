@@ -1,7 +1,8 @@
-"""Run the Emuera.Headless regression suite with one command.
+"""Run the Emuera.Headless full test suite with one command.
 
 This entry point keeps the existing focused test scripts intact and adds a
-single command for routine regression runs:
+single command for routine regression runs. It runs the .NET xUnit unit
+tests (Emuera.Headless.Tests) first, then the Python end-to-end suites:
 
     python tests/run_all.py
     python tests/run_all.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe
@@ -61,7 +62,33 @@ def _run_script(name, args, env=None, timeout=None):
     # (the .NET single-file host may briefly hold the exe after process exit)
     if sys.platform == "win32":
         time.sleep(1)
-    return completed.returncode == 0, completed.returncode
+    return completed.returncode == 0, completed.returncode, False
+
+
+def _run_dotnet_test(timeout=None):
+    """Run the .NET xUnit unit tests via `dotnet test`.
+
+    Returns (passed, returncode, skipped). Skipped when `dotnet` is not on
+    PATH so the suite still runs on machines without the .NET SDK.
+    """
+    dotnet = shutil.which("dotnet")
+    if dotnet is None:
+        print("\n=== .NET unit tests (xUnit) ===")
+        print("SKIPPED: dotnet not found in PATH")
+        return False, None, True
+    print("\n=== .NET unit tests (xUnit) ===")
+    completed = subprocess.run(
+        [dotnet, "test", "Emuera.Headless.Tests/Emuera.Headless.Tests.csproj", "--nologo"],
+        cwd=str(ROOT_DIR),
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+    )
+    # Brief pause on Windows to release any file lock from the build step.
+    if sys.platform == "win32":
+        time.sleep(1)
+    return completed.returncode == 0, completed.returncode, False
 
 
 def _safe_print(text):
@@ -81,6 +108,13 @@ def main():
     env = _child_env(binary_path)
 
     results = []
+
+    results.append(
+        (
+            ".NET unit tests (xUnit)",
+            _run_dotnet_test(timeout=300),
+        )
+    )
 
     results.append(
         (
@@ -209,7 +243,10 @@ def main():
 
     print("\n=== Summary ===")
     all_passed = True
-    for name, (passed, code) in results:
+    for name, (passed, code, skipped) in results:
+        if skipped:
+            print(f"SKIP: {name}")
+            continue
         status = "PASS" if passed else f"FAIL (exit {code})"
         print(f"{status}: {name}")
         all_passed = all_passed and passed
