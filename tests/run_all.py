@@ -213,6 +213,28 @@ def main():
 
     results.append(
         (
+            "CLI scroll (ConPTY)",
+            _run_script(
+                "CLI scroll (ConPTY)",
+                [sys.executable, str(TESTS_DIR / "test_cli_scroll.py"), "--binary", str(binary_path)],
+                timeout=180,
+            ),
+        )
+    )
+
+    results.append(
+        (
+            "CLI clearline/printn (ConPTY)",
+            _run_script(
+                "CLI clearline/printn (ConPTY)",
+                [sys.executable, str(TESTS_DIR / "test_clearline_reprint.py"), "--binary", str(binary_path)],
+                timeout=120,
+            ),
+        )
+    )
+
+    results.append(
+        (
             "VT-only fatal exit",
             _run_script(
                 "VT-only fatal exit",
