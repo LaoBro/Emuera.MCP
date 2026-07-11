@@ -69,8 +69,6 @@ internal sealed partial class Process(EmueraConsole view)
 		LexicalAnalyzer.UseMacro = false;
 		state = new ProcessState(console);
 		originalState = state;
-		_systemProc = new SystemProc(this);
-		_scriptProc = new ScriptProc(this);
 		initialiing = true;
 		try
 		{
@@ -185,6 +183,8 @@ internal sealed partial class Process(EmueraConsole view)
 		StrForm.Initialize();
 		VariableParser.Initialize();
 		this.exm = new ExpressionMediator(this, this.vEvaluator, console);
+		_systemProc = new SystemProc(this, console, this.vEvaluator, this.gamebase, this.TrainName);
+		_scriptProc = new ScriptProc(this, console, this.vEvaluator);
 
 		logWriter?.WriteLine($"Proc:Init:ERH:Start {stopWatch.ElapsedMilliseconds}ms");
 		if (!await loader.LoadHeadersAndScripts(this.idDic, this.exm, this.labelDic, this, logWriter, stopWatch))
@@ -586,16 +586,12 @@ internal sealed partial class Process(EmueraConsole view)
 
 	private void deletePrevState()
 	{
-		if (prevStateList.Count == 0)
-			return;
-		prevStateList.RemoveAt(prevStateList.Count - 1);
+		_scriptProc.DeletePrevState();
 	}
 
 	private void deleteAllPrevState()
 	{
-		foreach (ProcessState state in prevStateList)
-			state.ClearFunctionList();
-		prevStateList.Clear();
+		_scriptProc.DeleteAllPrevState();
 	}
 
 	/// <summary>

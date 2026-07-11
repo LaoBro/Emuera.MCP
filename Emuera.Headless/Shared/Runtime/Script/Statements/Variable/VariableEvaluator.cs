@@ -18,7 +18,7 @@ using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.Runtime.Script.Statements.Variable;
 
-internal sealed class VariableEvaluator : IDisposable
+internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 {
 	readonly GameBase gamebase;
 	readonly ConstantData constant;

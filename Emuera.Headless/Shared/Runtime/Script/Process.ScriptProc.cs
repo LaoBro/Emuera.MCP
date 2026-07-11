@@ -1,20 +1,22 @@
 using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameProc.Function;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.UI.Game;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
-using MinorShift.Emuera.UI.Game;
 using System;
 using System.Collections.Generic;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.GameProc;
 
-// ADR-0011 phase-1 transitional form: ScriptProc holds `parent` back-reference.
+// ADR-0011 Phase 2: IVariableEvaluator, EmueraConsole injected; prevStateList/saveSkip/userDefinedSkip moved in.
+// Remaining `parent.*` bridge: state, exm, skipPrint, isCTrain, count, coms, TrainName, gameBase, IdentifierDictionary.
 // TODO: Narrow per-instruction-family to F2 (no parent back-ref). Target families:
 //       print/printl → output-only via injected console;
 //       input/inputint → SessionIO abstraction;
@@ -22,17 +24,20 @@ namespace MinorShift.Emuera.GameProc;
 //       arithmetic/assign → pure ExpressionMediator + VEvaluator.
 internal sealed partial class Process
 {
-	bool saveSkip;
-	bool userDefinedSkip;
-	List<ProcessState> prevStateList = [];
-
 	internal sealed class ScriptProc
 	{
 		readonly Process parent;
+		readonly EmueraConsole console;
+		readonly IVariableEvaluator vEvaluator;
+		List<ProcessState> prevStateList = [];
+		bool saveSkip;
+		bool userDefinedSkip;
 
-		internal ScriptProc(Process parent)
+		internal ScriptProc(Process parent, EmueraConsole console, IVariableEvaluator vEvaluator)
 		{
 			this.parent = parent;
+			this.console = console;
+			this.vEvaluator = vEvaluator;
 		}
 
 		public void Run()
@@ -60,10 +65,10 @@ internal sealed partial class Process
 					}
 					if (parent.skipPrint && func.Function.IsPrint())
 					{
-						if (parent.userDefinedSkip && func.Function.IsInput())
+						if (userDefinedSkip && func.Function.IsInput())
 						{
-							parent.console.PrintError(trerror.SkipdispInputError1.Text);
-							parent.console.PrintError(trerror.SkipdispInputError2.Text);
+							console.PrintError(trerror.SkipdispInputError1.Text);
+							console.PrintError(trerror.SkipdispInputError2.Text);
 							throw new CodeEE(trerror.SkipdispInputError3.Text);
 						}
 						continue;
@@ -78,7 +83,7 @@ internal sealed partial class Process
 				else if ((line is NullLine) || (line is FunctionLabelLine))
 				{
 					if (!parent.state.IsFunctionMethod)
-						parent.vEvaluator.RESULT = 0;
+						vEvaluator.RESULT = 0;
 					parent.state.Return(0);
 				}
 				else if (line is GotoLabelLine)
@@ -90,7 +95,7 @@ internal sealed partial class Process
 					else
 						throw new CodeEE(line.ErrMes);
 				}
-				if (!parent.console.IsRunning || parent.state.ScriptEnd)
+				if (!console.IsRunning || parent.state.ScriptEnd)
 					return;
 			}
 		}
@@ -102,7 +107,7 @@ internal sealed partial class Process
 			else
 				doNormalFunction(func);
 			if (munchkin)
-				parent.vEvaluator.IamaMunchkin();
+				vEvaluator.IamaMunchkin();
 		}
 
 		void doNormalFunction(InstructionLine func)
@@ -181,7 +186,7 @@ internal sealed partial class Process
 							break;
 						ExpressionArgument intExpArg = (ExpressionArgument)func.Argument;
 						long target = intExpArg.Term.GetIntValue(parent.exm);
-						parent.exm.Console.Print(parent.vEvaluator.GetCharacterDataString(target, func.FunctionCode));
+						parent.exm.Console.Print(vEvaluator.GetCharacterDataString(target, func.FunctionCode));
 						parent.exm.Console.NewLine();
 					}
 					break;
@@ -194,7 +199,7 @@ internal sealed partial class Process
 						int count = 0;
 						for (int i = 0; i < 100; i++)
 						{
-							string printStr = parent.vEvaluator.GetCharacterParamString(target, i);
+							string printStr = vEvaluator.GetCharacterParamString(target, i);
 							if (printStr != null)
 							{
 								parent.exm.Console.PrintC(printStr, true);
@@ -210,25 +215,25 @@ internal sealed partial class Process
 				case FunctionCode.PRINT_ITEM:
 					if (parent.skipPrint)
 						break;
-					parent.exm.Console.Print(parent.vEvaluator.GetHavingItemsString());
+					parent.exm.Console.Print(vEvaluator.GetHavingItemsString());
 					parent.exm.Console.NewLine();
 					break;
 				case FunctionCode.PRINT_SHOPITEM:
 					{
 						if (parent.skipPrint)
 							break;
-						int length = Math.Min(parent.vEvaluator.ITEMSALES.Length, parent.vEvaluator.ITEMNAME.Length);
-						if (length > parent.vEvaluator.ITEMPRICE.Length)
-							length = parent.vEvaluator.ITEMPRICE.Length;
+						int length = Math.Min(vEvaluator.ITEMSALES.Length, vEvaluator.ITEMNAME.Length);
+						if (length > vEvaluator.ITEMPRICE.Length)
+							length = vEvaluator.ITEMPRICE.Length;
 						int count = 0;
 						for (int i = 0; i < length; i++)
 						{
-							if (parent.vEvaluator.ItemSales(i))
+							if (vEvaluator.ItemSales(i))
 							{
-								string printStr = parent.vEvaluator.ITEMNAME[i];
+								string printStr = vEvaluator.ITEMNAME[i];
 								if (printStr == null)
 									printStr = "";
-								long price = parent.vEvaluator.ITEMPRICE[i];
+								long price = vEvaluator.ITEMPRICE[i];
 								if (Config.MoneyFirst)
 									parent.exm.Console.PrintC(string.Format("[{2}] {0}({3}{1})", printStr, price, i, Config.MoneyLabel), false);
 								else
@@ -243,25 +248,25 @@ internal sealed partial class Process
 					}
 					break;
 				case FunctionCode.UPCHECK:
-					parent.vEvaluator.UpdateInUpcheck(parent.exm.Console, parent.skipPrint);
+					vEvaluator.UpdateInUpcheck(parent.exm.Console, parent.skipPrint);
 					break;
 				case FunctionCode.CUPCHECK:
 					{
 						ExpressionArgument intExpArg = (ExpressionArgument)func.Argument;
 						long target = intExpArg.Term.GetIntValue(parent.exm);
-						parent.vEvaluator.CUpdateInUpcheck(parent.exm.Console, target, parent.skipPrint);
+						vEvaluator.CUpdateInUpcheck(parent.exm.Console, target, parent.skipPrint);
 					}
 					break;
 				case FunctionCode.DELALLCHARA:
 					{
-						parent.vEvaluator.DelAllCharacter();
+						vEvaluator.DelAllCharacter();
 						break;
 					}
 				case FunctionCode.PICKUPCHARA:
 					{
 						ExpressionArrayArgument intExpArg = (ExpressionArrayArgument)func.Argument;
 						long[] NoList = new long[intExpArg.TermList.Length];
-						long charaNum = parent.vEvaluator.CHARANUM;
+						long charaNum = vEvaluator.CHARANUM;
 						for (int i = 0; i < intExpArg.TermList.Length; i++)
 						{
 							AExpression term_i = intExpArg.TermList[i];
@@ -270,26 +275,26 @@ internal sealed partial class Process
 								if (NoList[i] < 0 || NoList[i] >= charaNum)
 									throw new CodeEE(string.Format(trerror.OoRPickupcharaArg.Text, (i + 1).ToString(), NoList[i].ToString()));
 						}
-						parent.vEvaluator.PickUpChara(NoList);
+						vEvaluator.PickUpChara(NoList);
 					}
 					break;
 				case FunctionCode.ADDDEFCHARA:
 					{
 						if ((func.ParentLabelLine != null) && (func.ParentLabelLine.LabelName != "SYSTEM_TITLE"))
 							throw new CodeEE(trerror.CanNotUseOutsideSystemtitle.Text);
-						parent.vEvaluator.AddCharacterFromCsvNo(0);
+						vEvaluator.AddCharacterFromCsvNo(0);
 						if (parent.gameBase.DefaultCharacter > 0)
-							parent.vEvaluator.AddCharacterFromCsvNo(parent.gameBase.DefaultCharacter);
+							vEvaluator.AddCharacterFromCsvNo(parent.gameBase.DefaultCharacter);
 						break;
 					}
 				case FunctionCode.PUTFORM:
 					{
 						term = ((ExpressionArgument)func.Argument).Term;
 						str = term.GetStrValue(parent.exm);
-						if (parent.vEvaluator.SAVEDATA_TEXT != null)
-							parent.vEvaluator.SAVEDATA_TEXT += str;
+						if (vEvaluator.SAVEDATA_TEXT != null)
+							vEvaluator.SAVEDATA_TEXT += str;
 						else
-							parent.vEvaluator.SAVEDATA_TEXT = str;
+							vEvaluator.SAVEDATA_TEXT = str;
 						break;
 					}
 				case FunctionCode.QUIT:
@@ -311,7 +316,7 @@ internal sealed partial class Process
 					{
 						SpVarsizeArgument versizeArg = (SpVarsizeArgument)func.Argument;
 						VariableToken varID = versizeArg.VariableID;
-						parent.vEvaluator.VarSize(varID);
+						vEvaluator.VarSize(varID);
 					}
 					break;
 				case FunctionCode.SAVEDATA:
@@ -325,9 +330,9 @@ internal sealed partial class Process
 						string savemes = spSavedataArg.StrExpression.GetStrValue(parent.exm);
 						if (savemes.Contains('\n'))
 							throw new CodeEE(trerror.SavetextContainNewLineCharacter.Text);
-						if (!parent.vEvaluator.SaveTo((int)target, savemes))
+						if (!vEvaluator.SaveTo((int)target, savemes))
 						{
-							parent.console.PrintError(trerror.UnexpectedErrorInSavedata.Text);
+							console.PrintError(trerror.UnexpectedErrorInSavedata.Text);
 						}
 					}
 					break;
@@ -381,8 +386,8 @@ internal sealed partial class Process
 						date = date * 100 + DateTime.Now.Minute;
 						date = date * 100 + DateTime.Now.Second;
 						date = date * 1000 + DateTime.Now.Millisecond;
-						parent.vEvaluator.RESULT = date;
-						parent.vEvaluator.RESULTS = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
+						vEvaluator.RESULT = date;
+						vEvaluator.RESULTS = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
 					}
 					break;
 				case FunctionCode.SETCOLOR:
@@ -511,7 +516,7 @@ internal sealed partial class Process
 							iValue = func.Argument.ConstInt;
 						else
 							iValue = ((ExpressionArgument)func.Argument).Term.GetIntValue(parent.exm);
-						parent.vEvaluator.SetDefaultStain(iValue);
+						vEvaluator.SetDefaultStain(iValue);
 					}
 					break;
 				case FunctionCode.SPLIT:
@@ -553,15 +558,15 @@ internal sealed partial class Process
 					{
 						iValue = func.Argument.IsConst ? func.Argument.ConstInt : ((ExpressionArgument)func.Argument).Term.GetIntValue(parent.exm);
 						parent.skipPrint = iValue != 0;
-						parent.userDefinedSkip = iValue != 0;
-						parent.vEvaluator.RESULT = parent.skipPrint ? 1L : 0L;
+						userDefinedSkip = iValue != 0;
+						vEvaluator.RESULT = parent.skipPrint ? 1L : 0L;
 					}
 					break;
 				case FunctionCode.NOSKIP:
 					{
 						if (func.JumpTo == null)
 							throw new CodeEE(trerror.MissingEndnoskip.Text);
-						parent.saveSkip = parent.skipPrint;
+						saveSkip = parent.skipPrint;
 						if (parent.skipPrint)
 							parent.skipPrint = false;
 					}
@@ -570,7 +575,7 @@ internal sealed partial class Process
 					{
 						if (func.JumpTo == null)
 							throw new CodeEE(string.Format(trerror.MissingNoskip.Text, "ENDNOSKIP"));
-						if (parent.saveSkip)
+						if (saveSkip)
 							parent.skipPrint = true;
 					}
 					break;
@@ -690,14 +695,14 @@ internal sealed partial class Process
 						term = ((ExpressionArgument)func.Argument).Term;
 						string target = term.GetStrValue(parent.exm);
 
-						int length = parent.vEvaluator.RESULT_ARRAY.Length;
+						int length = vEvaluator.RESULT_ARRAY.Length;
 						if (target.Length > length - 1)
 							throw new CodeEE(string.Format(trerror.tooLongEncodetouniArg.Text, target.Length, length - 1));
 
 						int[] ary = new int[target.Length];
 						for (int i = 0; i < target.Length; i++)
 							ary[i] = char.ConvertToUtf32(target, i);
-						parent.vEvaluator.SetEncodingResult(ary);
+						vEvaluator.SetEncodingResult(ary);
 					}
 					break;
 				case FunctionCode.ASSERT:
@@ -707,7 +712,7 @@ internal sealed partial class Process
 				case FunctionCode.THROW:
 					throw new CodeEE(((ExpressionArgument)func.Argument).Term.GetStrValue(parent.exm));
 				case FunctionCode.CLEARTEXTBOX:
-					parent.console.ClearText();
+					console.ClearText();
 					break;
 				case FunctionCode.STRDATA:
 					{
@@ -717,7 +722,7 @@ internal sealed partial class Process
 							return;
 						}
 						int count = func.dataList.Count;
-						int choice = (int)parent.exm.VEvaluator.GetNextRand(count);
+						int choice = (int)vEvaluator.GetNextRand(count);
 						List<InstructionLine> iList = func.dataList[choice];
 						int i = 0;
 						foreach (InstructionLine selectedLine in iList)
@@ -737,7 +742,7 @@ internal sealed partial class Process
 				case FunctionCode.SKIPLOG:
 					{
 						iValue = func.Argument.IsConst ? func.Argument.ConstInt : ((ExpressionArgument)func.Argument).Term.GetIntValue(parent.exm);
-						parent.console.MesSkip = iValue != 0;
+						console.MesSkip = iValue != 0;
 						break;
 					}
 #if DEBUG
@@ -761,11 +766,11 @@ internal sealed partial class Process
 							throw new CodeEE(string.Format(trerror.LoaddataArgIsNegative.Text, target.ToString()));
 						else if (target > int.MaxValue)
 							throw new CodeEE(string.Format(trerror.TooLargeLoaddataArg.Text, target.ToString()));
-						EraDataResult result = parent.vEvaluator.CheckData((int)target, EraSaveFileType.Normal);
+						EraDataResult result = vEvaluator.CheckData((int)target, EraSaveFileType.Normal);
 						if (result.State != EraDataState.OK)
 							throw new CodeEE(trerror.LoadCorruptedData.Text);
 
-						if (!parent.vEvaluator.LoadFrom((int)target))
+						if (!vEvaluator.LoadFrom((int)target))
 							throw new ExeEE(trerror.UnexpectedErrorInLoaddata.Text);
 						parent.state.ClearFunctionList();
 						parent.state.SystemState = SystemStateCode.LoadData_DataLoaded;
@@ -864,11 +869,25 @@ internal sealed partial class Process
 			return true;
 		}
 
+		internal void DeletePrevState()
+		{
+			if (prevStateList.Count == 0)
+				return;
+			prevStateList.RemoveAt(prevStateList.Count - 1);
+		}
+
+		internal void DeleteAllPrevState()
+		{
+			foreach (ProcessState state in prevStateList)
+				state.ClearFunctionList();
+			prevStateList.Clear();
+		}
+
 		internal void SaveCurrentState(bool single)
 		{
 			if (parent.state != null)
 			{
-				parent.prevStateList.Add(parent.state);
+				prevStateList.Add(parent.state);
 				parent.state = parent.state.Clone();
 			}
 		}
@@ -878,8 +897,8 @@ internal sealed partial class Process
 			if (parent.state != null)
 			{
 				parent.state.ClearFunctionList();
-				parent.state = parent.prevStateList[parent.prevStateList.Count - 1];
-				parent.deletePrevState();
+				parent.state = prevStateList[prevStateList.Count - 1];
+				DeletePrevState();
 			}
 		}
 
