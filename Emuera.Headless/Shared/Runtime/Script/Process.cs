@@ -184,7 +184,7 @@ internal sealed partial class Process(EmueraConsole view)
 		VariableParser.Initialize();
 		this.exm = new ExpressionMediator(this, this.vEvaluator, console);
 		_systemProc = new SystemProc(this, console, this.vEvaluator, this.gamebase, this.TrainName);
-		_scriptProc = new ScriptProc(this, console, this.vEvaluator);
+		_scriptProc = new ScriptProc(this, console, this.vEvaluator, this.exm, this.idDic);
 
 		logWriter?.WriteLine($"Proc:Init:ERH:Start {stopWatch.ElapsedMilliseconds}ms");
 		if (!await loader.LoadHeadersAndScripts(this.idDic, this.exm, this.labelDic, this, logWriter, stopWatch))

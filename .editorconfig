@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
 # I-12 阶段 1：质量护栏按路径分级
 # - Emuera.Headless/Shared/ 子树是 T-023 物理迁移自 Emuera/ 的历史共享源码
 #   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Headless 构建被历史代码警告淹没
@@ -54,3 +54,10 @@ dotnet_diagnostic.CA1822.severity = none
 
 [Emuera.Headless/Terminal/TerminalCursor.cs]
 dotnet_diagnostic.CA1822.severity = none
+
+# CA1859：IProcessState state 属性有意用接口而非具体类型，Phase 3 解耦设计意图
+[Emuera.Headless/Shared/Runtime/Script/Process.SystemProc.cs]
+dotnet_diagnostic.CA1859.severity = none
+
+[Emuera.Headless/Shared/Runtime/Script/Process.ScriptProc.cs]
+dotnet_diagnostic.CA1859.severity = none

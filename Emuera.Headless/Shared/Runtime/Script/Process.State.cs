@@ -88,7 +88,7 @@ internal enum BeginType
 	TITLE = 8,
 }
 
-internal sealed class ProcessState
+internal sealed class ProcessState : IProcessState
 {
 	public ProcessState(EmueraConsole console)
 	{
@@ -260,7 +260,7 @@ internal sealed class ProcessState
 		begintype = BeginType.NULL;
 	}
 
-	public bool calledWhenNormal = true;
+	public bool calledWhenNormal { get; set; } = true;
 	/// <summary>
 	/// BEGIN命令によるプログラム状態の変化
 	/// </summary>
@@ -442,7 +442,7 @@ internal sealed class ProcessState
 		return;
 	}
 
-	public void IntoFunction(CalledFunction call, UserDefinedFunctionArgument srcArgs, ExpressionMediator exm)
+	public void IntoFunction(CalledFunction call, UserDefinedFunctionArgument? srcArgs, ExpressionMediator exm)
 	{
 
 		if (call.IsEvent)
@@ -558,19 +558,13 @@ internal sealed class ProcessState
 		ProcessState ret = new(console)
 		{
 			isClone = true,
-			//どうせ消すからコピー不要
-			//foreach (CalledFunction func in functionList)
-			//	ret.functionList.Add(func.Clone());
 			currentLine = currentLine,
-			//ret.nextLine = this.nextLine;
-			//ret.sequential = this.sequential;
 			sysStateCode = sysStateCode,
 			begintype = begintype
 		};
-		//ret.MethodReturnValue = this.MethodReturnValue;
 		return ret;
-
 	}
+	IProcessState IProcessState.Clone() => Clone();
 	//public ProcessState CloneForFunctionMethod()
 	//{
 	//    ProcessState ret = new ProcessState(console);
