@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using Xunit;
@@ -55,17 +56,25 @@ public class GlobalStaticScopeTests
     }
 
     /// <summary>
-    /// T-c：单赋值断言契约——scope 内二次 set 同字段抛 InvalidOperationException。
-    /// GameBase 有无参构造且无静态依赖，适合用于测试。
+    /// T-c：ADR-0011 只读转发契约——6 个引擎字段（GameBaseData/ConstantData/VEvaluator/
+    /// IdentifierDictionary/EMediator/LabelDictionary）自候选 3 起收归 Process 实例，
+    /// GlobalStatic 仅保留只读转发属性，不再拥有 setter（写入路径已无残留）。
+    /// 单赋值语义现由 Process 实例在 Initialize 内持有。
     /// </summary>
     [Fact]
-    public void Second_set_of_same_core_field_throws_InvalidOperation()
+    public void Engine_fields_are_read_only_forwarding()
     {
         using var scope = GlobalStatic.OpenScope(new ConfigData());
 
-        GlobalStatic.GameBaseData = new GameBase();
-
-        Assert.Throws<InvalidOperationException>(() =>
-            GlobalStatic.GameBaseData = new GameBase());
+        var engineFieldNames = new[]
+        {
+            "GameBaseData", "ConstantData", "VEvaluator",
+            "IdentifierDictionary", "EMediator", "LabelDictionary"
+        };
+        foreach (var name in engineFieldNames)
+        {
+            var prop = typeof(GlobalStatic).GetProperty(name)!;
+            Assert.Null(prop.GetSetMethod()); // 只读转发，无 setter
+        }
     }
 }

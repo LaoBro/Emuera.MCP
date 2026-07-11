@@ -40,10 +40,18 @@ internal sealed partial class Process(EmueraConsole view)
 	private VariableEvaluator vEvaluator = null!;
 	public VariableEvaluator VEvaluator { get { return vEvaluator; } }
 	private ExpressionMediator exm = null!;
+	// ADR-0011：引擎状态收归 Process 实例，GlobalStatic 对应属性转为只读转发层。
+	public ExpressionMediator EMediator { get { return exm; } }
 	private GameBase gamebase = null!;
 	public GameBase gameBase { get { return gamebase; } }
+	// ADR-0011：6 引擎字段之一，实例持有，不再写回 GlobalStatic。
+	public GameBase GameBaseData { get { return gamebase; } }
+	private ConstantData constantData = null!;
+	public ConstantData ConstantData { get { return constantData; } }
 	readonly EmueraConsole console = view;
 	private IdentifierDictionary idDic = null!;
+	// ADR-0011：6 引擎字段之一，实例持有，不再写回 GlobalStatic。
+	public IdentifierDictionary IdentifierDictionary { get { return idDic; } }
 	ProcessState state = null!;
 	ProcessState originalState = null!;//リセットする時のために
 	bool noError;
@@ -154,73 +162,12 @@ internal sealed partial class Process(EmueraConsole view)
 				console.PrintSingleLine(Config.LoadLabel);
 				console.RefreshStrings(true);
 			}
-			//gamebase.csv読み込み
-			gamebase = new GameBase();
-			if (!await Task.Run(() => gamebase.LoadGameBaseCsv(Program.CsvDir + "GAMEBASE.CSV")))
-			{
-				ParserMediator.FlushWarningList();
-				console.PrintSystemLine(trsl.GamebaseError.Text);
-				return false;
-			}
-			console.SetWindowTitle(gamebase.ScriptWindowTitle);
-			GlobalStatic.GameBaseData = gamebase;
-			logWriter?.WriteLine($"Proc:Init:MainCSV:End {stopWatch.ElapsedMilliseconds}ms");
-
-			//前記以外のcsvを全て読み込み
-			ConstantData constant = new();
-			constant.LoadData(Program.CsvDir, console, Config.DisplayReport);
-			logWriter?.WriteLine($"Proc:Init:EtcCSV:End {stopWatch.ElapsedMilliseconds}ms");
-
-			GlobalStatic.ConstantData = constant;
-			TrainName = constant.GetCsvNameList(VariableCode.TRAINNAME);
-			logWriter?.WriteLine($"Proc:Init:EtcCSV:End {stopWatch.ElapsedMilliseconds}ms");
-
-			vEvaluator = new VariableEvaluator(gamebase, constant);
-			GlobalStatic.VEvaluator = vEvaluator;
-
-			idDic = new IdentifierDictionary(vEvaluator.VariableData);
-			GlobalStatic.IdentifierDictionary = idDic;
-
-			StrForm.Initialize();
-			VariableParser.Initialize();
-
-			exm = new ExpressionMediator(this, vEvaluator, console);
-			GlobalStatic.EMediator = exm;
-
-			logWriter?.WriteLine($"Proc:Init:ERH:Start {stopWatch.ElapsedMilliseconds}ms");
-
-			labelDic = new LabelDictionary();
-			GlobalStatic.LabelDictionary = labelDic;
-			ErhLoader hLoader = new(console, idDic, this);
-
-			LexicalAnalyzer.UseMacro = false;
-
-			PluginManager.GetInstance().SetParent(this, state, exm);
-			PluginManager.GetInstance().LoadPlugins();
-
-			//ERH読込
-			if (!await Task.Run(() => hLoader.LoadHeaderFiles(Program.ErbDir, Config.DisplayReport)))
-			{
-				ParserMediator.FlushWarningList();
-				console.PrintSystemLine("");
-				return false;
-			}
-			LexicalAnalyzer.UseMacro = idDic.UseMacro();
-			logWriter?.WriteLine($"Proc:Init:ERH:End {stopWatch.ElapsedMilliseconds}ms");
-
-			//TODO:ユーザー定義変数用のcsvの適用
-
-			//ERB読込
-			logWriter?.WriteLine($"Proc:Init:ERB:Start {stopWatch.ElapsedMilliseconds}ms");
-			var loader = new ErbLoader(console, exm, this);
-			if (Program.AnalysisMode)
-				noError = await loader.LoadErbList(Program.AnalysisFiles, labelDic);
-			else
-				noError = await loader.LoadErbDir(Program.ErbDir, Config.DisplayReport, labelDic);
-			logWriter?.WriteLine($"Proc:Init:ERB:End {stopWatch.ElapsedMilliseconds}ms");
-
-			initSystemProcess();
-			initialiing = false;
+		// ADR-0011 / Issue 02：引擎数据加载（CSV/ERH/ERB 头文件装配标签与变量表）收归 Loader
+		// 子模块。F2：Loader 不存储 Process 反向引用，仅经方法参数接收 process 并喂给
+		// ErhLoader/ErbLoader（二者依赖 parentProcess.VEvaluator / scaningLine）。
+		if (!await new Loader(console).LoadEngineData(this, logWriter, stopWatch))
+			return false;
+		initialiing = false;
 
 			logWriter?.WriteLine($"Proc:Init:End {stopWatch.ElapsedMilliseconds}ms");
 		}
@@ -602,4 +549,81 @@ internal sealed partial class Process(EmueraConsole view)
 			return "";
 	}
 
+	/// <summary>
+	/// ADR-0011 / Issue 02：引擎数据加载子模块（F2 深模块）。
+	/// 把 CSV / ERH / ERB 头文件加载（装配标签与变量表）从 <see cref="Initialize"/> 抽出，
+	/// 按字段创建顺序把加载结果写回 process（经方法参数传入，不存储反向引用）的实例字段。
+	/// ErhLoader / ErbLoader 依赖 parentProcess.VEvaluator / scaningLine，故 process 以参数传入；
+	/// Loader 自身不持 Process 反向引用，符合 F2（纯显式依赖）。
+	/// </summary>
+	internal sealed class Loader
+	{
+		private readonly EmueraConsole console;
+		internal Loader(EmueraConsole console) { this.console = console; }
+
+		internal async Task<bool> LoadEngineData(Process process, StreamWriter? logWriter, Stopwatch stopWatch)
+		{
+			//gamebase.csv読み込み
+			process.gamebase = new GameBase();
+			if (!await Task.Run(() => process.gamebase.LoadGameBaseCsv(Program.CsvDir + "GAMEBASE.CSV")))
+			{
+				ParserMediator.FlushWarningList();
+				console.PrintSystemLine(trsl.GamebaseError.Text);
+				return false;
+			}
+			console.SetWindowTitle(process.gamebase.ScriptWindowTitle);
+			logWriter?.WriteLine($"Proc:Init:MainCSV:End {stopWatch.ElapsedMilliseconds}ms");
+
+			//前記以外のcsvを全て読み込み
+			process.constantData = new ConstantData();
+			process.constantData.LoadData(Program.CsvDir, console, Config.DisplayReport);
+			logWriter?.WriteLine($"Proc:Init:EtcCSV:End {stopWatch.ElapsedMilliseconds}ms");
+
+			process.TrainName = process.constantData.GetCsvNameList(VariableCode.TRAINNAME);
+			logWriter?.WriteLine($"Proc:Init:EtcCSV:End {stopWatch.ElapsedMilliseconds}ms");
+
+			process.vEvaluator = new VariableEvaluator(process.gamebase, process.constantData);
+
+			process.idDic = new IdentifierDictionary(process.vEvaluator.VariableData);
+
+			StrForm.Initialize();
+			VariableParser.Initialize();
+
+			process.exm = new ExpressionMediator(process, process.vEvaluator, console);
+
+			logWriter?.WriteLine($"Proc:Init:ERH:Start {stopWatch.ElapsedMilliseconds}ms");
+
+			process.labelDic = new LabelDictionary();
+			ErhLoader hLoader = new(console, process.idDic, process);
+
+			LexicalAnalyzer.UseMacro = false;
+
+			PluginManager.GetInstance().SetParent(process, process.state, process.exm);
+			PluginManager.GetInstance().LoadPlugins();
+
+			//ERH読込
+			if (!await Task.Run(() => hLoader.LoadHeaderFiles(Program.ErbDir, Config.DisplayReport)))
+			{
+				ParserMediator.FlushWarningList();
+				console.PrintSystemLine("");
+				return false;
+			}
+			LexicalAnalyzer.UseMacro = process.idDic.UseMacro();
+			logWriter?.WriteLine($"Proc:Init:ERH:End {stopWatch.ElapsedMilliseconds}ms");
+
+			//TODO:ユーザー定義変数用のcsvの適用
+
+			//ERB読込
+			logWriter?.WriteLine($"Proc:Init:ERB:Start {stopWatch.ElapsedMilliseconds}ms");
+			var erbLoader = new ErbLoader(console, process.exm, process);
+			if (Program.AnalysisMode)
+				process.noError = await erbLoader.LoadErbList(Program.AnalysisFiles, process.labelDic);
+			else
+				process.noError = await erbLoader.LoadErbDir(Program.ErbDir, Config.DisplayReport, process.labelDic);
+			logWriter?.WriteLine($"Proc:Init:ERB:End {stopWatch.ElapsedMilliseconds}ms");
+
+			process.initSystemProcess();
+			return true;
+		}
+	}
 }
