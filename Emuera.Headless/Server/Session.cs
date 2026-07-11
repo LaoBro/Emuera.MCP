@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
 using MinorShift.Emuera.UI.Game;
 
@@ -15,13 +16,15 @@ internal sealed class Session : IDisposable
     public bool IsRunning => _gameTask != null && !_gameTask.IsCompleted;
     public bool HasEnded { get; private set; }
     public HttpSessionIO IO => _io;
-    public string StateString => _console.State.ToString();
+    public string StateString => _console?.State.ToString() ?? "Idle";
     public bool IsFinalTurnDelivered => _finalTurnDelivered;
 
-    private readonly HeadlessConsole _ui;
-    private readonly EmueraConsole _console;
-    private readonly AgentJsonlProtocol _protocol;
     private readonly HttpSessionIO _io;
+    private readonly ConfigData _configData;
+    private readonly ITerminalSetup _terminalSetup;
+    private HeadlessConsole? _ui;
+    private EmueraConsole? _console;
+    private AgentJsonlProtocol? _protocol;
     private Task? _gameTask;
     private readonly CancellationTokenSource _cts = new();
     private readonly object _turnLock = new();
@@ -29,13 +32,15 @@ internal sealed class Session : IDisposable
     private bool _finalTurnDelivered;
     private bool _disposed;
 
-    public Session(HttpSessionIO io, ITerminalSetup terminalSetup)
+    public Session(HttpSessionIO io, ITerminalSetup terminalSetup, ConfigData configData)
     {
         _io = io;
-        _ui = new HeadlessConsole();
-        _console = new EmueraConsole(_ui, terminalSetup);
-        _protocol = new AgentJsonlProtocol(_console, _ui, io);
-        _console.SetAgentBridge(_protocol);
+        _configData = configData;
+        _terminalSetup = terminalSetup;
+        // 注意：HeadlessConsole / EmueraConsole / AgentJsonlProtocol 的构造推迟到
+        // GameLoopAsync 内、GlobalStatic.OpenScope 之后——它们构造时读 Config.*（候选 2/ADR-0009
+        // 后 Config 仅经 scope 注入），scope 未开即构造会 NPE（POST /session 500）。
+        // 此处的 Start() 仅把游戏循环排到独立 Task，构造留待 scope 内。
     }
 
     public void Start()
@@ -47,7 +52,13 @@ internal sealed class Session : IDisposable
     {
         // ADR-0008：会话作用域 scope——Current 仅在此游戏 task 的 async 上下文存活。
         // scope.Dispose 自动 Pfc.Dispose + Current 归 null，替代旧的 Reset()。
-        using var scope = GlobalStatic.OpenScope();
+        // 候选 2 / ADR-0009：scope 同时绑定 Config.Current / ConfigData.Current（配置仅经 scope 注入）。
+        // 必须在构造 HeadlessConsole/EmueraConsole 之前打开——后者构造时读 Config.*，无 scope 即 NPE。
+        using var scope = GlobalStatic.OpenScope(_configData);
+        _ui = new HeadlessConsole();
+        _console = new EmueraConsole(_ui, _terminalSetup);
+        _protocol = new AgentJsonlProtocol(_console, _ui, _io);
+        _console.SetAgentBridge(_protocol);
         Program.LoadFonts();
         try
         {
@@ -61,7 +72,7 @@ internal sealed class Session : IDisposable
         catch (Exception ex)
         {
             AgentLog.Instance.Write("session game loop exception: " + ex);
-            _io.WriteLine(JsonSerializer.Serialize(new { error = ex.ToString(), state = _console.State.ToString() }));
+            _io.WriteLine(JsonSerializer.Serialize(new { error = ex.ToString(), state = _console!.State.ToString() }));
         }
         finally
         {
@@ -72,7 +83,7 @@ internal sealed class Session : IDisposable
             }
             try
             {
-                var finalTurn = _protocol.BuildFinalTurn();
+                var finalTurn = _protocol!.BuildFinalTurn();
                 if (finalTurn != null)
                     _io.WriteLine(finalTurn);
             }
@@ -81,8 +92,8 @@ internal sealed class Session : IDisposable
                 // 最终 turn 生成失败不阻断 Dispose；HasEnded 会让 GET /turn 返回 404
                 AgentLog.Instance.Write("final turn build failed: " + ex.Message);
             }
-            _protocol.Stop();
-            _console.Dispose();
+            _protocol?.Stop();
+            _console?.Dispose();
             // 关闭 IO：Complete output Channel 后 TryTakeTurn 仍能 TryRead 已写入数据，
             // 读完后返回 false；同时 Complete input Channel 防止后续 EnqueueInput。
             _io.Close();

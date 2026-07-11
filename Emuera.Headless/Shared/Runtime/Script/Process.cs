@@ -114,7 +114,7 @@ internal sealed partial class Process(EmueraConsole view)
 				{
 					if (Config.DisplayReport)
 						console.PrintSystemLine(trsl.LoadingReplace.Text);
-					ConfigData.Instance.LoadReplaceFile(Program.CsvDir + "_Replace.csv");
+					ConfigData.Current!.LoadReplaceFile(Program.CsvDir + "_Replace.csv");
 					if (ParserMediator.HasWarning)
 					{
 						ParserMediator.FlushWarningList();
@@ -128,9 +128,11 @@ internal sealed partial class Process(EmueraConsole view)
 			}
 			logWriter?.WriteLine($"Proc:Init:Replace:End {stopWatch.ElapsedMilliseconds}ms");
 
-			Config.SetReplace(ConfigData.Instance);
-			//ここでBARを設定すれば、いいことに気づいた予感
-			console.setStBar(Config.DrawLineString);
+		// 候选 2 / ADR-0009：原 Config.SetReplace(ConfigData.Instance) 已删除——
+		// MoneyLabel/DrawLineString 等 replace 值现在由 Config 薄视图直接从 _data 转发（经合并索引），
+		// 无需再拷入 Config 静态镜像。
+		//ここでBARを設定すれば、いいことに気づいた予感
+		console.setStBar(Config.DrawLineString);
 
 			logWriter?.WriteLine($"Proc:Init:Rename:Load:Start {stopWatch.ElapsedMilliseconds}ms");
 			//_rename.csv読み込み

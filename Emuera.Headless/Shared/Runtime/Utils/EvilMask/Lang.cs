@@ -1377,7 +1377,7 @@ internal sealed partial class Lang
 
 		if (CurrentCulture.Name.StartsWith(("ja-")))
 		{
-			Config.Config.SetLanguageSetting(ConfigData.Instance, DefaultLanguage);
+			Config.Config.SetLanguageSetting(ConfigData.Current!, DefaultLanguage);
 			return;
 		}
 
@@ -1391,12 +1391,12 @@ internal sealed partial class Lang
 		{
 			if (CurrentCulture.Name.StartsWith(culture.Key))
 			{
-				Config.Config.SetLanguageSetting(ConfigData.Instance, culture.Value);
+				Config.Config.SetLanguageSetting(ConfigData.Current!, culture.Value);
 				loadLangXML(LoadXmlFile(langList[culture.Value]));
 				return;
 			}
 		}
-		Config.Config.SetLanguageSetting(ConfigData.Instance, DefaultLanguage);
+		Config.Config.SetLanguageSetting(ConfigData.Current!, DefaultLanguage);
 	}
 	static void loadLangXML(XmlDocument xml)
 	{

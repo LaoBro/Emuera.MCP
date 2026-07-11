@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
 
 namespace MinorShift.Emuera.Server;
@@ -26,12 +27,14 @@ internal sealed class KestrelGameServer : IDisposable
 
     private readonly WebApplication _app;
     private readonly ITerminalSetup _terminalSetup;
+    private readonly ConfigData _configData;
     private volatile Session? _session;
     private readonly object _sessionLock = new();
 
-    public KestrelGameServer(int port, ITerminalSetup terminalSetup)
+    public KestrelGameServer(int port, ITerminalSetup terminalSetup, ConfigData configData)
     {
         _terminalSetup = terminalSetup;
+        _configData = configData;
 
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseKestrel();
@@ -89,7 +92,7 @@ internal sealed class KestrelGameServer : IDisposable
                 }
 
                 var io = new HttpSessionIO(new OutputHub());
-                _session = new Session(io, _terminalSetup);
+                _session = new Session(io, _terminalSetup, _configData);
                 _session.Start();
                 sessionId = _session.Id;
                 createdAt = _session.CreatedAt;

@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using Xunit;
 
@@ -15,7 +16,7 @@ public class GlobalStaticScopeTests
     {
         Assert.Null(GlobalStatic.Current);
 
-        using (var scope = GlobalStatic.OpenScope())
+        using (var scope = GlobalStatic.OpenScope(new ConfigData()))
         {
             Assert.NotNull(GlobalStatic.Current);
         }
@@ -34,14 +35,14 @@ public class GlobalStaticScopeTests
         var results = await Task.WhenAll(
             Task.Run(async () =>
             {
-                using var scope = GlobalStatic.OpenScope();
+                using var scope = GlobalStatic.OpenScope(new ConfigData());
                 GlobalStatic.ForceQuitAndRestart = true;
                 await Task.Yield(); // 让出调度，模拟真实并发
                 return GlobalStatic.ForceQuitAndRestart;
             }),
             Task.Run(async () =>
             {
-                using var scope = GlobalStatic.OpenScope();
+                using var scope = GlobalStatic.OpenScope(new ConfigData());
                 GlobalStatic.ForceQuitAndRestart = false;
                 await Task.Yield();
                 return GlobalStatic.ForceQuitAndRestart;
@@ -60,7 +61,7 @@ public class GlobalStaticScopeTests
     [Fact]
     public void Second_set_of_same_core_field_throws_InvalidOperation()
     {
-        using var scope = GlobalStatic.OpenScope();
+        using var scope = GlobalStatic.OpenScope(new ConfigData());
 
         GlobalStatic.GameBaseData = new GameBase();
 

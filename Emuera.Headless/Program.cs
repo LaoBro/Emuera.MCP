@@ -38,7 +38,12 @@ static partial class Program
         ProfileOptimization.SetProfileRoot(options.ExeDir ?? paths.ExeDir);
         ProfileOptimization.StartProfile("profile");
 
-        ConfigData.Instance.LoadConfig();
+        ConfigData configData = new();
+        configData.LoadConfig();
+        // 候选 2 / ADR-0009：配置仅经 ambient scope 注入，再无静态单例。
+        // 此处提前绑定，使 Lang.SetLanguage（scope 外）即可读取 ConfigData.Current / Config.Current。
+        ConfigData.SetCurrent(configData);
+        Config.SetCurrent(configData);
         JSONConfig.Load();
 
         Lang.LoadLanguageFiles();
@@ -48,12 +53,12 @@ static partial class Program
 
         // 字体加载迁移至 runners 内 scope 打开后执行（ADR-0008：Pfc 是实例成员，随 scope 生灭）
         if (options.Server)
-            await ServerRunner.RunAsync(options.Port, terminalSetup);
+            await ServerRunner.RunAsync(options.Port, terminalSetup, configData);
         else
         {
             // ITerminalInput 在 HeadlessRunner 内创建：CLI 模式专属，stdin 重定向
             // 等环境错误由 HeadlessRunner 的 HeadlessFatalException 捕获块统一处理。
-            await HeadlessRunner.RunAsync(paths, options.Protocol, options.TermWidthHint, terminalSetup);
+            await HeadlessRunner.RunAsync(paths, options.Protocol, options.TermWidthHint, terminalSetup, configData);
         }
     }
 

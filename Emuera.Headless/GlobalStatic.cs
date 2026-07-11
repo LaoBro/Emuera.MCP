@@ -5,6 +5,7 @@ using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Config;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -165,15 +166,19 @@ internal sealed class GlobalStatic
 
     /// <summary>
     /// 开启一个会话作用域 scope：断言当前 async 上下文无已有 scope，set 新 <see cref="GlobalStatic"/> 实例到
-    /// <see cref="Current"/>，返回 <see cref="IDisposable"/>。Dispose 时 <see cref="Pfc"/>.Dispose + Current 归 null。
+    /// <see cref="Current"/>，并绑定 <see cref="Config"/>/<see cref="ConfigData"/> 的 ambient 当前配置
+    /// （候选 2 / ADR-0009：配置仅经 scope 注入，再无静态单例）。Dispose 时 <see cref="Pfc"/>.Dispose +
+    /// 三处 Current 归 null。
     /// </summary>
-    public static IDisposable OpenScope()
+    public static IDisposable OpenScope(ConfigData configData)
     {
         if (_current.Value != null)
             throw new InvalidOperationException(
                 "GlobalStatic scope 已在此 async 上下文中打开。请先 Dispose 现有 scope。");
         var instance = new GlobalStatic();
         _current.Value = instance;
+        ConfigData.SetCurrent(configData);
+        Config.SetCurrent(configData);
         return new Scope(instance);
     }
 
@@ -196,6 +201,8 @@ internal sealed class GlobalStatic
             finally
             {
                 _current.Value = null;
+                ConfigData.ClearCurrent();
+                Config.ClearCurrent();
             }
         }
     }

@@ -13,7 +13,7 @@ namespace MinorShift.Emuera;
 
 internal static class HeadlessRunner
 {
-    public static async Task RunAsync(GamePaths paths, string protocolArg, string termWidthHint, ITerminalSetup terminalSetup)
+    public static async Task RunAsync(GamePaths paths, string protocolArg, string termWidthHint, ITerminalSetup terminalSetup, ConfigData configData)
     {
         Console.Error.WriteLine($"[headless] Emuera {AssemblyData.EmueraVersionText} 无头模式启动");
         Console.Error.WriteLine($"[headless] 工作目录: {paths.ExeDir}");
@@ -41,7 +41,7 @@ internal static class HeadlessRunner
             }
             using (terminalInput)
             {
-                await RunAsyncCore(paths, protocolArg, termWidthHint, terminalSetup, terminalInput);
+                await RunAsyncCore(paths, protocolArg, termWidthHint, terminalSetup, terminalInput, configData);
             }
         }
         catch (HeadlessFatalException ex)
@@ -56,57 +56,59 @@ internal static class HeadlessRunner
         }
     }
 
-    private static async Task RunAsyncCore(GamePaths paths, string protocolArg, string termWidthHint, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
+    private static async Task RunAsyncCore(GamePaths paths, string protocolArg, string termWidthHint, ITerminalSetup terminalSetup, ITerminalInput terminalInput, ConfigData configData)
     {
-        var ui = new HeadlessConsole();
-        var console = new EmueraConsole(ui, terminalSetup);
-
-        int charWidth = Math.Max(Config.FontSize / 2, 1);
-        int gameColumns = Config.DrawableWidth / charWidth;
-        int gameRows = Config.WindowY / Config.LineHeight;
-        if (gameColumns > 0 && gameRows > 0)
-            terminalSetup.TrySetConsoleSize(gameColumns, gameRows + 4);
-
-        string hint = (termWidthHint ?? "auto").Trim().ToLowerInvariant();
-        TerminalCharWidthConfig charWidthConfig;
-        if (hint == "auto")
+        // ADR-0008 + 候选 2/ADR-0009：scope 必须在构造 HeadlessConsole/EmueraConsole 之前打开——
+        // HeadlessConsole 构造器读 Config.*（WindowX/WindowY/BackColor），配置仅经 scope 注入，无 scope 即 NPE。
+        // scope 包住构造 + Initialize + RunLoop 全块，Dispose 自动 Pfc.Dispose + Config/ConfigData.Current 归 null。
+        using (var scope = GlobalStatic.OpenScope(configData))
         {
-            charWidthConfig = TerminalDisplayWidth.DetectCharWidths();
-        }
-        else
-        {
-            charWidthConfig = TerminalDisplayWidth.ApplyWidthHint(hint);
-        }
-        console.CharWidthConfig = charWidthConfig;
+            var ui = new HeadlessConsole();
+            var console = new EmueraConsole(ui, terminalSetup);
 
-        terminalSetup.DetectFont();
-        PrintTerminalGuidance(charWidthConfig);
+            string hint = (termWidthHint ?? "auto").Trim().ToLowerInvariant();
+            TerminalCharWidthConfig charWidthConfig;
+            if (hint == "auto")
+            {
+                charWidthConfig = TerminalDisplayWidth.DetectCharWidths();
+            }
+            else
+            {
+                charWidthConfig = TerminalDisplayWidth.ApplyWidthHint(hint);
+            }
+            console.CharWidthConfig = charWidthConfig;
 
-        AgentProtocolBase? protocol;
-        try
-        {
-            protocol = SelectProtocol(protocolArg, console, ui, terminalSetup, terminalInput);
-        }
-        catch (ArgumentException ex)
-        {
-            Console.Error.WriteLine($"[headless] {ex.Message}");
-            Environment.Exit(1);
-            return;
-        }
+            terminalSetup.DetectFont();
+            PrintTerminalGuidance(charWidthConfig);
 
-        if (protocol == null)
-        {
-            Console.Error.WriteLine("[headless] 无法确定协议模式；请使用 --protocol cli 或 --server 模式");
-            Environment.Exit(1);
-            return;
-        }
+            AgentProtocolBase? protocol;
+            try
+            {
+                protocol = SelectProtocol(protocolArg, console, ui, terminalSetup, terminalInput);
+            }
+            catch (ArgumentException ex)
+            {
+                Console.Error.WriteLine($"[headless] {ex.Message}");
+                Environment.Exit(1);
+                return;
+            }
 
-        console.SetAgentBridge(protocol);
+            if (protocol == null)
+            {
+                Console.Error.WriteLine("[headless] 无法确定协议模式；请使用 --protocol cli 或 --server 模式");
+                Environment.Exit(1);
+                return;
+            }
 
-        // ADR-0008：会话作用域 scope——包住 Initialize+RunLoop 块。
-        // scope.Dispose 自动 Pfc.Dispose + Current 归 null，替代旧的 Reset()。
-        using (var scope = GlobalStatic.OpenScope())
-        {
+            console.SetAgentBridge(protocol);
+
+            // 终端尺寸需读 Config（仅 scope 内有效）。
+            int charWidth = Math.Max(Config.FontSize / 2, 1);
+            int gameColumns = Config.DrawableWidth / charWidth;
+            int gameRows = Config.WindowY / Config.LineHeight;
+            if (gameColumns > 0 && gameRows > 0)
+                terminalSetup.TrySetConsoleSize(gameColumns, gameRows + 4);
+
             Program.LoadFonts();
             try
             {

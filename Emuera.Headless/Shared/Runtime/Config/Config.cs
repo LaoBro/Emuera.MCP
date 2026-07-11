@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 #if !HEADLESS
 using System.Windows.Forms;
 #endif
@@ -12,366 +13,237 @@ using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 
 namespace MinorShift.Emuera.Runtime.Config;
 
-internal static class Config
+/// <summary>
+/// 配置薄视图（候选 2 / ADR-0009）。
+///
+/// 原 <c>internal static class Config</c> 是 144 成员的静态上帝类（从 ConfigData 平铺拷贝的镜像）。
+/// 现改为实例类 + ambient <see cref="Current"/>（AsyncLocal）+ 转发/计算属性，与候选 1 的
+/// <see cref="GlobalStatic"/> 同构：调用方仍写 <see cref="FontName"/> 等静态属性，底层读 <see cref="Current"/>._data。
+///
+/// 设计要点：
+/// - <see cref="Current"/> 由 <see cref="AsyncLocal{T}"/> 承载，仅在开 scope 的 async 上下文存活；
+///   并行测试各自 scope 互不污染；生产单会话开销可忽略。
+/// - 实例只持单字段 <c>_data</c>（ConfigData）；144 属性直接转发 _data，派生字段升为计算属性。
+/// - SetConfig/SetReplace/SetDebugConfig/UpdateLangSetting 四个"拷贝方法"已坍缩——视图无副本可刷新。
+/// - 纯全局常量（SCIgnoreCase/SCExpression/Encode/SaveEncode）原地保留 static。
+/// </summary>
+internal sealed class Config
 {
+	private static readonly AsyncLocal<Config?> _current = new();
 
-	#region config
+	/// <summary>Ambient 会话作用域配置视图。scope 外为 null。</summary>
+	public static Config? Current => _current.Value;
+
+	/// <summary>在 scope 内绑定一份 ConfigData，返回可 Dispose 的绑定（由 GlobalStatic.OpenScope 统一管理）。</summary>
+	internal static void SetCurrent(ConfigData data) => _current.Value = new Config(data);
+	internal static void ClearCurrent() => _current.Value = null;
+
+	private readonly ConfigData _data;
+
+	private Config(ConfigData data) => _data = data;
+
+	// ===== 纯全局常量（无会话语义，原地 static）=====
+
+	/// <summary>文件名比较标志（eramaker 兼容，恒 OrdinalIgnoreCase）。</summary>
+	public const StringComparison SCIgnoreCase = StringComparison.OrdinalIgnoreCase;
+
+	/// <summary>式中字符串比较标志（恒 Ordinal）。</summary>
+	public const StringComparison SCExpression = StringComparison.Ordinal;
+
+	/// <summary>读/写 emuera.config 的编码（真正全局，不随会话变）。</summary>
 	public static Encoding Encode = EncodingHandler.UTF8BOMEncoding;
+
+	/// <summary>读/写 save 文件的编码（真正全局）。</summary>
 	public static Encoding SaveEncode = EncodingHandler.UTF8BOMEncoding;
-	private static Dictionary<ConfigCode, string> nameDic = null!;
-	public static string GetConfigName(ConfigCode code)
+
+	// ===== 转发属性：直接读 _data（O(1)，经 ConfigData 索引）=====
+
+	public static bool UseRenameFile => Current!._data.GetConfigValue<bool>(ConfigCode.UseRenameFile);
+	public static bool UseReplaceFile => Current!._data.GetConfigValue<bool>(ConfigCode.UseReplaceFile);
+	public static bool UseMouse => Current!._data.GetConfigValue<bool>(ConfigCode.UseMouse);
+	public static bool UseMenu => Current!._data.GetConfigValue<bool>(ConfigCode.UseMenu);
+	public static bool UseDebugCommand => Current!._data.GetConfigValue<bool>(ConfigCode.UseDebugCommand);
+	public static bool AllowMultipleInstances => Current!._data.GetConfigValue<bool>(ConfigCode.AllowMultipleInstances);
+	public static bool AutoSave => Current!._data.GetConfigValue<bool>(ConfigCode.AutoSave);
+	public static bool UseKeyMacro => Current!._data.GetConfigValue<bool>(ConfigCode.UseKeyMacro);
+	public static bool SizableWindow => Current!._data.GetConfigValue<bool>(ConfigCode.SizableWindow);
+	public static TextDrawingMode TextDrawingMode => Current!._data.GetConfigValue<TextDrawingMode>(ConfigCode.TextDrawingMode);
+	public static int WindowX => Current!._data.GetConfigValue<int>(ConfigCode.WindowX);
+	public static int WindowY => Current!._data.GetConfigValue<int>(ConfigCode.WindowY);
+	public static int WindowPosX => Current!._data.GetConfigValue<int>(ConfigCode.WindowPosX);
+	public static int WindowPosY => Current!._data.GetConfigValue<int>(ConfigCode.WindowPosY);
+	public static bool SetWindowPos => Current!._data.GetConfigValue<bool>(ConfigCode.SetWindowPos);
+	public static int MaxLog => Current!._data.GetConfigValue<int>(ConfigCode.MaxLog);
+	public static int PrintCPerLine => Current!._data.GetConfigValue<int>(ConfigCode.PrintCPerLine);
+	public static int PrintCLength => Current!._data.GetConfigValue<int>(ConfigCode.PrintCLength);
+	public static EmuColor ForeColor => Current!._data.GetConfigValue<EmuColor>(ConfigCode.ForeColor);
+	public static EmuColor BackColor => Current!._data.GetConfigValue<EmuColor>(ConfigCode.BackColor);
+	public static EmuColor FocusColor => Current!._data.GetConfigValue<EmuColor>(ConfigCode.FocusColor);
+	public static EmuColor LogColor => Current!._data.GetConfigValue<EmuColor>(ConfigCode.LogColor);
+	public static int FontSize => Current!._data.GetConfigValue<int>(ConfigCode.FontSize);
+	public static string FontName => Current!._data.GetConfigValue<string>(ConfigCode.FontName);
+	public static int LineHeight => Current!._data.GetConfigValue<int>(ConfigCode.LineHeight);
+	public static int FPS => Current!._data.GetConfigValue<int>(ConfigCode.FPS);
+	public static int ScrollHeight => Current!._data.GetConfigValue<int>(ConfigCode.ScrollHeight);
+	public static int InfiniteLoopAlertTime => Current!._data.GetConfigValue<int>(ConfigCode.InfiniteLoopAlertTime);
+	public static int SaveDataNos => Current!._data.GetConfigValue<int>(ConfigCode.SaveDataNos);
+	public static bool WarnBackCompatibility => Current!._data.GetConfigValue<bool>(ConfigCode.WarnBackCompatibility);
+	public static bool WindowMaximixed => Current!._data.GetConfigValue<bool>(ConfigCode.WindowMaximixed);
+	public static bool WarnNormalFunctionOverloading => Current!._data.GetConfigValue<bool>(ConfigCode.WarnNormalFunctionOverloading);
+	public static bool SearchSubdirectory => Current!._data.GetConfigValue<bool>(ConfigCode.SearchSubdirectory);
+	public static bool SortWithFilename => Current!._data.GetConfigValue<bool>(ConfigCode.SortWithFilename);
+	public static bool AllowFunctionOverloading => Current!._data.GetConfigValue<bool>(ConfigCode.AllowFunctionOverloading);
+	public static bool WarnFunctionOverloading => Current!._data.GetConfigValue<bool>(ConfigCode.WarnFunctionOverloading);
+	public static int DisplayWarningLevel => Current!._data.GetConfigValue<int>(ConfigCode.DisplayWarningLevel);
+	public static bool DisplayReport => Current!._data.GetConfigValue<bool>(ConfigCode.DisplayReport);
+	public static ReduceArgumentOnLoadFlag ReduceArgumentOnLoad => Current!._data.GetConfigValue<ReduceArgumentOnLoadFlag>(ConfigCode.ReduceArgumentOnLoad);
+	public static bool IgnoreUncalledFunction => Current!._data.GetConfigValue<bool>(ConfigCode.IgnoreUncalledFunction);
+	public static DisplayWarningFlag FunctionNotFoundWarning => Current!._data.GetConfigValue<DisplayWarningFlag>(ConfigCode.FunctionNotFoundWarning);
+	public static DisplayWarningFlag FunctionNotCalledWarning => Current!._data.GetConfigValue<DisplayWarningFlag>(ConfigCode.FunctionNotCalledWarning);
+	public static bool ChangeMasterNameIfDebug => Current!._data.GetConfigValue<bool>(ConfigCode.ChangeMasterNameIfDebug);
+	public static long LastKey => Current!._data.GetConfigValue<long>(ConfigCode.LastKey);
+	public static bool ButtonWrap => Current!._data.GetConfigValue<bool>(ConfigCode.ButtonWrap);
+	public static string TextEditor => Current!._data.GetConfigValue<string>(ConfigCode.TextEditor);
+	public static TextEditorType EditorType => Current!._data.GetConfigValue<TextEditorType>(ConfigCode.EditorType);
+	public static string EditorArg => Current!._data.GetConfigValue<string>(ConfigCode.EditorArgument);
+	public static bool CompatiErrorLine => Current!._data.GetConfigValue<bool>(ConfigCode.CompatiErrorLine);
+	public static bool CompatiCALLNAME => Current!._data.GetConfigValue<bool>(ConfigCode.CompatiCALLNAME);
+	public static bool UseSaveFolder => Current!._data.GetConfigValue<bool>(ConfigCode.UseSaveFolder);
+	public static bool CompatiRAND => Current!._data.GetConfigValue<bool>(ConfigCode.CompatiRAND);
+	public static bool CompatiLinefeedAs1739 => Current!._data.GetConfigValue<bool>(ConfigCode.CompatiLinefeedAs1739);
+	public static bool SystemAllowFullSpace => Current!._data.GetConfigValue<bool>(ConfigCode.SystemAllowFullSpace);
+	public static bool SystemSaveInBinary => Current!._data.GetConfigValue<bool>(ConfigCode.SystemSaveInBinary);
+	public static bool CompatiFuncArgAutoConvert => Current!._data.GetConfigValue<bool>(ConfigCode.CompatiFuncArgAutoConvert);
+	public static bool CompatiFuncArgOptional => Current!._data.GetConfigValue<bool>(ConfigCode.CompatiFuncArgOptional);
+	public static bool CompatiCallEvent => Current!._data.GetConfigValue<bool>(ConfigCode.CompatiCallEvent);
+	public static bool CompatiSPChara => Current!._data.GetConfigValue<bool>(ConfigCode.CompatiSPChara);
+	public static bool SystemIgnoreTripleSymbol => Current!._data.GetConfigValue<bool>(ConfigCode.SystemIgnoreTripleSymbol);
+	public static bool SystemNoTarget => Current!._data.GetConfigValue<bool>(ConfigCode.SystemNoTarget);
+	public static bool SystemIgnoreStringSet => Current!._data.GetConfigValue<bool>(ConfigCode.SystemIgnoreStringSet);
+	public static bool AllowLongInputByMouse => Current!._data.GetConfigValue<bool>(ConfigCode.AllowLongInputByMouse);
+	public static bool TimesNotRigorousCalculation => Current!._data.GetConfigValue<bool>(ConfigCode.TimesNotRigorousCalculation);
+	public static bool ForbidUpdateCheck => Current!._data.GetConfigValue<bool>(ConfigCode.ForbidUpdateCheck);
+	public static bool UseERD => Current!._data.GetConfigValue<bool>(ConfigCode.UseERD);
+	public static bool VarsizeDimConfig => Current!._data.GetConfigValue<bool>(ConfigCode.VarsizeDimConfig);
+	public static bool CheckDuplicateIdentifier => Current!._data.GetConfigValue<bool>(ConfigCode.CheckDuplicateIdentifier);
+	public static string ReplaceContinuationBR => Current!._data.GetConfigValue<string>(ConfigCode.ReplaceContinuationBR);
+	public static List<string> ValidExtension => Current!._data.GetConfigValue<List<string>>(ConfigCode.ValidExtension);
+	public static bool ZipSaveData => Current!._data.GetConfigValue<bool>(ConfigCode.ZipSaveData);
+	public static bool EnglishConfigOutput => Current!._data.GetConfigValue<bool>(ConfigCode.EnglishConfigOutput);
+	public static string EmueraLang => Current!._data.GetConfigValue<string>(ConfigCode.EmueraLang);
+	public static string EmueraIcon => Current!._data.GetConfigValue<string>(ConfigCode.EmueraIcon);
+	public static bool CBUseClipboard => Current!._data.GetConfigValue<bool>(ConfigCode.CBUseClipboard);
+	public static bool CBIgnoreTags => Current!._data.GetConfigValue<bool>(ConfigCode.CBIgnoreTags);
+	public static string CBReplaceTags => Current!._data.GetConfigValue<string>(ConfigCode.CBReplaceTags);
+	public static bool CBNewLinesOnly => Current!._data.GetConfigValue<bool>(ConfigCode.CBNewLinesOnly);
+	public static bool CBClearBuffer => Current!._data.GetConfigValue<bool>(ConfigCode.CBClearBuffer);
+	public static bool CBTriggerLeftClick => Current!._data.GetConfigValue<bool>(ConfigCode.CBTriggerLeftClick);
+	public static bool CBTriggerMiddleClick => Current!._data.GetConfigValue<bool>(ConfigCode.CBTriggerMiddleClick);
+	public static bool CBTriggerDoubleLeftClick => Current!._data.GetConfigValue<bool>(ConfigCode.CBTriggerDoubleLeftClick);
+	public static bool CBTriggerAnyKeyWait => Current!._data.GetConfigValue<bool>(ConfigCode.CBTriggerAnyKeyWait);
+	public static bool CBTriggerInputWait => Current!._data.GetConfigValue<bool>(ConfigCode.CBTriggerInputWait);
+	public static int CBMaxCB => Current!._data.GetConfigValue<int>(ConfigCode.CBMaxCB);
+	public static int CBBufferSize => Current!._data.GetConfigValue<int>(ConfigCode.CBBufferSize);
+	public static int CBScrollCount => Current!._data.GetConfigValue<int>(ConfigCode.CBScrollCount);
+	public static int CBMinTimer => Current!._data.GetConfigValue<int>(ConfigCode.CBMinTimer);
+	public static bool RikaiEnabled => Current!._data.GetConfigValue<bool>(ConfigCode.RikaiEnabled);
+	public static string RikaiFilename => Current!._data.GetConfigValue<string>(ConfigCode.RikaiFilename);
+	public static EmuColor RikaiColorBack => Current!._data.GetConfigValue<EmuColor>(ConfigCode.RikaiColorBack);
+	public static EmuColor RikaiColorText => Current!._data.GetConfigValue<EmuColor>(ConfigCode.RikaiColorText);
+	public static bool RikaiUseSeparateBoxes => Current!._data.GetConfigValue<bool>(ConfigCode.RikaiUseSeparateBoxes);
+	public static bool Ctrl_Z_Enabled => Current!._data.GetConfigValue<bool>(ConfigCode.Ctrl_Z_Enabled);
+	public static bool DebugShowWindow => Current!._data.GetConfigValue<bool>(ConfigCode.DebugShowWindow);
+	public static bool DebugWindowTopMost => Current!._data.GetConfigValue<bool>(ConfigCode.DebugWindowTopMost);
+	public static int DebugWindowWidth => Current!._data.GetConfigValue<int>(ConfigCode.DebugWindowWidth);
+	public static int DebugWindowHeight => Current!._data.GetConfigValue<int>(ConfigCode.DebugWindowHeight);
+	public static bool DebugSetWindowPos => Current!._data.GetConfigValue<bool>(ConfigCode.DebugSetWindowPos);
+	public static int DebugWindowPosX => Current!._data.GetConfigValue<int>(ConfigCode.DebugWindowPosX);
+	public static int DebugWindowPosY => Current!._data.GetConfigValue<int>(ConfigCode.DebugWindowPosY);
+	public static string MoneyLabel => Current!._data.GetConfigValue<string>(ConfigCode.MoneyLabel);
+	public static bool MoneyFirst => Current!._data.GetConfigValue<bool>(ConfigCode.MoneyFirst);
+	public static string LoadLabel => Current!._data.GetConfigValue<string>(ConfigCode.LoadLabel);
+	public static int MaxShopItem => Current!._data.GetConfigValue<int>(ConfigCode.MaxShopItem);
+	public static string DrawLineString
 	{
-		return nameDic[code];
+		get
+		{
+			string v = Current!._data.GetConfigValue<string>(ConfigCode.DrawLineString);
+			return string.IsNullOrEmpty(v) ? "-" : v;
+		}
 	}
+	public static char BarChar1 => Current!._data.GetConfigValue<char>(ConfigCode.BarChar1);
+	public static char BarChar2 => Current!._data.GetConfigValue<char>(ConfigCode.BarChar2);
+	public static string TitleMenuString0 => Current!._data.GetConfigValue<string>(ConfigCode.TitleMenuString0);
+	public static string TitleMenuString1 => Current!._data.GetConfigValue<string>(ConfigCode.TitleMenuString1);
+	public static int ComAbleDefault => Current!._data.GetConfigValue<int>(ConfigCode.ComAbleDefault);
+	public static List<long> StainDefault => Current!._data.GetConfigValue<List<long>>(ConfigCode.StainDefault);
+	public static string TimeupLabel => Current!._data.GetConfigValue<string>(ConfigCode.TimeupLabel);
+	public static List<long> ExpLvDef => Current!._data.GetConfigValue<List<long>>(ConfigCode.ExpLvDef);
+	public static List<long> PalamLvDef => Current!._data.GetConfigValue<List<long>>(ConfigCode.PalamLvDef);
+	public static long PbandDef => Current!._data.GetConfigValue<long>(ConfigCode.pbandDef);
+	public static long RelationDef => Current!._data.GetConfigValue<long>(ConfigCode.RelationDef);
 
-	public static void SetConfig(ConfigData instance)
-	{
-		nameDic = instance.GetConfigNameDic();
-		IgnoreCase = instance.GetConfigValue<bool>(ConfigCode.IgnoreCase);
-		if (IgnoreCase)
-		{
-			StringComparison = StringComparison.OrdinalIgnoreCase;
-			StrComper = StringComparer.OrdinalIgnoreCase;
-		}
-		else
-		{
-			StringComparison = StringComparison.Ordinal;
-			StrComper = StringComparer.Ordinal;
-		}
-		UseRenameFile = instance.GetConfigValue<bool>(ConfigCode.UseRenameFile);
-		UseReplaceFile = instance.GetConfigValue<bool>(ConfigCode.UseReplaceFile);
-		UseMouse = instance.GetConfigValue<bool>(ConfigCode.UseMouse);
-		UseMenu = instance.GetConfigValue<bool>(ConfigCode.UseMenu);
-		UseDebugCommand = instance.GetConfigValue<bool>(ConfigCode.UseDebugCommand);
-		AllowMultipleInstances = instance.GetConfigValue<bool>(ConfigCode.AllowMultipleInstances);
-		AutoSave = instance.GetConfigValue<bool>(ConfigCode.AutoSave);
-		UseKeyMacro = instance.GetConfigValue<bool>(ConfigCode.UseKeyMacro);
-		SizableWindow = instance.GetConfigValue<bool>(ConfigCode.SizableWindow);
-		//UseImageBuffer = instance.GetConfigValue<bool>(ConfigCode.UseImageBuffer);
-		TextDrawingMode = instance.GetConfigValue<TextDrawingMode>(ConfigCode.TextDrawingMode);
-		WindowX = instance.GetConfigValue<int>(ConfigCode.WindowX);
-		WindowY = instance.GetConfigValue<int>(ConfigCode.WindowY);
-		WindowPosX = instance.GetConfigValue<int>(ConfigCode.WindowPosX);
-		WindowPosY = instance.GetConfigValue<int>(ConfigCode.WindowPosY);
-		SetWindowPos = instance.GetConfigValue<bool>(ConfigCode.SetWindowPos);
-		MaxLog = instance.GetConfigValue<int>(ConfigCode.MaxLog);
-		PrintCPerLine = instance.GetConfigValue<int>(ConfigCode.PrintCPerLine);
-		PrintCLength = instance.GetConfigValue<int>(ConfigCode.PrintCLength);
-		ForeColor = instance.GetConfigValue<EmuColor>(ConfigCode.ForeColor);
-		BackColor = instance.GetConfigValue<EmuColor>(ConfigCode.BackColor);
-		FocusColor = instance.GetConfigValue<EmuColor>(ConfigCode.FocusColor);
-		LogColor = instance.GetConfigValue<EmuColor>(ConfigCode.LogColor);
-		FontSize = instance.GetConfigValue<int>(ConfigCode.FontSize);
-		FontName = instance.GetConfigValue<string>(ConfigCode.FontName);
-		LineHeight = instance.GetConfigValue<int>(ConfigCode.LineHeight);
-		FPS = instance.GetConfigValue<int>(ConfigCode.FPS);
-		//SkipFrame = instance.GetConfigValue<int>(ConfigCode.SkipFrame);
-		ScrollHeight = instance.GetConfigValue<int>(ConfigCode.ScrollHeight);
-		InfiniteLoopAlertTime = instance.GetConfigValue<int>(ConfigCode.InfiniteLoopAlertTime);
-		SaveDataNos = instance.GetConfigValue<int>(ConfigCode.SaveDataNos);
-		WarnBackCompatibility = instance.GetConfigValue<bool>(ConfigCode.WarnBackCompatibility);
-		WindowMaximixed = instance.GetConfigValue<bool>(ConfigCode.WindowMaximixed);
-		WarnNormalFunctionOverloading = instance.GetConfigValue<bool>(ConfigCode.WarnNormalFunctionOverloading);
-		SearchSubdirectory = instance.GetConfigValue<bool>(ConfigCode.SearchSubdirectory);
-		SortWithFilename = instance.GetConfigValue<bool>(ConfigCode.SortWithFilename);
+	// ===== 计算属性：从 _data 派生（无副本，现算现用）=====
 
-		AllowFunctionOverloading = instance.GetConfigValue<bool>(ConfigCode.AllowFunctionOverloading);
-		if (!AllowFunctionOverloading)
-			WarnFunctionOverloading = true;
-		else
-			WarnFunctionOverloading = instance.GetConfigValue<bool>(ConfigCode.WarnFunctionOverloading);
+	/// <summary>函数/属性名比较的 IgnoreCase 标志（derived）。</summary>
+	public static bool IgnoreCase => Current!._data.GetConfigValue<bool>(ConfigCode.IgnoreCase);
 
-		DisplayWarningLevel = instance.GetConfigValue<int>(ConfigCode.DisplayWarningLevel);
-		DisplayReport = instance.GetConfigValue<bool>(ConfigCode.DisplayReport);
-		ReduceArgumentOnLoad = instance.GetConfigValue<ReduceArgumentOnLoadFlag>(ConfigCode.ReduceArgumentOnLoad);
-		IgnoreUncalledFunction = instance.GetConfigValue<bool>(ConfigCode.IgnoreUncalledFunction);
-		FunctionNotFoundWarning = instance.GetConfigValue<DisplayWarningFlag>(ConfigCode.FunctionNotFoundWarning);
-		FunctionNotCalledWarning = instance.GetConfigValue<DisplayWarningFlag>(ConfigCode.FunctionNotCalledWarning);
+	/// <summary>函数/属性名比较标志（derived）。</summary>
+	public static StringComparison StringComparison => IgnoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
+	/// <summary>文件名比较标志（derived）。</summary>
+	public static StringComparer StrComper => IgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
-		ChangeMasterNameIfDebug = instance.GetConfigValue<bool>(ConfigCode.ChangeMasterNameIfDebug);
-		LastKey = instance.GetConfigValue<long>(ConfigCode.LastKey);
-		ButtonWrap = instance.GetConfigValue<bool>(ConfigCode.ButtonWrap);
+	/// <summary>GDI+ 字符串与图形位置偏移修正（derived）。</summary>
+	public static int DrawingParam_ShapePositionShift => TextDrawingMode == TextDrawingMode.WINAPI ? 0 : Math.Max(2, FontSize / 6);
 
-		TextEditor = instance.GetConfigValue<string>(ConfigCode.TextEditor);
-		EditorType = instance.GetConfigValue<TextEditorType>(ConfigCode.EditorType);
-		EditorArg = instance.GetConfigValue<string>(ConfigCode.EditorArgument);
+	/// <summary>实际可绘制宽度（derived）。</summary>
+	public static int DrawableWidth => WindowX - DrawingParam_ShapePositionShift;
 
-		CompatiErrorLine = instance.GetConfigValue<bool>(ConfigCode.CompatiErrorLine);
-		CompatiCALLNAME = instance.GetConfigValue<bool>(ConfigCode.CompatiCALLNAME);
-		UseSaveFolder = instance.GetConfigValue<bool>(ConfigCode.UseSaveFolder);
-		CompatiRAND = instance.GetConfigValue<bool>(ConfigCode.CompatiRAND);
-		//CompatiDRAWLINE = instance.GetConfigValue<bool>(ConfigCode.CompatiDRAWLINE);
-		CompatiLinefeedAs1739 = instance.GetConfigValue<bool>(ConfigCode.CompatiLinefeedAs1739);
-		SystemAllowFullSpace = instance.GetConfigValue<bool>(ConfigCode.SystemAllowFullSpace);
-		SystemSaveInBinary = instance.GetConfigValue<bool>(ConfigCode.SystemSaveInBinary);
-		SystemIgnoreTripleSymbol = instance.GetConfigValue<bool>(ConfigCode.SystemIgnoreTripleSymbol);
-		SystemIgnoreStringSet = instance.GetConfigValue<bool>(ConfigCode.SystemIgnoreStringSet);
+	/// <summary>强制存档目录（derived，常量）。</summary>
+	public static string ForceSavDir => Program.ExeDir + "sav" + Path.DirectorySeparatorChar;
 
-		CompatiFuncArgAutoConvert = instance.GetConfigValue<bool>(ConfigCode.CompatiFuncArgAutoConvert);
-		CompatiFuncArgOptional = instance.GetConfigValue<bool>(ConfigCode.CompatiFuncArgOptional);
-		CompatiCallEvent = instance.GetConfigValue<bool>(ConfigCode.CompatiCallEvent);
-		CompatiSPChara = instance.GetConfigValue<bool>(ConfigCode.CompatiSPChara);
+	/// <summary>存档目录（derived）。</summary>
+	public static string SavDir => UseSaveFolder ? ForceSavDir : Program.ExeDir;
 
-		AllowLongInputByMouse = instance.GetConfigValue<bool>(ConfigCode.AllowLongInputByMouse);
+	/// <summary>语言 LCID（derived，值由 ConfigData.ApplyPostLoadEffects 经 useLanguage 计算并缓存）。</summary>
+	public static int Language => Current!._data.Language;
 
-		TimesNotRigorousCalculation = instance.GetConfigValue<bool>(ConfigCode.TimesNotRigorousCalculation);
-		//一文字変数の禁止オプションを考えた名残
-		//ForbidOneCodeVariable = instance.GetConfigValue<bool>(ConfigCode.ForbidOneCodeVariable);
-		SystemNoTarget = instance.GetConfigValue<bool>(ConfigCode.SystemNoTarget);
+	/// <summary>加载期是否需要缩减参数（derived/缓存，由 ConfigData.CheckUpdate 设置）。</summary>
+	public static bool NeedReduceArgumentOnLoad => Current!._data.NeedReduceArgumentOnLoad;
 
-		#region EE版_UPDATECHECK
-		ForbidUpdateCheck = instance.GetConfigValue<bool>(ConfigCode.ForbidUpdateCheck);
-		#endregion
-		#region EE版_ERDConfig
-		UseERD = instance.GetConfigValue<bool>(ConfigCode.UseERD);
-		#endregion
-		#region EE_ERDNAME
-		VarsizeDimConfig = instance.GetConfigValue<bool>(ConfigCode.VarsizeDimConfig);
-		#endregion
-		#region EE_重複定義の確認
-		CheckDuplicateIdentifier = instance.GetConfigValue<bool>(ConfigCode.CheckDuplicateIdentifier);
-		#endregion
-		#region EE_行連結の改行コード置換
-		ReplaceContinuationBR = instance.GetConfigValue<string>(ConfigCode.ReplaceContinuationBR);
-		#endregion
+	/// <summary>默认字体（无 GDI，Headless 返回 EmuFont 值类型）。</summary>
+	public static EmuFont DefaultFont => FontFactory.GetFont("", EmuFontStyle.Regular);
 
-		#region EM_私家版_LoadText＆SaveText機能拡張
-		ValidExtension = instance.GetConfigValue<List<string>>(ConfigCode.ValidExtension);
-		#endregion
-		#region EM_私家版_セーブ圧縮
-		ZipSaveData = instance.GetConfigValue<bool>(ConfigCode.ZipSaveData);
-		#endregion
-		#region EM_私家版_Emuera多言語化改造
-		EnglishConfigOutput = instance.GetConfigValue<bool>(ConfigCode.EnglishConfigOutput);
-		EmueraLang = instance.GetConfigValue<string>(ConfigCode.EmueraLang);
-		#endregion
-		#region EM_私家版_Icon指定機能
-		EmueraIcon = instance.GetConfigValue<string>(ConfigCode.EmueraIcon);
-		#endregion
-		#region EE_AnchorのCB機能移植
-		CBUseClipboard = instance.GetConfigValue<bool>(ConfigCode.CBUseClipboard);
-		CBIgnoreTags = instance.GetConfigValue<bool>(ConfigCode.CBIgnoreTags);
-		CBReplaceTags = instance.GetConfigValue<string>(ConfigCode.CBReplaceTags);
-		CBNewLinesOnly = instance.GetConfigValue<bool>(ConfigCode.CBNewLinesOnly);
-		CBClearBuffer = instance.GetConfigValue<bool>(ConfigCode.CBClearBuffer);
-		CBTriggerLeftClick = instance.GetConfigValue<bool>(ConfigCode.CBTriggerLeftClick);
-		CBTriggerMiddleClick = instance.GetConfigValue<bool>(ConfigCode.CBTriggerMiddleClick);
-		CBTriggerDoubleLeftClick = instance.GetConfigValue<bool>(ConfigCode.CBTriggerDoubleLeftClick);
-		CBTriggerAnyKeyWait = instance.GetConfigValue<bool>(ConfigCode.CBTriggerAnyKeyWait);
-		CBTriggerInputWait = instance.GetConfigValue<bool>(ConfigCode.CBTriggerInputWait);
-		CBMaxCB = instance.GetConfigValue<int>(ConfigCode.CBMaxCB);
-		CBBufferSize = instance.GetConfigValue<int>(ConfigCode.CBBufferSize);
-		CBScrollCount = instance.GetConfigValue<int>(ConfigCode.CBScrollCount);
-		CBMinTimer = instance.GetConfigValue<int>(ConfigCode.CBMinTimer);
-		#endregion
-		#region EmuEra-Rikaichan related settings
-		RikaiEnabled = instance.GetConfigValue<bool>(ConfigCode.RikaiEnabled);
-		RikaiFilename = instance.GetConfigValue<string>(ConfigCode.RikaiFilename);
-		RikaiColorBack = instance.GetConfigValue<EmuColor>(ConfigCode.RikaiColorBack);
-		RikaiColorText = instance.GetConfigValue<EmuColor>(ConfigCode.RikaiColorText);
-		RikaiUseSeparateBoxes = instance.GetConfigValue<bool>(ConfigCode.RikaiUseSeparateBoxes);
-		#endregion
+	// ===== 实例方法（读 ambient，含副作用/文件系统）=====
 
-		Ctrl_Z_Enabled = instance.GetConfigValue<bool>(ConfigCode.Ctrl_Z_Enabled);
+	/// <summary>配置项显示名（用于错误提示）。</summary>
+	public static string GetConfigName(ConfigCode code) => Current!._data.GetItem(code)?.Text ?? "";
 
-
-		UseLanguage lang = instance.GetConfigValue<UseLanguage>(ConfigCode.useLanguage);
-		switch (lang)
-		{
-			case UseLanguage.JAPANESE:
-				Language = 0x0411; LangManager.setEncode(932); break;
-			case UseLanguage.KOREAN:
-				Language = 0x0412; LangManager.setEncode(949); break;
-			case UseLanguage.CHINESE_HANS:
-				Language = 0x0804; LangManager.setEncode(936); break;
-			case UseLanguage.CHINESE_HANT:
-				Language = 0x0404; LangManager.setEncode(950); break;
-		}
-
-		if (FontSize < 8)
-		{
-			Dialog.Show(trmb.ConfigError.Text, trmb.TooSmallFontSize.Text);
-			FontSize = 8;
-		}
-		if (LineHeight < FontSize)
-		{
-			Dialog.Show(trmb.ConfigError.Text, trmb.LineHeightLessThanFontSize.Text);
-			LineHeight = FontSize;
-		}
-		if (SaveDataNos < 20)
-		{
-			Dialog.Show(trmb.ConfigError.Text, trmb.TooSmallDisplaySaveData.Text);
-			SaveDataNos = 20;
-		}
-		if (SaveDataNos > 80)
-		{
-			Dialog.Show(trmb.ConfigError.Text, trmb.TooLargeDisplaySaveData.Text);
-			SaveDataNos = 80;
-		}
-		if (MaxLog < 500)
-		{
-			Dialog.Show(trmb.ConfigError.Text, trmb.TooSmallLogSize.Text);
-			MaxLog = 500;
-		}
-		if (TextDrawingMode == TextDrawingMode.WINAPI)
-		{
-#if HEADLESS
-			Console.Error.WriteLine(trmb.DoNotSupportWINAPI.Text);
-#else
-			MessageBox.Show(trmb.DoNotSupportWINAPI.Text);
-#endif
-			TextDrawingMode = TextDrawingMode.TEXTRENDERER;
-		}
-
-		DrawingParam_ShapePositionShift = 0;
-		if (TextDrawingMode != TextDrawingMode.WINAPI)
-			DrawingParam_ShapePositionShift = Math.Max(2, FontSize / 6);
-		DrawableWidth = WindowX - DrawingParam_ShapePositionShift;
-		#region eee_カレントディレクトリー
-		// ForceSavDir = Program.ExeDir + "sav\\";
-		ForceSavDir = Program.ExeDir + "sav" + Path.DirectorySeparatorChar;
-		if (UseSaveFolder)
-			// SavDir = Program.ExeDir + "sav\\";
-			SavDir = Program.ExeDir + "sav" + Path.DirectorySeparatorChar;
-		else
-			// SavDir = Program.ExeDir;
-			SavDir = Program.ExeDir;
-		#endregion
-		if (UseSaveFolder && !Directory.Exists(SavDir))
-			createSavDirAndMoveFiles();
-	}
-	#region EM_私家版_Emuera多言語化改造
-	public static void UpdateLangSetting(ConfigData instance)
-	{
-		EnglishConfigOutput = instance.GetConfigValue<bool>(ConfigCode.EnglishConfigOutput);
-		EmueraLang = instance.GetConfigValue<string>(ConfigCode.EmueraLang);
-	}
-	public static void SetLanguageSetting(ConfigData instance, string lang)
-	{
-		instance.GetConfigItem(ConfigCode.EmueraLang).SetValue(lang);
-		UpdateLangSetting(instance);
-		instance.SaveConfig();
-	}
-	#endregion
-
-	public static EmuFont DefaultFont { get { return FontFactory.GetFont("", EmuFontStyle.Regular); } }
-
-
-	/// <summary>
-	/// ディレクトリ作成失敗のExceptionは呼び出し元で処理すること
-	/// </summary>
+	/// <summary>强制创建 ForceSavDir。</summary>
 	public static void ForceCreateSavDir()
 	{
 		if (!Directory.Exists(ForceSavDir))
-		{
 			Directory.CreateDirectory(ForceSavDir);
-		}
 	}
 
-	/// <summary>
-	/// ディレクトリ作成失敗のExceptionは呼び出し元で処理すること
-	/// </summary>
+	/// <summary>按 UseSaveFolder 创建 SavDir。</summary>
 	public static void CreateSavDir()
 	{
 		if (UseSaveFolder && !Directory.Exists(SavDir))
-		{
 			Directory.CreateDirectory(SavDir);
-		}
 	}
 
-	private static void createSavDirAndMoveFiles()
+
+
+	/// <summary>语言设置：把语言写入 ConfigData 并保存（不再回填静态字段，视图自动反射）。</summary>
+	public static void SetLanguageSetting(ConfigData instance, string lang)
 	{
-		try
-		{
-			Directory.CreateDirectory(SavDir);
-		}
-		catch
-		{
-			Dialog.Show(trmb.FolderCreationFailure.Text, trmb.FailedCreateSavFolder.Text);
-			return;
-		}
-		#region eee_カレントディレクトリー
-		// bool existGlobal = File.Exists(Program.ExeDir + "global.sav");
-		// string[] savFiles = Directory.GetFiles(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
-		bool existGlobal = File.Exists(Program.ExeDir + "global.sav");
-		string[] savFiles = Directory.GetFiles(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
-		#endregion
-		if (!existGlobal && savFiles.Length == 0)
-			return;
-		var result = Dialog.ShowPrompt(trmb.SavFolderCreated.Text, trmb.DataTransfer.Text);
-		if (result == false)
-			return;
-		//ダイアログが開いている間にフォルダを消してしまうような邪悪なユーザーがいるかもしれない
-		if (!Directory.Exists(SavDir))
-		{
-			Dialog.Show(trmb.DataTransferFailure.Text, trmb.MissingSavFolder.Text);
-			return;
-		}
-		//ダイアログが開いている間にファイルを変更するような邪悪なユーザーがいるかもしれない
-		try
-		{
-			#region eee_カレントディレクトリー
-			//if (File.Exists(Program.ExeDir + "global.sav"))
-			//	File.Move(Program.ExeDir + "global.sav", SavDir + "global.sav");
-			//savFiles = Directory.GetFiles(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
-			if (File.Exists(Program.ExeDir + "global.sav"))
-				File.Move(Program.ExeDir + "global.sav", SavDir + "global.sav");
-			savFiles = Directory.GetFiles(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
-			#endregion
-			foreach (string oldpath in savFiles)
-				File.Move(oldpath, SavDir + Path.GetFileName(oldpath));
-		}
-		catch
-		{
-			Dialog.Show(trmb.DataTransferFailure.Text, trmb.FailedMoveSavFiles.Text);
-		}
-	}
-	//先にSetConfigを呼ぶこと
-	//戻り値はセーブが必要かどうか
-	public static bool CheckUpdate()
-	{
-		if (ReduceArgumentOnLoad != ReduceArgumentOnLoadFlag.ONCE)
-		{
-			if (ReduceArgumentOnLoad == ReduceArgumentOnLoadFlag.YES)
-				NeedReduceArgumentOnLoad = true;
-			else if (ReduceArgumentOnLoad == ReduceArgumentOnLoadFlag.NO)
-				NeedReduceArgumentOnLoad = false;
-			return false;
-		}
-
-		long key = getUpdateKey();
-		bool updated = LastKey != key;
-		LastKey = key;
-		return updated;
+		instance.GetConfigItem(ConfigCode.EmueraLang).SetValue(lang);
+		instance.SaveConfig();
 	}
 
-	private static long getUpdateKey()
-	{
-		SearchOption option = SearchOption.TopDirectoryOnly;
-		if (SearchSubdirectory)
-			option = SearchOption.AllDirectories;
-		string[] erbFiles = Directory.GetFiles(Program.ErbDir, "*.ERB", option);
-		string[] csvFiles = Directory.GetFiles(Program.CsvDir, "*.CSV", option);
-		long[] writetimes = new long[erbFiles.Length + csvFiles.Length];
-		for (int i = 0; i < erbFiles.Length; i++)
-			if (Path.GetExtension(erbFiles[i]).Equals(".ERB", StringComparison.OrdinalIgnoreCase))
-				writetimes[i] = File.GetLastWriteTime(erbFiles[i]).ToBinary();
-		for (int i = 0; i < csvFiles.Length; i++)
-			if (Path.GetExtension(csvFiles[i]).Equals(".CSV", StringComparison.OrdinalIgnoreCase))
-				writetimes[i + erbFiles.Length] = File.GetLastWriteTime(csvFiles[i]).ToBinary();
-		long key = 0;
-		for (int i = 0; i < writetimes.Length; i++)
-		{
-			unchecked
-			{
-				key ^= writetimes[i] * 1103515245 + 12345;
-			}
-		}
-		return key;
-	}
-
-
+	/// <summary>KeyValuePair&lt;相对路径, 完全路径&gt; 列表。</summary>
 	public static List<KeyValuePair<string, string>> GetFiles(string rootdir, string pattern)
 	{
 		return getFiles(rootdir, rootdir, pattern, !SearchSubdirectory, SortWithFilename);
@@ -382,33 +254,31 @@ internal static class Config
 		return getFiles(dir, rootdir, pattern, !SearchSubdirectory, SortWithFilename);
 	}
 
-	//KeyValuePair<相対パス, 完全パス>のリストを返す。
 	private static List<KeyValuePair<string, string>> getFiles(string dir, string rootdir, string pattern, bool toponly, bool sort)
 	{
 		List<KeyValuePair<string, string>> retList = [];
 
-		string RelativePath;//相対ディレクトリ名
-		if (string.Equals(dir, rootdir, StringComparison.OrdinalIgnoreCase))//現在のパスが検索ルートパスに等しい
+		string RelativePath;
+		if (string.Equals(dir, rootdir, StringComparison.OrdinalIgnoreCase))
 			RelativePath = "";
 		else
 		{
 			if (!dir.StartsWith(rootdir, StringComparison.OrdinalIgnoreCase))
 				RelativePath = dir;
 			else
-				RelativePath = dir[rootdir.Length..];//前方が検索ルートパスと一致するならその部分を切り取る
+				RelativePath = dir[rootdir.Length..];
 			if (!RelativePath.EndsWith('\\') && !RelativePath.EndsWith('/'))
-				RelativePath += "\\";//末尾が\又は/で終わるように。後でFile名を直接加算できるようにしておく
+				RelativePath += "\\";
 		}
-		//filepathsは完全パスである
 		string[] filepaths = Directory.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly);
 		if (sort)
 			Array.Sort(filepaths);
 		for (int i = 0; i < filepaths.Length; i++)
-			if (Path.GetExtension(filepaths[i]).Length <= 4)//".erb"や".csv"であること。放置すると".erb*"等を拾う。
+			if (Path.GetExtension(filepaths[i]).Length <= 4)
 				retList.Add(new KeyValuePair<string, string>(Path.Combine(RelativePath, Path.GetFileName(filepaths[i])), filepaths[i]));
 
 		if (!toponly)
-		{//サブフォルダ内の検索
+		{
 			string[] dirList = Directory.GetDirectories(dir, "*", SearchOption.TopDirectoryOnly);
 			if (dirList.Length > 0)
 			{
@@ -421,239 +291,4 @@ internal static class Config
 
 		return retList;
 	}
-
-	/// <summary>
-	/// 関数名・属性名的な名前のIgnoreCaseフラグ
-	/// 関数・属性・BEGINのキーワード 
-	/// どうせeramaker用の互換処理なのでEmuera専用構文については適当に。
-	/// </summary>
-	public static bool IgnoreCase { get; private set; }
-
-	/// <summary>
-	/// 関数名・属性名的な名前の比較フラグ
-	/// </summary>
-	public static StringComparison StringComparison { get; private set; }
-
-	/// <summary>
-	/// ファイル名的な名前の比較フラグ
-	/// </summary>
-	public const StringComparison SCIgnoreCase = StringComparison.OrdinalIgnoreCase;
-
-	/// <summary>
-	/// 式中での文字列比較フラグ
-	/// </summary>
-	public const StringComparison SCExpression = StringComparison.Ordinal;
-
-	/// <summary>
-	/// GDI+利用時に発生する文字列と図形・画像間の位置ずれ補正
-	/// </summary>
-	public static int DrawingParam_ShapePositionShift { get; private set; }
-
-
-	public static bool UseRenameFile { get; private set; }
-	public static bool UseReplaceFile { get; private set; }
-	public static bool UseMouse { get; private set; }
-	public static bool UseMenu { get; private set; }
-	public static bool UseDebugCommand { get; private set; }
-	public static bool AllowMultipleInstances { get; private set; }
-	public static bool AutoSave { get; private set; }
-	public static bool UseKeyMacro { get; private set; }
-	public static bool SizableWindow { get; private set; }
-	//public static bool UseImageBuffer { get; private set; }
-	public static TextDrawingMode TextDrawingMode { get; private set; }
-	public static int WindowX { get; private set; }
-	/// <summary>
-	/// 実際に描画可能な横幅
-	/// </summary>
-	public static int DrawableWidth { get; private set; }
-	public static int WindowY { get; private set; }
-	public static int WindowPosX { get; private set; }
-	public static int WindowPosY { get; private set; }
-	public static bool SetWindowPos { get; private set; }
-	public static int MaxLog { get; private set; }
-	public static int PrintCPerLine { get; private set; }
-	public static int PrintCLength { get; private set; }
-	public static EmuColor ForeColor { get; private set; }
-	public static EmuColor BackColor { get; private set; }
-	public static EmuColor FocusColor { get; private set; }
-	public static EmuColor LogColor { get; private set; }
-	public static int FontSize { get; private set; }
-	public static string FontName { get; private set; } = null!;
-	public static int LineHeight { get; private set; }
-	public static int FPS { get; private set; }
-	//public static int SkipFrame { get; private set; }
-	public static int ScrollHeight { get; private set; }
-	public static int InfiniteLoopAlertTime { get; private set; }
-	public static int SaveDataNos { get; private set; }
-	public static bool WarnBackCompatibility { get; private set; }
-	public static bool WindowMaximixed { get; private set; }
-	public static bool WarnNormalFunctionOverloading { get; private set; }
-	public static bool SearchSubdirectory { get; private set; }
-	public static bool SortWithFilename { get; private set; }
-
-	public static bool AllowFunctionOverloading { get; private set; }
-	public static bool WarnFunctionOverloading { get; private set; }
-
-	public static int DisplayWarningLevel { get; private set; }
-	public static bool DisplayReport { get; private set; }
-	public static ReduceArgumentOnLoadFlag ReduceArgumentOnLoad { get; private set; }
-	public static bool IgnoreUncalledFunction { get; private set; }
-	public static DisplayWarningFlag FunctionNotFoundWarning { get; private set; }
-	public static DisplayWarningFlag FunctionNotCalledWarning { get; private set; }
-
-	public static bool ChangeMasterNameIfDebug { get; private set; }
-	public static long LastKey { get; private set; }
-	public static bool ButtonWrap { get; private set; }
-
-	public static string TextEditor { get; private set; } = null!;
-	public static TextEditorType EditorType { get; private set; }
-	public static string EditorArg { get; private set; } = null!;
-
-	public static bool CompatiErrorLine { get; private set; }
-	public static bool CompatiCALLNAME { get; private set; }
-	public static bool UseSaveFolder { get; private set; }
-	public static bool CompatiRAND { get; private set; }
-	//public static bool CompatiDRAWLINE { get; private set; }
-	public static bool CompatiLinefeedAs1739 { get; private set; }
-	public static bool SystemAllowFullSpace { get; private set; }
-	public static bool SystemSaveInBinary { get; private set; }
-	public static bool CompatiFuncArgAutoConvert { get; private set; }
-	public static bool CompatiFuncArgOptional { get; private set; }
-	public static bool CompatiCallEvent { get; private set; }
-	public static bool CompatiSPChara { get; private set; }
-	public static bool SystemIgnoreTripleSymbol { get; private set; }
-	public static bool SystemNoTarget { get; private set; }
-	public static bool SystemIgnoreStringSet { get; private set; }
-
-	public static int Language { get; private set; }
-
-	public static string SavDir { get; private set; } = null!;
-	public static string ForceSavDir { get; private set; } = null!;
-
-	public static bool NeedReduceArgumentOnLoad { get; private set; }
-
-	public static bool AllowLongInputByMouse { get; private set; }
-
-	public static bool TimesNotRigorousCalculation { get; private set; }
-	//一文字変数の禁止オプションを考えた名残
-	//public static bool ForbidOneCodeVariable { get; private set; }
-	#endregion
-
-	#region debug
-	public static void SetDebugConfig(ConfigData instance)
-	{
-		DebugShowWindow = instance.GetConfigValue<bool>(ConfigCode.DebugShowWindow);
-		DebugWindowTopMost = instance.GetConfigValue<bool>(ConfigCode.DebugWindowTopMost);
-		DebugWindowWidth = instance.GetConfigValue<int>(ConfigCode.DebugWindowWidth);
-		DebugWindowHeight = instance.GetConfigValue<int>(ConfigCode.DebugWindowHeight);
-		DebugSetWindowPos = instance.GetConfigValue<bool>(ConfigCode.DebugSetWindowPos);
-		DebugWindowPosX = instance.GetConfigValue<int>(ConfigCode.DebugWindowPosX);
-		DebugWindowPosY = instance.GetConfigValue<int>(ConfigCode.DebugWindowPosY);
-	}
-	public static bool DebugShowWindow { get; private set; }
-	public static bool DebugWindowTopMost { get; private set; }
-	public static int DebugWindowWidth { get; private set; }
-	public static int DebugWindowHeight { get; private set; }
-	public static bool DebugSetWindowPos { get; private set; }
-	public static int DebugWindowPosX { get; private set; }
-	public static int DebugWindowPosY { get; private set; }
-
-
-	#endregion
-
-	#region replace
-	public static void SetReplace(ConfigData instance)
-	{
-		MoneyLabel = instance.GetConfigValue<string>(ConfigCode.MoneyLabel);
-		MoneyFirst = instance.GetConfigValue<bool>(ConfigCode.MoneyFirst);
-		LoadLabel = instance.GetConfigValue<string>(ConfigCode.LoadLabel);
-		MaxShopItem = instance.GetConfigValue<int>(ConfigCode.MaxShopItem);
-		DrawLineString = instance.GetConfigValue<string>(ConfigCode.DrawLineString);
-		if (string.IsNullOrEmpty(DrawLineString))
-			DrawLineString = "-";
-		BarChar1 = instance.GetConfigValue<char>(ConfigCode.BarChar1);
-		BarChar2 = instance.GetConfigValue<char>(ConfigCode.BarChar2);
-		TitleMenuString0 = instance.GetConfigValue<string>(ConfigCode.TitleMenuString0);
-		TitleMenuString1 = instance.GetConfigValue<string>(ConfigCode.TitleMenuString1);
-		ComAbleDefault = instance.GetConfigValue<int>(ConfigCode.ComAbleDefault);
-		StainDefault = instance.GetConfigValue<List<long>>(ConfigCode.StainDefault);
-		TimeupLabel = instance.GetConfigValue<string>(ConfigCode.TimeupLabel);
-		ExpLvDef = instance.GetConfigValue<List<long>>(ConfigCode.ExpLvDef);
-		PalamLvDef = instance.GetConfigValue<List<long>>(ConfigCode.PalamLvDef);
-		PbandDef = instance.GetConfigValue<long>(ConfigCode.pbandDef);
-		RelationDef = instance.GetConfigValue<long>(ConfigCode.RelationDef);
-	}
-
-	public static string MoneyLabel { get; private set; } = null!;
-	public static bool MoneyFirst { get; private set; }
-	public static string LoadLabel { get; private set; } = null!;
-	public static int MaxShopItem { get; private set; }
-	public static string DrawLineString { get; private set; } = null!;
-	public static char BarChar1 { get; private set; }
-	public static char BarChar2 { get; private set; }
-	public static string TitleMenuString0 { get; private set; } = null!;
-	public static string TitleMenuString1 { get; private set; } = null!;
-	public static int ComAbleDefault { get; private set; }
-	public static List<long> StainDefault { get; private set; } = null!;
-	public static string TimeupLabel { get; private set; } = null!;
-	public static List<long> ExpLvDef { get; private set; } = null!;
-	public static List<long> PalamLvDef { get; private set; } = null!;
-	public static long PbandDef { get; private set; }
-	public static long RelationDef { get; private set; }
-	#endregion
-
-	public static StringComparer StrComper = StringComparer.OrdinalIgnoreCase;
-
-	#region EE版_UPDATECHECK
-	public static bool ForbidUpdateCheck { get; private set; }
-	#endregion
-	#region EE版_ERDConfig
-	public static bool UseERD { get; private set; }
-	#endregion
-	#region EE_ERDNAME
-	public static bool VarsizeDimConfig { get; private set; }
-	#endregion
-	#region EE_重複定義の確認
-	public static bool CheckDuplicateIdentifier { get; private set; }
-	#endregion
-	#region EE_行連結の改行コード置換
-	public static string ReplaceContinuationBR { get; private set; } = null!;
-	#endregion
-	#region EM_私家版_LoadText＆SaveText機能拡張
-	public static List<string> ValidExtension { get; private set; } = null!;
-	#endregion
-	#region EM_私家版_セーブ圧縮
-	public static bool ZipSaveData { get; private set; }
-	#endregion
-	#region EM_私家版_Emuera多言語化改造
-	public static bool EnglishConfigOutput { get; private set; }
-	public static string EmueraLang { get; private set; } = null!;
-	#endregion
-	#region EM_私家版_Icon指定機能
-	public static string EmueraIcon { get; private set; } = null!;
-	#endregion
-	#region EE_AnchorのCB機能移植
-	public static bool CBUseClipboard { get; private set; }
-	public static bool CBIgnoreTags { get; private set; }
-	public static string CBReplaceTags { get; private set; } = null!;
-	public static bool CBNewLinesOnly { get; private set; }
-	public static bool CBClearBuffer { get; private set; }
-	public static bool CBTriggerLeftClick { get; private set; }
-	public static bool CBTriggerMiddleClick { get; private set; }
-	public static bool CBTriggerDoubleLeftClick { get; private set; }
-	public static bool CBTriggerAnyKeyWait { get; private set; }
-	public static bool CBTriggerInputWait { get; private set; }
-	public static int CBMaxCB { get; private set; }
-	public static int CBBufferSize { get; private set; }
-	public static int CBScrollCount { get; private set; }
-	public static int CBMinTimer { get; private set; }
-
-	public static bool RikaiEnabled { get; private set; }
-	public static string RikaiFilename { get; private set; } = null!;
-	public static EmuColor RikaiColorBack { get; private set; }
-	public static EmuColor RikaiColorText { get; private set; }
-	public static bool RikaiUseSeparateBoxes { get; private set; }
-	#endregion
-
-	public static bool Ctrl_Z_Enabled { get; private set; }
 }

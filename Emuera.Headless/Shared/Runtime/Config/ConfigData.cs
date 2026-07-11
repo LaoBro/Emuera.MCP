@@ -6,7 +6,12 @@ using MinorShift.Emuera.Sub;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
+using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
+#if !HEADLESS
+using System.Windows.Forms;
+#endif
 
 namespace MinorShift.Emuera.Runtime.Config;
 
@@ -22,11 +27,16 @@ internal sealed class ConfigData
 	#endregion
 	readonly static string configdebugPath = Program.DebugDir + "debug.config";
 
-	static ConfigData() { }
-	private static ConfigData instance = new();
-	public static ConfigData Instance { get { return instance; } }
+	private static readonly AsyncLocal<ConfigData?> _current = new();
+	public static ConfigData? Current => _current.Value;
+	internal static void SetCurrent(ConfigData data) => _current.Value = data;
+	internal static void ClearCurrent() => _current.Value = null;
 
-	private ConfigData() { setDefault(); }
+	private readonly Dictionary<ConfigCode, AConfigItem> _index = new();
+	public bool NeedReduceArgumentOnLoad { get; private set; }
+	public int Language { get; private set; }
+
+	internal ConfigData() { setDefault(); BuildIndex(); }
 	#region EM_私家版_Emuera多言語化改造
 	//適当に大き目の配列を作っておく。
 	#region EE_configArrayの拡張
@@ -393,16 +403,19 @@ internal sealed class ConfigData
 		return item;
 	}
 
-	public AConfigItem GetConfigItem(ConfigCode code)
+	private void BuildIndex()
 	{
 		foreach (AConfigItem item in configArray)
-		{
-			if (item == null)
-				continue;
-			if (item.Code == code)
-				return item;
-		}
-		return null!;
+			if (item != null && !_index.ContainsKey(item.Code)) _index[item.Code] = item;
+		foreach (AConfigItem item in replaceArray)
+			if (item != null && !_index.ContainsKey(item.Code)) _index[item.Code] = item;
+		foreach (AConfigItem item in debugArray)
+			if (item != null && !_index.ContainsKey(item.Code)) _index[item.Code] = item;
+	}
+
+	public AConfigItem GetConfigItem(ConfigCode code)
+	{
+		return _index.TryGetValue(code, out var item) ? item : null!;
 	}
 	public AConfigItem GetConfigItem(string key)
 	{
@@ -481,7 +494,7 @@ internal sealed class ConfigData
 
 	public static SingleTerm GetConfigValueInERB(string text, ref string errMes)
 	{
-		AConfigItem item = Instance.GetItem(text);
+		AConfigItem item = Current!.GetItem(text);
 		if (item == null)
 		{
 			errMes = string.Format(trerror.InvalidConfigName.Text, text);
@@ -638,7 +651,7 @@ internal sealed class ConfigData
 					var sb = new System.Text.StringBuilder();
 					#region EM_私家版_Emuera多言語化改造
 					// sb.Append(ex.Text).Append(":");
-					sb.Append(Config.EnglishConfigOutput ? ex.EngText : ex.Text).Append(':');
+					sb.Append(GetConfigValue<bool>(ConfigCode.EnglishConfigOutput) ? ex.EngText : ex.Text).Append(':');
 					#endregion
 					foreach (var str in ex.Value)
 					{
@@ -698,19 +711,180 @@ internal sealed class ConfigData
 		loadConfig(configPath, false);
 		loadConfig(fixedConfigPath, true);
 
-		Config.SetConfig(this);
+		// 候选 2 / ADR-0009：原 Config.SetConfig(this) 已坍缩——视图（Config）是薄转发层，
+		// 无副本可刷新；clamp/语言/存档目录逻辑下沉为实例方法 ApplyPostLoadEffects。
+		ApplyPostLoadEffects();
 		bool needSave = false;
 		if (!File.Exists(configPath))
 			needSave = true;
-		if (Config.CheckUpdate())
+		if (CheckUpdate())
 		{
-			GetItem(ConfigCode.LastKey).SetValue(Config.LastKey);
+			GetItem(ConfigCode.LastKey).SetValue(GetConfigValue<long>(ConfigCode.LastKey));
 			needSave = true;
 		}
 		if (needSave)
 			SaveConfig();
 		return true;
 	}
+
+	#region EM_私家版_Emuera多言語化改造
+	// 候选 2 / ADR-0009：原 Config.SetConfig 的 clamp/语言/存档目录逻辑下沉为实例方法。
+	// 原 Config 静态镜像已移除，视图（Config）直接转发 _data，故此处就地修正 _data 的 item。
+	/// <summary>
+	/// 加载后置处理：clamp 非法范围、按 useLanguage 计算语言 LCID 与编码、必要时创建/迁移存档目录。
+	/// 原 Config.SetConfig 的等价逻辑（视图无副本后，直接写回 _data 的 item）。
+	/// </summary>
+	public void ApplyPostLoadEffects()
+	{
+		UseLanguage lang = GetConfigValue<UseLanguage>(ConfigCode.useLanguage);
+		switch (lang)
+		{
+			case UseLanguage.JAPANESE:
+				Language = 0x0411; LangManager.setEncode(932); break;
+			case UseLanguage.KOREAN:
+				Language = 0x0412; LangManager.setEncode(949); break;
+			case UseLanguage.CHINESE_HANS:
+				Language = 0x0804; LangManager.setEncode(936); break;
+			case UseLanguage.CHINESE_HANT:
+				Language = 0x0404; LangManager.setEncode(950); break;
+		}
+
+		if (GetConfigValue<int>(ConfigCode.FontSize) < 8)
+		{
+			Dialog.Show(trmb.ConfigError.Text, trmb.TooSmallFontSize.Text);
+			GetConfigItem(ConfigCode.FontSize).SetValue(8);
+		}
+		if (GetConfigValue<int>(ConfigCode.LineHeight) < GetConfigValue<int>(ConfigCode.FontSize))
+		{
+			Dialog.Show(trmb.ConfigError.Text, trmb.LineHeightLessThanFontSize.Text);
+			GetConfigItem(ConfigCode.LineHeight).SetValue(GetConfigValue<int>(ConfigCode.FontSize));
+		}
+		if (GetConfigValue<int>(ConfigCode.SaveDataNos) < 20)
+		{
+			Dialog.Show(trmb.ConfigError.Text, trmb.TooSmallDisplaySaveData.Text);
+			GetConfigItem(ConfigCode.SaveDataNos).SetValue(20);
+		}
+		if (GetConfigValue<int>(ConfigCode.SaveDataNos) > 80)
+		{
+			Dialog.Show(trmb.ConfigError.Text, trmb.TooLargeDisplaySaveData.Text);
+			GetConfigItem(ConfigCode.SaveDataNos).SetValue(80);
+		}
+		if (GetConfigValue<int>(ConfigCode.MaxLog) < 500)
+		{
+			Dialog.Show(trmb.ConfigError.Text, trmb.TooSmallLogSize.Text);
+			GetConfigItem(ConfigCode.MaxLog).SetValue(500);
+		}
+		if (GetConfigValue<TextDrawingMode>(ConfigCode.TextDrawingMode) == TextDrawingMode.WINAPI)
+		{
+#if HEADLESS
+			Console.Error.WriteLine(trmb.DoNotSupportWINAPI.Text);
+#else
+			MessageBox.Show(trmb.DoNotSupportWINAPI.Text);
+#endif
+			GetConfigItem(ConfigCode.TextDrawingMode).SetValue(TextDrawingMode.TEXTRENDERER);
+		}
+
+		if (!GetConfigValue<bool>(ConfigCode.AllowFunctionOverloading))
+			GetConfigItem(ConfigCode.WarnFunctionOverloading).SetValue(true);
+
+		if (GetConfigValue<bool>(ConfigCode.UseSaveFolder) && !Directory.Exists(SavDir))
+			createSavDirAndMoveFiles();
+	}
+
+	/// <summary>存档目录（derived，与 Config.SavDir 同义；不缓存，现算现用）。</summary>
+	private string SavDir
+	{
+		get
+		{
+			string forceSavDir = Program.ExeDir + "sav" + Path.DirectorySeparatorChar;
+			return GetConfigValue<bool>(ConfigCode.UseSaveFolder) ? forceSavDir : Program.ExeDir;
+		}
+	}
+
+	//先にApplyPostLoadEffectsを呼ぶこと
+	//戻り値はセーブが必要かどうか
+	public bool CheckUpdate()
+	{
+		ReduceArgumentOnLoadFlag flag = GetConfigValue<ReduceArgumentOnLoadFlag>(ConfigCode.ReduceArgumentOnLoad);
+		if (flag != ReduceArgumentOnLoadFlag.ONCE)
+		{
+			if (flag == ReduceArgumentOnLoadFlag.YES)
+				NeedReduceArgumentOnLoad = true;
+			else if (flag == ReduceArgumentOnLoadFlag.NO)
+				NeedReduceArgumentOnLoad = false;
+			return false;
+		}
+
+		long key = getUpdateKey();
+		bool updated = GetConfigValue<long>(ConfigCode.LastKey) != key;
+		if (updated)
+			GetConfigItem(ConfigCode.LastKey).SetValue(key);
+		return updated;
+	}
+
+	private long getUpdateKey()
+	{
+		SearchOption option = SearchOption.TopDirectoryOnly;
+		if (GetConfigValue<bool>(ConfigCode.SearchSubdirectory))
+			option = SearchOption.AllDirectories;
+		string[] erbFiles = Directory.GetFiles(Program.ErbDir, "*.ERB", option);
+		string[] csvFiles = Directory.GetFiles(Program.CsvDir, "*.CSV", option);
+		long[] writetimes = new long[erbFiles.Length + csvFiles.Length];
+		for (int i = 0; i < erbFiles.Length; i++)
+			if (Path.GetExtension(erbFiles[i]).Equals(".ERB", StringComparison.OrdinalIgnoreCase))
+				writetimes[i] = File.GetLastWriteTime(erbFiles[i]).ToBinary();
+		for (int i = 0; i < csvFiles.Length; i++)
+			if (Path.GetExtension(csvFiles[i]).Equals(".CSV", StringComparison.OrdinalIgnoreCase))
+				writetimes[i + erbFiles.Length] = File.GetLastWriteTime(csvFiles[i]).ToBinary();
+		long key = 0;
+		for (int i = 0; i < writetimes.Length; i++)
+		{
+			unchecked
+			{
+				key ^= writetimes[i] * 1103515245 + 12345;
+			}
+		}
+		return key;
+	}
+
+	private void createSavDirAndMoveFiles()
+	{
+		string savDir = SavDir;
+		try
+		{
+			Directory.CreateDirectory(savDir);
+		}
+		catch
+		{
+			Dialog.Show(trmb.FolderCreationFailure.Text, trmb.FailedCreateSavFolder.Text);
+			return;
+		}
+		bool existGlobal = File.Exists(Program.ExeDir + "global.sav");
+		string[] savFiles = Directory.GetFiles(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
+		if (!existGlobal && savFiles.Length == 0)
+			return;
+		var result = Dialog.ShowPrompt(trmb.SavFolderCreated.Text, trmb.DataTransfer.Text);
+		if (result == false)
+			return;
+		if (!Directory.Exists(savDir))
+		{
+			Dialog.Show(trmb.DataTransferFailure.Text, trmb.MissingSavFolder.Text);
+			return;
+		}
+		try
+		{
+			if (File.Exists(Program.ExeDir + "global.sav"))
+				File.Move(Program.ExeDir + "global.sav", savDir + "global.sav");
+			savFiles = Directory.GetFiles(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
+			foreach (string oldpath in savFiles)
+				File.Move(oldpath, savDir + Path.GetFileName(oldpath));
+		}
+		catch
+		{
+			Dialog.Show(trmb.DataTransferFailure.Text, trmb.FailedMoveSavFiles.Text);
+		}
+	}
+	#endregion
 
 	private bool loadConfig(string confPath, bool fix)
 	{
@@ -914,10 +1088,8 @@ internal sealed class ConfigData
 			goto err;
 		}
 		finally { eReader.Dispose(); }
-		Config.SetDebugConfig(this);
 		return true;
 	err:
-		Config.SetDebugConfig(this);
 		return false;
 	}
 
