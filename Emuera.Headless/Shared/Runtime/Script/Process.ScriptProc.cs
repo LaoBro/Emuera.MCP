@@ -14,6 +14,12 @@ using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.GameProc;
 
+// ADR-0011 phase-1 transitional form: ScriptProc holds `parent` back-reference.
+// TODO: Narrow per-instruction-family to F2 (no parent back-ref). Target families:
+//       print/printl → output-only via injected console;
+//       input/inputint → SessionIO abstraction;
+//       call/return → CallFunction already F2 via CalledFunction;
+//       arithmetic/assign → pure ExpressionMediator + VEvaluator.
 internal sealed partial class Process
 {
 	bool saveSkip;

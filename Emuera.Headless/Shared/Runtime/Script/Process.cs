@@ -47,6 +47,7 @@ internal sealed partial class Process(EmueraConsole view)
 	// ADR-0011：6 引擎字段之一，实例持有，不再写回 GlobalStatic。
 	public GameBase GameBaseData { get { return gamebase; } }
 	private ConstantData constantData = null!;
+	// ADR-0011：6 引擎字段之一，实例持有，不再写回 GlobalStatic。
 	public ConstantData ConstantData { get { return constantData; } }
 	readonly EmueraConsole console = view;
 	private IdentifierDictionary idDic = null!;
@@ -600,7 +601,8 @@ internal sealed partial class Process(EmueraConsole view)
 	/// <summary>
 	/// ADR-0011 决策二：引擎数据加载子模块（F2 深模块）。
 	/// 字段在 <see cref="Initialize"/>（composition root）中创建；Loader 仅处理文件 I/O，
-	/// 经方法参数接收所需对象，不持 Process 反向引用。
+	/// 经方法参数接收所需对象。不存储 Process 反向引用字段（F2），但方法签名
+	/// 暂仍接收 Process 以传递给 ErhLoader/ErbLoader（二者尚未 F2）。
 	/// </summary>
 	internal sealed class Loader
 	{

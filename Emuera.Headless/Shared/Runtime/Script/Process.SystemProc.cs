@@ -11,6 +11,11 @@ using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
 
 namespace MinorShift.Emuera.GameProc;
 
+// ADR-0011 phase-1 transitional form: SystemProc holds `parent` back-reference.
+// TODO: Narrow per-instruction-family to F2 (no parent back-ref). Target families:
+//       beginTrain/endTrain → pure SystemState routing via injected console+VEvaluator;
+//       WaitInput/trainWaitInput → SessionIO abstraction;
+//       ShwCom/printCom → display-only via injected console.
 internal sealed partial class Process
 {
 	private string[] TrainName = null!;
@@ -42,8 +47,8 @@ internal sealed partial class Process
 		bool[] dataIsAvailable = new bool[21];
 		bool isFirstTime = true;
 		const int AutoSaveIndex = 99;
-	int page;
-	int saveTarget = -1;
+		int page;
+		int saveTarget = -1;
 
 	internal SystemProc(Process parent)
 		{
