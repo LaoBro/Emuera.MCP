@@ -6,6 +6,7 @@
 .mimocode/*
 .workbuddy*
 .agents/*
+.scratch/*
 
 Emuera/artifacts/*
 *.csproj.user
@@ -40,3 +41,5 @@ test_game/emuera.config
 .trae/rules/git-commit-message.md
 skills-lock.json
 CONTEXT.md
+
+*.log

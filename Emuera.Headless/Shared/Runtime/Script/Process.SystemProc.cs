@@ -14,1127 +14,1003 @@ namespace MinorShift.Emuera.GameProc;
 internal sealed partial class Process
 {
 	private string[] TrainName = null!;
-	delegate void SystemProcess();
-	Dictionary<SystemStateCode, SystemProcess> systemProcessDictionary = [];
-	private void initSystemProcess()
-	{
-		comAble = new int[TrainName.Length];
-		systemProcessDictionary.Add(SystemStateCode.Title_Begin, new SystemProcess(beginTitle));
-		systemProcessDictionary.Add(SystemStateCode.Openning, new SystemProcess(endOpenning));
-
-		systemProcessDictionary.Add(SystemStateCode.Train_Begin, new SystemProcess(beginTrain));
-		systemProcessDictionary.Add(SystemStateCode.Train_CallEventTrain, new SystemProcess(endCallEventTrain));
-		systemProcessDictionary.Add(SystemStateCode.Train_CallShowStatus, new SystemProcess(endCallShowStatus));
-		systemProcessDictionary.Add(SystemStateCode.Train_CallComAbleXX, new SystemProcess(endCallComAbleXX));
-		systemProcessDictionary.Add(SystemStateCode.Train_CallShowUserCom, new SystemProcess(endCallShowUserCom));
-		systemProcessDictionary.Add(SystemStateCode.Train_WaitInput, new SystemProcess(trainWaitInput));
-		systemProcessDictionary.Add(SystemStateCode.Train_CallEventCom, new SystemProcess(endEventCom));
-		systemProcessDictionary.Add(SystemStateCode.Train_CallComXX, new SystemProcess(endCallComXX));
-		systemProcessDictionary.Add(SystemStateCode.Train_CallSourceCheck, new SystemProcess(endCallSourceCheck));
-		systemProcessDictionary.Add(SystemStateCode.Train_CallEventComEnd, new SystemProcess(endCallEventComEnd)); ;
-		systemProcessDictionary.Add(SystemStateCode.Train_DoTrain, new SystemProcess(doTrain));
-
-		systemProcessDictionary.Add(SystemStateCode.AfterTrain_Begin, new SystemProcess(beginAfterTrain));
-
-		systemProcessDictionary.Add(SystemStateCode.Ablup_Begin, new SystemProcess(beginAblup));
-		systemProcessDictionary.Add(SystemStateCode.Ablup_CallShowJuel, new SystemProcess(endCallShowJuel));
-		systemProcessDictionary.Add(SystemStateCode.Ablup_CallShowAblupSelect, new SystemProcess(endCallShowAblupSelect));
-		systemProcessDictionary.Add(SystemStateCode.Ablup_WaitInput, new SystemProcess(ablupWaitInput));
-		systemProcessDictionary.Add(SystemStateCode.Ablup_CallAblupXX, new SystemProcess(endCallAblupXX));
-
-		systemProcessDictionary.Add(SystemStateCode.Turnend_Begin, new SystemProcess(beginTurnend));
-
-		systemProcessDictionary.Add(SystemStateCode.Shop_Begin, new SystemProcess(beginShop));
-		systemProcessDictionary.Add(SystemStateCode.Shop_CallEventShop, new SystemProcess(endCallEventShop));
-		systemProcessDictionary.Add(SystemStateCode.Shop_CallShowShop, new SystemProcess(endCallShowShop));
-		systemProcessDictionary.Add(SystemStateCode.Shop_WaitInput, new SystemProcess(shopWaitInput));
-		systemProcessDictionary.Add(SystemStateCode.Shop_CallEventBuy, new SystemProcess(endCallEventBuy));
-
-		systemProcessDictionary.Add(SystemStateCode.SaveGame_Begin, new SystemProcess(beginSaveGame));
-		systemProcessDictionary.Add(SystemStateCode.SaveGame_WaitInput, new SystemProcess(saveGameWaitInput));
-		systemProcessDictionary.Add(SystemStateCode.SaveGame_WaitInputOverwrite, new SystemProcess(saveGameWaitInputOverwrite));
-		systemProcessDictionary.Add(SystemStateCode.SaveGame_CallSaveInfo, new SystemProcess(endCallSaveInfo));
-		systemProcessDictionary.Add(SystemStateCode.LoadGame_Begin, new SystemProcess(beginLoadGame));
-		systemProcessDictionary.Add(SystemStateCode.LoadGame_WaitInput, new SystemProcess(loadGameWaitInput));
-		systemProcessDictionary.Add(SystemStateCode.LoadGameOpenning_Begin, new SystemProcess(beginLoadGameOpening));
-		systemProcessDictionary.Add(SystemStateCode.LoadGameOpenning_WaitInput, new SystemProcess(loadGameWaitInput));
-
-		//stateEndProcessDictionary.Add(ProgramState.AutoSave_Begin, new stateEndProcess(this.beginAutoSave));
-		systemProcessDictionary.Add(SystemStateCode.AutoSave_CallSaveInfo, new SystemProcess(endAutoSaveCallSaveInfo));
-		systemProcessDictionary.Add(SystemStateCode.AutoSave_CallUniqueAutosave, new SystemProcess(endAutoSave));
-
-		systemProcessDictionary.Add(SystemStateCode.LoadData_DataLoaded, new SystemProcess(beginDataLoaded));
-		systemProcessDictionary.Add(SystemStateCode.LoadData_CallSystemLoad, new SystemProcess(endSystemLoad));
-		systemProcessDictionary.Add(SystemStateCode.LoadData_CallEventLoad, new SystemProcess(endEventLoad));
-
-		systemProcessDictionary.Add(SystemStateCode.Openning_TitleLoadgame, new SystemProcess(endTitleLoadgame));
-
-		systemProcessDictionary.Add(SystemStateCode.System_Reloaderb, new SystemProcess(endReloaderb));
-		systemProcessDictionary.Add(SystemStateCode.First_Begin, new SystemProcess(beginFirst));
-
-
-		systemProcessDictionary.Add(SystemStateCode.Normal, new SystemProcess(endNormal));
-		return;
-	}
-
-
-
 	long systemResult;
-	int lastCalledComable = -1;
-	int lastAddCom = -1;
-	//(Train.csv中の値・定義されていなければ-1) == comAble[(表示されている値)];
-	int[] comAble = null!;//
-
-
-	private void runSystemProc()
-	{
-		//スクリプト実行中にここには来ないはず
-		//if (!state.ScriptEnd)
-		//    throw new ExeEE("不正な呼び出し");
-
-		//ない物を渡す処理は現状ない
-		//if (systemProcessDictionary.ContainsKey(state.SystemState))
-		systemProcessDictionary[state.SystemState]();
-		//else
-		//    throw new ExeEE("未定義の状態");
-
-	}
-
-	void setWait()
-	{
-		console.ReadAnyKey();
-	}
-	#region EE_SystemInput拡張
 	public long flowinputDef = 0;
 	public bool flowinput = false;
 	public bool flowinputCanSkip = false;
 	public string flowinputDefString = "";
 	public bool flowinputString = false;
 	public bool flowinputForceSkip = false;
-	#endregion
-
-	void setWaitInput()
-	{
-		InputRequest req = new();
-		#region EE_SystemInput拡張
-		if (flowinput)
-		{
-			req.HasDefValue = true;
-			req.DefIntValue = flowinputDef;
-			req.MouseInput = flowinput;
-			req.DefStrValue = flowinputDefString;
-		}
-		#endregion
-		if (flowinputString)
-			req.InputType = InputType.StrValue;
-		else
-			req.InputType = InputType.IntValue;
-		req.IsSystemInput = true;
-		#region EE_SystemInput拡張
-		if (flowinputForceSkip)
-		{
-			systemResult = req.DefIntValue;
-			if (flowinputString)
-				exm.VEvaluator.RESULTS = req.DefStrValue;
-		}
-		else if (flowinputCanSkip && GlobalStatic.Console.MesSkip)
-		{
-			systemResult = req.DefIntValue;
-			if (flowinputString)
-				exm.VEvaluator.RESULTS = req.DefStrValue;
-		}
-		console.WaitInput(req);
-		#endregion
-	}
-
-
-	private bool callFunction(string functionName, bool force, bool isEvent)
-	{
-		CalledFunction call;
-		if (isEvent)
-			call = CalledFunction.CallEventFunction(this, functionName, null!);
-		else
-			call = CalledFunction.CallFunction(this, functionName, null!);
-		if (call == null)
-			if (!force)
-				return false;
-			else
-				throw new CodeEE(string.Format(trerror.FuncIsNotFound.Text, functionName));
-		//そもそも非イベント関数では関数1個分しか与えないので条件を満たすわけがない
-		//if ((!isEvent) && (call.Count > 1))
-		//    throw new ExeEE("イベント関数でない関数\"@" + functionName + "\"の候補が複数ある");
-		state.IntoFunction(call, null!, null!);
-		return true;
-	}
-
-	//CheckState()から呼ばれる関数群。ScriptEndに達したときの処理。
-	void beginTitle()
-	{
-		//連続調教コマンド処理中の状態が持ち越されていたらここで消しておく
-		if (isCTrain)
-			if (ClearCommands())
-				return;
-		skipPrint = false;
-		console.ResetStyle();
-		deleteAllPrevState();
-		if (Program.AnalysisMode)
-		{
-			console.PrintSystemLine(trsl.AnalysisCompleted.Text);
-			#region EE_OUTPUTLOG
-			// console.OutputLog(Program.ExeDir + "Analysis.log");
-			console.OutputSystemLog(Program.ExeDir + "Analysis.log");
-			#endregion
-			console.noOutputLog = true;
-			console.PrintSystemLine(trsl.PressEnterOrClick.Text);
-#if !HEADLESS
-			System.Media.SystemSounds.Asterisk.Play();
-#endif
-			console.ThrowTitleError(false);
-			return;
-		}
-		if ((!noError) && (!Config.CompatiErrorLine))
-		{
-			console.PrintErrorButton(trsl.ExitBecauseCanNotInterpreted1.Text, null, 3);
-			console.PrintSystemLine(string.Format(trsl.ExitBecauseCanNotInterpreted2.Text, Config.GetConfigName(ConfigCode.CompatiErrorLine)));
-			console.PrintSystemLine(trsl.ExitBecauseCanNotInterpreted3.Text);
-			#region EE_OUTPUTLOG
-			// console.OutputLog(Program.ExeDir + "emuera.log");
-			console.OutputSystemLog(Program.ExeDir + "emuera.log");
-			#endregion
-			console.noOutputLog = true;
-			console.PrintSystemLine(trsl.PressEnterOrClick.Text);
-#if !HEADLESS
-			System.Media.SystemSounds.Asterisk.Play();
-#endif
-			console.ThrowTitleError(true);
-			return;
-		}
-		if (callFunction("SYSTEM_TITLE", false, false))
-		{//独自定義
-			state.SystemState = SystemStateCode.Normal;
-			return;
-		}
-		//標準のタイトル画面
-		console.PrintBar();
-		console.NewLine();
-		console.Alignment = DisplayLineAlignment.CENTER;
-		console.PrintSingleLine(gamebase.ScriptTitle);
-		if (gamebase.ScriptVersion != 0)
-			console.PrintSingleLine(gamebase.ScriptVersionText);
-		console.PrintSingleLine(gamebase.ScriptAutherName);
-		console.PrintSingleLine("(" + gamebase.ScriptYear + ")");
-		console.NewLine();
-		console.PrintSingleLine(gamebase.ScriptDetail);
-		console.Alignment = DisplayLineAlignment.LEFT;
-
-		console.PrintBar();
-		console.NewLine();
-		console.PrintSingleLine("[0] " + Config.TitleMenuString0);
-		console.PrintSingleLine("[1] " + Config.TitleMenuString1);
-		openingInput();
-		return;
-	}
-
-	void openingInput()
-	{
-		setWaitInput();
-		state.SystemState = SystemStateCode.Openning;
-		return;
-	}
-
-	void endOpenning()
-	{
-		if (systemResult == 0)
-		{//[0] 最初からはじめる
-			vEvaluator.ResetData();
-			//vEvaluator.AddCharacter(0, false);
-			vEvaluator.AddCharacterFromCsvNo(0);
-			if (gamebase.DefaultCharacter > 0)
-				//vEvaluator.AddCharacter(gamebase.DefaultCharacter, false);
-				vEvaluator.AddCharacterFromCsvNo(gamebase.DefaultCharacter);
-			console.PrintBar();
-			console.NewLine();
-			beginFirst();
-		}
-		else if (systemResult == 1)
-		{
-			if (callFunction("TITLE_LOADGAME", false, false))
-			{//独自定義
-				state.SystemState = SystemStateCode.Openning_TitleLoadgame;
-			}
-			else
-			{//標準のLOADGAME
-				beginLoadGameOpening();
-			}
-		}
-		else//入力が正しくないならもう一回選択肢を書き直し、正しい選択を要求する。
-		{//RESUELASTLINEと同様の処理を行うように変更
-			console.deleteLine(1);
-			console.PrintTemporaryLine(trerror.InvalidValue.Text);
-			console.updatedGeneration = true;
-			openingInput();
-			//beginTitle();
-		}
-
-	}
-
-	void beginFirst()
-	{
-		state.SystemState = SystemStateCode.Normal;
-		//連続調教コマンド処理中の状態が持ち越されていたらここで消しておく
-		if (isCTrain)
-			if (ClearCommands())
-				return;
-		skipPrint = false;
-		callFunction("EVENTFIRST", true, true);
-	}
-
-	void endTitleLoadgame()
-	{
-		beginTitle();
-	}
-
-	void beginTrain()
-	{
-		vEvaluator.UpdateInBeginTrain();
-		state.SystemState = SystemStateCode.Train_CallEventTrain;
-		//EVENTTRAINを呼び出してTrain_CallEventTrainへ移行。
-		if (!callFunction("EVENTTRAIN", false, true))
-		{
-			//存在しなければスキップしてTrain_CallEventTrainが終わったことにする。
-			endCallEventTrain();
-		}
-	}
-
+	public bool NeedWaitToEventComEnd;
+	bool needCheck = true;
 	List<long> coms = [];
 	bool isCTrain;
 	int count;
 	bool skipPrint;
 	public bool SkipPrint { get { return skipPrint; } set { skipPrint = value; } }
-	void endCallEventTrain()
-	{
-		if (vEvaluator.NEXTCOM >= 0)
-		{//NEXTCOMの処理
-			state.SystemState = SystemStateCode.Train_CallEventCom;
-			vEvaluator.SELECTCOM = vEvaluator.NEXTCOM;
-			vEvaluator.NEXTCOM = 0;
-			//-1ではなく0を代入するのでERB側で変更しない限り無限にはまることになるがeramakerからの仕様である。
-			callEventCom();
-			return;
-		}
-		else
-		{
-			//if (!isCTrain)
-			//{
-			//SHOW_STATUSを呼び出してTrain_CallShowStatusへ移行。
-			if (isCTrain)
-				skipPrint = true;
-			callFunction("SHOW_STATUS", true, false);
-			state.SystemState = SystemStateCode.Train_CallShowStatus;
-			//}
-			//else
-			//{
-			//連続調教モードならCOMABLE処理へ
-			//	endCallShowStatus();
-			//}
-		}
-	}
-
-	void endCallShowStatus()
-	{
-		//SHOW_STATUSが終わったらComAbleXXの呼び出し状態をリセットしてTrain_CallComAbleXXへ移行。
-		state.SystemState = SystemStateCode.Train_CallComAbleXX;
-		lastCalledComable = -1;
-		lastAddCom = -1;
-		printComCount = 0;
-		for (int i = 0; i < comAble.Length; i++)
-			comAble[i] = -1;
-		endCallComAbleXX();
-	}
-
-	string getTrainComString(int trainCode, int comNo)
-	{
-		string trainName = TrainName[trainCode];
-		return string.Format("{0}[{1,3}]", trainName, comNo);
-	}
-
-	int printComCount;
-	void endCallComAbleXX()
-	{
-		//選択肢追加。RESULTが0の場合は選択肢の番号のみ増やして追加はしない。
-		if ((lastCalledComable >= 0) && (TrainName[lastCalledComable] != null))
-		{
-			lastAddCom++;
-			if (vEvaluator.RESULT != 0)
-			{
-				comAble[lastAddCom] = lastCalledComable;
-				if (!isCTrain)
-				{
-					console.PrintC(getTrainComString(lastCalledComable, lastAddCom), true);
-					printComCount++;
-					if ((Config.PrintCPerLine > 0) && (printComCount % Config.PrintCPerLine == 0))
-						console.PrintFlush(false);
-				}
-				console.RefreshStrings(false);
-			}
-		}
-		//ComAbleXXの呼び出し。train.csvに定義されていないものはスキップ、ComAbleXXが見つからなければREUTRN 1と同様に扱う。
-		while (++lastCalledComable < TrainName.Length)
-		{
-			if (TrainName[lastCalledComable] == null)
-				continue;
-			string comName = string.Format("COM_ABLE{0}", lastCalledComable);
-			if (!callFunction(comName, false, false))
-			{
-				lastAddCom++;
-				if (Config.ComAbleDefault == 0)
-					continue;
-				comAble[lastAddCom] = lastCalledComable;
-				if (!isCTrain)
-				{
-					console.PrintC(getTrainComString(lastCalledComable, lastAddCom), true);
-					printComCount++;
-					if ((Config.PrintCPerLine > 0) && (printComCount % Config.PrintCPerLine == 0))
-						console.PrintFlush(false);
-				}
-				continue;
-			}
-			console.RefreshStrings(false);
-			return;
-		}
-		//全部検索したら終了し、SHOW_USERCOMを呼び出す。
-		if (lastCalledComable >= TrainName.Length)
-		{
-			state.SystemState = SystemStateCode.Train_CallShowUserCom;
-			//if (!isCTrain)
-			//{
-			console.PrintFlush(false);
-			console.RefreshStrings(false);
-			callFunction("SHOW_USERCOM", true, false);
-			//}
-			//else
-			//	endCallShowUserCom();
-		}
-	}
-
-	void endCallShowUserCom()
-	{
-		if (skipPrint)
-			skipPrint = false;
-		vEvaluator.UpdateAfterShowUsercom();
-		if (!isCTrain)
-		{
-			//数値入力待ち状態にしてTrain_WaitInputへ移行。
-			setWaitInput();
-
-			state.SystemState = SystemStateCode.Train_WaitInput;
-		}
-		else
-		{
-			if (count < coms.Count)
-			{
-				systemResult = coms[count];
-				count++;
-				trainWaitInput();
-			}
-		}
-	}
-
-	void trainWaitInput()
-	{
-		int selectCom = -1;
-		if (!isCTrain)
-		{
-			if ((systemResult >= 0) && (systemResult < comAble.Length))
-				selectCom = comAble[systemResult];
-		}
-		else
-		{
-			for (int i = 0; i < comAble.Length; i++)
-			{
-				if (comAble[i] == systemResult)
-					selectCom = (int)systemResult;
-			}
-			console.PrintSingleLine(string.Format(trerror.ExecutedCom.Text, count, coms.Count));
-		}
-		//TrainNameが定義されていて使用可能(COMABLEが非0を返した)である
-		if (selectCom >= 0)
-		{
-			vEvaluator.SELECTCOM = selectCom;
-			callEventCom();
-		}
-		else
-		{//されていない。
-			if (isCTrain)
-				console.PrintSingleLine(trerror.CouldNotExecuteCom.Text);
-			vEvaluator.RESULT = systemResult;
-			state.SystemState = SystemStateCode.Train_CallEventComEnd;
-			callFunction("USERCOM", true, false);
-			//COM中の必要なことは全部USERCOM内でやる。
-		}
-	}
-
 	private long doTrainSelectCom = -1;
-	void doTrain()
-	{
-		vEvaluator.UpdateAfterShowUsercom();
-		vEvaluator.SELECTCOM = doTrainSelectCom;
-		callEventCom();
-	}
 
-	void callEventCom()
+	internal sealed class SystemProc
 	{
-		vEvaluator.UpdateAfterInputCom();
-		state.SystemState = SystemStateCode.Train_CallEventCom;
-		if (!callFunction("EVENTCOM", false, true))
-			endEventCom();
-		return;
-	}
+		readonly Process parent;
+		delegate void SystemProcess();
+		Dictionary<SystemStateCode, SystemProcess> systemProcessDictionary = [];
+		int[] comAble = null!;
+		int lastCalledComable = -1;
+		int lastAddCom = -1;
+		int printComCount;
+		bool[] dataIsAvailable = new bool[21];
+		bool isFirstTime = true;
+		const int AutoSaveIndex = 99;
+	int page;
+	int saveTarget = -1;
 
-	void endEventCom()
-	{
-		long selectCom = vEvaluator.SELECTCOM;
-		string comName = string.Format("COM{0}", selectCom);
-		state.SystemState = SystemStateCode.Train_CallComXX;
-		callFunction(comName, true, false);
-	}
-
-	void endCallComXX()
-	{
-		//実行に失敗した
-		if (vEvaluator.RESULT == 0)
+	internal SystemProc(Process parent)
 		{
-			//Com終了。
-			endCallEventComEnd();
+			this.parent = parent;
 		}
-		else
-		{//成功したならSOURCE_CHECKへ移行。
-			state.SystemState = SystemStateCode.Train_CallSourceCheck;
-			callFunction("SOURCE_CHECK", true, false);
-		}
-	}
 
-	void endCallSourceCheck()
-	{
-		//SOURCEはここでリセット
-		vEvaluator.UpdateAfterSourceCheck();
-		//EVENTCOMENDを呼び出してTrain_CallEventComEndへ移行。
-		state.SystemState = SystemStateCode.Train_CallEventComEnd;
-		//EVENTCOMENDが存在しない、またはEVENTCOMEND内でWAIT系命令が行われない場合、EVENTCOMEND後にWAITを追加する。
-		NeedWaitToEventComEnd = true;
-		if (!callFunction("EVENTCOMEND", false, true))
+		internal void Init()
 		{
-			//見つからないならスキップしてTrain_CallEventComEndが終了したとみなす。
-			endCallEventComEnd();
-		}
-	}
-	public bool NeedWaitToEventComEnd;
-	bool needCheck = true;
-	void endCallEventComEnd()
-	{
-		if (console.LastLineIsTemporary && !isCTrain && needCheck)
-		{
-			if (console.LastLineIsEmpty)
-			{
-				console.deleteLine(2);
-				console.PrintTemporaryLine(trerror.InvalidValue.Text);
-			}
-			console.updatedGeneration = true;
-			endCallShowUserCom();
-		}
-		else
-		{
-			if (isCTrain && count == coms.Count)
-			{
-				isCTrain = false;
-				skipPrint = false;
-				coms.Clear();
-				count = 0;
-				if (callFunction("CALLTRAINEND", false, false))
-				{
-					needCheck = false;
-					return;
-				}
-			}
-			needCheck = true;
-			////1.701	ここでWAITは不要だった。
-			////setWait();
-			//1.703 やはり必要な場合もあった
-			if (NeedWaitToEventComEnd)
-				setWait();
-			NeedWaitToEventComEnd = false;
-			//SHOW_STATUSからやり直す。
-			//処理はTrain_CallEventTrainと同じ。
-			endCallEventTrain();
-		}
-	}
+			comAble = new int[parent.TrainName.Length];
+			systemProcessDictionary.Add(SystemStateCode.Title_Begin, new SystemProcess(beginTitle));
+			systemProcessDictionary.Add(SystemStateCode.Openning, new SystemProcess(endOpenning));
 
-	void beginAfterTrain()
-	{
-		//連続調教モード中にここに来る場合があるので、ここで解除
-		if (isCTrain)
-			if (ClearCommands())
-				return;
-		skipPrint = false;
-		state.SystemState = SystemStateCode.Normal;
-		//EVENTENDを呼び出す。exe側が状態を把握する必要が無くなるのでNormalへ移行。
-		callFunction("EVENTEND", true, true);
-	}
+			systemProcessDictionary.Add(SystemStateCode.Train_Begin, new SystemProcess(beginTrain));
+			systemProcessDictionary.Add(SystemStateCode.Train_CallEventTrain, new SystemProcess(endCallEventTrain));
+			systemProcessDictionary.Add(SystemStateCode.Train_CallShowStatus, new SystemProcess(endCallShowStatus));
+			systemProcessDictionary.Add(SystemStateCode.Train_CallComAbleXX, new SystemProcess(endCallComAbleXX));
+			systemProcessDictionary.Add(SystemStateCode.Train_CallShowUserCom, new SystemProcess(endCallShowUserCom));
+			systemProcessDictionary.Add(SystemStateCode.Train_WaitInput, new SystemProcess(trainWaitInput));
+			systemProcessDictionary.Add(SystemStateCode.Train_CallEventCom, new SystemProcess(endEventCom));
+			systemProcessDictionary.Add(SystemStateCode.Train_CallComXX, new SystemProcess(endCallComXX));
+			systemProcessDictionary.Add(SystemStateCode.Train_CallSourceCheck, new SystemProcess(endCallSourceCheck));
+			systemProcessDictionary.Add(SystemStateCode.Train_CallEventComEnd, new SystemProcess(endCallEventComEnd)); ;
+			systemProcessDictionary.Add(SystemStateCode.Train_DoTrain, new SystemProcess(doTrain));
 
-	void beginAblup()
-	{
-		//連続調教コマンド処理中の状態が持ち越されていたらここで消しておく
-		if (isCTrain)
-			if (ClearCommands())
-				return;
-		skipPrint = false;
-		state.SystemState = SystemStateCode.Ablup_CallShowJuel;
-		//SHOW_JUELを呼び出しAblup_CallShowJuelへ移行。
-		callFunction("SHOW_JUEL", true, false);
-	}
+			systemProcessDictionary.Add(SystemStateCode.AfterTrain_Begin, new SystemProcess(beginAfterTrain));
 
-	void endCallShowJuel()
-	{
-		state.SystemState = SystemStateCode.Ablup_CallShowAblupSelect;
-		//SHOW_ABLUP_SELECTを呼び出しAblup_CallAblupSelectへ移行。
-		callFunction("SHOW_ABLUP_SELECT", true, false);
-	}
+			systemProcessDictionary.Add(SystemStateCode.Ablup_Begin, new SystemProcess(beginAblup));
+			systemProcessDictionary.Add(SystemStateCode.Ablup_CallShowJuel, new SystemProcess(endCallShowJuel));
+			systemProcessDictionary.Add(SystemStateCode.Ablup_CallShowAblupSelect, new SystemProcess(endCallShowAblupSelect));
+			systemProcessDictionary.Add(SystemStateCode.Ablup_WaitInput, new SystemProcess(ablupWaitInput));
+			systemProcessDictionary.Add(SystemStateCode.Ablup_CallAblupXX, new SystemProcess(endCallAblupXX));
 
-	void endCallShowAblupSelect()
-	{
-		//数値入力待ち状態にしてAblup_WaitInputへ移行。
-		setWaitInput();
-		state.SystemState = SystemStateCode.Ablup_WaitInput;
-	}
+			systemProcessDictionary.Add(SystemStateCode.Turnend_Begin, new SystemProcess(beginTurnend));
 
-	void ablupWaitInput()
-	{
-		//定義されていなくても100未満ならABLUPが呼ばれ、USERABLUPは呼ばれない。そうしないと[99]反発刻印とかが出来ない。
-		if ((systemResult >= 0) && (systemResult < 100))
-		{
-			state.SystemState = SystemStateCode.Ablup_CallAblupXX;
-			string ablName = string.Format("ABLUP{0}", systemResult);
-			if (!callFunction(ablName, false, false))
-			{
-				//見つからなければ終了
-				console.deleteLine(1);
-				console.PrintTemporaryLine(trerror.InvalidValue.Text);
-				console.updatedGeneration = true;
-				endCallShowAblupSelect();
-			}
-		}
-		else
-		{
-			vEvaluator.RESULT = systemResult;
-			state.SystemState = SystemStateCode.Ablup_CallAblupXX;
-			callFunction("USERABLUP", true, false);
-		}
-	}
+			systemProcessDictionary.Add(SystemStateCode.Shop_Begin, new SystemProcess(beginShop));
+			systemProcessDictionary.Add(SystemStateCode.Shop_CallEventShop, new SystemProcess(endCallEventShop));
+			systemProcessDictionary.Add(SystemStateCode.Shop_CallShowShop, new SystemProcess(endCallShowShop));
+			systemProcessDictionary.Add(SystemStateCode.Shop_WaitInput, new SystemProcess(shopWaitInput));
+			systemProcessDictionary.Add(SystemStateCode.Shop_CallEventBuy, new SystemProcess(endCallEventBuy));
 
-	void endCallAblupXX()
-	{
-		if (console.LastLineIsTemporary)
-		{
-			if (console.LastLineIsEmpty)
-			{
-				console.deleteLine(2);
-				console.PrintTemporaryLine("無効な値です");
-			}
-			console.updatedGeneration = true;
-			endCallShowAblupSelect();
-		}
-		else
-			beginAblup();
-	}
+			systemProcessDictionary.Add(SystemStateCode.SaveGame_Begin, new SystemProcess(beginSaveGame));
+			systemProcessDictionary.Add(SystemStateCode.SaveGame_WaitInput, new SystemProcess(saveGameWaitInput));
+			systemProcessDictionary.Add(SystemStateCode.SaveGame_WaitInputOverwrite, new SystemProcess(saveGameWaitInputOverwrite));
+			systemProcessDictionary.Add(SystemStateCode.SaveGame_CallSaveInfo, new SystemProcess(endCallSaveInfo));
+			systemProcessDictionary.Add(SystemStateCode.LoadGame_Begin, new SystemProcess(beginLoadGame));
+			systemProcessDictionary.Add(SystemStateCode.LoadGame_WaitInput, new SystemProcess(loadGameWaitInput));
+			systemProcessDictionary.Add(SystemStateCode.LoadGameOpenning_Begin, new SystemProcess(beginLoadGameOpening));
+			systemProcessDictionary.Add(SystemStateCode.LoadGameOpenning_WaitInput, new SystemProcess(loadGameWaitInput));
 
-	void beginTurnend()
-	{
-		//連続調教コマンド処理中の状態が持ち越されていたらここで消しておく
-		if (isCTrain)
-			if (ClearCommands())
-				return;
-		skipPrint = false;
-		//EVENTTURNENDを呼び出しNormalへ移行
-		callFunction("EVENTTURNEND", true, true);
-		state.SystemState = SystemStateCode.Normal;
-	}
+			systemProcessDictionary.Add(SystemStateCode.AutoSave_CallSaveInfo, new SystemProcess(endAutoSaveCallSaveInfo));
+			systemProcessDictionary.Add(SystemStateCode.AutoSave_CallUniqueAutosave, new SystemProcess(endAutoSave));
 
-	void beginShop()
-	{
-		//連続調教コマンド処理中の状態が持ち越されていたらここで消しておく
-		if (isCTrain)
-			if (ClearCommands())
-				return;
-		skipPrint = false;
-		state.SystemState = SystemStateCode.Shop_CallEventShop;
-		//EVENTSHOPを呼び出してShop_CallEventShopへ移行。
-		if (!callFunction("EVENTSHOP", false, true))
-		{
-			//存在しなければスキップしてShop_CallEventShopが終わったことにする。
-			endCallEventShop();
-		}
-	}
+			systemProcessDictionary.Add(SystemStateCode.LoadData_DataLoaded, new SystemProcess(beginDataLoaded));
+			systemProcessDictionary.Add(SystemStateCode.LoadData_CallSystemLoad, new SystemProcess(endSystemLoad));
+			systemProcessDictionary.Add(SystemStateCode.LoadData_CallEventLoad, new SystemProcess(endEventLoad));
 
-	void endCallEventShop()
-	{
-		saveTarget = -1;
-		if (Config.AutoSave && state.calledWhenNormal)
-			beginAutoSave();
-		else
-		{
-			state.SystemState = SystemStateCode.AutoSave_Skipped;
-			endAutoSaveCallSaveInfo();
-		}
-	}
+			systemProcessDictionary.Add(SystemStateCode.Openning_TitleLoadgame, new SystemProcess(endTitleLoadgame));
 
-	void beginAutoSave()
-	{
-		if (callFunction("SYSTEM_AUTOSAVE", false, false))
-		{//@SYSTEM_AUTOSAVEが存在するならそれを使う。
-			state.SystemState = SystemStateCode.AutoSave_CallUniqueAutosave;
+			systemProcessDictionary.Add(SystemStateCode.System_Reloaderb, new SystemProcess(endReloaderb));
+			systemProcessDictionary.Add(SystemStateCode.First_Begin, new SystemProcess(beginFirst));
+
+
+			systemProcessDictionary.Add(SystemStateCode.Normal, new SystemProcess(endNormal));
 			return;
 		}
-		saveTarget = AutoSaveIndex;
-		vEvaluator.SAVEDATA_TEXT = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") + " ";
-		state.SystemState = SystemStateCode.AutoSave_CallSaveInfo;
-		if (!callFunction("SAVEINFO", false, false))
-			endAutoSaveCallSaveInfo();//存在しなければスキップ
-	}
 
-	void endAutoSaveCallSaveInfo()
-	{
-		if (saveTarget == AutoSaveIndex)
+		public void Run()
 		{
-			if (!vEvaluator.SaveTo(saveTarget, vEvaluator.SAVEDATA_TEXT))
-			{
-				console.PrintError(trerror.AutoSaveError1.Text);
-				console.PrintError(trerror.AutoSaveError2.Text);
-				console.ReadAnyKey();
-			}
+			systemProcessDictionary[parent.state.SystemState]();
 		}
-		endAutoSave();
-	}
 
-	void endAutoSave()
-	{
-		if (state.isBegun)
+		internal bool CallFunction(string functionName, bool force, bool isEvent)
 		{
-			state.Begin();
+			CalledFunction call;
+			if (isEvent)
+				call = CalledFunction.CallEventFunction(parent, functionName, null!);
+			else
+				call = CalledFunction.CallFunction(parent, functionName, null!);
+			if (call == null)
+				if (!force)
+					return false;
+				else
+					throw new CodeEE(string.Format(trerror.FuncIsNotFound.Text, functionName));
+			parent.state.IntoFunction(call, null!, null!);
+			return true;
+		}
+
+		void setWait()
+		{
+			parent.console.ReadAnyKey();
+		}
+
+		void setWaitInput()
+		{
+			InputRequest req = new();
+			if (parent.flowinput)
+			{
+				req.HasDefValue = true;
+				req.DefIntValue = parent.flowinputDef;
+				req.MouseInput = parent.flowinput;
+				req.DefStrValue = parent.flowinputDefString;
+			}
+			if (parent.flowinputString)
+				req.InputType = InputType.StrValue;
+			else
+				req.InputType = InputType.IntValue;
+			req.IsSystemInput = true;
+			if (parent.flowinputForceSkip)
+			{
+				parent.systemResult = req.DefIntValue;
+				if (parent.flowinputString)
+					parent.exm.VEvaluator.RESULTS = req.DefStrValue;
+			}
+			else if (parent.flowinputCanSkip && parent.console.MesSkip)
+			{
+				parent.systemResult = req.DefIntValue;
+				if (parent.flowinputString)
+					parent.exm.VEvaluator.RESULTS = req.DefStrValue;
+			}
+			parent.console.WaitInput(req);
+		}
+
+	void beginTitle()
+	{
+		if (parent.isCTrain)
+			if (parent.ClearCommands())
+				return;
+		parent.skipPrint = false;
+		parent.console.ResetStyle();
+		parent.deleteAllPrevState();
+			if (Program.AnalysisMode)
+			{
+				parent.console.PrintSystemLine(trsl.AnalysisCompleted.Text);
+				parent.console.OutputSystemLog(Program.ExeDir + "Analysis.log");
+				parent.console.noOutputLog = true;
+				parent.console.PrintSystemLine(trsl.PressEnterOrClick.Text);
+#if !HEADLESS
+				System.Media.SystemSounds.Asterisk.Play();
+#endif
+				parent.console.ThrowTitleError(false);
+				return;
+			}
+			if ((!parent.noError) && (!Config.CompatiErrorLine))
+			{
+				parent.console.PrintErrorButton(trsl.ExitBecauseCanNotInterpreted1.Text, null, 3);
+				parent.console.PrintSystemLine(string.Format(trsl.ExitBecauseCanNotInterpreted2.Text, Config.GetConfigName(ConfigCode.CompatiErrorLine)));
+				parent.console.PrintSystemLine(trsl.ExitBecauseCanNotInterpreted3.Text);
+				parent.console.OutputSystemLog(Program.ExeDir + "emuera.log");
+				parent.console.noOutputLog = true;
+				parent.console.PrintSystemLine(trsl.PressEnterOrClick.Text);
+#if !HEADLESS
+				System.Media.SystemSounds.Asterisk.Play();
+#endif
+				parent.console.ThrowTitleError(true);
+				return;
+			}
+			if (CallFunction("SYSTEM_TITLE", false, false))
+			{
+				parent.state.SystemState = SystemStateCode.Normal;
+				return;
+			}
+			parent.console.PrintBar();
+			parent.console.NewLine();
+			parent.console.Alignment = DisplayLineAlignment.CENTER;
+			parent.console.PrintSingleLine(parent.gamebase.ScriptTitle);
+			if (parent.gamebase.ScriptVersion != 0)
+				parent.console.PrintSingleLine(parent.gamebase.ScriptVersionText);
+			parent.console.PrintSingleLine(parent.gamebase.ScriptAutherName);
+			parent.console.PrintSingleLine("(" + parent.gamebase.ScriptYear + ")");
+			parent.console.NewLine();
+			parent.console.PrintSingleLine(parent.gamebase.ScriptDetail);
+			parent.console.Alignment = DisplayLineAlignment.LEFT;
+
+			parent.console.PrintBar();
+			parent.console.NewLine();
+			parent.console.PrintSingleLine("[0] " + Config.TitleMenuString0);
+			parent.console.PrintSingleLine("[1] " + Config.TitleMenuString1);
+			openingInput();
 			return;
 		}
-		state.SystemState = SystemStateCode.Shop_CallShowShop;
-		//SHOW_SHOPを呼び出しShop_CallShowShopへ移行
-		callFunction("SHOW_SHOP", true, false);
-	}
 
-	void endCallShowShop()
-	{
-		//数値入力待ち状態にしてShop_WaitInputへ移行。
-		setWaitInput();
-		state.SystemState = SystemStateCode.Shop_WaitInput;
-	}
-
-	//PRINT_SHOPITEMとは独立している。
-	//BOUGHTが100以上のアイテムが有り、ITEMSALESがTRUEだとしても強制的に@USERSHOP行き。
-	void shopWaitInput()
-	{
-		if ((systemResult >= 0) && (systemResult < Config.MaxShopItem))
+		void openingInput()
 		{
-			if (vEvaluator.ItemSales(systemResult))
+			setWaitInput();
+			parent.state.SystemState = SystemStateCode.Openning;
+			return;
+		}
+
+		void endOpenning()
+		{
+			if (parent.systemResult == 0)
 			{
-				if (vEvaluator.BuyItem(systemResult))
+				parent.vEvaluator.ResetData();
+				parent.vEvaluator.AddCharacterFromCsvNo(0);
+				if (parent.gamebase.DefaultCharacter > 0)
+					parent.vEvaluator.AddCharacterFromCsvNo(parent.gamebase.DefaultCharacter);
+				parent.console.PrintBar();
+				parent.console.NewLine();
+				beginFirst();
+			}
+			else if (parent.systemResult == 1)
+			{
+				if (CallFunction("TITLE_LOADGAME", false, false))
 				{
-					state.SystemState = SystemStateCode.Shop_CallEventBuy;
-					//EVENTBUYを呼び出しShop_CallEventBuyへ移行
-					if (!callFunction("EVENTBUY", false, true))
-						endCallEventBuy();
-					return;
+					parent.state.SystemState = SystemStateCode.Openning_TitleLoadgame;
 				}
 				else
 				{
-					//console.Print("お金が足りません。");
-					//console.NewLine();
-					console.deleteLine(1);
-					console.PrintTemporaryLine(trerror.NotEnoughMoney.Text);
+					beginLoadGameOpening();
 				}
 			}
 			else
 			{
-				//console.Print("売っていません。");
-				//console.NewLine();
-				console.deleteLine(1);
-				console.PrintTemporaryLine(trerror.OutOfStock.Text);
+				parent.console.deleteLine(1);
+				parent.console.PrintTemporaryLine(trerror.InvalidValue.Text);
+				parent.console.updatedGeneration = true;
+				openingInput();
 			}
-			//購入に失敗した場合、endCallEventShop()に戻す。
-			//endCallEventShop();
-			endCallShowShop();
-			return;
-		}
-		else
-		{
-			//RESULTを更新
-			vEvaluator.RESULT = systemResult;
 
-			//USERSHOPを呼び出しShop_CallEventBuyへ移行
-			callFunction("USERSHOP", true, false);
-			state.SystemState = SystemStateCode.Shop_CallEventBuy;
-			return;
 		}
-	}
 
-	void endCallEventBuy()
-	{
-		if (console.LastLineIsTemporary)
+		void beginFirst()
 		{
-			if (console.LastLineIsEmpty)
+			parent.state.SystemState = SystemStateCode.Normal;
+			if (parent.isCTrain)
+				if (parent.ClearCommands())
+					return;
+			parent.skipPrint = false;
+			CallFunction("EVENTFIRST", true, true);
+		}
+
+		void endTitleLoadgame()
+		{
+			beginTitle();
+		}
+
+		void beginTrain()
+		{
+			parent.vEvaluator.UpdateInBeginTrain();
+			parent.state.SystemState = SystemStateCode.Train_CallEventTrain;
+			if (!CallFunction("EVENTTRAIN", false, true))
 			{
-				console.deleteLine(2);
-				console.PrintTemporaryLine(trerror.InvalidValue.Text);
+				endCallEventTrain();
 			}
-			console.updatedGeneration = true;
-			endCallShowShop();
 		}
-		else
-		{
-			//最初に戻る
-			endAutoSave();
-		}
-	}
 
-
-	void beginDataLoaded()
-	{
-		state.SystemState = SystemStateCode.LoadData_CallSystemLoad;
-
-		if (!callFunction("SYSTEM_LOADEND", false, false))
-			endSystemLoad();//存在しなければスキップ
-	}
-	void endSystemLoad()
-	{
-		AppContents.UnloadTempLoadedConstImageNames();
-		AppContents.UnloadTempLoadedGraphicsImageNames();
-		state.SystemState = SystemStateCode.LoadData_CallEventLoad;
-		//EVENTLOADを呼び出してLoadData_CallEventLoadへ移行。
-		if (!callFunction("EVENTLOAD", false, true))
+		void endCallEventTrain()
 		{
-			//存在しなければスキップしてTrain_CallEventTrainが終わったことにする。
-			endAutoSave();
-		}
-	}
-
-	void endEventLoad()
-	{
-		//@EVENTLOAD中にBEGIN命令が行われればここには来ない。
-		//ここに来たらBEGIN SHOP扱い。オートセーブはしない。
-		endAutoSave();
-	}
-
-	void beginSaveGame()
-	{
-		console.PrintSingleLine(trsl.SaveQuestion.Text);
-		state.SystemState = SystemStateCode.SaveGame_Begin;
-		printSaveDataText();
-	}
-
-	void beginLoadGame()
-	{
-		console.PrintSingleLine(trsl.LoadQuestion.Text);
-		state.SystemState = SystemStateCode.LoadGame_Begin;
-		printSaveDataText();
-	}
-
-	void beginLoadGameOpening()
-	{
-		console.PrintSingleLine(trsl.LoadQuestion.Text);
-		state.SystemState = SystemStateCode.LoadGameOpenning_Begin;
-		printSaveDataText();
-	}
-
-	public void LoadSilent()
-	{
-		state.SystemState = SystemStateCode.LoadGameOpenning_Begin;
-
-		// This is printSaveDataText, but doesn't print any text.
-		if (isFirstTime)
-		{
-			isFirstTime = false;
-			dataIsAvailable = new bool[Config.SaveDataNos + 1];
-		}
-		int dataNo;
-		for (int i = 0; i < page; i++)
-		{
-			//console.PrintFlush(false);
-			//console.Print(string.Format(trsl.DisplaySaveSlot.Text, i * 20, i * 20 + 19));
-		}
-		for (int i = 0; i < 20; i++)
-		{
-			dataNo = page * 20 + i;
-			if (dataNo == dataIsAvailable.Length - 1)
-				break;
-			dataIsAvailable[dataNo] = false;
-			//console.PrintFlush(false);
-			//console.Print(string.Format("[{0, 2}] ", dataNo));
-			if (!writeSavedataTextFrom_Silent(dataNo))
-				continue;
-			dataIsAvailable[dataNo] = true;
-		}
-		for (int i = page; i < ((dataIsAvailable.Length - 2) / 20); i++)
-		{
-			//console.PrintFlush(false);
-			//console.Print(string.Format(trsl.DisplaySaveSlot.Text, (i + 1) * 20, (i + 1) * 20 + 19));
-		}
-		//オートセーブの処理は別途切り出し（表示処理の都合上）
-		dataIsAvailable[^1] = false;
-		if (state.SystemState != SystemStateCode.SaveGame_Begin)
-		{
-			dataNo = AutoSaveIndex;
-			//console.PrintFlush(false);
-			//console.Print(string.Format("[{0, 2}] ", dataNo));
-			if (writeSavedataTextFrom_Silent(dataNo))
-				dataIsAvailable[^1] = true;
-		}
-		//console.RefreshStrings(false);
-		//描画全部終わり
-		//console.PrintSingleLine("[100] 戻る");
-		setWaitInput();
-		if (state.SystemState == SystemStateCode.SaveGame_Begin)
-			state.SystemState = SystemStateCode.SaveGame_WaitInput;
-		else if (state.SystemState == SystemStateCode.LoadGame_Begin)
-			state.SystemState = SystemStateCode.LoadGame_WaitInput;
-		else// if (state.SystemState == SystemStateCode.LoadGameOpenning_Begin)
-			state.SystemState = SystemStateCode.LoadGameOpenning_WaitInput;
-		//きちんと処理されてるので、ここには来ない
-		//else
-		//    throw new ExeEE("異常な状態");
-	}
-
-	bool[] dataIsAvailable = new bool[21];
-	bool isFirstTime = true;
-	const int AutoSaveIndex = 99;
-	int page;
-	void printSaveDataText()
-	{
-		if (isFirstTime)
-		{
-			isFirstTime = false;
-			dataIsAvailable = new bool[Config.SaveDataNos + 1];
-		}
-		int dataNo;
-		for (int i = 0; i < page; i++)
-		{
-			console.PrintFlush(false);
-			console.Print(string.Format(trsl.DisplaySaveSlot.Text, i * 20, i * 20 + 19));
-		}
-		for (int i = 0; i < 20; i++)
-		{
-			dataNo = page * 20 + i;
-			if (dataNo == dataIsAvailable.Length - 1)
-				break;
-			dataIsAvailable[dataNo] = false;
-			console.PrintFlush(false);
-			console.Print(string.Format("[{0, 2}] ", dataNo));
-			if (!writeSavedataTextFrom(dataNo))
-				continue;
-			dataIsAvailable[dataNo] = true;
-		}
-		for (int i = page; i < ((dataIsAvailable.Length - 2) / 20); i++)
-		{
-			console.PrintFlush(false);
-			console.Print(string.Format(trsl.DisplaySaveSlot.Text, (i + 1) * 20, (i + 1) * 20 + 19));
-		}
-		//オートセーブの処理は別途切り出し（表示処理の都合上）
-		dataIsAvailable[^1] = false;
-		if (state.SystemState != SystemStateCode.SaveGame_Begin)
-		{
-			dataNo = AutoSaveIndex;
-			console.PrintFlush(false);
-			console.Print(string.Format("[{0, 2}] ", dataNo));
-			if (writeSavedataTextFrom(dataNo))
-				dataIsAvailable[^1] = true;
-		}
-		console.RefreshStrings(false);
-		//描画全部終わり
-		console.PrintSingleLine("[100] 戻る");
-		setWaitInput();
-		if (state.SystemState == SystemStateCode.SaveGame_Begin)
-			state.SystemState = SystemStateCode.SaveGame_WaitInput;
-		else if (state.SystemState == SystemStateCode.LoadGame_Begin)
-			state.SystemState = SystemStateCode.LoadGame_WaitInput;
-		else// if (state.SystemState == SystemStateCode.LoadGameOpenning_Begin)
-			state.SystemState = SystemStateCode.LoadGameOpenning_WaitInput;
-		//きちんと処理されてるので、ここには来ない
-		//else
-		//    throw new ExeEE("異常な状態");
-	}
-
-	int saveTarget = -1;
-	void saveGameWaitInput()
-	{
-		if (systemResult == 100)
-		{
-			//キャンセルなら直前の状態を呼び戻す
-			loadPrevState();
-			return;
-		}
-		else if (((int)systemResult / 20) != page && systemResult != AutoSaveIndex && systemResult >= 0 && systemResult < dataIsAvailable.Length - 1)
-		{
-			page = (int)systemResult / 20;
-			state.SystemState = SystemStateCode.SaveGame_Begin;
-			printSaveDataText();
-			return;
-		}
-		bool available;
-		if ((systemResult >= 0) && (systemResult < dataIsAvailable.Length - 1))
-			available = dataIsAvailable[systemResult];
-		else
-		{//入力しなおし
-			console.deleteLine(1);
-			console.PrintTemporaryLine(trerror.InvalidValue.Text);
-			console.updatedGeneration = true;
-			setWaitInput();
-			return;
-		}
-		saveTarget = (int)systemResult;
-
-		GlobalStatic.ctrlZ.OnSavePrepare(saveTarget);
-
-		//既存データがあるなら選択肢を表示してSaveGame_WaitInputOverwriteへ移行。
-		if (available)
-		{
-			console.PrintSingleLine(trsl.DoYouOverwrite.Text);
-			console.PrintC(trsl.Yes.Text, false);
-			console.PrintC(trsl.No.Text, false);
-			setWaitInput();
-			state.SystemState = SystemStateCode.SaveGame_WaitInputOverwrite;
-			return;
-		}
-		//既存データがないなら「はい」を選んだことにして直接ジャンプ
-		systemResult = 0;
-		saveGameWaitInputOverwrite();
-	}
-
-	void saveGameWaitInputOverwrite()
-	{
-		if (systemResult == 1)//いいえ
-		{
-			beginSaveGame();
-			return;
-		}
-		else if (systemResult != 0)//「はい」でもない
-		{//入力しなおし
-			console.deleteLine(1);
-			console.PrintTemporaryLine(trerror.InvalidValue.Text);
-			console.updatedGeneration = true;
-			setWaitInput();
-			return;
-		}
-		vEvaluator.SAVEDATA_TEXT = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") + " ";
-		state.SystemState = SystemStateCode.SaveGame_CallSaveInfo;
-		if (!callFunction("SAVEINFO", false, false))
-			endCallSaveInfo();//存在しなければスキップ
-	}
-
-	void endCallSaveInfo()
-	{
-		if (!vEvaluator.SaveTo(saveTarget, vEvaluator.SAVEDATA_TEXT))
-		{
-			console.PrintError(trerror.UnexpectedSaveError.Text);
-			console.ReadAnyKey();
-		}
-		
-		GlobalStatic.ctrlZ.OnSave();
-
-		loadPrevState();
-	}
-
-	void loadGameWaitInput()
-	{
-		if (systemResult == 100)
-		{//キャンセルなら
-		 //オープニングならオープニングへ戻る
-			if (state.SystemState == SystemStateCode.LoadGameOpenning_WaitInput)
+			if (parent.vEvaluator.NEXTCOM >= 0)
 			{
-				beginTitle();
+				parent.state.SystemState = SystemStateCode.Train_CallEventCom;
+				parent.vEvaluator.SELECTCOM = parent.vEvaluator.NEXTCOM;
+				parent.vEvaluator.NEXTCOM = 0;
+				callEventCom();
 				return;
 			}
-			//それ以外から来たなら直前の状態を呼び戻す
-			loadPrevState();
-			return;
-		}
-		else if (((int)systemResult / 20) != page && systemResult != AutoSaveIndex && systemResult >= 0 && systemResult < dataIsAvailable.Length - 1)
-		{
-			page = (int)systemResult / 20;
-			if (state.SystemState == SystemStateCode.LoadGameOpenning_WaitInput)
-				state.SystemState = SystemStateCode.LoadGameOpenning_Begin;
 			else
-				state.SystemState = SystemStateCode.LoadGame_Begin;
-			printSaveDataText();
-			return;
-		}
-		bool available;
-		if ((systemResult >= 0) && (systemResult < dataIsAvailable.Length - 1))
-			available = dataIsAvailable[systemResult];
-		else if (systemResult == AutoSaveIndex)
-			available = dataIsAvailable[^1];
-		else
-		{//入力しなおし
-			console.deleteLine(1);
-			console.PrintTemporaryLine(trerror.InvalidValue.Text);
-			console.updatedGeneration = true;
-			setWaitInput();
-			return;
-		}
-		if (!available)
-		{
-			console.PrintSingleLine(systemResult.ToString());
-			console.PrintError(trerror.NoData.Text);
-			if (state.SystemState == SystemStateCode.LoadGameOpenning_WaitInput)
 			{
-				beginLoadGameOpening();
+				if (parent.isCTrain)
+					parent.skipPrint = true;
+				CallFunction("SHOW_STATUS", true, false);
+				parent.state.SystemState = SystemStateCode.Train_CallShowStatus;
+			}
+		}
+
+		void endCallShowStatus()
+		{
+			parent.state.SystemState = SystemStateCode.Train_CallComAbleXX;
+			lastCalledComable = -1;
+			lastAddCom = -1;
+			printComCount = 0;
+			for (int i = 0; i < comAble.Length; i++)
+				comAble[i] = -1;
+			endCallComAbleXX();
+		}
+
+		string getTrainComString(int trainCode, int comNo)
+		{
+			string trainName = parent.TrainName[trainCode];
+			return string.Format("{0}[{1,3}]", trainName, comNo);
+		}
+
+		void endCallComAbleXX()
+		{
+			if ((lastCalledComable >= 0) && (parent.TrainName[lastCalledComable] != null))
+			{
+				lastAddCom++;
+				if (parent.vEvaluator.RESULT != 0)
+				{
+					comAble[lastAddCom] = lastCalledComable;
+					if (!parent.isCTrain)
+					{
+						parent.console.PrintC(getTrainComString(lastCalledComable, lastAddCom), true);
+						printComCount++;
+						if ((Config.PrintCPerLine > 0) && (printComCount % Config.PrintCPerLine == 0))
+							parent.console.PrintFlush(false);
+					}
+					parent.console.RefreshStrings(false);
+				}
+			}
+			while (++lastCalledComable < parent.TrainName.Length)
+			{
+				if (parent.TrainName[lastCalledComable] == null)
+					continue;
+				string comName = string.Format("COM_ABLE{0}", lastCalledComable);
+				if (!CallFunction(comName, false, false))
+				{
+					lastAddCom++;
+					if (Config.ComAbleDefault == 0)
+						continue;
+					comAble[lastAddCom] = lastCalledComable;
+					if (!parent.isCTrain)
+					{
+						parent.console.PrintC(getTrainComString(lastCalledComable, lastAddCom), true);
+						printComCount++;
+						if ((Config.PrintCPerLine > 0) && (printComCount % Config.PrintCPerLine == 0))
+							parent.console.PrintFlush(false);
+					}
+					continue;
+				}
+				parent.console.RefreshStrings(false);
 				return;
 			}
-			beginLoadGame();
+			if (lastCalledComable >= parent.TrainName.Length)
+			{
+				parent.state.SystemState = SystemStateCode.Train_CallShowUserCom;
+				parent.console.PrintFlush(false);
+				parent.console.RefreshStrings(false);
+				CallFunction("SHOW_USERCOM", true, false);
+			}
+		}
+
+		void endCallShowUserCom()
+		{
+			if (parent.skipPrint)
+				parent.skipPrint = false;
+			parent.vEvaluator.UpdateAfterShowUsercom();
+			if (!parent.isCTrain)
+			{
+				setWaitInput();
+
+				parent.state.SystemState = SystemStateCode.Train_WaitInput;
+			}
+			else
+			{
+				if (parent.count < parent.coms.Count)
+				{
+					parent.systemResult = parent.coms[parent.count];
+					parent.count++;
+					trainWaitInput();
+				}
+			}
+		}
+
+		void trainWaitInput()
+		{
+			int selectCom = -1;
+			if (!parent.isCTrain)
+			{
+				if ((parent.systemResult >= 0) && (parent.systemResult < comAble.Length))
+					selectCom = comAble[parent.systemResult];
+			}
+			else
+			{
+				for (int i = 0; i < comAble.Length; i++)
+				{
+					if (comAble[i] == parent.systemResult)
+						selectCom = (int)parent.systemResult;
+				}
+				parent.console.PrintSingleLine(string.Format(trerror.ExecutedCom.Text, parent.count, parent.coms.Count));
+			}
+			if (selectCom >= 0)
+			{
+				parent.vEvaluator.SELECTCOM = selectCom;
+				callEventCom();
+			}
+			else
+			{
+				if (parent.isCTrain)
+					parent.console.PrintSingleLine(trerror.CouldNotExecuteCom.Text);
+				parent.vEvaluator.RESULT = parent.systemResult;
+				parent.state.SystemState = SystemStateCode.Train_CallEventComEnd;
+				CallFunction("USERCOM", true, false);
+			}
+		}
+
+		void doTrain()
+		{
+			parent.vEvaluator.UpdateAfterShowUsercom();
+			parent.vEvaluator.SELECTCOM = parent.doTrainSelectCom;
+			callEventCom();
+		}
+
+		void callEventCom()
+		{
+			parent.vEvaluator.UpdateAfterInputCom();
+			parent.state.SystemState = SystemStateCode.Train_CallEventCom;
+			if (!CallFunction("EVENTCOM", false, true))
+				endEventCom();
 			return;
 		}
 
-		GlobalStatic.ctrlZ.OnLoad((int)systemResult);
+		void endEventCom()
+		{
+			long selectCom = parent.vEvaluator.SELECTCOM;
+			string comName = string.Format("COM{0}", selectCom);
+			parent.state.SystemState = SystemStateCode.Train_CallComXX;
+			CallFunction(comName, true, false);
+		}
 
-		if (!vEvaluator.LoadFrom((int)systemResult))
-			throw new ExeEE(trerror.UnexpectedErrorInLoaddata.Text);
-		deletePrevState();
-		beginDataLoaded();
-	}
+		void endCallComXX()
+		{
+			if (parent.vEvaluator.RESULT == 0)
+			{
+				endCallEventComEnd();
+			}
+			else
+			{
+				parent.state.SystemState = SystemStateCode.Train_CallSourceCheck;
+				CallFunction("SOURCE_CHECK", true, false);
+			}
+		}
+
+		void endCallSourceCheck()
+		{
+			parent.vEvaluator.UpdateAfterSourceCheck();
+			parent.state.SystemState = SystemStateCode.Train_CallEventComEnd;
+			parent.NeedWaitToEventComEnd = true;
+			if (!CallFunction("EVENTCOMEND", false, true))
+			{
+				endCallEventComEnd();
+			}
+		}
+
+		void endCallEventComEnd()
+		{
+			if (parent.console.LastLineIsTemporary && !parent.isCTrain && parent.needCheck)
+			{
+				if (parent.console.LastLineIsEmpty)
+				{
+					parent.console.deleteLine(2);
+					parent.console.PrintTemporaryLine(trerror.InvalidValue.Text);
+				}
+				parent.console.updatedGeneration = true;
+				endCallShowUserCom();
+			}
+			else
+			{
+				if (parent.isCTrain && parent.count == parent.coms.Count)
+				{
+					parent.isCTrain = false;
+					parent.skipPrint = false;
+					parent.coms.Clear();
+					parent.count = 0;
+					if (CallFunction("CALLTRAINEND", false, false))
+					{
+						parent.needCheck = false;
+						return;
+					}
+				}
+				parent.needCheck = true;
+				if (parent.NeedWaitToEventComEnd)
+					setWait();
+				parent.NeedWaitToEventComEnd = false;
+				endCallEventTrain();
+			}
+		}
+
+		void beginAfterTrain()
+		{
+			if (parent.isCTrain)
+				if (parent.ClearCommands())
+					return;
+			parent.skipPrint = false;
+			parent.state.SystemState = SystemStateCode.Normal;
+			CallFunction("EVENTEND", true, true);
+		}
+
+		void beginAblup()
+		{
+			if (parent.isCTrain)
+				if (parent.ClearCommands())
+					return;
+			parent.skipPrint = false;
+			parent.state.SystemState = SystemStateCode.Ablup_CallShowJuel;
+			CallFunction("SHOW_JUEL", true, false);
+		}
+
+		void endCallShowJuel()
+		{
+			parent.state.SystemState = SystemStateCode.Ablup_CallShowAblupSelect;
+			CallFunction("SHOW_ABLUP_SELECT", true, false);
+		}
+
+		void endCallShowAblupSelect()
+		{
+			setWaitInput();
+			parent.state.SystemState = SystemStateCode.Ablup_WaitInput;
+		}
+
+		void ablupWaitInput()
+		{
+			if ((parent.systemResult >= 0) && (parent.systemResult < 100))
+			{
+				parent.state.SystemState = SystemStateCode.Ablup_CallAblupXX;
+				string ablName = string.Format("ABLUP{0}", parent.systemResult);
+				if (!CallFunction(ablName, false, false))
+				{
+					parent.console.deleteLine(1);
+					parent.console.PrintTemporaryLine(trerror.InvalidValue.Text);
+					parent.console.updatedGeneration = true;
+					endCallShowAblupSelect();
+				}
+			}
+			else
+			{
+				parent.vEvaluator.RESULT = parent.systemResult;
+				parent.state.SystemState = SystemStateCode.Ablup_CallAblupXX;
+				CallFunction("USERABLUP", true, false);
+			}
+		}
+
+		void endCallAblupXX()
+		{
+			if (parent.console.LastLineIsTemporary)
+			{
+				if (parent.console.LastLineIsEmpty)
+				{
+					parent.console.deleteLine(2);
+					parent.console.PrintTemporaryLine("無効な値です");
+				}
+				parent.console.updatedGeneration = true;
+				endCallShowAblupSelect();
+			}
+			else
+				beginAblup();
+		}
+
+		void beginTurnend()
+		{
+			if (parent.isCTrain)
+				if (parent.ClearCommands())
+					return;
+			parent.skipPrint = false;
+			CallFunction("EVENTTURNEND", true, true);
+			parent.state.SystemState = SystemStateCode.Normal;
+		}
+
+		void beginShop()
+		{
+			if (parent.isCTrain)
+				if (parent.ClearCommands())
+					return;
+			parent.skipPrint = false;
+			parent.state.SystemState = SystemStateCode.Shop_CallEventShop;
+			if (!CallFunction("EVENTSHOP", false, true))
+			{
+				endCallEventShop();
+			}
+		}
+
+		void endCallEventShop()
+		{
+			saveTarget = -1;
+			if (Config.AutoSave && parent.state.calledWhenNormal)
+				beginAutoSave();
+			else
+			{
+				parent.state.SystemState = SystemStateCode.AutoSave_Skipped;
+				endAutoSaveCallSaveInfo();
+			}
+		}
+
+		void beginAutoSave()
+		{
+			if (CallFunction("SYSTEM_AUTOSAVE", false, false))
+			{
+				parent.state.SystemState = SystemStateCode.AutoSave_CallUniqueAutosave;
+				return;
+			}
+			saveTarget = AutoSaveIndex;
+			parent.vEvaluator.SAVEDATA_TEXT = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") + " ";
+			parent.state.SystemState = SystemStateCode.AutoSave_CallSaveInfo;
+			if (!CallFunction("SAVEINFO", false, false))
+				endAutoSaveCallSaveInfo();
+		}
+
+		void endAutoSaveCallSaveInfo()
+		{
+			if (saveTarget == AutoSaveIndex)
+			{
+				if (!parent.vEvaluator.SaveTo(saveTarget, parent.vEvaluator.SAVEDATA_TEXT))
+				{
+					parent.console.PrintError(trerror.AutoSaveError1.Text);
+					parent.console.PrintError(trerror.AutoSaveError2.Text);
+					parent.console.ReadAnyKey();
+				}
+			}
+			endAutoSave();
+		}
+
+		void endAutoSave()
+		{
+			if (parent.state.isBegun)
+			{
+				parent.state.Begin();
+				return;
+			}
+			parent.state.SystemState = SystemStateCode.Shop_CallShowShop;
+			CallFunction("SHOW_SHOP", true, false);
+		}
+
+		void endCallShowShop()
+		{
+			setWaitInput();
+			parent.state.SystemState = SystemStateCode.Shop_WaitInput;
+		}
+
+		void shopWaitInput()
+		{
+			if ((parent.systemResult >= 0) && (parent.systemResult < Config.MaxShopItem))
+			{
+				if (parent.vEvaluator.ItemSales(parent.systemResult))
+				{
+					if (parent.vEvaluator.BuyItem(parent.systemResult))
+					{
+						parent.state.SystemState = SystemStateCode.Shop_CallEventBuy;
+						if (!CallFunction("EVENTBUY", false, true))
+							endCallEventBuy();
+						return;
+					}
+					else
+					{
+						parent.console.deleteLine(1);
+						parent.console.PrintTemporaryLine(trerror.NotEnoughMoney.Text);
+					}
+				}
+				else
+				{
+					parent.console.deleteLine(1);
+					parent.console.PrintTemporaryLine(trerror.OutOfStock.Text);
+				}
+				endCallShowShop();
+				return;
+			}
+			else
+			{
+				parent.vEvaluator.RESULT = parent.systemResult;
+
+				CallFunction("USERSHOP", true, false);
+				parent.state.SystemState = SystemStateCode.Shop_CallEventBuy;
+				return;
+			}
+		}
+
+		void endCallEventBuy()
+		{
+			if (parent.console.LastLineIsTemporary)
+			{
+				if (parent.console.LastLineIsEmpty)
+				{
+					parent.console.deleteLine(2);
+					parent.console.PrintTemporaryLine(trerror.InvalidValue.Text);
+				}
+				parent.console.updatedGeneration = true;
+				endCallShowShop();
+			}
+			else
+			{
+				endAutoSave();
+			}
+		}
 
 
-	void endNormal()
-	{
-		throw new CodeEE(trerror.UnexpectedScriptEnd.Text);
-	}
+		void beginDataLoaded()
+		{
+			parent.state.SystemState = SystemStateCode.LoadData_CallSystemLoad;
 
-	void endReloaderb()
-	{
-		loadPrevState();
-		console.ReloadErbFinished();
-	}
+			if (!CallFunction("SYSTEM_LOADEND", false, false))
+				endSystemLoad();
+		}
+		void endSystemLoad()
+		{
+			AppContents.UnloadTempLoadedConstImageNames();
+			AppContents.UnloadTempLoadedGraphicsImageNames();
+			parent.state.SystemState = SystemStateCode.LoadData_CallEventLoad;
+			if (!CallFunction("EVENTLOAD", false, true))
+			{
+				endAutoSave();
+			}
+		}
 
-	private bool writeSavedataTextFrom(int saveIndex)
-	{
-		EraDataResult result = vEvaluator.CheckData(saveIndex, EraSaveFileType.Normal);
-		console.Print(result.DataMes);
-		console.NewLine();
-		return result.State == EraDataState.OK;
-	}
+		void endEventLoad()
+		{
+			endAutoSave();
+		}
 
-	private bool writeSavedataTextFrom_Silent(int saveIndex)
-	{
-		EraDataResult result = vEvaluator.CheckData(saveIndex, EraSaveFileType.Normal);
-		//console.Print(result.DataMes);
-		//console.NewLine();
-		return result.State == EraDataState.OK;
-	}
+		void beginSaveGame()
+		{
+			parent.console.PrintSingleLine(trsl.SaveQuestion.Text);
+			parent.state.SystemState = SystemStateCode.SaveGame_Begin;
+			printSaveDataText();
+		}
 
-	//1808 vEvaluator.SaveTo()などに移動
-	//private bool loadFrom(int dataIndex)
-	//private bool saveTo(int saveIndex, string saveText)
-	//private string getSaveDataPath(int index)
+		void beginLoadGame()
+		{
+			parent.console.PrintSingleLine(trsl.LoadQuestion.Text);
+			parent.state.SystemState = SystemStateCode.LoadGame_Begin;
+			printSaveDataText();
+		}
+
+		void beginLoadGameOpening()
+		{
+			parent.console.PrintSingleLine(trsl.LoadQuestion.Text);
+			parent.state.SystemState = SystemStateCode.LoadGameOpenning_Begin;
+			printSaveDataText();
+		}
+
+		internal void LoadSilent()
+		{
+			parent.state.SystemState = SystemStateCode.LoadGameOpenning_Begin;
+
+			if (isFirstTime)
+			{
+				isFirstTime = false;
+				dataIsAvailable = new bool[Config.SaveDataNos + 1];
+			}
+			int dataNo;
+			for (int i = 0; i < page; i++)
+			{
+			}
+			for (int i = 0; i < 20; i++)
+			{
+				dataNo = page * 20 + i;
+				if (dataNo == dataIsAvailable.Length - 1)
+					break;
+				dataIsAvailable[dataNo] = false;
+				if (!writeSavedataTextFrom_Silent(dataNo))
+					continue;
+				dataIsAvailable[dataNo] = true;
+			}
+			for (int i = page; i < ((dataIsAvailable.Length - 2) / 20); i++)
+			{
+			}
+			dataIsAvailable[^1] = false;
+			if (parent.state.SystemState != SystemStateCode.SaveGame_Begin)
+			{
+				dataNo = AutoSaveIndex;
+				if (writeSavedataTextFrom_Silent(dataNo))
+					dataIsAvailable[^1] = true;
+			}
+			setWaitInput();
+			if (parent.state.SystemState == SystemStateCode.SaveGame_Begin)
+				parent.state.SystemState = SystemStateCode.SaveGame_WaitInput;
+			else if (parent.state.SystemState == SystemStateCode.LoadGame_Begin)
+				parent.state.SystemState = SystemStateCode.LoadGame_WaitInput;
+			else
+				parent.state.SystemState = SystemStateCode.LoadGameOpenning_WaitInput;
+		}
+
+		void printSaveDataText()
+		{
+			if (isFirstTime)
+			{
+				isFirstTime = false;
+				dataIsAvailable = new bool[Config.SaveDataNos + 1];
+			}
+			int dataNo;
+			for (int i = 0; i < page; i++)
+			{
+				parent.console.PrintFlush(false);
+				parent.console.Print(string.Format(trsl.DisplaySaveSlot.Text, i * 20, i * 20 + 19));
+			}
+			for (int i = 0; i < 20; i++)
+			{
+				dataNo = page * 20 + i;
+				if (dataNo == dataIsAvailable.Length - 1)
+					break;
+				dataIsAvailable[dataNo] = false;
+				parent.console.PrintFlush(false);
+				parent.console.Print(string.Format("[{0, 2}] ", dataNo));
+				if (!writeSavedataTextFrom(dataNo))
+					continue;
+				dataIsAvailable[dataNo] = true;
+			}
+			for (int i = page; i < ((dataIsAvailable.Length - 2) / 20); i++)
+			{
+				parent.console.PrintFlush(false);
+				parent.console.Print(string.Format(trsl.DisplaySaveSlot.Text, (i + 1) * 20, (i + 1) * 20 + 19));
+			}
+			dataIsAvailable[^1] = false;
+			if (parent.state.SystemState != SystemStateCode.SaveGame_Begin)
+			{
+				dataNo = AutoSaveIndex;
+				parent.console.PrintFlush(false);
+				parent.console.Print(string.Format("[{0, 2}] ", dataNo));
+				if (writeSavedataTextFrom(dataNo))
+					dataIsAvailable[^1] = true;
+			}
+			parent.console.RefreshStrings(false);
+			parent.console.PrintSingleLine("[100] 戻る");
+			setWaitInput();
+			if (parent.state.SystemState == SystemStateCode.SaveGame_Begin)
+				parent.state.SystemState = SystemStateCode.SaveGame_WaitInput;
+			else if (parent.state.SystemState == SystemStateCode.LoadGame_Begin)
+				parent.state.SystemState = SystemStateCode.LoadGame_WaitInput;
+			else
+				parent.state.SystemState = SystemStateCode.LoadGameOpenning_WaitInput;
+		}
+
+		void saveGameWaitInput()
+		{
+			if (parent.systemResult == 100)
+			{
+				parent.loadPrevState();
+				return;
+			}
+			else if (((int)parent.systemResult / 20) != page && parent.systemResult != AutoSaveIndex && parent.systemResult >= 0 && parent.systemResult < dataIsAvailable.Length - 1)
+			{
+				page = (int)parent.systemResult / 20;
+				parent.state.SystemState = SystemStateCode.SaveGame_Begin;
+				printSaveDataText();
+				return;
+			}
+			bool available;
+			if ((parent.systemResult >= 0) && (parent.systemResult < dataIsAvailable.Length - 1))
+				available = dataIsAvailable[parent.systemResult];
+			else
+			{
+				parent.console.deleteLine(1);
+				parent.console.PrintTemporaryLine(trerror.InvalidValue.Text);
+				parent.console.updatedGeneration = true;
+				setWaitInput();
+				return;
+			}
+			saveTarget = (int)parent.systemResult;
+
+			GlobalStatic.ctrlZ.OnSavePrepare(saveTarget);
+
+			if (available)
+			{
+				parent.console.PrintSingleLine(trsl.DoYouOverwrite.Text);
+				parent.console.PrintC(trsl.Yes.Text, false);
+				parent.console.PrintC(trsl.No.Text, false);
+				setWaitInput();
+				parent.state.SystemState = SystemStateCode.SaveGame_WaitInputOverwrite;
+				return;
+			}
+			parent.systemResult = 0;
+			saveGameWaitInputOverwrite();
+		}
+
+		void saveGameWaitInputOverwrite()
+		{
+			if (parent.systemResult == 1)
+			{
+				beginSaveGame();
+				return;
+			}
+			else if (parent.systemResult != 0)
+			{
+				parent.console.deleteLine(1);
+				parent.console.PrintTemporaryLine(trerror.InvalidValue.Text);
+				parent.console.updatedGeneration = true;
+				setWaitInput();
+				return;
+			}
+			parent.vEvaluator.SAVEDATA_TEXT = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") + " ";
+			parent.state.SystemState = SystemStateCode.SaveGame_CallSaveInfo;
+			if (!CallFunction("SAVEINFO", false, false))
+				endCallSaveInfo();
+		}
+
+		void endCallSaveInfo()
+		{
+			if (!parent.vEvaluator.SaveTo(saveTarget, parent.vEvaluator.SAVEDATA_TEXT))
+			{
+				parent.console.PrintError(trerror.UnexpectedSaveError.Text);
+				parent.console.ReadAnyKey();
+			}
+
+			GlobalStatic.ctrlZ.OnSave();
+
+			parent.loadPrevState();
+		}
+
+		void loadGameWaitInput()
+		{
+			if (parent.systemResult == 100)
+			{
+				if (parent.state.SystemState == SystemStateCode.LoadGameOpenning_WaitInput)
+				{
+					beginTitle();
+					return;
+				}
+				parent.loadPrevState();
+				return;
+			}
+			else if (((int)parent.systemResult / 20) != page && parent.systemResult != AutoSaveIndex && parent.systemResult >= 0 && parent.systemResult < dataIsAvailable.Length - 1)
+			{
+				page = (int)parent.systemResult / 20;
+				if (parent.state.SystemState == SystemStateCode.LoadGameOpenning_WaitInput)
+					parent.state.SystemState = SystemStateCode.LoadGameOpenning_Begin;
+				else
+					parent.state.SystemState = SystemStateCode.LoadGame_Begin;
+				printSaveDataText();
+				return;
+			}
+			bool available;
+			if ((parent.systemResult >= 0) && (parent.systemResult < dataIsAvailable.Length - 1))
+				available = dataIsAvailable[parent.systemResult];
+			else if (parent.systemResult == AutoSaveIndex)
+				available = dataIsAvailable[^1];
+			else
+			{
+				parent.console.deleteLine(1);
+				parent.console.PrintTemporaryLine(trerror.InvalidValue.Text);
+				parent.console.updatedGeneration = true;
+				setWaitInput();
+				return;
+			}
+			if (!available)
+			{
+				parent.console.PrintSingleLine(parent.systemResult.ToString());
+				parent.console.PrintError(trerror.NoData.Text);
+				if (parent.state.SystemState == SystemStateCode.LoadGameOpenning_WaitInput)
+				{
+					beginLoadGameOpening();
+					return;
+				}
+				beginLoadGame();
+				return;
+			}
+
+			GlobalStatic.ctrlZ.OnLoad((int)parent.systemResult);
+
+			if (!parent.vEvaluator.LoadFrom((int)parent.systemResult))
+				throw new ExeEE(trerror.UnexpectedErrorInLoaddata.Text);
+			parent.deletePrevState();
+			beginDataLoaded();
+		}
+
+
+		void endNormal()
+		{
+			throw new CodeEE(trerror.UnexpectedScriptEnd.Text);
+		}
+
+		void endReloaderb()
+		{
+			parent.loadPrevState();
+			parent.console.ReloadErbFinished();
+		}
+
+		bool writeSavedataTextFrom(int saveIndex)
+		{
+			EraDataResult result = parent.vEvaluator.CheckData(saveIndex, EraSaveFileType.Normal);
+			parent.console.Print(result.DataMes);
+			parent.console.NewLine();
+			return result.State == EraDataState.OK;
+		}
+
+		bool writeSavedataTextFrom_Silent(int saveIndex)
+		{
+			EraDataResult result = parent.vEvaluator.CheckData(saveIndex, EraSaveFileType.Normal);
+			return result.State == EraDataState.OK;
+		}
+
+}
 }
