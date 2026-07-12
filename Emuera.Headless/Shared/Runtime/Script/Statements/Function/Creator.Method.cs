@@ -7490,13 +7490,13 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 
-			exm.Process.flowinputDef = arguments[0].GetIntValue(exm);
+			exm.Process.executionState.flowinputDef = arguments[0].GetIntValue(exm);
 			if (arguments.Count > 1)
-				exm.Process.flowinput = arguments[1].GetIntValue(exm) != 0 ? true : false ;
+				exm.Process.executionState.flowinput = arguments[1].GetIntValue(exm) != 0 ? true : false ;
 			if (arguments.Count > 2)
-				exm.Process.flowinputCanSkip = arguments[2].GetIntValue(exm) != 0 ? true : false ;
+				exm.Process.executionState.flowinputCanSkip = arguments[2].GetIntValue(exm) != 0 ? true : false ;
 			if (arguments.Count > 3)
-				exm.Process.flowinputForceSkip = arguments[3].GetIntValue(exm) != 0 ? true : false;
+				exm.Process.executionState.flowinputForceSkip = arguments[3].GetIntValue(exm) != 0 ? true : false;
 			return 0;
 		}
 	}
@@ -7513,9 +7513,9 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 
-			exm.Process.flowinputString = arguments[0].GetIntValue(exm) != 0 ? true : false ;
+			exm.Process.executionState.flowinputString = arguments[0].GetIntValue(exm) != 0 ? true : false ;
 			if (arguments.Count > 1)
-				exm.Process.flowinputDefString = arguments[1].GetStrValue(exm);
+				exm.Process.executionState.flowinputDefString = arguments[1].GetStrValue(exm);
 			return 0;
 		}
 	}

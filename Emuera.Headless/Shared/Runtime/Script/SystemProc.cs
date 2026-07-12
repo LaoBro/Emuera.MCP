@@ -14,186 +14,173 @@ using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
 
 namespace MinorShift.Emuera.GameProc;
 
-// ADR-0011 Phase 3: IProcessState injected (as property over parent.state); parent.state.XXX → state.XXX.
-// Remaining `parent.*` bridge: systemResult, skipPrint, isCTrain, count, coms,
-//       flowinput*, noError, needCheck, NeedWaitToEventComEnd, doTrainSelectCom,
-//       loadPrevState/deletePrevState/deleteAllPrevState, ClearCommands.
-// TODO: Narrow per-instruction-family to F2 (no parent back-ref). Target families:
-//       beginTrain/endTrain → pure SystemState routing via injected console+VEvaluator;
-//       WaitInput/trainWaitInput → SessionIO abstraction;
-//       ShwCom/printCom → display-only via injected console.
-internal sealed partial class Process
+internal sealed class SystemProc
 {
-	private string[] TrainName = null!;
-	long systemResult;
-	public long flowinputDef = 0;
-	public bool flowinput = false;
-	public bool flowinputCanSkip = false;
-	public string flowinputDefString = "";
-	public bool flowinputString = false;
-	public bool flowinputForceSkip = false;
-	public bool NeedWaitToEventComEnd;
+	// required by CalledFunction.CallFunction (LabelDictionary), unavoidable without deeper refactoring
+	readonly Process process;
+	readonly EmueraConsole console;
+	readonly IVariableEvaluator vEvaluator;
+	readonly GameBase gamebase;
+	readonly string[] trainName;
+	readonly ExecutionState executionState;
+	IProcessState state => executionState.CurrentState;
+	delegate void SystemProcess();
+	Dictionary<SystemStateCode, SystemProcess> systemProcessDictionary = [];
+	internal bool NeedWaitToEventComEnd;
 	bool needCheck = true;
-	List<long> coms = [];
-	bool isCTrain;
-	int count;
-	bool skipPrint;
-	public bool SkipPrint { get { return skipPrint; } set { skipPrint = value; } }
-	private long doTrainSelectCom = -1;
+	int[] comAble = null!;
+	int lastCalledComable = -1;
+	int lastAddCom = -1;
+	int printComCount;
+	bool[] dataIsAvailable = new bool[21];
+	bool isFirstTime = true;
+	const int AutoSaveIndex = 99;
+	int page;
+	int saveTarget = -1;
 
-	internal sealed class SystemProc
+	internal SystemProc(Process process, EmueraConsole console, IVariableEvaluator vEvaluator, GameBase gamebase, string[] trainName, ExecutionState executionState)
 	{
-		readonly Process parent;
-		readonly EmueraConsole console;
-		readonly IVariableEvaluator vEvaluator;
-		readonly GameBase gamebase;
-		readonly string[] trainName;
-		IProcessState state => parent.state;
-		delegate void SystemProcess();
-		Dictionary<SystemStateCode, SystemProcess> systemProcessDictionary = [];
-		int[] comAble = null!;
-		int lastCalledComable = -1;
-		int lastAddCom = -1;
-		int printComCount;
-		bool[] dataIsAvailable = new bool[21];
-		bool isFirstTime = true;
-		const int AutoSaveIndex = 99;
-		int page;
-		int saveTarget = -1;
+		this.process = process;
+		this.console = console;
+		this.vEvaluator = vEvaluator;
+		this.gamebase = gamebase;
+		this.trainName = trainName;
+		this.executionState = executionState;
+	}
 
-		internal SystemProc(Process parent, EmueraConsole console, IVariableEvaluator vEvaluator, GameBase gamebase, string[] trainName)
-		{
-			this.parent = parent;
-			this.console = console;
-			this.vEvaluator = vEvaluator;
-			this.gamebase = gamebase;
-			this.trainName = trainName;
-		}
+	internal void Init()
+	{
+		comAble = new int[trainName.Length];
+		systemProcessDictionary.Add(SystemStateCode.Title_Begin, new SystemProcess(beginTitle));
+		systemProcessDictionary.Add(SystemStateCode.Openning, new SystemProcess(endOpenning));
 
-		internal void Init()
-		{
-			comAble = new int[trainName.Length];
-			systemProcessDictionary.Add(SystemStateCode.Title_Begin, new SystemProcess(beginTitle));
-			systemProcessDictionary.Add(SystemStateCode.Openning, new SystemProcess(endOpenning));
+		systemProcessDictionary.Add(SystemStateCode.Train_Begin, new SystemProcess(beginTrain));
+		systemProcessDictionary.Add(SystemStateCode.Train_CallEventTrain, new SystemProcess(endCallEventTrain));
+		systemProcessDictionary.Add(SystemStateCode.Train_CallShowStatus, new SystemProcess(endCallShowStatus));
+		systemProcessDictionary.Add(SystemStateCode.Train_CallComAbleXX, new SystemProcess(endCallComAbleXX));
+		systemProcessDictionary.Add(SystemStateCode.Train_CallShowUserCom, new SystemProcess(endCallShowUserCom));
+		systemProcessDictionary.Add(SystemStateCode.Train_WaitInput, new SystemProcess(trainWaitInput));
+		systemProcessDictionary.Add(SystemStateCode.Train_CallEventCom, new SystemProcess(endEventCom));
+		systemProcessDictionary.Add(SystemStateCode.Train_CallComXX, new SystemProcess(endCallComXX));
+		systemProcessDictionary.Add(SystemStateCode.Train_CallSourceCheck, new SystemProcess(endCallSourceCheck));
+		systemProcessDictionary.Add(SystemStateCode.Train_CallEventComEnd, new SystemProcess(endCallEventComEnd)); ;
+		systemProcessDictionary.Add(SystemStateCode.Train_DoTrain, new SystemProcess(doTrain));
 
-			systemProcessDictionary.Add(SystemStateCode.Train_Begin, new SystemProcess(beginTrain));
-			systemProcessDictionary.Add(SystemStateCode.Train_CallEventTrain, new SystemProcess(endCallEventTrain));
-			systemProcessDictionary.Add(SystemStateCode.Train_CallShowStatus, new SystemProcess(endCallShowStatus));
-			systemProcessDictionary.Add(SystemStateCode.Train_CallComAbleXX, new SystemProcess(endCallComAbleXX));
-			systemProcessDictionary.Add(SystemStateCode.Train_CallShowUserCom, new SystemProcess(endCallShowUserCom));
-			systemProcessDictionary.Add(SystemStateCode.Train_WaitInput, new SystemProcess(trainWaitInput));
-			systemProcessDictionary.Add(SystemStateCode.Train_CallEventCom, new SystemProcess(endEventCom));
-			systemProcessDictionary.Add(SystemStateCode.Train_CallComXX, new SystemProcess(endCallComXX));
-			systemProcessDictionary.Add(SystemStateCode.Train_CallSourceCheck, new SystemProcess(endCallSourceCheck));
-			systemProcessDictionary.Add(SystemStateCode.Train_CallEventComEnd, new SystemProcess(endCallEventComEnd)); ;
-			systemProcessDictionary.Add(SystemStateCode.Train_DoTrain, new SystemProcess(doTrain));
+		systemProcessDictionary.Add(SystemStateCode.AfterTrain_Begin, new SystemProcess(beginAfterTrain));
 
-			systemProcessDictionary.Add(SystemStateCode.AfterTrain_Begin, new SystemProcess(beginAfterTrain));
+		systemProcessDictionary.Add(SystemStateCode.Ablup_Begin, new SystemProcess(beginAblup));
+		systemProcessDictionary.Add(SystemStateCode.Ablup_CallShowJuel, new SystemProcess(endCallShowJuel));
+		systemProcessDictionary.Add(SystemStateCode.Ablup_CallShowAblupSelect, new SystemProcess(endCallShowAblupSelect));
+		systemProcessDictionary.Add(SystemStateCode.Ablup_WaitInput, new SystemProcess(ablupWaitInput));
+		systemProcessDictionary.Add(SystemStateCode.Ablup_CallAblupXX, new SystemProcess(endCallAblupXX));
 
-			systemProcessDictionary.Add(SystemStateCode.Ablup_Begin, new SystemProcess(beginAblup));
-			systemProcessDictionary.Add(SystemStateCode.Ablup_CallShowJuel, new SystemProcess(endCallShowJuel));
-			systemProcessDictionary.Add(SystemStateCode.Ablup_CallShowAblupSelect, new SystemProcess(endCallShowAblupSelect));
-			systemProcessDictionary.Add(SystemStateCode.Ablup_WaitInput, new SystemProcess(ablupWaitInput));
-			systemProcessDictionary.Add(SystemStateCode.Ablup_CallAblupXX, new SystemProcess(endCallAblupXX));
+		systemProcessDictionary.Add(SystemStateCode.Turnend_Begin, new SystemProcess(beginTurnend));
 
-			systemProcessDictionary.Add(SystemStateCode.Turnend_Begin, new SystemProcess(beginTurnend));
+		systemProcessDictionary.Add(SystemStateCode.Shop_Begin, new SystemProcess(beginShop));
+		systemProcessDictionary.Add(SystemStateCode.Shop_CallEventShop, new SystemProcess(endCallEventShop));
+		systemProcessDictionary.Add(SystemStateCode.Shop_CallShowShop, new SystemProcess(endCallShowShop));
+		systemProcessDictionary.Add(SystemStateCode.Shop_WaitInput, new SystemProcess(shopWaitInput));
+		systemProcessDictionary.Add(SystemStateCode.Shop_CallEventBuy, new SystemProcess(endCallEventBuy));
 
-			systemProcessDictionary.Add(SystemStateCode.Shop_Begin, new SystemProcess(beginShop));
-			systemProcessDictionary.Add(SystemStateCode.Shop_CallEventShop, new SystemProcess(endCallEventShop));
-			systemProcessDictionary.Add(SystemStateCode.Shop_CallShowShop, new SystemProcess(endCallShowShop));
-			systemProcessDictionary.Add(SystemStateCode.Shop_WaitInput, new SystemProcess(shopWaitInput));
-			systemProcessDictionary.Add(SystemStateCode.Shop_CallEventBuy, new SystemProcess(endCallEventBuy));
+		systemProcessDictionary.Add(SystemStateCode.SaveGame_Begin, new SystemProcess(beginSaveGame));
+		systemProcessDictionary.Add(SystemStateCode.SaveGame_WaitInput, new SystemProcess(saveGameWaitInput));
+		systemProcessDictionary.Add(SystemStateCode.SaveGame_WaitInputOverwrite, new SystemProcess(saveGameWaitInputOverwrite));
+		systemProcessDictionary.Add(SystemStateCode.SaveGame_CallSaveInfo, new SystemProcess(endCallSaveInfo));
+		systemProcessDictionary.Add(SystemStateCode.LoadGame_Begin, new SystemProcess(beginLoadGame));
+		systemProcessDictionary.Add(SystemStateCode.LoadGame_WaitInput, new SystemProcess(loadGameWaitInput));
+		systemProcessDictionary.Add(SystemStateCode.LoadGameOpenning_Begin, new SystemProcess(beginLoadGameOpening));
+		systemProcessDictionary.Add(SystemStateCode.LoadGameOpenning_WaitInput, new SystemProcess(loadGameWaitInput));
 
-			systemProcessDictionary.Add(SystemStateCode.SaveGame_Begin, new SystemProcess(beginSaveGame));
-			systemProcessDictionary.Add(SystemStateCode.SaveGame_WaitInput, new SystemProcess(saveGameWaitInput));
-			systemProcessDictionary.Add(SystemStateCode.SaveGame_WaitInputOverwrite, new SystemProcess(saveGameWaitInputOverwrite));
-			systemProcessDictionary.Add(SystemStateCode.SaveGame_CallSaveInfo, new SystemProcess(endCallSaveInfo));
-			systemProcessDictionary.Add(SystemStateCode.LoadGame_Begin, new SystemProcess(beginLoadGame));
-			systemProcessDictionary.Add(SystemStateCode.LoadGame_WaitInput, new SystemProcess(loadGameWaitInput));
-			systemProcessDictionary.Add(SystemStateCode.LoadGameOpenning_Begin, new SystemProcess(beginLoadGameOpening));
-			systemProcessDictionary.Add(SystemStateCode.LoadGameOpenning_WaitInput, new SystemProcess(loadGameWaitInput));
+		systemProcessDictionary.Add(SystemStateCode.AutoSave_CallSaveInfo, new SystemProcess(endAutoSaveCallSaveInfo));
+		systemProcessDictionary.Add(SystemStateCode.AutoSave_CallUniqueAutosave, new SystemProcess(endAutoSave));
 
-			systemProcessDictionary.Add(SystemStateCode.AutoSave_CallSaveInfo, new SystemProcess(endAutoSaveCallSaveInfo));
-			systemProcessDictionary.Add(SystemStateCode.AutoSave_CallUniqueAutosave, new SystemProcess(endAutoSave));
+		systemProcessDictionary.Add(SystemStateCode.LoadData_DataLoaded, new SystemProcess(beginDataLoaded));
+		systemProcessDictionary.Add(SystemStateCode.LoadData_CallSystemLoad, new SystemProcess(endSystemLoad));
+		systemProcessDictionary.Add(SystemStateCode.LoadData_CallEventLoad, new SystemProcess(endEventLoad));
 
-			systemProcessDictionary.Add(SystemStateCode.LoadData_DataLoaded, new SystemProcess(beginDataLoaded));
-			systemProcessDictionary.Add(SystemStateCode.LoadData_CallSystemLoad, new SystemProcess(endSystemLoad));
-			systemProcessDictionary.Add(SystemStateCode.LoadData_CallEventLoad, new SystemProcess(endEventLoad));
+		systemProcessDictionary.Add(SystemStateCode.Openning_TitleLoadgame, new SystemProcess(endTitleLoadgame));
 
-			systemProcessDictionary.Add(SystemStateCode.Openning_TitleLoadgame, new SystemProcess(endTitleLoadgame));
-
-			systemProcessDictionary.Add(SystemStateCode.System_Reloaderb, new SystemProcess(endReloaderb));
-			systemProcessDictionary.Add(SystemStateCode.First_Begin, new SystemProcess(beginFirst));
+		systemProcessDictionary.Add(SystemStateCode.System_Reloaderb, new SystemProcess(endReloaderb));
+		systemProcessDictionary.Add(SystemStateCode.First_Begin, new SystemProcess(beginFirst));
 
 
-			systemProcessDictionary.Add(SystemStateCode.Normal, new SystemProcess(endNormal));
-			return;
-		}
+		systemProcessDictionary.Add(SystemStateCode.Normal, new SystemProcess(endNormal));
+		return;
+	}
 
-		public void Run()
-		{
-			systemProcessDictionary[state.SystemState]();
-		}
+	public void Run()
+	{
+		systemProcessDictionary[state.SystemState]();
+	}
 
-		internal bool CallFunction(string functionName, bool force, bool isEvent)
-		{
-			CalledFunction call;
-			if (isEvent)
-				call = CalledFunction.CallEventFunction(parent, functionName, null!);
+	internal bool ClearCommands()
+	{
+		executionState.coms.Clear();
+		executionState.count = 0;
+		executionState.isCTrain = false;
+		executionState.skipPrint = true;
+		return CallFunction("CALLTRAINEND", false, false);
+	}
+
+	internal bool CallFunction(string functionName, bool force, bool isEvent)
+	{
+		CalledFunction call;
+		if (isEvent)
+			call = CalledFunction.CallEventFunction(process, functionName, null!);
+		else
+			call = CalledFunction.CallFunction(process, functionName, null!);
+		if (call == null)
+			if (!force)
+				return false;
 			else
-				call = CalledFunction.CallFunction(parent, functionName, null!);
-			if (call == null)
-				if (!force)
-					return false;
-				else
-					throw new CodeEE(string.Format(trerror.FuncIsNotFound.Text, functionName));
-			state.IntoFunction(call, null!, null!);
-			return true;
-		}
+				throw new CodeEE(string.Format(trerror.FuncIsNotFound.Text, functionName));
+		state.IntoFunction(call, null!, null!);
+		return true;
+	}
 
-		void setWait()
-		{
-			console.ReadAnyKey();
-		}
+	void setWait()
+	{
+		console.ReadAnyKey();
+	}
 
-		void setWaitInput()
+	void setWaitInput()
+	{
+		InputRequest req = new();
+		if (executionState.flowinput)
 		{
-			InputRequest req = new();
-			if (parent.flowinput)
-			{
-				req.HasDefValue = true;
-				req.DefIntValue = parent.flowinputDef;
-				req.MouseInput = parent.flowinput;
-				req.DefStrValue = parent.flowinputDefString;
-			}
-			if (parent.flowinputString)
-				req.InputType = InputType.StrValue;
-			else
-				req.InputType = InputType.IntValue;
-			req.IsSystemInput = true;
-			if (parent.flowinputForceSkip)
-			{
-				parent.systemResult = req.DefIntValue;
-				if (parent.flowinputString)
-					vEvaluator.RESULTS = req.DefStrValue;
-			}
-			else if (parent.flowinputCanSkip && console.MesSkip)
-			{
-				parent.systemResult = req.DefIntValue;
-				if (parent.flowinputString)
-					vEvaluator.RESULTS = req.DefStrValue;
-			}
-			console.WaitInput(req);
+			req.HasDefValue = true;
+			req.DefIntValue = executionState.flowinputDef;
+			req.MouseInput = executionState.flowinput;
+			req.DefStrValue = executionState.flowinputDefString;
 		}
+		if (executionState.flowinputString)
+			req.InputType = InputType.StrValue;
+		else
+			req.InputType = InputType.IntValue;
+		req.IsSystemInput = true;
+		if (executionState.flowinputForceSkip)
+		{
+			executionState.systemResult = req.DefIntValue;
+			if (executionState.flowinputString)
+				vEvaluator.RESULTS = req.DefStrValue;
+		}
+		else if (executionState.flowinputCanSkip && console.MesSkip)
+		{
+			executionState.systemResult = req.DefIntValue;
+			if (executionState.flowinputString)
+				vEvaluator.RESULTS = req.DefStrValue;
+		}
+		console.WaitInput(req);
+	}
 
 	void beginTitle()
 	{
-		if (parent.isCTrain)
-			if (parent.ClearCommands())
+		if (executionState.isCTrain)
+			if (ClearCommands())
 				return;
-		parent.skipPrint = false;
+		executionState.skipPrint = false;
 		console.ResetStyle();
-		parent.deleteAllPrevState();
+		process.deleteAllPrevState();
 			if (Program.AnalysisMode)
 			{
 				console.PrintSystemLine(trsl.AnalysisCompleted.Text);
@@ -206,7 +193,7 @@ internal sealed partial class Process
 				console.ThrowTitleError(false);
 				return;
 			}
-			if ((!parent.noError) && (!Config.CompatiErrorLine))
+			if ((!executionState.noError) && (!Config.CompatiErrorLine))
 			{
 				console.PrintErrorButton(trsl.ExitBecauseCanNotInterpreted1.Text, null, 3);
 				console.PrintSystemLine(string.Format(trsl.ExitBecauseCanNotInterpreted2.Text, Config.GetConfigName(ConfigCode.CompatiErrorLine)));
@@ -254,7 +241,7 @@ internal sealed partial class Process
 
 		void endOpenning()
 		{
-			if (parent.systemResult == 0)
+			if (executionState.systemResult == 0)
 			{
 				vEvaluator.ResetData();
 				vEvaluator.AddCharacterFromCsvNo(0);
@@ -264,7 +251,7 @@ internal sealed partial class Process
 				console.NewLine();
 				beginFirst();
 			}
-			else if (parent.systemResult == 1)
+			else if (executionState.systemResult == 1)
 			{
 				if (CallFunction("TITLE_LOADGAME", false, false))
 				{
@@ -288,10 +275,10 @@ internal sealed partial class Process
 		void beginFirst()
 		{
 			state.SystemState = SystemStateCode.Normal;
-			if (parent.isCTrain)
-				if (parent.ClearCommands())
+			if (executionState.isCTrain)
+				if (ClearCommands())
 					return;
-			parent.skipPrint = false;
+			executionState.skipPrint = false;
 			CallFunction("EVENTFIRST", true, true);
 		}
 
@@ -322,8 +309,8 @@ internal sealed partial class Process
 			}
 			else
 			{
-				if (parent.isCTrain)
-					parent.skipPrint = true;
+				if (executionState.isCTrain)
+					executionState.skipPrint = true;
 				CallFunction("SHOW_STATUS", true, false);
 				state.SystemState = SystemStateCode.Train_CallShowStatus;
 			}
@@ -354,7 +341,7 @@ internal sealed partial class Process
 				if (vEvaluator.RESULT != 0)
 				{
 					comAble[lastAddCom] = lastCalledComable;
-					if (!parent.isCTrain)
+					if (!executionState.isCTrain)
 					{
 						console.PrintC(getTrainComString(lastCalledComable, lastAddCom), true);
 						printComCount++;
@@ -375,7 +362,7 @@ internal sealed partial class Process
 					if (Config.ComAbleDefault == 0)
 						continue;
 					comAble[lastAddCom] = lastCalledComable;
-					if (!parent.isCTrain)
+					if (!executionState.isCTrain)
 					{
 						console.PrintC(getTrainComString(lastCalledComable, lastAddCom), true);
 						printComCount++;
@@ -398,10 +385,10 @@ internal sealed partial class Process
 
 		void endCallShowUserCom()
 		{
-			if (parent.skipPrint)
-				parent.skipPrint = false;
+			if (executionState.skipPrint)
+				executionState.skipPrint = false;
 			vEvaluator.UpdateAfterShowUsercom();
-			if (!parent.isCTrain)
+			if (!executionState.isCTrain)
 			{
 				setWaitInput();
 
@@ -409,10 +396,10 @@ internal sealed partial class Process
 			}
 			else
 			{
-				if (parent.count < parent.coms.Count)
+				if (executionState.count < executionState.coms.Count)
 				{
-					parent.systemResult = parent.coms[parent.count];
-					parent.count++;
+					executionState.systemResult = executionState.coms[executionState.count];
+					executionState.count++;
 					trainWaitInput();
 				}
 			}
@@ -421,19 +408,19 @@ internal sealed partial class Process
 		void trainWaitInput()
 		{
 			int selectCom = -1;
-			if (!parent.isCTrain)
+			if (!executionState.isCTrain)
 			{
-				if ((parent.systemResult >= 0) && (parent.systemResult < comAble.Length))
-					selectCom = comAble[parent.systemResult];
+				if ((executionState.systemResult >= 0) && (executionState.systemResult < comAble.Length))
+					selectCom = comAble[executionState.systemResult];
 			}
 			else
 			{
 				for (int i = 0; i < comAble.Length; i++)
 				{
-					if (comAble[i] == parent.systemResult)
-						selectCom = (int)parent.systemResult;
+					if (comAble[i] == executionState.systemResult)
+						selectCom = (int)executionState.systemResult;
 				}
-				console.PrintSingleLine(string.Format(trerror.ExecutedCom.Text, parent.count, parent.coms.Count));
+				console.PrintSingleLine(string.Format(trerror.ExecutedCom.Text, executionState.count, executionState.coms.Count));
 			}
 			if (selectCom >= 0)
 			{
@@ -442,9 +429,9 @@ internal sealed partial class Process
 			}
 			else
 			{
-				if (parent.isCTrain)
+				if (executionState.isCTrain)
 					console.PrintSingleLine(trerror.CouldNotExecuteCom.Text);
-				vEvaluator.RESULT = parent.systemResult;
+				vEvaluator.RESULT = executionState.systemResult;
 				state.SystemState = SystemStateCode.Train_CallEventComEnd;
 				CallFunction("USERCOM", true, false);
 			}
@@ -453,7 +440,7 @@ internal sealed partial class Process
 		void doTrain()
 		{
 			vEvaluator.UpdateAfterShowUsercom();
-			vEvaluator.SELECTCOM = parent.doTrainSelectCom;
+			vEvaluator.SELECTCOM = executionState.doTrainSelectCom;
 			callEventCom();
 		}
 
@@ -491,7 +478,7 @@ internal sealed partial class Process
 		{
 			vEvaluator.UpdateAfterSourceCheck();
 			state.SystemState = SystemStateCode.Train_CallEventComEnd;
-			parent.NeedWaitToEventComEnd = true;
+			NeedWaitToEventComEnd = true;
 			if (!CallFunction("EVENTCOMEND", false, true))
 			{
 				endCallEventComEnd();
@@ -500,7 +487,7 @@ internal sealed partial class Process
 
 		void endCallEventComEnd()
 		{
-			if (console.LastLineIsTemporary && !parent.isCTrain && parent.needCheck)
+			if (console.LastLineIsTemporary && !executionState.isCTrain && needCheck)
 			{
 				if (console.LastLineIsEmpty)
 				{
@@ -512,42 +499,42 @@ internal sealed partial class Process
 			}
 			else
 			{
-				if (parent.isCTrain && parent.count == parent.coms.Count)
+				if (executionState.isCTrain && executionState.count == executionState.coms.Count)
 				{
-					parent.isCTrain = false;
-					parent.skipPrint = false;
-					parent.coms.Clear();
-					parent.count = 0;
+					executionState.isCTrain = false;
+					executionState.skipPrint = false;
+					executionState.coms.Clear();
+					executionState.count = 0;
 					if (CallFunction("CALLTRAINEND", false, false))
 					{
-						parent.needCheck = false;
+						needCheck = false;
 						return;
 					}
 				}
-				parent.needCheck = true;
-				if (parent.NeedWaitToEventComEnd)
+				needCheck = true;
+				if (NeedWaitToEventComEnd)
 					setWait();
-				parent.NeedWaitToEventComEnd = false;
+				NeedWaitToEventComEnd = false;
 				endCallEventTrain();
 			}
 		}
 
 		void beginAfterTrain()
 		{
-			if (parent.isCTrain)
-				if (parent.ClearCommands())
+			if (executionState.isCTrain)
+				if (ClearCommands())
 					return;
-			parent.skipPrint = false;
+			executionState.skipPrint = false;
 			state.SystemState = SystemStateCode.Normal;
 			CallFunction("EVENTEND", true, true);
 		}
 
 		void beginAblup()
 		{
-			if (parent.isCTrain)
-				if (parent.ClearCommands())
+			if (executionState.isCTrain)
+				if (ClearCommands())
 					return;
-			parent.skipPrint = false;
+			executionState.skipPrint = false;
 			state.SystemState = SystemStateCode.Ablup_CallShowJuel;
 			CallFunction("SHOW_JUEL", true, false);
 		}
@@ -566,10 +553,10 @@ internal sealed partial class Process
 
 		void ablupWaitInput()
 		{
-			if ((parent.systemResult >= 0) && (parent.systemResult < 100))
+			if ((executionState.systemResult >= 0) && (executionState.systemResult < 100))
 			{
 				state.SystemState = SystemStateCode.Ablup_CallAblupXX;
-				string ablName = string.Format("ABLUP{0}", parent.systemResult);
+				string ablName = string.Format("ABLUP{0}", executionState.systemResult);
 				if (!CallFunction(ablName, false, false))
 				{
 					console.deleteLine(1);
@@ -580,7 +567,7 @@ internal sealed partial class Process
 			}
 			else
 			{
-				vEvaluator.RESULT = parent.systemResult;
+				vEvaluator.RESULT = executionState.systemResult;
 				state.SystemState = SystemStateCode.Ablup_CallAblupXX;
 				CallFunction("USERABLUP", true, false);
 			}
@@ -604,20 +591,20 @@ internal sealed partial class Process
 
 		void beginTurnend()
 		{
-			if (parent.isCTrain)
-				if (parent.ClearCommands())
+			if (executionState.isCTrain)
+				if (ClearCommands())
 					return;
-			parent.skipPrint = false;
+			executionState.skipPrint = false;
 			CallFunction("EVENTTURNEND", true, true);
 			state.SystemState = SystemStateCode.Normal;
 		}
 
 		void beginShop()
 		{
-			if (parent.isCTrain)
-				if (parent.ClearCommands())
+			if (executionState.isCTrain)
+				if (ClearCommands())
 					return;
-			parent.skipPrint = false;
+			executionState.skipPrint = false;
 			state.SystemState = SystemStateCode.Shop_CallEventShop;
 			if (!CallFunction("EVENTSHOP", false, true))
 			{
@@ -684,11 +671,11 @@ internal sealed partial class Process
 
 		void shopWaitInput()
 		{
-			if ((parent.systemResult >= 0) && (parent.systemResult < Config.MaxShopItem))
+			if ((executionState.systemResult >= 0) && (executionState.systemResult < Config.MaxShopItem))
 			{
-				if (vEvaluator.ItemSales(parent.systemResult))
+				if (vEvaluator.ItemSales(executionState.systemResult))
 				{
-					if (vEvaluator.BuyItem(parent.systemResult))
+					if (vEvaluator.BuyItem(executionState.systemResult))
 					{
 						state.SystemState = SystemStateCode.Shop_CallEventBuy;
 						if (!CallFunction("EVENTBUY", false, true))
@@ -711,7 +698,7 @@ internal sealed partial class Process
 			}
 			else
 			{
-				vEvaluator.RESULT = parent.systemResult;
+				vEvaluator.RESULT = executionState.systemResult;
 
 				CallFunction("USERSHOP", true, false);
 				state.SystemState = SystemStateCode.Shop_CallEventBuy;
@@ -876,21 +863,21 @@ internal sealed partial class Process
 
 		void saveGameWaitInput()
 		{
-			if (parent.systemResult == 100)
+			if (executionState.systemResult == 100)
 			{
-				parent.loadPrevState();
+				process.loadPrevState();
 				return;
 			}
-			else if (((int)parent.systemResult / 20) != page && parent.systemResult != AutoSaveIndex && parent.systemResult >= 0 && parent.systemResult < dataIsAvailable.Length - 1)
+			else if (((int)executionState.systemResult / 20) != page && executionState.systemResult != AutoSaveIndex && executionState.systemResult >= 0 && executionState.systemResult < dataIsAvailable.Length - 1)
 			{
-				page = (int)parent.systemResult / 20;
+				page = (int)executionState.systemResult / 20;
 				state.SystemState = SystemStateCode.SaveGame_Begin;
 				printSaveDataText();
 				return;
 			}
 			bool available;
-			if ((parent.systemResult >= 0) && (parent.systemResult < dataIsAvailable.Length - 1))
-				available = dataIsAvailable[parent.systemResult];
+			if ((executionState.systemResult >= 0) && (executionState.systemResult < dataIsAvailable.Length - 1))
+				available = dataIsAvailable[executionState.systemResult];
 			else
 			{
 				console.deleteLine(1);
@@ -899,7 +886,7 @@ internal sealed partial class Process
 				setWaitInput();
 				return;
 			}
-			saveTarget = (int)parent.systemResult;
+			saveTarget = (int)executionState.systemResult;
 
 			GlobalStatic.ctrlZ.OnSavePrepare(saveTarget);
 
@@ -912,18 +899,18 @@ internal sealed partial class Process
 				state.SystemState = SystemStateCode.SaveGame_WaitInputOverwrite;
 				return;
 			}
-			parent.systemResult = 0;
+			executionState.systemResult = 0;
 			saveGameWaitInputOverwrite();
 		}
 
 		void saveGameWaitInputOverwrite()
 		{
-			if (parent.systemResult == 1)
+			if (executionState.systemResult == 1)
 			{
 				beginSaveGame();
 				return;
 			}
-			else if (parent.systemResult != 0)
+			else if (executionState.systemResult != 0)
 			{
 				console.deleteLine(1);
 				console.PrintTemporaryLine(trerror.InvalidValue.Text);
@@ -947,24 +934,24 @@ internal sealed partial class Process
 
 			GlobalStatic.ctrlZ.OnSave();
 
-			parent.loadPrevState();
+			process.loadPrevState();
 		}
 
 		void loadGameWaitInput()
 		{
-			if (parent.systemResult == 100)
+			if (executionState.systemResult == 100)
 			{
 				if (state.SystemState == SystemStateCode.LoadGameOpenning_WaitInput)
 				{
 					beginTitle();
 					return;
 				}
-				parent.loadPrevState();
+				process.loadPrevState();
 				return;
 			}
-			else if (((int)parent.systemResult / 20) != page && parent.systemResult != AutoSaveIndex && parent.systemResult >= 0 && parent.systemResult < dataIsAvailable.Length - 1)
+			else if (((int)executionState.systemResult / 20) != page && executionState.systemResult != AutoSaveIndex && executionState.systemResult >= 0 && executionState.systemResult < dataIsAvailable.Length - 1)
 			{
-				page = (int)parent.systemResult / 20;
+				page = (int)executionState.systemResult / 20;
 				if (state.SystemState == SystemStateCode.LoadGameOpenning_WaitInput)
 					state.SystemState = SystemStateCode.LoadGameOpenning_Begin;
 				else
@@ -973,9 +960,9 @@ internal sealed partial class Process
 				return;
 			}
 			bool available;
-			if ((parent.systemResult >= 0) && (parent.systemResult < dataIsAvailable.Length - 1))
-				available = dataIsAvailable[parent.systemResult];
-			else if (parent.systemResult == AutoSaveIndex)
+			if ((executionState.systemResult >= 0) && (executionState.systemResult < dataIsAvailable.Length - 1))
+				available = dataIsAvailable[executionState.systemResult];
+			else if (executionState.systemResult == AutoSaveIndex)
 				available = dataIsAvailable[^1];
 			else
 			{
@@ -987,7 +974,7 @@ internal sealed partial class Process
 			}
 			if (!available)
 			{
-				console.PrintSingleLine(parent.systemResult.ToString());
+				console.PrintSingleLine(executionState.systemResult.ToString());
 				console.PrintError(trerror.NoData.Text);
 				if (state.SystemState == SystemStateCode.LoadGameOpenning_WaitInput)
 				{
@@ -998,11 +985,11 @@ internal sealed partial class Process
 				return;
 			}
 
-			GlobalStatic.ctrlZ.OnLoad((int)parent.systemResult);
+			GlobalStatic.ctrlZ.OnLoad((int)executionState.systemResult);
 
-			if (!vEvaluator.LoadFrom((int)parent.systemResult))
+			if (!vEvaluator.LoadFrom((int)executionState.systemResult))
 				throw new ExeEE(trerror.UnexpectedErrorInLoaddata.Text);
-			parent.deletePrevState();
+			process.deletePrevState();
 			beginDataLoaded();
 		}
 
@@ -1014,7 +1001,7 @@ internal sealed partial class Process
 
 		void endReloaderb()
 		{
-			parent.loadPrevState();
+			process.loadPrevState();
 			console.ReloadErbFinished();
 		}
 
@@ -1032,5 +1019,4 @@ internal sealed partial class Process
 			return result.State == EraDataState.OK;
 		}
 
-}
 }

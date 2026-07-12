@@ -22,6 +22,7 @@ internal interface IProcessState
 	void Return(long ret);
 	void IntoFunction(CalledFunction call, UserDefinedFunctionArgument? srcArgs, ExpressionMediator exm);
 	void Begin();
+	int lineCount { get; set; }
 	void ClearFunctionList();
 	IProcessState Clone();
 }

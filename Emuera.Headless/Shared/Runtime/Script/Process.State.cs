@@ -99,6 +99,7 @@ internal sealed class ProcessState : IProcessState
 	readonly List<CalledFunction> functionList = [];
 	private LogicalLine currentLine = null!;
 	//private LogicalLine nextLine;
+	int IProcessState.lineCount { get => lineCount; set => lineCount = value; }
 	public int lineCount;
 	public int currentMin;
 	//private bool sequential;

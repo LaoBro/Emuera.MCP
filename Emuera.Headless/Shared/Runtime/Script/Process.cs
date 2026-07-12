@@ -27,6 +27,8 @@ internal sealed partial class Process(EmueraConsole view)
 {
 	public LogicalLine getCurrentLine { get { return state.CurrentLine; } }
 
+	public bool SkipPrint { get { return executionState.skipPrint; } set { executionState.skipPrint = value; } }
+
 	/// <summary>
 	/// @~~と$~~を集めたもの。CALL命令などで使う
 	/// 実行順序はLogicalLine自身が保持する。
@@ -56,9 +58,10 @@ internal sealed partial class Process(EmueraConsole view)
 	LoaderEnv _loaderEnv = null!;
 	ProcessState state = null!;
 	ProcessState originalState = null!;//リセットする時のために
+	internal ExecutionState executionState = null!;
 	internal SystemProc _systemProc = null!;
 	internal ScriptProc _scriptProc = null!;
-	bool noError;
+	private string[] TrainName = null!;
 	//色々あって復活させてみる
 	bool initialiing;
 	public bool inInitializeing { get { return initialiing; } }
@@ -70,6 +73,8 @@ internal sealed partial class Process(EmueraConsole view)
 		LexicalAnalyzer.UseMacro = false;
 		state = new ProcessState(console);
 		originalState = state;
+		executionState = new ExecutionState();
+		executionState.CurrentState = state;
 		initialiing = true;
 		_loaderEnv = env;
 		try
@@ -220,29 +225,6 @@ internal sealed partial class Process(EmueraConsole view)
 		console.ReadAnyKey();
 	}
 
-	public void SetCommnds(long count)
-	{
-		coms = new List<long>((int)count);
-		isCTrain = true;
-		long[] selectcom = vEvaluator.SELECTCOM_ARRAY;
-		if (count >= selectcom.Length)
-		{
-			throw new CodeEE(trerror.CalltrainArgMoreThanSelectcom.Text);
-		}
-		for (int i = 0; i < (int)count; i++)
-		{
-			coms.Add(selectcom[i + 1]);
-		}
-	}
-
-	public bool ClearCommands()
-	{
-		coms.Clear();
-		count = 0;
-		isCTrain = false;
-		skipPrint = true;
-		return _systemProc.CallFunction("CALLTRAINEND", false, false);
-	}
 	#region EE_INPUTMOUSEKEYのボタン対応
 	// public void InputResult5(int r0, int r1, int r2, int r3, int r4)
 	public void InputResult5(int r0, int r1, int r2, int r3, int r4, long r5)
@@ -276,7 +258,7 @@ internal sealed partial class Process(EmueraConsole view)
 	public void InputSystemInteger(long i)
 	{
 		GlobalStatic.ctrlZ.Add(i.ToString());
-		systemResult = i;
+		executionState.systemResult = i;
 	}
 	public void InputString(string s)
 	{
@@ -284,12 +266,9 @@ internal sealed partial class Process(EmueraConsole view)
 		vEvaluator.RESULTS = s;
 	}
 
-	readonly Stopwatch startTime = new();
-
 	public void DoScript()
 	{
-		startTime.Restart();
-		state.lineCount = 0;
+		_scriptProc.ResetInfiniteLoopTimer();
 		bool systemProcRunning = true;
 		try
 		{
@@ -336,52 +315,18 @@ internal sealed partial class Process(EmueraConsole view)
 
 	public void UpdateCheckInfiniteLoopState()
 	{
-		startTime.Restart();
-		state.lineCount = 0;
+		_scriptProc.ResetInfiniteLoopTimer();
 	}
 
 	public void saveCurrentState(bool single) => _scriptProc.SaveCurrentState(single);
 
 	public void loadPrevState() => _scriptProc.LoadPrevState();
 
-	public ProcessState getCurrentState => _scriptProc.GetCurrentState;
+	public ProcessState getCurrentState => (ProcessState)_scriptProc.GetCurrentState;
 
 	public void DoDebugNormalFunction(InstructionLine func, bool munchkin) => _scriptProc.DoDebugNormalFunction(func, munchkin);
 
 	public void LoadSilent() => _systemProc.LoadSilent();
-
-	private void checkInfiniteLoop()
-	{
-		var elapsedTime = startTime.ElapsedMilliseconds;
-		if (elapsedTime < Config.InfiniteLoopAlertTime)
-			return;
-		LogicalLine currentLine = state.CurrentLine;
-		if ((currentLine == null) || (currentLine is NullLine))
-			return;//現在の行が特殊な状態ならスルー
-		if (!console.Enabled)
-			return;
-		string text = string.Format(
-			trmb.TooLongLoop.Text,
-			currentLine.Position!.Value.Filename, currentLine.Position!.Value.LineNo, state.lineCount, elapsedTime);
-#if HEADLESS
-		// T-021：Headless/Server 模式无交互对话框，超时即终止脚本。
-		// GameExitException 穿透 DoScript → RunEmueraProgram → 协议层 → Session/HeadlessRunner
-		// 的 catch + finally，触发正常清理（BuildFinalTurn / IO.Close / GlobalStatic.Reset）。
-		Console.Error.WriteLine($"[script-timeout] {text}");
-		throw new GameExitException();
-#else
-		string caption = string.Format(trmb.InfiniteLoop.Text);
-		if (Dialog.ShowPrompt(text, caption))
-		{
-			throw new CodeEE(trerror.SelectExitInfiniteLoopMB.Text);
-		}
-		else
-		{
-			state.lineCount = 0;
-			startTime.Restart();
-		}
-#endif
-	}
 
 	int methodStack;
 	public SingleTerm GetValue(SuperUserDefinedMethodTerm udmt)
@@ -573,12 +518,12 @@ internal sealed partial class Process(EmueraConsole view)
 			return "";
 	}
 
-	private void deletePrevState()
+	internal void deletePrevState()
 	{
 		_scriptProc.DeletePrevState();
 	}
 
-	private void deleteAllPrevState()
+	internal void deleteAllPrevState()
 	{
 		_scriptProc.DeleteAllPrevState();
 	}
@@ -611,8 +556,8 @@ internal sealed partial class Process(EmueraConsole view)
 			StrForm.Initialize();
 			VariableParser.Initialize();
 			process.exm = new ExpressionMediator(process, process.vEvaluator, console);
-			process._systemProc = new SystemProc(process, console, process.vEvaluator, process.gamebase, process.TrainName);
-			process._scriptProc = new ScriptProc(process, console, process.vEvaluator, process.exm, process.idDic);
+			process._systemProc = new SystemProc(process, console, process.vEvaluator, process.gamebase, process.TrainName, process.executionState);
+			process._scriptProc = new ScriptProc(process, console, process.vEvaluator, process.exm, process.idDic, process.executionState, process.gamebase, process.TrainName);
 
 			PluginManager.GetInstance().SetParent(process, process.state, process.exm);
 			PluginManager.GetInstance().LoadPlugins();
@@ -621,7 +566,7 @@ internal sealed partial class Process(EmueraConsole view)
 			return await LoadHeadersAndScripts(process.idDic, process.exm, process.labelDic,
 				process.vEvaluator, env,
 				line => process.scaningLine = line,
-				ok => process.noError = ok,
+				ok => process.executionState.noError = ok,
 				logWriter, stopWatch);
 		}
 

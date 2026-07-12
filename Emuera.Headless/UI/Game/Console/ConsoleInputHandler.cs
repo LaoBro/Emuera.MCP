@@ -58,7 +58,7 @@ internal sealed class ConsoleInputHandler
         req.StopMesskip = stopMesskip;
         _state.inputReq = req;
         _state.State = ConsoleState.WaitInput;
-        _state.process!.NeedWaitToEventComEnd = false;
+        _state.process!._systemProc.NeedWaitToEventComEnd = false;
     }
 
     public void PressEnterKey(bool keySkip, string input, bool changedByMouse)
