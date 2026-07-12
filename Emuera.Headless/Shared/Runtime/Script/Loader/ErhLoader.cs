@@ -3,6 +3,7 @@ using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Parser;
+using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Sub;
 using System;
@@ -15,13 +16,17 @@ namespace MinorShift.Emuera.Runtime.Script.Loader;
 
 internal sealed class ErhLoader
 {
-	public ErhLoader(EmueraConsole main, IdentifierDictionary idDic, Process proc)
+	// ADR-0012：F2——构造注入显式依赖，不持 Process 反向引用。
+	// 原 parentProcess.VEvaluator → 注入 VariableEvaluator；Program.ErbDir/CsvDir → 注入 LoaderEnv。
+	public ErhLoader(EmueraConsole main, IdentifierDictionary idDic, VariableEvaluator vEvaluator, LoaderEnv env)
 	{
 		output = main;
-		parentProcess = proc;
 		this.idDic = idDic;
+		this.vEvaluator = vEvaluator;
+		this.env = env;
 	}
-	readonly Process parentProcess;
+	readonly VariableEvaluator vEvaluator;
+	readonly LoaderEnv env;
 	readonly EmueraConsole output;
 	readonly IdentifierDictionary idDic;
 
@@ -282,11 +287,11 @@ internal sealed class ErhLoader
 					UserDefinedVariableData data = UserDefinedVariableData.Create(dimline);
 					if (data.Reference)
 						throw new NotImplCodeEE();
-					VariableToken var = null!;
-					if (data.CharaData)
-						var = parentProcess.VEvaluator.VariableData.CreateUserDefCharaVariable(data, dimline);
-					else
-						var = parentProcess.VEvaluator.VariableData.CreateUserDefVariable(data, dimline);
+				VariableToken var = null!;
+				if (data.CharaData)
+					var = vEvaluator.VariableData.CreateUserDefCharaVariable(data, dimline);
+				else
+					var = vEvaluator.VariableData.CreateUserDefVariable(data, dimline);
 					idDic.AddUseDefinedVariable(var);
 					#region EE_ERD
 					if (Config.Config.UseERD)
@@ -373,7 +378,7 @@ internal sealed class ErhLoader
 	private void PrepareERDFileNames()
 	{
 		if (erdFileNames == null) erdFileNames = [];
-		foreach (var path in Directory.GetFiles(Program.ErbDir, "*.erd", SearchOption.AllDirectories))
+		foreach (var path in Directory.GetFiles(env.ErbDir, "*.erd", SearchOption.AllDirectories))
 		{
 			var key = Path.GetFileNameWithoutExtension(path).ToUpper();
 			if (erdFileNames.TryGetValue(key, out var list))
@@ -381,7 +386,7 @@ internal sealed class ErhLoader
 			else
 				erdFileNames[key] = [path];
 		}
-		foreach (var path in Directory.GetFiles(Program.CsvDir, "*.csv", SearchOption.TopDirectoryOnly))
+		foreach (var path in Directory.GetFiles(env.CsvDir, "*.csv", SearchOption.TopDirectoryOnly))
 		{
 			var key = Path.GetFileNameWithoutExtension(path).ToUpper();
 			if (erdFileNames.TryGetValue(key, out var list))

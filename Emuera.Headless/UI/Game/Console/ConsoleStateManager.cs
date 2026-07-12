@@ -6,6 +6,7 @@ using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
+using MinorShift.Emuera.Runtime.Script.Loader;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Utils;
@@ -60,16 +61,17 @@ internal sealed class ConsoleStateManager
 
         logWriter?.WriteLine("File:Preload:End " + boottimeDebugStopwatch.ElapsedMilliseconds + "ms");
 
-        GlobalStatic.Console = _console;
-        _state.process = new Process(_console);
-        GlobalStatic.Process = _state.process!;
-        if (Program.DebugMode && Config.DebugShowWindow)
-        {
-            // OpenDebugDialog: WinForms-only stub removed in Headless
-            _ui.Focus();
-        }
-        _console.ClearDisplay();
-        if (!await _state.process!.Initialize(logWriter!))
+		GlobalStatic.Console = _console;
+		_state.process = new Process(_console);
+		GlobalStatic.Process = _state.process!;
+		if (Program.DebugMode && Config.DebugShowWindow)
+		{
+			// OpenDebugDialog: WinForms-only stub removed in Headless
+			_ui.Focus();
+		}
+		_console.ClearDisplay();
+		var env = new LoaderEnv(Program.CsvDir, Program.ErbDir, Program.AnalysisMode, Program.AnalysisFiles, Program.DebugMode);
+		if (!await _state.process!.Initialize(env, logWriter))
         {
             _state.State = ConsoleState.Error;
             _console.OutputLog(null!, false);

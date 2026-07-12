@@ -53,6 +53,7 @@ internal sealed partial class Process(EmueraConsole view)
 	private IdentifierDictionary idDic = null!;
 	// ADR-0011：6 引擎字段之一，实例持有，不再写回 GlobalStatic。
 	public IdentifierDictionary IdentifierDictionary { get { return idDic; } }
+	LoaderEnv _loaderEnv = null!;
 	ProcessState state = null!;
 	ProcessState originalState = null!;//リセットする時のために
 	internal SystemProc _systemProc = null!;
@@ -62,7 +63,7 @@ internal sealed partial class Process(EmueraConsole view)
 	bool initialiing;
 	public bool inInitializeing { get { return initialiing; } }
 
-	public async Task<bool> Initialize(StreamWriter logWriter)
+	public async Task<bool> Initialize(LoaderEnv env, StreamWriter? logWriter)
 	{
 		var stopWatch = new Stopwatch();
 		stopWatch.Start();
@@ -70,6 +71,7 @@ internal sealed partial class Process(EmueraConsole view)
 		state = new ProcessState(console);
 		originalState = state;
 		initialiing = true;
+		_loaderEnv = env;
 		try
 		{
 			logWriter?.WriteLine($"Proc:Init:Start {stopWatch.ElapsedMilliseconds}ms");
@@ -103,7 +105,7 @@ internal sealed partial class Process(EmueraConsole view)
 			logWriter?.WriteLine($"Proc:Init:KeyMacro:Start {stopWatch.ElapsedMilliseconds}ms");
 			//キーマクロ読み込み
 			#region eee_カレントディレクトリー
-			if (Config.UseKeyMacro && !Program.AnalysisMode)
+			if (Config.UseKeyMacro && !env.AnalysisMode)
 			{
 				//if (File.Exists(Program.ExeDir + "macro.txt"))
 				if (File.Exists(Program.ExeDir + "macro.txt"))
@@ -119,13 +121,13 @@ internal sealed partial class Process(EmueraConsole view)
 
 			logWriter?.WriteLine($"Proc:Init:Replace:Start {stopWatch.ElapsedMilliseconds}ms");
 			//_replace.csv読み込み
-			if (Config.UseReplaceFile && !Program.AnalysisMode)
+			if (Config.UseReplaceFile && !env.AnalysisMode)
 			{
-				if (File.Exists(Program.CsvDir + "_Replace.csv"))
+				if (File.Exists(env.CsvDir + "_Replace.csv"))
 				{
 					if (Config.DisplayReport)
 						console.PrintSystemLine(trsl.LoadingReplace.Text);
-					ConfigData.Current!.LoadReplaceFile(Program.CsvDir + "_Replace.csv");
+					ConfigData.Current!.LoadReplaceFile(env.CsvDir + "_Replace.csv");
 					if (ParserMediator.HasWarning)
 					{
 						ParserMediator.FlushWarningList();
@@ -149,11 +151,11 @@ internal sealed partial class Process(EmueraConsole view)
 			//_rename.csv読み込み
 			if (Config.UseRenameFile)
 			{
-				if (File.Exists(Program.CsvDir + "_Rename.csv"))
+				if (File.Exists(env.CsvDir + "_Rename.csv"))
 				{
-					if (Config.DisplayReport || Program.AnalysisMode)
+					if (Config.DisplayReport || env.AnalysisMode)
 						console.PrintSystemLine(trsl.LoadingRename.Text);
-					ParserMediator.LoadEraExRenameFile(Program.CsvDir + "_Rename.csv");
+					ParserMediator.LoadEraExRenameFile(env.CsvDir + "_Rename.csv");
 				}
 				else
 					console.PrintError(trsl.MissingRename.Text);
@@ -165,31 +167,17 @@ internal sealed partial class Process(EmueraConsole view)
 				console.PrintSingleLine(Config.LoadLabel);
 				console.RefreshStrings(true);
 			}
-		// ADR-0011 决策二：引擎字段在 Initialize（composition root）中创建，经方法参数注入 Loader。
-		// Loader 仅处理文件 I/O，不设 Process 反向引用（F2）。
-		this.gamebase = new GameBase();
-		this.constantData = new ConstantData();
-		this.labelDic = new LabelDictionary();
+	// ADR-0011 决策二：引擎字段在 Initialize（composition root）中创建，经方法参数注入 Loader。
+	// Loader 仅处理文件 I/O，不设 Process 反向引用（F2）。
+	// ADR-0012：LoaderEnv 收口 Program.* 进程级 static，Loader 不再直读 Program。
+	this.gamebase = new GameBase();
+	this.constantData = new ConstantData();
+	this.labelDic = new LabelDictionary();
 
-		var loader = new Loader(console);
-		if (!await loader.LoadBaseCsv(this.gamebase, this.constantData, logWriter, stopWatch))
-			return false;
-		console.SetWindowTitle(this.gamebase.ScriptWindowTitle);
-		logWriter?.WriteLine($"Proc:Init:EtcCSV:End {stopWatch.ElapsedMilliseconds}ms");
-
-		this.TrainName = this.constantData.GetCsvNameList(VariableCode.TRAINNAME);
-		this.vEvaluator = new VariableEvaluator(this.gamebase, this.constantData);
-		this.idDic = new IdentifierDictionary(this.vEvaluator.VariableData);
-		StrForm.Initialize();
-		VariableParser.Initialize();
-		this.exm = new ExpressionMediator(this, this.vEvaluator, console);
-		_systemProc = new SystemProc(this, console, this.vEvaluator, this.gamebase, this.TrainName);
-		_scriptProc = new ScriptProc(this, console, this.vEvaluator, this.exm, this.idDic);
-
-		logWriter?.WriteLine($"Proc:Init:ERH:Start {stopWatch.ElapsedMilliseconds}ms");
-		if (!await loader.LoadHeadersAndScripts(this.idDic, this.exm, this.labelDic, this, logWriter, stopWatch))
-			return false;
-		logWriter?.WriteLine($"Proc:Init:ERB:End {stopWatch.ElapsedMilliseconds}ms");
+	var loader = new Loader(console);
+	if (!await loader.LoadEngineData(this, env, logWriter, stopWatch))
+		return false;
+	logWriter?.WriteLine($"Proc:Init:ERB:End {stopWatch.ElapsedMilliseconds}ms");
 
 		_systemProc.Init();
 		initialiing = false;
@@ -216,8 +204,9 @@ internal sealed partial class Process(EmueraConsole view)
 		await Preload.Load(Program.CsvDir);
 		saveCurrentState(false);
 		state.SystemState = SystemStateCode.System_Reloaderb;
-		ErbLoader loader = new(console, exm, this);
-		await loader.LoadErbDir(Program.ErbDir, false, labelDic);
+		// ADR-0012：ErbLoader F2 构造注入，不再传 Process。复用 _loaderEnv。
+		ErbLoader loader = new(console, exm, idDic, _loaderEnv, line => scaningLine = line);
+		await loader.LoadErbDir(_loaderEnv.ErbDir, false, labelDic);
 		console.ReadAnyKey();
 	}
 
@@ -226,7 +215,7 @@ internal sealed partial class Process(EmueraConsole view)
 		saveCurrentState(false);
 		state.SystemState = SystemStateCode.System_Reloaderb;
 		await Preload.Load(paths);
-		var loader = new ErbLoader(console, exm, this);
+		var loader = new ErbLoader(console, exm, idDic, _loaderEnv, line => scaningLine = line);
 		await loader.LoadErbList(paths, labelDic);
 		console.ReadAnyKey();
 	}
@@ -595,22 +584,53 @@ internal sealed partial class Process(EmueraConsole view)
 	}
 
 	/// <summary>
-	/// ADR-0011 决策二：引擎数据加载子模块（F2 深模块）。
+	/// ADR-0011 决策二 + ADR-0012：引擎数据加载子模块（F2 深模块）。
 	/// 字段在 <see cref="Initialize"/>（composition root）中创建；Loader 仅处理文件 I/O，
-	/// 经方法参数接收所需对象。不存储 Process 反向引用字段（F2），但方法签名
-	/// 暂仍接收 Process 以传递给 ErhLoader/ErbLoader（二者尚未 F2）。
+	/// 经方法参数接收所需对象（含 <see cref="LoaderEnv"/> / scaningLine sink / noError sink），
+	/// 不存储 Process 反向引用字段（F2），方法签名亦不接收 Process。
+	/// PluginManager 装配已移至 <see cref="LoadEngineData"/>（composition root）。
+	/// 统一入口 <see cref="LoadEngineData"/> 按字段创建顺序写回 Process 实例字段。
 	/// </summary>
 	internal sealed class Loader
 	{
 		private readonly EmueraConsole console;
 		internal Loader(EmueraConsole console) { this.console = console; }
 
-		/// <summary>加载 GAMEBASE.CSV 与其余全部 CSV 数据。</summary>
-		internal async Task<bool> LoadBaseCsv(GameBase gamebase, ConstantData constantData,
+		/// <summary>统一引擎数据加载入口（composition root 委托）。</summary>
+		internal async Task<bool> LoadEngineData(Process process, LoaderEnv env,
 			StreamWriter? logWriter, Stopwatch stopWatch)
 		{
+			if (!await LoadBaseCsv(process.gamebase, process.constantData, env, logWriter, stopWatch))
+				return false;
+			console.SetWindowTitle(process.gamebase.ScriptWindowTitle);
+			logWriter?.WriteLine($"Proc:Init:EtcCSV:End {stopWatch.ElapsedMilliseconds}ms");
+
+			process.TrainName = process.constantData.GetCsvNameList(VariableCode.TRAINNAME);
+			process.vEvaluator = new VariableEvaluator(process.gamebase, process.constantData);
+			process.idDic = new IdentifierDictionary(process.vEvaluator.VariableData);
+			StrForm.Initialize();
+			VariableParser.Initialize();
+			process.exm = new ExpressionMediator(process, process.vEvaluator, console);
+			process._systemProc = new SystemProc(process, console, process.vEvaluator, process.gamebase, process.TrainName);
+			process._scriptProc = new ScriptProc(process, console, process.vEvaluator, process.exm, process.idDic);
+
+			PluginManager.GetInstance().SetParent(process, process.state, process.exm);
+			PluginManager.GetInstance().LoadPlugins();
+
+			logWriter?.WriteLine($"Proc:Init:ERH:Start {stopWatch.ElapsedMilliseconds}ms");
+			return await LoadHeadersAndScripts(process.idDic, process.exm, process.labelDic,
+				process.vEvaluator, env,
+				line => process.scaningLine = line,
+				ok => process.noError = ok,
+				logWriter, stopWatch);
+		}
+
+		/// <summary>加载 GAMEBASE.CSV 与其余全部 CSV 数据。</summary>
+		private async Task<bool> LoadBaseCsv(GameBase gamebase, ConstantData constantData,
+			LoaderEnv env, StreamWriter? logWriter, Stopwatch stopWatch)
+		{
 			logWriter?.WriteLine($"Proc:Init:MainCSV:Start {stopWatch.ElapsedMilliseconds}ms");
-			if (!await Task.Run(() => gamebase.LoadGameBaseCsv(Program.CsvDir + "GAMEBASE.CSV")))
+			if (!await Task.Run(() => gamebase.LoadGameBaseCsv(env.CsvDir + "GAMEBASE.CSV")))
 			{
 				ParserMediator.FlushWarningList();
 				console.PrintSystemLine(trsl.GamebaseError.Text);
@@ -618,22 +638,21 @@ internal sealed partial class Process(EmueraConsole view)
 			}
 			logWriter?.WriteLine($"Proc:Init:MainCSV:End {stopWatch.ElapsedMilliseconds}ms");
 
-			constantData.LoadData(Program.CsvDir, console, Config.DisplayReport);
+			constantData.LoadData(env.CsvDir, console, Config.DisplayReport);
 			return true;
 		}
 
 		/// <summary>加载 ERH 头文件与 ERB 脚本文件。</summary>
-		internal async Task<bool> LoadHeadersAndScripts(IdentifierDictionary idDic, ExpressionMediator exm,
-			LabelDictionary labelDic, Process process, StreamWriter? logWriter, Stopwatch stopWatch)
+		private async Task<bool> LoadHeadersAndScripts(IdentifierDictionary idDic, ExpressionMediator exm,
+			LabelDictionary labelDic, VariableEvaluator vEvaluator, LoaderEnv env,
+			Action<LogicalLine> setScanLine, Action<bool> setNoError,
+			StreamWriter? logWriter, Stopwatch stopWatch)
 		{
-			ErhLoader hLoader = new(console, idDic, process);
+			ErhLoader hLoader = new(console, idDic, vEvaluator, env);
 
 			LexicalAnalyzer.UseMacro = false;
 
-			PluginManager.GetInstance().SetParent(process, process.state, exm);
-			PluginManager.GetInstance().LoadPlugins();
-
-			if (!await Task.Run(() => hLoader.LoadHeaderFiles(Program.ErbDir, Config.DisplayReport)))
+			if (!await Task.Run(() => hLoader.LoadHeaderFiles(env.ErbDir, Config.DisplayReport)))
 			{
 				ParserMediator.FlushWarningList();
 				console.PrintSystemLine("");
@@ -643,11 +662,13 @@ internal sealed partial class Process(EmueraConsole view)
 			logWriter?.WriteLine($"Proc:Init:ERH:End {stopWatch.ElapsedMilliseconds}ms");
 
 			logWriter?.WriteLine($"Proc:Init:ERB:Start {stopWatch.ElapsedMilliseconds}ms");
-			var erbLoader = new ErbLoader(console, exm, process);
-			if (Program.AnalysisMode)
-				process.noError = await erbLoader.LoadErbList(Program.AnalysisFiles, labelDic);
+			var erbLoader = new ErbLoader(console, exm, idDic, env, setScanLine);
+			bool erbNoError;
+			if (env.AnalysisMode)
+				erbNoError = await erbLoader.LoadErbList(env.AnalysisFiles, labelDic);
 			else
-				process.noError = await erbLoader.LoadErbDir(Program.ErbDir, Config.DisplayReport, labelDic);
+				erbNoError = await erbLoader.LoadErbDir(env.ErbDir, Config.DisplayReport, labelDic);
+			setNoError(erbNoError);
 			return true;
 		}
 	}

@@ -21,14 +21,23 @@ namespace MinorShift.Emuera.Runtime.Script.Loader;
 
 internal sealed class ErbLoader
 {
-	public ErbLoader(EmueraConsole main, ExpressionMediator exm, Process proc)
+	// ADR-0012：F2——构造注入显式依赖，不持 Process 反向引用。
+	//   scaningLine 写 → Action<LogicalLine> sink
+	//   进程级目录 / Analysis / Debug 标志 → LoaderEnv
+	//   标识符字典 → IdentifierDictionary idDic（原走 GlobalStatic 兼容层）
+	public ErbLoader(EmueraConsole main, ExpressionMediator exm, IdentifierDictionary idDic,
+		LoaderEnv env, Action<LogicalLine> setScanLine)
 	{
 		output = main;
-		parentProcess = proc;
 		this.exm = exm;
+		this.idDic = idDic;
+		this.env = env;
+		this.setScanLine = setScanLine;
 	}
-	readonly Process parentProcess;
 	readonly ExpressionMediator exm;
+	readonly IdentifierDictionary idDic;
+	readonly LoaderEnv env;
+	readonly Action<LogicalLine> setScanLine;
 	readonly EmueraConsole output;
 	readonly HashSet<string> ignoredFNFWarningFiles = new(StringComparer.OrdinalIgnoreCase);
 	int ignoredFNFWarningCount;
@@ -133,7 +142,7 @@ internal sealed class ErbLoader
 		}
 		finally
 		{
-			parentProcess.scaningLine = null!;
+			setScanLine(null!);
 		}
 		isOnlyEvent.Clear();
 		return noError;
@@ -155,18 +164,18 @@ internal sealed class ErbLoader
 		{
 			foreach (var fpath in paths)
 			{
-				if (fpath.StartsWith(Program.ErbDir, Config.Config.SCIgnoreCase) && !Program.AnalysisMode)
-					fname = Path.GetRelativePath(Program.ErbDir, fpath);
+				if (fpath.StartsWith(env.ErbDir, Config.Config.SCIgnoreCase) && !env.AnalysisMode)
+					fname = Path.GetRelativePath(env.ErbDir, fpath);
 				else
 					fname = fpath;
-				if (Program.AnalysisMode)
+				if (env.AnalysisMode)
 				{
 					output.PrintSystemLine(string.Format(trsl.LoadingFile.Text, fname));
 				}
 				loadErb(fpath, fname, isOnlyEvent);
 			};
 		});
-		if (Program.AnalysisMode)
+		if (env.AnalysisMode)
 			output.NewLine();
 		ParserMediator.FlushWarningList();
 		setLabelsArg();
@@ -176,13 +185,19 @@ internal sealed class ErbLoader
 		await Task.Run(() => ParseScript());
 
 		ParserMediator.FlushWarningList();
-		parentProcess.scaningLine = null!;
+		setScanLine(null!);
 		isOnlyEvent.Clear();
 		return noError;
 	}
 
 	private sealed class PPState
 	{
+		// ADR-0012：原走 Program.DebugMode / GlobalStatic.IdentifierDictionary（static），
+		// 现经构造注入从外层 ErbLoader 传入。
+		readonly LoaderEnv env;
+		readonly IdentifierDictionary idDic;
+		internal PPState(LoaderEnv env, IdentifierDictionary idDic) { this.env = env; this.idDic = idDic; }
+
 		bool skip;
 		bool done;
 		public bool Disabled;
@@ -222,7 +237,7 @@ internal sealed class ErbLoader
 					ppMatch.Push("ELSEIF");
 					disabledStack.Push(Disabled);
 					doneStack.Push(done);
-					Disabled = !Program.DebugMode;
+					Disabled = !env.DebugMode;
 					done = !Disabled;
 					break;
 				case "IF_NDEBUG":
@@ -234,7 +249,7 @@ internal sealed class ErbLoader
 					ppMatch.Push("ELSEIF");
 					disabledStack.Push(Disabled);
 					doneStack.Push(done);
-					Disabled = Program.DebugMode;
+					Disabled = env.DebugMode;
 					done = !Disabled;
 					break;
 				case "IF":
@@ -246,7 +261,7 @@ internal sealed class ErbLoader
 					ppMatch.Push("ELSEIF");
 					disabledStack.Push(Disabled);
 					doneStack.Push(done);
-					Disabled = GlobalStatic.IdentifierDictionary.GetMacro(token2) == null;
+					Disabled = idDic.GetMacro(token2) == null;
 					done = !Disabled;
 					break;
 				case "ELSEIF":
@@ -261,7 +276,7 @@ internal sealed class ErbLoader
 						break;
 					}
 					ppMatch.Push("ELSEIF");
-					Disabled = done || GlobalStatic.IdentifierDictionary.GetMacro(token2) == null;
+					Disabled = done || idDic.GetMacro(token2) == null;
 					done |= !Disabled;
 					break;
 				case "ELSE":
@@ -349,14 +364,14 @@ internal sealed class ErbLoader
 		{
 			output.PrintError(string.Format(trerror.FailedOpenFile.Text, eReader.Filename));
 		}
-		var ppstate = new PPState();
+		var ppstate = new PPState(env, idDic);
 		LogicalLine nextLine = new NullLine();
 		LogicalLine lastLine = new NullLine();
 		FunctionLabelLine lastLabelLine = null!;
 		CharStream st = null!;
 		ScriptPosition? position = null;
 		int funcCount = 0;
-		if (Program.AnalysisMode)
+		if (env.AnalysisMode)
 			output.PrintSystemLine(" ");
 		while ((st = eReader.ReadEnabledLine(ppstate.Disabled)) != null)
 		{
@@ -377,7 +392,7 @@ internal sealed class ErbLoader
 					ParserMediator.Warn(string.Format(trerror.IgnoreAfterPreprosessor.Text, token), position, 1);
 				continue;
 			}
-			//if ((skip) || (Program.DebugMode && ifndebug) || (!Program.DebugMode && ifdebug))
+			//if ((skip) || (env.DebugMode && ifndebug) || (!env.DebugMode && ifdebug))
 			//	continue;
 			if (ppstate.Disabled)
 				continue;
@@ -412,7 +427,7 @@ internal sealed class ErbLoader
 					else// if (label is FunctionLabelLine)
 					{
 						labelDic.AddLabel(label!);
-						if (!label!.IsEvent && (Config.Config.WarnNormalFunctionOverloading || Program.AnalysisMode))
+						if (!label!.IsEvent && (Config.Config.WarnNormalFunctionOverloading || env.AnalysisMode))
 						{
 							FunctionLabelLine seniorLabel = labelDic.GetSameNameLabel(label);
 							if (seniorLabel != null)
@@ -423,7 +438,7 @@ internal sealed class ErbLoader
 							}
 						}
 						funcCount++;
-						if (Program.AnalysisMode && Config.Config.PrintCPerLine > 0 && funcCount % Config.Config.PrintCPerLine == 0)
+						if (env.AnalysisMode && Config.Config.PrintCPerLine > 0 && funcCount % Config.Config.PrintCPerLine == 0)
 						{
 							output.NewLine();
 							output.PrintSystemLine(" ");
@@ -519,7 +534,7 @@ internal sealed class ErbLoader
 			{
 				if (label.Arg != null)
 					continue;
-				parentProcess.scaningLine = label;
+				setScanLine(label);
 				parseLabel(label);
 			}
 			catch (Exception exc)
@@ -536,7 +551,7 @@ internal sealed class ErbLoader
 			}
 			finally
 			{
-				parentProcess.scaningLine = null!;
+				setScanLine(null!);
 			}
 		}
 		labelDic.SortLabels();
@@ -723,7 +738,7 @@ internal sealed class ErbLoader
 		}
 		if (useCallForm)
 		{//callform系が使われたら全ての関数が呼び出されたとみなす。
-			if (Program.AnalysisMode)
+			if (env.AnalysisMode)
 				output.PrintSystemLine(trerror.BeNotFuncCheckBecauseUseCallform.Text);
 			foreach (FunctionLabelLine label in labelList)
 			{
@@ -740,7 +755,7 @@ internal sealed class ErbLoader
 				if (label.Depth != labelDepth)
 					continue;
 				//解析モード時は呼ばれなかったものをここで解析
-				if (Program.AnalysisMode)
+				if (env.AnalysisMode)
 					ParseFunctionWithCatch(label);
 				bool ignore = false;
 				if (notCalledWarning == DisplayWarningFlag.ONCE)
@@ -780,7 +795,7 @@ internal sealed class ErbLoader
 				}
 			}
 		}
-		if (Program.AnalysisMode && (warningDic.Keys.Count > 0 || GlobalStatic.tempDic.Keys.Count > 0))
+		if (env.AnalysisMode && (warningDic.Keys.Count > 0 || GlobalStatic.tempDic.Keys.Count > 0))
 		{
 			output.PrintError(trerror.UndefinedFunctions.Text);
 			if (warningDic.Keys.Count > 0)
@@ -812,7 +827,7 @@ internal sealed class ErbLoader
 			output.PrintError(string.Format(trerror.TotalFunc.Text, enabledLineCount, labelDic.Count, usedLabelCount));
 		if (Config.Config.AllowFunctionOverloading && Config.Config.WarnFunctionOverloading)
 		{
-			List<string> overloadedList = GlobalStatic.IdentifierDictionary.GetOverloadedList(labelDic);
+			List<string> overloadedList = idDic.GetOverloadedList(labelDic);
 			if (overloadedList.Count > 0)
 			{
 				output.NewLine();
@@ -836,7 +851,7 @@ internal sealed class ErbLoader
 	public Dictionary<string, long> warningDic = [];
 	private void printFunctionNotFoundWarning(string str, LogicalLine line, int level, bool isError)
 	{
-		if (Program.AnalysisMode)
+		if (env.AnalysisMode)
 		{
 			if (warningDic.TryGetValue(str, out long value))
 				warningDic[str] = ++value;
@@ -874,7 +889,7 @@ internal sealed class ErbLoader
 				}
 			}
 		}
-		if (ignore && !Program.AnalysisMode)
+		if (ignore && !env.AnalysisMode)
 		{
 			ignoredFNFWarningCount++;
 			return;
@@ -907,7 +922,7 @@ internal sealed class ErbLoader
 		}
 		finally
 		{
-			parentProcess.scaningLine = null!;
+			setScanLine(null!);
 		}
 
 	}
@@ -921,7 +936,7 @@ internal sealed class ErbLoader
 		while (true)
 		{
 			nextLine = nextLine.NextLine;
-			parentProcess.scaningLine = nextLine;
+			setScanLine(nextLine);
 			if (nextLine is not InstructionLine func)
 			{
 				if (nextLine is NullLine or FunctionLabelLine)
@@ -936,7 +951,7 @@ internal sealed class ErbLoader
 					continue;
 				}
 			}
-			if (Config.Config.NeedReduceArgumentOnLoad || Program.AnalysisMode || func.Function.IsForceSetArg())
+			if (Config.Config.NeedReduceArgumentOnLoad || env.AnalysisMode || func.Function.IsForceSetArg())
 				ArgumentParser.SetArgumentTo(func);
 		}
 	}
@@ -954,7 +969,7 @@ internal sealed class ErbLoader
 		while (true)
 		{
 			nextLine = nextLine.NextLine;
-			parentProcess.scaningLine = nextLine;
+			setScanLine(nextLine);
 			if (nextLine is NullLine or FunctionLabelLine)
 				break;
 			if (nextLine is not InstructionLine)
@@ -1507,7 +1522,7 @@ internal sealed class ErbLoader
 			}
 			if (func.IsError)
 				continue;
-			parentProcess.scaningLine = func;
+			setScanLine(func);
 
 			if (func.Function.Instruction != null)
 			{
@@ -1523,7 +1538,7 @@ internal sealed class ErbLoader
 				}
 				if (FunctionNotFoundName != null)
 				{
-					if (!Program.AnalysisMode)
+					if (!env.AnalysisMode)
 						printFunctionNotFoundWarning(string.Format(trerror.NotDefinedFunc.Text, FunctionNotFoundName), func, 2, true);
 					else
 						printFunctionNotFoundWarning(FunctionNotFoundName, func, 2, true);
