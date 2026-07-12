@@ -86,8 +86,7 @@ public class VtInputHandlerTests
         // cb=64 → 滚轮上 → delta=+3
         handler.OnMouseEvent(row: 5, col: 10, buttonCode: 64, isPress: false);
 
-        Assert.Equal(1, host.DispatchWheelCalls.Count);
-        Assert.Equal(3, host.DispatchWheelCalls[0]);
+        Assert.Equal(3, Assert.Single(host.DispatchWheelCalls));
     }
 
     [Fact]
@@ -99,8 +98,7 @@ public class VtInputHandlerTests
         // cb=65 → 滚轮下 → delta=-3
         handler.OnMouseEvent(row: 5, col: 10, buttonCode: 65, isPress: false);
 
-        Assert.Equal(1, host.DispatchWheelCalls.Count);
-        Assert.Equal(-3, host.DispatchWheelCalls[0]);
+        Assert.Equal(-3, Assert.Single(host.DispatchWheelCalls));
     }
 
     [Fact]
@@ -155,8 +153,7 @@ public class VtInputHandlerTests
 
         handler.OnKeyEvent(ConsoleKey.PageUp, '\0');
 
-        Assert.Equal(1, host.DispatchScrollCalls.Count);
-        Assert.Equal(ScrollAction.PageUp, host.DispatchScrollCalls[0]);
+        Assert.Equal(ScrollAction.PageUp, Assert.Single(host.DispatchScrollCalls));
         Assert.Equal(0, host.ProcessKeyFromVtCalls);
     }
 
@@ -315,10 +312,10 @@ public class VtInputHandlerTests
 
         handler.OnKeyEvent(ConsoleKey.A, 'a');
 
-        Assert.Equal(1, host.PressPrimitiveKeyCalls.Count);
-        Assert.Equal((int)ConsoleKey.A, host.PressPrimitiveKeyCalls[0].keycode);
-        Assert.Equal((int)'a', host.PressPrimitiveKeyCalls[0].keydata);
-        Assert.Equal(0, host.PressPrimitiveKeyCalls[0].keymod);
+        var keyCall = Assert.Single(host.PressPrimitiveKeyCalls);
+        Assert.Equal((int)ConsoleKey.A, keyCall.keycode);
+        Assert.Equal((int)'a', keyCall.keydata);
+        Assert.Equal(0, keyCall.keymod);
         // 不应进入 ProcessKeyFromVt
         Assert.Equal(0, host.ProcessKeyFromVtCalls);
     }
@@ -333,7 +330,7 @@ public class VtInputHandlerTests
         handler.OnKeyEvent(ConsoleKey.C, '\x03');
 
         Assert.Equal(1, host.RequestExitCalls);
-        Assert.Equal(0, host.PressPrimitiveKeyCalls.Count);
+        Assert.Empty(host.PressPrimitiveKeyCalls);
     }
 
     [Fact]
@@ -345,8 +342,7 @@ public class VtInputHandlerTests
         // 左键按下 → InputMouseKey(type=1, windowsButton=0x100000, col, row, 0, 0)
         handler.OnMouseEvent(row: 5, col: 10, buttonCode: 0, isPress: true);
 
-        Assert.Equal(1, host.InputMouseKeyCalls.Count);
-        var call = host.InputMouseKeyCalls[0];
+        var call = Assert.Single(host.InputMouseKeyCalls);
         Assert.Equal(1, call.type);
         Assert.Equal(0x100000, call.result1);
         Assert.Equal(10, call.result2); // col
@@ -362,7 +358,7 @@ public class VtInputHandlerTests
         // 释放事件（isPress=false）不应触发 InputMouseKey
         handler.OnMouseEvent(row: 5, col: 10, buttonCode: 0, isPress: false);
 
-        Assert.Equal(0, host.InputMouseKeyCalls.Count);
+        Assert.Empty(host.InputMouseKeyCalls);
     }
 
     [Fact]
@@ -374,8 +370,7 @@ public class VtInputHandlerTests
         // cb=64 滚轮上 → delta=-120（primitive 路径的 delta 与正常路径相反）
         handler.OnMouseEvent(row: 5, col: 10, buttonCode: 64, isPress: false);
 
-        Assert.Equal(1, host.InputMouseKeyCalls.Count);
-        var call = host.InputMouseKeyCalls[0];
+        var call = Assert.Single(host.InputMouseKeyCalls);
         Assert.Equal(2, call.type);
         Assert.Equal(-120, call.result1);
     }
@@ -389,8 +384,7 @@ public class VtInputHandlerTests
         // 右键（buttonCode=1）→ windowsButton=0x400000
         handler.OnMouseEvent(row: 3, col: 7, buttonCode: 1, isPress: true);
 
-        Assert.Equal(1, host.InputMouseKeyCalls.Count);
-        var call = host.InputMouseKeyCalls[0];
+        var call = Assert.Single(host.InputMouseKeyCalls);
         Assert.Equal(1, call.type);
         Assert.Equal(0x400000, call.result1);
     }
