@@ -306,12 +306,11 @@ internal sealed class ConsoleButtonString
 	}
 	#endregion
 
-	readonly static StringBuilder builder = new();
 	public override string ToString()
 	{
 		if (strArray == null)
 			return "";
-		builder.Clear();
+		var builder = new StringBuilder();
 		foreach (var css in strArray)
 			builder.Append(css.ToString());
 		return builder.ToString();
