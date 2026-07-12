@@ -10,7 +10,7 @@ handleException 处理（Process.cs:345），不会传播到 AgentJsonlProtocol.
 的 fatal turn（ops=[] / error=ex.Message）。
 
 The test verifies:
-- Initial turn has protocolVersion == 2 and ops[] instead of text/buttons
+- Initial turn has protocolVersion == 3 and ops[] instead of text/buttons
 - After THROW, the turn has state=Error with error text in ops[]
 - protocolVersion is absent from non-initial turns
 
@@ -76,7 +76,7 @@ ENDIF
         check(initial.get("state") == "WaitInput", f"initial state is WaitInput, got {initial.get('state')}")
         check("text" not in initial, "initial turn has no text field (v2)")
         check("buttons" not in initial, "initial turn has no buttons field (v2)")
-        check(initial.get("protocolVersion") == 2, "initial turn has protocolVersion == 2")
+        check(initial.get("protocolVersion") == 3, "initial turn has protocolVersion == 3")
         check("ops" in initial, "initial turn has ops field")
         check("Fatal Turn Test" in ops_text(initial), "initial turn ops contain Fatal Turn Test")
 

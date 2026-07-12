@@ -12,7 +12,16 @@ internal record TurnRecord(
     List<TurnOp> ops,
     string? error = null,
     int? protocolVersion = null
-);
+)
+{
+    /// <summary>
+    /// Agent 协议版本的单一来源（ADR-0013）。
+    /// TurnRecord（增量 ops 流）与 DisplaySnapshot（全量快照）必须携带同一版本号——
+    /// 晚加入者用 snapshot.protocolVersion 校验与 ops 流兼容性。
+    /// AgentJsonlProtocol 与 DisplayState 共同引用此常量，避免版本升级时多处不同步。
+    /// </summary>
+    internal const int CurrentProtocolVersion = 3;
+}
 
 internal abstract record TurnOp(string type);
 
@@ -37,7 +46,7 @@ internal record PrintSegment(
     string? fontname
 );
 
-internal record ButtonRef(object value, bool isInteger);
+internal record ButtonRef(object value, bool isInteger, int? col = null, int? width = null);
 
 internal sealed class TurnOpConverter : JsonConverter<TurnOp>
 {

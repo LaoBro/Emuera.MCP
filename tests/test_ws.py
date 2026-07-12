@@ -4,7 +4,7 @@ Verifies the PRD "WebSocket 传输实现" wire contract end-to-end against a liv
 Emuera.Headless server:
 
 1. Gate: connecting /ws with no active session is rejected/closed.
-2. Initial frame over WS is TurnRecord v2 JSON (protocolVersion == 2, ops[] non-empty,
+2. Initial frame over WS is TurnRecord v3 JSON (protocolVersion == 3, ops[] non-empty,
    no legacy text/buttons) — identical to GET /turn's response body.
 3. Frame format consistency: WS first frame == HTTP GET /turn first frame.
 4. Input round-trip: send {"type":"input","value":"..."} -> receive next turn (no protocolVersion).
@@ -122,13 +122,13 @@ async def test_gate_no_session(server, passed, failed):
 
 
 async def test_initial_frame(server, passed, failed):
-    print("\n[initial] WS first frame is TurnRecord v2 JSON")
+    print("\n[initial] WS first frame is TurnRecord v3 JSON")
     s, _ = server.create_session()
     check(s == 201, f"POST /session returns 201, got {s}", passed, failed)
     ws = await ws_connect(server.base_url)
     try:
         turn = await recv_json(ws)
-        check(turn.get("protocolVersion") == 2, "WS initial frame protocolVersion == 2", passed, failed)
+        check(turn.get("protocolVersion") == 3, "WS initial frame protocolVersion == 3", passed, failed)
         check(turn.get("state") == "WaitInput", f"WS initial state WaitInput, got {turn.get('state')}", passed, failed)
         check("text" not in turn, "WS initial frame has no text field (v2)", passed, failed)
         check("buttons" not in turn, "WS initial frame has no buttons field (v2)", passed, failed)
@@ -149,8 +149,8 @@ async def test_frame_consistency(server, passed, failed):
         _, http_body = server.get_turn(timeout=20)
         ws_turn = await recv_json(ws)
         http_turn = json.loads(http_body)
-        check(ws_turn.get("protocolVersion") == 2, "WS frame protocolVersion == 2", passed, failed)
-        check(http_turn.get("protocolVersion") == 2, "HTTP frame protocolVersion == 2", passed, failed)
+        check(ws_turn.get("protocolVersion") == 3, "WS frame protocolVersion == 3", passed, failed)
+        check(http_turn.get("protocolVersion") == 3, "HTTP frame protocolVersion == 3", passed, failed)
         check(ws_turn == http_turn, "WS initial frame == HTTP GET /turn initial frame (byte-identical payload)", passed, failed)
     finally:
         await ws.close()
@@ -164,7 +164,7 @@ async def test_input_roundtrip(server, passed, failed):
     ws = await ws_connect(server.base_url)
     try:
         init = await recv_json(ws)
-        check(init.get("protocolVersion") == 2, "initial frame protocolVersion == 2", passed, failed)
+        check(init.get("protocolVersion") == 3, "initial frame protocolVersion == 3", passed, failed)
         await ws.send(json.dumps({"type": "input", "value": "0"}))
         nxt = await recv_json(ws)
         check("protocolVersion" not in nxt, "step turn has no protocolVersion", passed, failed)
@@ -185,7 +185,7 @@ async def test_fanout(server, passed, failed):
     try:
         init1 = await recv_json(ws1)
         init2 = await recv_json(ws2)
-        check(init1.get("protocolVersion") == 2 and init2.get("protocolVersion") == 2,
+        check(init1.get("protocolVersion") == 3 and init2.get("protocolVersion") == 3,
               "both WS clients receive initial turn", passed, failed)
         await ws1.send(json.dumps({"type": "input", "value": "0"}))
         nxt1 = await recv_json(ws1)
@@ -228,7 +228,7 @@ async def test_late_join(server, passed, failed):
         # Consume the initial turn over HTTP: proves it was already published.
         _, http_init = server.get_turn(timeout=20)
         init_turn = json.loads(http_init)
-        check(init_turn.get("protocolVersion") == 2, "HTTP initial protocolVersion == 2", passed, failed)
+        check(init_turn.get("protocolVersion") == 3, "HTTP initial protocolVersion == 3", passed, failed)
 
         # Late WS connection: subscribes AFTER the initial turn -> must NOT receive it.
         ws = await ws_connect(server.base_url)

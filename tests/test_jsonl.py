@@ -1,10 +1,10 @@
-"""Test: JSONL protocol v2 turn structure (ops[] model) via server mode.
+"""Test: JSONL protocol v3 turn structure (ops[] model) via server mode.
 
 Verifies:
-1. Initial turn has protocolVersion: 2 and ops[] with print/newline ops.
+1. Initial turn has protocolVersion: 3 and ops[] with print/newline ops.
 2. v1 fields (text, buttons) are NOT present.
 3. print ops carry segments[] with per-segment style.
-4. print ops optionally carry button with value/isInteger.
+4. print ops optionally carry button with value/isInteger (and col/width since v3).
 5. newline ops optionally carry align.
 6. Step turns have no protocolVersion field.
 7. Final turn has no protocolVersion.
@@ -63,6 +63,11 @@ def check_ops(turn, passed, failed, turn_name):
                 btn = op["button"]
                 check("value" in btn, f"{turn_name} print op[{i}] button has value", passed, failed)
                 check("isInteger" in btn, f"{turn_name} print op[{i}] button has isInteger", passed, failed)
+                # v3: ButtonRef 携带 col/width 几何字段（int）
+                check("col" in btn and isinstance(btn["col"], int),
+                      f"{turn_name} print op[{i}] button has int col (v3 geometry)", passed, failed)
+                check("width" in btn and isinstance(btn["width"], int),
+                      f"{turn_name} print op[{i}] button has int width (v3 geometry)", passed, failed)
 
         elif op["type"] == "newline":
             if "align" in op:
@@ -120,7 +125,7 @@ def main():
         check(turn1.get("state") == "WaitInput", "Turn 1 is WaitInput", passed, failed)
         check("text" not in turn1, "Turn 1 has no text field (v2)", passed, failed)
         check("buttons" not in turn1, "Turn 1 has no buttons field (v2)", passed, failed)
-        check(turn1.get("protocolVersion") == 2, "Turn 1 has protocolVersion == 2", passed, failed)
+        check(turn1.get("protocolVersion") == 3, "Turn 1 has protocolVersion == 3", passed, failed)
         check_ops(turn1, passed, failed, "Turn 1")
 
         # Verify initial turn ops contain expected content

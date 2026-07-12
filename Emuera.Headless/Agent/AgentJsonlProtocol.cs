@@ -25,8 +25,6 @@ namespace MinorShift.Emuera.GameView
         private int VisibleLineCount => Math.Max(1, ui.ClientHeight / Config.LineHeight);
         private string? _pendingRejectReason;
 
-        private const int CurrentProtocolVersion = 2;
-
         public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui, SessionIO io)
             : base(console, ui)
         {
@@ -226,7 +224,7 @@ namespace MinorShift.Emuera.GameView
                 needValue: req?.NeedValue ?? false,
                 ops: ops,
                 error: error,
-                protocolVersion: isInitial ? CurrentProtocolVersion : null
+                protocolVersion: isInitial ? TurnRecord.CurrentProtocolVersion : null
             ), TurnJsonOptions);
         }
 

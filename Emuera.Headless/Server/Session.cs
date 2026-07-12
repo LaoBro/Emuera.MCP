@@ -19,6 +19,26 @@ internal sealed class Session : IDisposable
     public string StateString => _console?.State.ToString() ?? "Idle";
     public bool IsFinalTurnDelivered => _finalTurnDelivered;
 
+    /// <summary>
+    /// 生成当前显示状态的全量快照 JSON（ADR-0013 决策一/二）。
+    /// 供 GET /snapshot 端点调用——WS 晚加入者先调此端点拿初始状态，再订阅 WS 收增量 ops。
+    ///
+    /// session 未初始化（_console==null，通常发生在 POST /session 后极短时间内）→ 返回 null，
+    ///   调用方返回 503；
+    /// session 运行中或已结束（HasEnded=true，_console 已 Dispose 但 DisplayLineList 仍可读）→ 返回快照 JSON。
+    /// </summary>
+    public string? GetDisplaySnapshot()
+    {
+        var console = _console;
+        if (console == null)
+            return null;
+        // HTTP 线程上 Config.Current 不可用（AsyncLocal 仅在游戏循环 task 设置），
+        // 直接从 ConfigData 读默认字体名，传给 DisplayState 避免 BuildPrintOpsForLine 访问 Config.FontName 时 NRE。
+        var defaultFontName = _configData.GetConfigValue<string>(ConfigCode.FontName) ?? "";
+        var state = new DisplayState(console, defaultFontName);
+        return state.GetSnapshotJson();
+    }
+
     private readonly HttpSessionIO _io;
     private readonly ConfigData _configData;
     private readonly ITerminalSetup _terminalSetup;

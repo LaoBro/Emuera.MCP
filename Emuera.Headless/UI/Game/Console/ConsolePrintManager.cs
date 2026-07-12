@@ -566,6 +566,26 @@ internal sealed class ConsolePrintManager
 
     private void EmitPrintOps(ConsoleDisplayLine line)
     {
+        foreach (var op in BuildPrintOpsForLine(line, Config.FontName))
+            _state._pendingOps.Add(op);
+    }
+
+    /// <summary>
+    /// 将单个 ConsoleDisplayLine 转换为 PrintOp 列表（ADR-0013 决策三）。
+    /// 遍历 line.Buttons 时累计 column 位置，对 IsButton 的条目用 TerminalDisplayWidth.GetDisplayWidth
+    /// 计算 col/width 并填入 ButtonRef。col 是行内累计列位置（从 0 开始，按前序 button 文本显示
+    /// 宽度累加）；width 是按钮文本的显示宽度（字符单位，含 CJK 双宽）。非按钮的 PrintOp 中
+    /// ButtonRef 仍为 null（col/width 不出现，WhenWritingNull）。
+    /// 提取为 internal static 以便单元测试（OpGeometryTests）直测几何计算，无需构造 ConsolePrintManager。
+    ///
+    /// defaultFontName 参数：默认字体名，用于判断 segment 的 fontname 是否为默认字体（相同则不写入 JSON）。
+    /// 调用方负责传入——EmitPrintOps 从 Config.FontName 读（游戏循环线程，Config.Current 已设）；
+    /// DisplayState.BuildSnapshot 从 ConfigData 读（HTTP 线程，Config.Current 不可用）。
+    /// </summary>
+    internal static List<PrintOp> BuildPrintOpsForLine(ConsoleDisplayLine line, string defaultFontName)
+    {
+        var ops = new List<PrintOp>();
+        int column = 0;
         foreach (var btn in line.Buttons)
         {
             var segments = new List<PrintSegment>();
@@ -587,7 +607,7 @@ internal sealed class ConsolePrintManager
                         bold = true;
                     if ((style.FontStyle & EmuFontStyle.Italic) != 0)
                         italic = true;
-                    if (style.Fontname != Config.FontName)
+                    if (style.Fontname != defaultFontName)
                         fontname = style.Fontname;
                 }
                 else
@@ -598,15 +618,22 @@ internal sealed class ConsolePrintManager
                 segments.Add(new PrintSegment(text, color, bold, italic, fontname));
             }
 
+            string buttonText = btn.ToString() ?? "";
+            int segmentWidth = TerminalDisplayWidth.GetDisplayWidth(buttonText);
+
             ButtonRef? button = null;
             if (btn.IsButton)
                 button = new ButtonRef(
                     value: btn.IsInteger ? (object)btn.Input : (object)btn.Inputs,
-                    isInteger: btn.IsInteger
+                    isInteger: btn.IsInteger,
+                    col: column,
+                    width: segmentWidth
                 );
 
-            _state._pendingOps.Add(new PrintOp(segments, button));
+            ops.Add(new PrintOp(segments, button));
+            column += segmentWidth;
         }
+        return ops;
     }
 
     private void EmitNewLineOp(DisplayLineAlignment align)

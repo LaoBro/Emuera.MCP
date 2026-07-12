@@ -263,6 +263,24 @@ def main():
         )
     )
 
+    results.append(
+        (
+            "GET /snapshot endpoint",
+            _run_script(
+                "GET /snapshot endpoint",
+                [
+                    sys.executable,
+                    str(TESTS_DIR / "test_snapshot.py"),
+                    "--binary",
+                    str(binary_path),
+                    "--game-dir",
+                    str(game_dir),
+                ],
+                timeout=120,
+            ),
+        )
+    )
+
     print("\n=== Summary ===")
     all_passed = True
     for name, (passed, code, skipped) in results:

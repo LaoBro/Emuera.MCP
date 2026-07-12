@@ -54,6 +54,7 @@ internal sealed class KestrelGameServer : IDisposable
         _app.MapGet("/turn", (Delegate)HandleGetTurnAsync);
         _app.MapPost("/input", (Delegate)HandlePostInputAsync);
         _app.MapGet("/state", (Delegate)HandleGetStateAsync);
+        _app.MapGet("/snapshot", (Delegate)HandleGetSnapshotAsync);
         _app.MapDelete("/session", (Delegate)HandleDeleteSessionAsync);
         _app.MapGet("/ws", (Delegate)HandleWebSocketAsync);
     }
@@ -179,6 +180,31 @@ internal sealed class KestrelGameServer : IDisposable
             sessionId = session.Id,
             createdAt = session.CreatedAt
         });
+    }
+
+    /// <summary>
+    /// GET /snapshot —— 全量显示状态快照（ADR-0013 决策一）。
+    ///
+    /// WS 晚加入者先调此端点拿初始全屏状态，再订阅 WS 收增量 ops。
+    /// - 无活跃 session → 404 `{"error":"No active session"}`
+    /// - session 未初始化（_console==null，POST /session 后极短窗口）→ 503
+    /// - session 运行中或已结束（HasEnded=true）→ 200，body = DisplaySnapshot JSON
+    ///
+    /// 已结束 session 仍返回 200 + 最终状态（state="Quit"/"Error"），不返回 404——
+    /// 晚加入者能看到游戏结束画面。
+    /// </summary>
+    private IResult HandleGetSnapshotAsync()
+    {
+        var session = _session;
+
+        if (session == null)
+            return Results.Json(new { error = "No active session" }, statusCode: 404);
+
+        var json = session.GetDisplaySnapshot();
+        if (json == null)
+            return Results.Json(new { error = "Session not yet initialized" }, statusCode: 503);
+
+        return Results.Text(json, "application/json", Encoding.UTF8, 200);
     }
 
     private IResult HandleDeleteSessionAsync()

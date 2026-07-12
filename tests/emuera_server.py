@@ -92,6 +92,9 @@ class ServerProcess:
     def get_state(self):
         return self.request("GET", "/state")
 
+    def get_snapshot(self, timeout=35):
+        return self.request("GET", "/snapshot", timeout=timeout)
+
     def close(self):
         if self.proc.poll() is None:
             try:
