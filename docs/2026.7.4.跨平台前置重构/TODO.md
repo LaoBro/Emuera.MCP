@@ -204,6 +204,11 @@ PRD-T5 grilling 阶段明确排除以下三项，待条件成熟后独立立项�
 - **目标**：逐步移除 `.editorconfig` 对 `Shared/**` 的警告抑制
 - **方向**：按 T-022 计划逐步修复 nullable 警告，最终全项目
   `TreatWarningsAsErrors` 无抑制
+- **候选 5 关联（2026-07-13）**：架构深化候选报告原将 `Shared/UI/Game/Image/`、`Shared/Runtime/Utils/PluginSystem/`、`HtmlManager.cs` 列为"死代码"。静态验证结论——三者均非死代码，从本 P2-6 "噪音/可删"清单移除：
+  - `Image/` 的 `System.Drawing` 渲染实现已在 `#else`/`#if !HEADLESS` 编译期排除；HEADLESS 仅编译 no-op 存根（`GraphicsImage`/`CroppedImage`/`ConstImage`/`AppContents`），由 ERB `G*` 图形指令与状态切换调用，运行时无渲染路径——属有意保留的 HEADLESS 后端，非可删债务。
+  - `IImageContext`/`IBitmapImage`/`IBrush` + `Headless/HeadlessImageContext.cs` 为候选 4 未来图像支持的跨平台抽象 seam，有意保留。
+  - `PluginSystem` 经 `LoadEngineData`+`@CALLSHARP` 活可达；`HtmlManager` 经 `PRINT`/`ConsolePrintManager` 活可达——均非死代码。
+  - 候选 5 以 no-code-change 关闭；上述项的剩余 nullable 警告仍按本 P2-6 方向逐步修复，但不作为"可删死代码"追踪。
 
 ## 基础文档索引
 
