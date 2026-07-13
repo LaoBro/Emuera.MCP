@@ -43,10 +43,10 @@ internal record DisplayEntry(
 );
 
 /// <summary>
-/// DisplayState 模块（ADR-0013 决策一/二/四）。
+/// DisplayState 模块（ADR-0013 决策一/二；ADR-0014 推翻决策四）。
 /// 封装 EmueraConsole.DisplayLineList → DisplaySnapshot 序列化 + 几何计算。
 /// 深模块：删除测试——删掉后序列化 + 几何计算复杂度转移到 KestrelGameServer。
-/// 只服务 Web 路径（GET /snapshot 端点 + 未来 Web 前端）；CLI 不迁移。
+/// 当前服务于 Web 路径（GET /snapshot 端点 + 未来 Web 前端）；CLI 将在 Phase 4 改为消费 DisplayState（ADR-0014 统一真相源）。
 /// </summary>
 internal sealed class DisplayState
 {
