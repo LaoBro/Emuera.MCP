@@ -409,6 +409,14 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
         return ops;
     }
 
+    /// <summary>
+    /// 当前待处理 op 数量（peek，不 drain）。
+    /// DisplayState.TryUpdate 用此作为权威变更信号——引擎每次显示变更都向 _pendingOps Add
+    /// （ClearOp/ClearLineOp/SetBgOp/PrintOp/NewLineOp，见 ConsolePrintManager.cs:65/174/549/570/647）。
+    /// 单调无关（不受 CLEARLINE LineNo 回退影响），且捕捉原地末行编辑（会 Add(PrintOp)）。
+    /// </summary>
+    internal int PendingOpCount => _state._pendingOps.Count;
+
     internal void DrainPendingOpsForCli(Action<TurnOp> action)
     {
         foreach (var op in _state._pendingOps)

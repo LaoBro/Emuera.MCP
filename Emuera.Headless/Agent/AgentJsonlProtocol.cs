@@ -21,14 +21,16 @@ namespace MinorShift.Emuera.GameView
         };
 
         private readonly SessionIO _io;
+        private readonly DisplayState _displayState;
 
         private int VisibleLineCount => Math.Max(1, ui.ClientHeight / Config.LineHeight);
         private string? _pendingRejectReason;
 
-        public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui, SessionIO io)
+        public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui, SessionIO io, DisplayState displayState)
             : base(console, ui)
         {
             _io = io;
+            _displayState = displayState;
         }
 
         internal override async Task<string?> GetInitialTurnAsync()
@@ -214,6 +216,9 @@ namespace MinorShift.Emuera.GameView
 
         private string BuildTurn(bool isInitial = false)
         {
+            // Phase 1：在 TakePendingOps 前 peek pendingOps 做变更检测，刷新 DisplayState.Current。
+            // 必须在 drain 之前调，否则 pendingOps 已空，TryUpdate 检测永远 false。
+            _displayState.TryUpdate();
             var ops = console.TakePendingOps();
             var req = console.CurrentRequest;
             string? error = _pendingRejectReason;

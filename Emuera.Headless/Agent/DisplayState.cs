@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -47,6 +48,10 @@ internal record DisplayEntry(
 /// 封装 EmueraConsole.DisplayLineList → DisplaySnapshot 序列化 + 几何计算。
 /// 深模块：删除测试——删掉后序列化 + 几何计算复杂度转移到 KestrelGameServer。
 /// 当前服务于 Web 路径（GET /snapshot 端点 + 未来 Web 前端）；CLI 将在 Phase 4 改为消费 DisplayState（ADR-0014 统一真相源）。
+///
+/// Phase 1（DisplayState 统一真相源执行计划）：从无状态工具类升级为有状态的显示模型。
+/// 持有当前 DisplaySnapshot（_current），以 _pendingOps 为权威变更信号做变更检测（TryUpdate）。
+/// _gate 锁保护跨线程读写——游戏线程 BuildTurn 调 TryUpdate，HTTP 线程 GET /snapshot 读 Current。
 /// </summary>
 internal sealed class DisplayState
 {
@@ -62,6 +67,8 @@ internal sealed class DisplayState
 
     private readonly EmueraConsole _console;
     private readonly string _defaultFontName;
+    private readonly object _gate = new();
+    private DisplaySnapshot? _current;
 
     internal DisplayState(EmueraConsole console, string defaultFontName)
     {
@@ -70,20 +77,62 @@ internal sealed class DisplayState
     }
 
     /// <summary>
-    /// 从当前 console 状态生成全量快照。
-    /// 读取 displayLineList / bgColor / State / CurrentRequest，序列化为 DisplaySnapshot。
+    /// 当前快照（线程安全）。读取时先 TryUpdate 保证最新。
+    /// GET /snapshot 端点经此取快照；Phase 2 ComputeDiff 亦经此取连续快照对。
     /// </summary>
-    internal DisplaySnapshot GetSnapshot() => BuildSnapshot(
-        _console.DisplayLineList,
-        _console.bgColor,
-        _console.State,
-        _console.CurrentRequest,
-        _defaultFontName);
+    internal DisplaySnapshot Current
+    {
+        get { lock (_gate) { TryUpdate(); return _current!; } }
+    }
+
+    /// <summary>
+    /// peek _pendingOps 做变更检测（不 drain；drain 仍由 BuildTurn 的 TakePendingOps 负责）。
+    /// _pendingOps 非空 → 重建 _current 并返回 true；空且 _current 已存在 → 返回 false 且 _current 不变。
+    /// 必须在 BuildTurn 的 TakePendingOps() 之前调用，否则 pendingOps 已空，检测永远 false。
+    /// </summary>
+    internal bool TryUpdate()
+    {
+        lock (_gate)
+        {
+            if (_current != null && _console.PendingOpCount == 0)
+                return false; // 无变化
+            _current = Rebuild();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 从当前 console 状态重建全量快照。
+    /// 浅拷贝 displayLineList 防止 HTTP 线程并发遍历时游戏线程写入（Q5）。
+    ///
+    /// 注意：游戏线程（ConsolePrintManager）写 displayLineList 不持 _gate，故
+    /// new List&lt;T&gt;(source) 的 CopyTo 可能与 Add 竞态（ArgumentException: array not long enough）。
+    /// 重试即可——竞态窗口极短，下一次拷贝时数组长度已匹配。Phase 2/3 评估是否需让游戏线程也持 _gate。
+    /// </summary>
+    private DisplaySnapshot Rebuild()
+    {
+        List<ConsoleDisplayLine> linesCopy;
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                linesCopy = new List<ConsoleDisplayLine>(_console.DisplayLineList);
+                break;
+            }
+            catch (ArgumentException) when (attempt < 10)
+            {
+                // displayLineList 在 CopyTo 期间被游戏线程修改，重试
+            }
+        }
+        return BuildSnapshot(linesCopy, _console.bgColor,
+            _console.State, _console.CurrentRequest, _defaultFontName);
+    }
 
     /// <summary>
     /// 生成全量快照并序列化为 JSON 字符串（GET /snapshot 端点使用）。
+    /// 经 Current → TryUpdate 保证快照随游戏打印实时推进。
     /// </summary>
-    internal string GetSnapshotJson() => JsonSerializer.Serialize(GetSnapshot(), JsonOpts);
+    internal string GetSnapshotJson() => JsonSerializer.Serialize(Current, JsonOpts);
 
     /// <summary>
     /// 从已知 displayLineList 构造 DisplaySnapshot（ADR-0013 决策二）。
@@ -93,7 +142,7 @@ internal sealed class DisplayState
     /// 提取为 internal static 以便单元测试（DisplayStateTests）直测序列化，无需构造 EmueraConsole。
     ///
     /// defaultFontName 参数：默认字体名，传给 BuildPrintOpsForLine 判断 segment fontname 是否为默认。
-    /// 调用方负责传入——DisplayState.GetSnapshot 从构造函数注入的值传（HTTP 线程由 Session 从 ConfigData 读）。
+    /// 调用方负责传入——DisplayState.Rebuild 从构造函数注入的值传（HTTP 线程由 Session 从 ConfigData 读）。
     /// </summary>
     internal static DisplaySnapshot BuildSnapshot(
         List<ConsoleDisplayLine> displayLineList,
