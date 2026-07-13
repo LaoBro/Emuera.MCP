@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.UI.Game;
 using Xunit;
@@ -26,8 +27,10 @@ public class ButtonRegionTrackerTests
         tracker.RecordLineRegions("X", bufferRow: 10, buttons, currentGeneration: 0);
 
         var hit = tracker.HitTest(row: 10, col: 0);
-        Assert.NotNull(hit);
-        Assert.Equal("[OK]", hit!.ToString());
+        Assert.True(hit.HasValue);
+        // Phase 3-3：value-based Region，Value=1L 装箱、IsInteger=true
+        Assert.Equal(1L, hit!.Value.Value);
+        Assert.True(hit.Value.IsInteger);
     }
 
     [Fact]
@@ -40,7 +43,7 @@ public class ButtonRegionTrackerTests
 
         // col=3 是 "[OK]" 的最后一列（区域 [0,3]）
         var hit = tracker.HitTest(row: 10, col: 3);
-        Assert.NotNull(hit);
+        Assert.True(hit.HasValue);
     }
 
     [Fact]
@@ -53,7 +56,7 @@ public class ButtonRegionTrackerTests
 
         // col=4 在区域 [0,3] 之外
         var hit = tracker.HitTest(row: 10, col: 4);
-        Assert.Null(hit);
+        Assert.False(hit.HasValue);
     }
 
     [Fact]
@@ -65,7 +68,7 @@ public class ButtonRegionTrackerTests
         tracker.RecordLineRegions("X", bufferRow: 10, buttons, currentGeneration: 0);
 
         var hit = tracker.HitTest(row: 9, col: 0);
-        Assert.Null(hit);
+        Assert.False(hit.HasValue);
     }
 
     [Fact]
@@ -78,10 +81,10 @@ public class ButtonRegionTrackerTests
         // 区域 col=[2,5]
         tracker.RecordLineRegions("  ", bufferRow: 0, buttons, currentGeneration: 0);
 
-        Assert.Null(tracker.HitTest(row: 0, col: 1)); // col=1 在区域之前
-        Assert.NotNull(tracker.HitTest(row: 0, col: 2)); // col=2 是起始
-        Assert.NotNull(tracker.HitTest(row: 0, col: 5)); // col=5 是末列
-        Assert.Null(tracker.HitTest(row: 0, col: 6)); // col=6 在区域之后
+        Assert.False(tracker.HitTest(row: 0, col: 1).HasValue); // col=1 在区域之前
+        Assert.True(tracker.HitTest(row: 0, col: 2).HasValue); // col=2 是起始
+        Assert.True(tracker.HitTest(row: 0, col: 5).HasValue); // col=5 是末列
+        Assert.False(tracker.HitTest(row: 0, col: 6).HasValue); // col=6 在区域之后
     }
 
     [Fact]
@@ -94,12 +97,12 @@ public class ButtonRegionTrackerTests
         tracker.RecordLineRegions("X", bufferRow: 5, buttons, currentGeneration: 0);
 
         var hitOk = tracker.HitTest(row: 5, col: 1);
-        Assert.NotNull(hitOk);
-        Assert.Equal("[OK]", hitOk!.ToString());
+        Assert.True(hitOk.HasValue);
+        Assert.Equal(1L, hitOk!.Value.Value);
 
         var hitCancel = tracker.HitTest(row: 5, col: 7);
-        Assert.NotNull(hitCancel);
-        Assert.Equal("[Cancel]", hitCancel!.ToString());
+        Assert.True(hitCancel.HasValue);
+        Assert.Equal(2L, hitCancel!.Value.Value);
     }
 
     [Fact]
@@ -115,8 +118,8 @@ public class ButtonRegionTrackerTests
 
         // HitTest 从后往前匹配——后记录的 btn2 优先
         var hit = tracker.HitTest(row: 0, col: 0);
-        Assert.NotNull(hit);
-        Assert.Equal("[NO]", hit!.ToString());
+        Assert.True(hit.HasValue);
+        Assert.Equal(2L, hit!.Value.Value);
     }
 
     [Fact]
@@ -150,54 +153,43 @@ public class ButtonRegionTrackerTests
 
         tracker.Clear();
         Assert.Equal(0, tracker.RegionCount);
-        Assert.Null(tracker.HitTest(row: 0, col: 0));
+        Assert.False(tracker.HitTest(row: 0, col: 0).HasValue);
     }
 
-    // ---------- C3：Generation 过期 ----------
+    // ---------- C3：Generation 过滤移除（Phase 3-3 / ADR-0014） ----------
+    // Phase 3-3 起 ButtonRegionTracker 不再按 Generation 过滤——服务端 ConsoleInputHandler
+    // 按 button.Generation 校验兜底。currentGeneration 参数保留以维持签名兼容，但不再用于过滤。
 
     [Fact]
-    public void C3_button_with_matching_generation_registered()
+    public void C3_button_registered_regardless_of_generation_mismatch()
     {
         var tracker = new ButtonRegionTracker();
         var buttons = new[] { TestButtonFactory.CreateButton("[OK]", input: 1) };
 
-        // Generation=0（null console），currentGeneration=0 → 匹配
-        tracker.RecordLineRegions("X", bufferRow: 0, buttons, currentGeneration: 0);
-
-        Assert.Equal(1, tracker.RegionCount);
-        Assert.NotNull(tracker.HitTest(row: 0, col: 0));
-    }
-
-    [Fact]
-    public void C3_button_with_mismatched_generation_not_registered()
-    {
-        var tracker = new ButtonRegionTracker();
-        var buttons = new[] { TestButtonFactory.CreateButton("[OK]", input: 1) };
-
-        // Generation=0（null console），currentGeneration=1 → 不匹配
+        // Generation=0（null console），currentGeneration=1 → 旧路径会过滤，Phase 3-3 后不过滤
         tracker.RecordLineRegions("X", bufferRow: 0, buttons, currentGeneration: 1);
 
-        Assert.Equal(0, tracker.RegionCount);
-        Assert.Null(tracker.HitTest(row: 0, col: 0));
+        Assert.Equal(1, tracker.RegionCount);
+        Assert.True(tracker.HitTest(row: 0, col: 0).HasValue);
     }
 
     [Fact]
-    public void C3_generation_change_clears_old_regions_via_clear()
+    public void C3_generation_change_does_not_clear_old_regions()
     {
         var tracker = new ButtonRegionTracker();
         var buttons = new[] { TestButtonFactory.CreateButton("[OK]", input: 1) };
 
         // Generation 0：记录按钮
         tracker.RecordLineRegions("X", bufferRow: 5, buttons, currentGeneration: 0);
-        Assert.NotNull(tracker.HitTest(row: 5, col: 0));
+        Assert.True(tracker.HitTest(row: 5, col: 0).HasValue);
 
         // 新 Generation：先 Clear，再 RecordLineRegions（模拟 RefreshButtonRegions 流程）
         tracker.Clear();
         tracker.RecordLineRegions("X", bufferRow: 5, buttons, currentGeneration: 1);
 
-        // Generation 0 的按钮在 currentGeneration=1 时不被记录
-        Assert.Equal(0, tracker.RegionCount);
-        Assert.Null(tracker.HitTest(row: 5, col: 0));
+        // Phase 3-3：Generation 不再过滤，按钮仍被记录（服务端兜底校验）
+        Assert.Equal(1, tracker.RegionCount);
+        Assert.True(tracker.HitTest(row: 5, col: 0).HasValue);
     }
 
     [Fact]
@@ -210,4 +202,118 @@ public class ButtonRegionTrackerTests
 
         Assert.Equal(0, tracker.RegionCount);
     }
+
+    // ---------- Phase 3-3：UpdateFromSnapshot 新路径 ----------
+
+    [Fact]
+    public void UpdateFromSnapshot_no_buttons_no_regions()
+    {
+        var snapshot = MakeSnapshot(
+            new DisplayLine(new List<DisplayEntry> { MakeEntry(button: null) }, null, true));
+
+        var tracker = new ButtonRegionTracker();
+        tracker.UpdateFromSnapshot(snapshot, scrollOffset: 0, viewportHeight: 1);
+
+        Assert.Equal(0, tracker.RegionCount);
+    }
+
+    [Fact]
+    public void UpdateFromSnapshot_single_button_registered()
+    {
+        // 单行单按钮：col=2, width=4 → Region(Row=0, Left=2, Right=5, Value=1L, IsInteger=true)
+        var snapshot = MakeSnapshot(
+            new DisplayLine(new List<DisplayEntry> { MakeEntry(button: new ButtonRef(1L, true, 2, 4)) }, null, true));
+
+        var tracker = new ButtonRegionTracker();
+        tracker.UpdateFromSnapshot(snapshot, scrollOffset: 0, viewportHeight: 1);
+
+        Assert.Equal(1, tracker.RegionCount);
+        var hit = tracker.HitTest(row: 0, col: 2);
+        Assert.True(hit.HasValue);
+        Assert.Equal(2, hit!.Value.Left);
+        Assert.Equal(5, hit.Value.Right);
+        Assert.Equal(1L, hit.Value.Value);
+        Assert.True(hit.Value.IsInteger);
+    }
+
+    [Fact]
+    public void UpdateFromSnapshot_string_button_value()
+    {
+        // 字符串按钮：value="ok", IsInteger=false
+        var snapshot = MakeSnapshot(
+            new DisplayLine(new List<DisplayEntry> { MakeEntry(button: new ButtonRef("ok", false, 0, 4)) }, null, true));
+
+        var tracker = new ButtonRegionTracker();
+        tracker.UpdateFromSnapshot(snapshot, scrollOffset: 0, viewportHeight: 1);
+
+        var hit = tracker.HitTest(row: 0, col: 0);
+        Assert.True(hit.HasValue);
+        Assert.Equal("ok", hit!.Value.Value);
+        Assert.False(hit.Value.IsInteger);
+    }
+
+    [Fact]
+    public void UpdateFromSnapshot_multiple_lines_row_indexed_by_viewport_position()
+    {
+        // 3 行，每行一个按钮；viewport=3，scrollOffset=0
+        var snapshot = MakeSnapshot(
+            MakeLineWithButton(0, 2, 7L),
+            MakeLineWithButton(0, 2, 8L),
+            MakeLineWithButton(0, 2, 9L));
+
+        var tracker = new ButtonRegionTracker();
+        tracker.UpdateFromSnapshot(snapshot, scrollOffset: 0, viewportHeight: 3);
+
+        // Row=0/1/2 对应快照第 0/1/2 行
+        Assert.Equal(7L, tracker.HitTest(row: 0, col: 0)!.Value.Value);
+        Assert.Equal(8L, tracker.HitTest(row: 1, col: 0)!.Value.Value);
+        Assert.Equal(9L, tracker.HitTest(row: 2, col: 0)!.Value.Value);
+    }
+
+    [Fact]
+    public void UpdateFromSnapshot_scrollOffset_shifts_visible_window()
+    {
+        // 5 行，viewport=2，scrollOffset=1 → 仅显示最后 2 行的前一行（视口第 0 行）
+        // ButtonRegionTracker.UpdateFromSnapshot 内 startLine = max(0, 5 - 2 - 1) = 2
+        // 视口第 0 行 = 快照第 2 行；视口第 1 行 = 快照第 3 行
+        var snapshot = MakeSnapshot(
+            MakeLineWithButton(0, 2, 10L),
+            MakeLineWithButton(0, 2, 11L),
+            MakeLineWithButton(0, 2, 12L),
+            MakeLineWithButton(0, 2, 13L),
+            MakeLineWithButton(0, 2, 14L));
+
+        var tracker = new ButtonRegionTracker();
+        tracker.UpdateFromSnapshot(snapshot, scrollOffset: 1, viewportHeight: 2);
+
+        Assert.Equal(2, tracker.RegionCount);
+        Assert.Equal(12L, tracker.HitTest(row: 0, col: 0)!.Value.Value);
+        Assert.Equal(13L, tracker.HitTest(row: 1, col: 0)!.Value.Value);
+    }
+
+    [Fact]
+    public void UpdateFromSnapshot_clears_previous_regions()
+    {
+        var snapshot1 = MakeSnapshot(MakeLineWithButton(0, 2, 1L));
+        var tracker = new ButtonRegionTracker();
+        tracker.UpdateFromSnapshot(snapshot1, scrollOffset: 0, viewportHeight: 1);
+        Assert.Equal(1, tracker.RegionCount);
+
+        // 第二次 UpdateFromSnapshot 应先清空再构建
+        var snapshot2 = MakeSnapshot(
+            new DisplayLine(new List<DisplayEntry> { MakeEntry(button: null) }, null, true));
+        tracker.UpdateFromSnapshot(snapshot2, scrollOffset: 0, viewportHeight: 1);
+        Assert.Equal(0, tracker.RegionCount);
+    }
+
+    // ---------- 测试夹具 ----------
+
+    private static DisplaySnapshot MakeSnapshot(params DisplayLine[] lines)
+        => new(new List<DisplayLine>(lines), null, "WaitInput", null, false, 3);
+
+    private static DisplayLine MakeLineWithButton(int col, int width, long value)
+        => new(new List<DisplayEntry> { MakeEntry(button: new ButtonRef(value, true, col, width)) }, null, true);
+
+    private static DisplayEntry MakeEntry(ButtonRef? button)
+        => new(new List<PrintSegment>(), button);
 }

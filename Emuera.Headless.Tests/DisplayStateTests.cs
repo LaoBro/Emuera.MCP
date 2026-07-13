@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -386,5 +387,168 @@ public class DisplayStateTests
         var jsonA = JsonSerializer.Serialize(snapA, EquivalenceJsonOpts);
         var jsonB = JsonSerializer.Serialize(snapB, EquivalenceJsonOpts);
         Assert.NotEqual(jsonA, jsonB);
+    }
+
+    // ---------- Phase 3-2：Web 几何完备性断言 ----------
+    // 给定多行多按钮快照（含 CJK 双宽 + 非按钮文本 + 混合），
+    // 仅凭 lines[i].entries[j].button 的 col/width 与数组位置即可唯一定位每个按钮。
+    // 证明 ADR-0013 几何已满足 Web 需求，Phase 3 无新字段要加。
+
+    /// <summary>
+    /// 模拟 Web 前端从快照重建按钮命中区：遍历 lines[i].entries[j]，
+    /// 对 button 非 null 的 entry 构造 (lineIndex, col, col+width-1) 命中区。
+    /// </summary>
+    private static List<(int lineIndex, int entryIndex, int col, int right, object value, bool isInteger)>
+        CollectButtonRegions(DisplaySnapshot snapshot)
+    {
+        var regions = new List<(int, int, int, int, object, bool)>();
+        for (int i = 0; i < snapshot.lines.Count; i++)
+        {
+            var entries = snapshot.lines[i].entries;
+            for (int j = 0; j < entries.Count; j++)
+            {
+                var btn = entries[j].button;
+                if (btn != null && btn.col is { } c && btn.width is { } w)
+                    regions.Add((i, j, c, c + w - 1, btn.value, btn.isInteger));
+            }
+        }
+        return regions;
+    }
+
+    [Fact]
+    public void Phase3_2_web_geometry_multi_line_multi_button_unique_regions()
+    {
+        // Line 0: "[OK]"(w=4) + "確定"(CJK w=4) + "[Exit]"(w=6) → 3 buttons
+        // Line 1: "plain"(non-button w=5) + "[Cancel]"(w=8) → 1 button + 1 non-button
+        var line0 = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[OK]", 1), ("確定", 2), ("[Exit]", 3)),
+            isLogical: true, temporary: false);
+        var line1 = new ConsoleDisplayLine(
+            new[] {
+                TestButtonFactory.CreateNonButton("plain"),
+                TestButtonFactory.CreateButton("[Cancel]", 4),
+            },
+            isLogical: true, temporary: false);
+        var list = new List<ConsoleDisplayLine> { line0, line1 };
+
+        var snapshot = DisplayState.BuildSnapshot(
+            list, EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+
+        var regions = CollectButtonRegions(snapshot);
+
+        // 4 个按钮命中区（line0 3 个 + line1 1 个）
+        Assert.Equal(4, regions.Count);
+
+        // Line 0 几何累加：[OK]@0-3, 確定@4-7, [Exit]@8-13（CJK 双宽正确累加）
+        Assert.Equal((0, 0, 0, 3, 1L, true), regions[0]);
+        Assert.Equal((0, 1, 4, 7, 2L, true), regions[1]);
+        Assert.Equal((0, 2, 8, 13, 3L, true), regions[2]);
+
+        // Line 1：非按钮 "plain"(w=5) 累加后，[Cancel] 从 col=5 开始 → 5-12
+        Assert.Equal((1, 1, 5, 12, 4L, true), regions[3]);
+
+        // 唯一性：同一行内无两个按钮的 (col, right) 重叠
+        var line0Ranges = regions.Where(r => r.lineIndex == 0).Select(r => (r.col, r.right)).ToList();
+        for (int a = 0; a < line0Ranges.Count; a++)
+            for (int b = a + 1; b < line0Ranges.Count; b++)
+                Assert.True(line0Ranges[a].right < line0Ranges[b].col || line0Ranges[b].right < line0Ranges[a].col,
+                    $"Line 0 regions {a} and {b} overlap");
+    }
+
+    [Fact]
+    public void Phase3_2_web_geometry_cjk_then_ascii_accumulates_correctly()
+    {
+        // "確定"(CJK w=4) + "[OK]"(ASCII w=4) → CJK 双宽累加到下一按钮起点
+        var line = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("確定", 100), ("[OK]", 200)),
+            isLogical: true, temporary: false);
+        var list = new List<ConsoleDisplayLine> { line };
+
+        var snapshot = DisplayState.BuildSnapshot(
+            list, EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+
+        var regions = CollectButtonRegions(snapshot);
+
+        Assert.Equal(2, regions.Count);
+        // 確定: col=0, right=3
+        Assert.Equal(0, regions[0].col);
+        Assert.Equal(3, regions[0].right);
+        Assert.Equal(100L, regions[0].value);
+        // [OK]: col=4（CJK 双宽累加后），right=7
+        Assert.Equal(4, regions[1].col);
+        Assert.Equal(7, regions[1].right);
+        Assert.Equal(200L, regions[1].value);
+    }
+
+    [Fact]
+    public void Phase3_2_web_geometry_non_button_does_not_create_region_but_accumulates_col()
+    {
+        // [A](button w=3) + middle(non-button w=6) + [B](button w=3)
+        // → 2 regions; [B].col = 3 + 6 = 9（非按钮仍参与列累加）
+        var buttons = new ConsoleButtonString[]
+        {
+            TestButtonFactory.CreateButton("[A]", 1),
+            TestButtonFactory.CreateNonButton("middle"),
+            TestButtonFactory.CreateButton("[B]", 2),
+        };
+        var line = new ConsoleDisplayLine(buttons, isLogical: true, temporary: false);
+        var list = new List<ConsoleDisplayLine> { line };
+
+        var snapshot = DisplayState.BuildSnapshot(
+            list, EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+
+        var regions = CollectButtonRegions(snapshot);
+
+        // 仅 2 个按钮命中区（非按钮不产生 region）
+        Assert.Equal(2, regions.Count);
+        Assert.Equal((0, 0, 0, 2, 1L, true), regions[0]);
+        // [B] 在 entryIndex=2（跳过非按钮 entryIndex=1），col=9（3+6 累加）
+        Assert.Equal((0, 2, 9, 11, 2L, true), regions[1]);
+    }
+
+    [Fact]
+    public void Phase3_2_web_geometry_empty_lines_and_buttonless_lines_skipped()
+    {
+        // Line 0: 按钮行；Line 1: 空行；Line 2: 纯文本（无按钮）行
+        var line0 = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[OK]", 1)), isLogical: true, temporary: false);
+        var line1 = new ConsoleDisplayLine(
+            Array.Empty<ConsoleButtonString>(), isLogical: true, temporary: false);
+        var line2 = new ConsoleDisplayLine(
+            new[] { TestButtonFactory.CreateNonButton("no buttons here") },
+            isLogical: true, temporary: false);
+        var list = new List<ConsoleDisplayLine> { line0, line1, line2 };
+
+        var snapshot = DisplayState.BuildSnapshot(
+            list, EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+
+        var regions = CollectButtonRegions(snapshot);
+
+        // 仅 Line 0 有 1 个按钮命中区
+        Assert.Single(regions);
+        Assert.Equal(0, regions[0].lineIndex);
+        Assert.Equal(0, regions[0].col);
+        Assert.Equal(3, regions[0].right);
+    }
+
+    [Fact]
+    public void Phase3_2_web_geometry_integer_button_value_and_is_integer_preserved()
+    {
+        // 验证整数按钮的 value/isInteger 正确传入快照（value-based 提交的基础）
+        var line = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[OK]", 42), ("[Cancel]", 99)),
+            isLogical: true, temporary: false);
+        var list = new List<ConsoleDisplayLine> { line };
+
+        var snapshot = DisplayState.BuildSnapshot(
+            list, EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+
+        var regions = CollectButtonRegions(snapshot);
+
+        Assert.Equal(2, regions.Count);
+        Assert.Equal(42L, regions[0].value);
+        Assert.True(regions[0].isInteger);
+        Assert.Equal(99L, regions[1].value);
+        Assert.True(regions[1].isInteger);
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.UI.Game;
@@ -19,6 +19,9 @@ namespace MinorShift.Emuera.GameView
         private readonly Func<AgentCliVtScreen?> _getScreen;
         private readonly Action<string> _dispatchInput;
         private readonly Action _clearInputBuffer;
+        // Phase 3-3b：DisplayState 注入（Phase 4 起 AgentCliProtocol 传入自有实例）。
+        // 当前 Phase 3 阶段为 null——RefreshButtonRegionsFromSnapshot 仅在 Phase 4 接线后调用。
+        private readonly DisplayState? _displayState;
 
         private bool _buttonMode;
         private List<ButtonPos> _buttonPositions = [];
@@ -31,13 +34,15 @@ namespace MinorShift.Emuera.GameView
             ScrollController scroll,
             Func<AgentCliVtScreen?> getScreen,
             Action<string> dispatchInput,
-            Action clearInputBuffer)
+            Action clearInputBuffer,
+            DisplayState? displayState = null)
         {
             _console = console;
             _scroll = scroll;
             _getScreen = getScreen;
             _dispatchInput = dispatchInput;
             _clearInputBuffer = clearInputBuffer;
+            _displayState = displayState;
         }
 
         public bool IsButtonMode => _buttonMode;
@@ -190,6 +195,51 @@ namespace MinorShift.Emuera.GameView
                 // viewport row = i（备用屏绝对坐标，与 SGR mouse 的 Cy-1 同一空间）
                 vtInput.RecordLineRegions(formatted, i, line.Buttons, currentGen);
             }
+        }
+
+        /// <summary>
+        /// Phase 3-3b 新路径：从 DisplayState.Current 快照构建命中区（value-based，单次调用）。
+        /// 与旧 <see cref="RefreshButtonRegions"/> 的差异：不经 VtInputHandler.RecordLineRegions 按行转发，
+        /// 直接调 <see cref="ButtonRegionTracker.UpdateFromSnapshot"/>；Generation 过滤移除（服务端兜底）。
+        /// Phase 4 接线后替换 7 处旧 RefreshButtonRegions 调用点。
+        /// </summary>
+        /// <remarks>
+        /// 调用前置：_displayState 必须已注入（Phase 4 AgentCliProtocol 传入自有实例）。
+        /// 当前 Phase 3 阶段 _displayState 为 null，本方法不应被调用——Phase 4 接线后启用。
+        /// </remarks>
+        internal void RefreshButtonRegionsFromSnapshot(VtInputHandler vtInput, bool force = false)
+        {
+            if (_displayState == null)
+                throw new InvalidOperationException(
+                    "RefreshButtonRegionsFromSnapshot requires DisplayState injection (Phase 4).");
+
+            // ADR-0006：Scroll Mode 下清空命中区，不更新 _lastRegionGeneration
+            // （退出 scroll mode 时由 force=true 路径重建）。
+            if (_scroll.ScrollOffset > 0)
+            {
+                vtInput.ClearRegions();
+                return;
+            }
+
+            // 非按钮模式或无请求时清除所有区域，防止过期按钮被点击触发
+            var req = _console.CurrentRequest;
+            if (req == null || req.InputType == InputType.EnterKey || req.InputType == InputType.AnyKey)
+            {
+                vtInput.ClearRegions();
+                _lastRegionGeneration = _console.LastButtonGeneration;
+                return;
+            }
+
+            long currentGen = _console.LastButtonGeneration;
+            if (!force && currentGen == _lastRegionGeneration) return;
+            _lastRegionGeneration = currentGen;
+
+            // 单次调用：直接调 tracker.UpdateFromSnapshot，不经 RecordLineRegions 转发。
+            var snapshot = _displayState.Current;
+            int windowHeight = _getScreen()!.WindowHeight;
+            // 视口高度 = windowHeight - 1（保留最后一行给倒计时/输入行），与旧路径 visibleLines 上限一致。
+            int viewportHeight = Math.Max(1, windowHeight - 1);
+            vtInput.Tracker.UpdateFromSnapshot(snapshot, _scroll.ScrollOffset, viewportHeight);
         }
 
         // 按钮位置信息：viewport 行号 + 终端列范围，用于二维方向键导航

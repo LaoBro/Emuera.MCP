@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using MinorShift.Emuera.Terminal.Platform;
 using MinorShift.Emuera.UI.Game;
 
@@ -36,7 +36,11 @@ internal sealed class VtInputHandler : IDisposable, IVtEventSink
     internal void RecordLineRegions(string formattedLine, int viewportRow, ConsoleButtonString[]? buttons, long currentGeneration)
         => _tracker.RecordLineRegions(formattedLine, viewportRow, buttons, currentGeneration);
 
-    private ConsoleButtonString? HitTest(int row, int col) => _tracker.HitTest(row, col);
+    /// <summary>
+    /// Phase 3-3b：暴露 tracker 供 ButtonSelectionMode.RefreshButtonRegionsFromSnapshot
+    /// 直接调 UpdateFromSnapshot（不经 RecordLineRegions 转发——单次调用 vs 旧路径按行循环）。
+    /// </summary>
+    internal ButtonRegionTracker Tracker => _tracker;
 
     #endregion
 
@@ -114,9 +118,10 @@ internal sealed class VtInputHandler : IDisposable, IVtEventSink
 
         if (!isPress || buttonCode != 0) return;
 
-        var hit = HitTest(row, col);
-        if (hit != null)
-            _host.DispatchMouseClick(hit);
+        // Phase 3-3：HitTest 返回 value-based Region?，从中取 Value/IsInteger 调 dispatch。
+        var hit = _tracker.HitTest(row, col);
+        if (hit.HasValue)
+            _host.DispatchMouseClick(hit.Value.Value, hit.Value.IsInteger);
         else
             _host.DispatchMouseMiss();
     }

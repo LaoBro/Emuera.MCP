@@ -1,5 +1,4 @@
-using System;
-using MinorShift.Emuera.UI.Game;
+﻿using System;
 
 namespace MinorShift.Emuera.GameView
 {
@@ -29,8 +28,13 @@ namespace MinorShift.Emuera.GameView
         /// <summary>VT 解析器输出的 ConsoleKeyInfo 入口。</summary>
         void ProcessKeyFromVt(ConsoleKeyInfo key);
 
-        /// <summary>鼠标点击命中按钮的分发。</summary>
-        void DispatchMouseClick(ConsoleButtonString btn);
+        /// <summary>
+        /// 鼠标点击命中按钮的分发（Phase 3-3 / ADR-0014 value-based）。
+        /// value 是按钮提交值（int/long 装箱或 string），isInteger 标记整数按钮——
+        /// 由 ButtonRegionTracker.HitTest 返回的 Region 直接传值，不再依赖 ConsoleButtonString 引用。
+        /// 服务端 ConsoleInputHandler 按 button.Generation 校验兜底。
+        /// </summary>
+        void DispatchMouseClick(object value, bool isInteger);
 
         /// <summary>鼠标点击未命中的分发（推进 AnyKey/EnterKey）。</summary>
         void DispatchMouseMiss();

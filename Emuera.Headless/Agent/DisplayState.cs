@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -69,6 +69,7 @@ internal sealed class DisplayState
     private readonly string _defaultFontName;
     private readonly object _gate = new();
     private DisplaySnapshot? _current;
+    private DisplaySnapshot? _previous;
 
     internal DisplayState(EmueraConsole console, string defaultFontName)
     {
@@ -99,6 +100,96 @@ internal sealed class DisplayState
             _current = Rebuild();
             return true;
         }
+    }
+
+    /// <summary>
+    /// 计算本回合 DisplayDiff（Phase 2 / ADR-0014）。
+    /// 比对 _current（已被 BuildTurn 的 TryUpdate 刷新）与 _previous（上一回合的 _current）。
+    /// 返回 null 的三种情况：首次回合（_previous==null）、_current 未构建（BuildTurn 未调 TryUpdate）、
+    /// 本回合显示未变（ReferenceEquals(_previous, _current)——no-op 回合，仅 state/inputType 变化由 TurnRecord 顶层携带）。
+    ///
+    /// 调用契约：BuildTurn 必须在 ComputeDiff 之前调 TryUpdate。否则 _current 可能为 null（首次），
+    /// ComputeDiff 返回 null。不再经 Current 触发 TryUpdate——避免 _gate 锁重入 + 重复 Rebuild。
+    ///
+    /// _previous 读写与 _current 同处 _gate 锁内。仅游戏线程 BuildTurn 调用，无新增并发。
+    /// </summary>
+    internal DisplayDiff? ComputeDiff()
+    {
+        lock (_gate)
+        {
+            var current = _current;
+            if (current == null) return null; // _current 未构建
+
+            var prev = _previous;
+            _previous = current;
+
+            if (prev == null) return null;                    // 首次回合，无 diff
+            if (ReferenceEquals(prev, current)) return null;  // no-op：本回合显示未变
+
+            var lineOps = DiffSnapshots(prev, current);
+            string? bg = prev.bgColor == current.bgColor ? null : current.bgColor;
+            return new DisplayDiff(lineOps, bg);
+        }
+    }
+
+    /// <summary>
+    /// 比对两个快照的 lines 产出 LineOp 序列（Phase 2）。
+    /// Emuera 显示模型是追加式的——头部行永不变，差异只在尾部。
+    /// 公共前缀 k 之后的差异用 Truncate(k)+Append 表达；k==0 且 prev 非空 → ReplaceAll。
+    /// </summary>
+    private static List<LineOp> DiffSnapshots(DisplaySnapshot prev, DisplaySnapshot curr)
+    {
+        var p = prev.lines;
+        var c = curr.lines;
+        int k = CommonPrefix(p, c);
+        if (k == p.Count)
+        {
+            // prev 是 curr 的前缀（含完全相等到此分支不可能——ReferenceEquals 已短路，
+            // 但值相等不同引用可能到此。p.Count==c.Count 时 GetRange(k,0) 返回空列表 → Append 空）
+            return c.Count == p.Count
+                ? new List<LineOp>()
+                : [new AppendLinesOp(c.GetRange(k, c.Count - k))];
+        }
+        if (k == c.Count) return [new TruncateLinesOp(k)];                          // 纯截尾（CLEARLINE）
+        if (k == 0) return [new ReplaceAllOp(c)];                                    // 头部都变 = CLEAR/全重置
+        return [new TruncateLinesOp(k), new AppendLinesOp(c.GetRange(k, c.Count - k))]; // 尾部替换
+    }
+
+    /// <summary>
+    /// 逐行值比较求公共前缀长度。
+    /// DisplayLine/DisplayEntry 是 record 但含 List&lt;&gt; 字段——C# record 对集合字段用引用相等，
+    /// 故不能直接用 record.Equals。此处做深度值比较：align/isLineEnd + entries 逐条 segments/button 比对。
+    /// PrintSegment 全为值类型/string 字段，record.Equals 正确；ButtonRef.value 是 object 但实际为 int/string，
+    /// object.Equals 正确委派到对应类型的值相等。
+    /// </summary>
+    private static int CommonPrefix(List<DisplayLine> a, List<DisplayLine> b)
+    {
+        int n = Math.Min(a.Count, b.Count);
+        int k = 0;
+        while (k < n && LinesEqual(a[k], b[k])) k++;
+        return k;
+    }
+
+    private static bool LinesEqual(DisplayLine a, DisplayLine b)
+    {
+        if (a.align != b.align) return false;
+        if (a.isLineEnd != b.isLineEnd) return false;
+        if (a.entries.Count != b.entries.Count) return false;
+        for (int i = 0; i < a.entries.Count; i++)
+        {
+            if (!EntriesEqual(a.entries[i], b.entries[i])) return false;
+        }
+        return true;
+    }
+
+    private static bool EntriesEqual(DisplayEntry a, DisplayEntry b)
+    {
+        if (a.segments.Count != b.segments.Count) return false;
+        for (int i = 0; i < a.segments.Count; i++)
+        {
+            if (!a.segments[i].Equals(b.segments[i])) return false;
+        }
+        return Equals(a.button, b.button);
     }
 
     /// <summary>

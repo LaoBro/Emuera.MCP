@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json;
@@ -17,7 +17,7 @@ namespace MinorShift.Emuera.GameView
         private static readonly JsonSerializerOptions TurnJsonOptions = new()
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            Converters = { new TurnOpConverter() },
+            Converters = { new TurnOpConverter(), new LineOpConverter() },
         };
 
         private readonly SessionIO _io;
@@ -73,6 +73,7 @@ namespace MinorShift.Emuera.GameView
                     inputType: null,
                     needValue: false,
                     ops: new List<TurnOp>(),
+                    diff: null,
                     error: ex.Message
                 ), TurnJsonOptions);
                 Stop();
@@ -219,6 +220,10 @@ namespace MinorShift.Emuera.GameView
             // Phase 1：在 TakePendingOps 前 peek pendingOps 做变更检测，刷新 DisplayState.Current。
             // 必须在 drain 之前调，否则 pendingOps 已空，TryUpdate 检测永远 false。
             _displayState.TryUpdate();
+            // Phase 2：在 TakePendingOps 前 ComputeDiff——此时 _current 已被 TryUpdate 刷新，
+            // 与 _previous 比对产出 DisplayDiff。TryUpdate 与 ComputeDiff 都持 _gate 锁，
+            // 但 BuildTurn 是单线程（游戏循环）调用，无重入风险。
+            var diff = _displayState.ComputeDiff();
             var ops = console.TakePendingOps();
             var req = console.CurrentRequest;
             string? error = _pendingRejectReason;
@@ -228,6 +233,7 @@ namespace MinorShift.Emuera.GameView
                 inputType: req?.InputType.ToString(),
                 needValue: req?.NeedValue ?? false,
                 ops: ops,
+                diff: diff,
                 error: error,
                 protocolVersion: isInitial ? TurnRecord.CurrentProtocolVersion : null
             ), TurnJsonOptions);

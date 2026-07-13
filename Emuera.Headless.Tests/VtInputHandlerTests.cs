@@ -187,7 +187,9 @@ public class VtInputHandlerTests
 
         Assert.Equal(1, host.DispatchMouseClickCalls);
         Assert.Equal(0, host.DispatchMouseMissCalls);
-        Assert.Same(buttons[0], host.LastClickedButton);
+        // Phase 3-3：value-based dispatch，1L 装箱 + IsInteger=true
+        Assert.Equal(1L, host.LastClickValue);
+        Assert.True(host.LastClickIsInteger);
     }
 
     [Fact]
@@ -240,7 +242,9 @@ public class VtInputHandlerTests
         sink.OnMouseEvent(row: 0, col: 7, buttonCode: 0, isPress: true);
 
         Assert.Equal(1, host.DispatchMouseClickCalls);
-        Assert.Same(buttons[1], host.LastClickedButton);
+        // Phase 3-3：value-based dispatch，"[Cancel]" 按钮 input=2
+        Assert.Equal(2L, host.LastClickValue);
+        Assert.True(host.LastClickIsInteger);
     }
 
     [Fact]
@@ -406,7 +410,8 @@ public class VtInputHandlerTests
         public int ProcessKeyFromVtCalls;
         public int DispatchMouseClickCalls;
         public int DispatchMouseMissCalls;
-        public ConsoleButtonString? LastClickedButton;
+        public object? LastClickValue;
+        public bool LastClickIsInteger;
         public ConsoleKeyInfo LastKey;
         public readonly List<int> DispatchWheelCalls = new();
         public readonly List<ScrollAction> DispatchScrollCalls = new();
@@ -429,10 +434,11 @@ public class VtInputHandlerTests
             LastKey = key;
         }
 
-        public void DispatchMouseClick(ConsoleButtonString btn)
+        public void DispatchMouseClick(object value, bool isInteger)
         {
             DispatchMouseClickCalls++;
-            LastClickedButton = btn;
+            LastClickValue = value;
+            LastClickIsInteger = isInteger;
         }
 
         public void DispatchMouseMiss() => DispatchMouseMissCalls++;

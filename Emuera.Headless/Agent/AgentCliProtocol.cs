@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -487,14 +487,16 @@ namespace MinorShift.Emuera.GameView
 
         #region Mouse dispatch
 
-        void IVtHost.DispatchMouseClick(ConsoleButtonString btn)
+        void IVtHost.DispatchMouseClick(object value, bool isInteger)
         {
             if (console.State != ConsoleState.WaitInput) return;
 
             // 鼠标点击退出按钮选择模式（若有），并执行点击命中
             if (_buttons.IsButtonMode) _buttons.ExitButtonMode();
 
-            string input = btn.IsInteger ? btn.Input.ToString() : btn.Inputs;
+            // Phase 3-3：value-based dispatch——isInteger 时 value 是 long 装箱，
+            // 否则是 string。Generation 校验由服务端 ConsoleInputHandler 兜底。
+            string input = isInteger ? value.ToString()! : (string)value;
             DispatchInput(input);
         }
 

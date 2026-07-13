@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -10,6 +10,7 @@ internal record TurnRecord(
     string? inputType,
     bool needValue,
     List<TurnOp> ops,
+    DisplayDiff? diff,
     string? error = null,
     int? protocolVersion = null
 )
@@ -22,6 +23,34 @@ internal record TurnRecord(
     /// </summary>
     internal const int CurrentProtocolVersion = 3;
 }
+
+/// <summary>
+/// 两个连续 DisplaySnapshot 之间的差异（Phase 2 / ADR-0014）。
+/// 仅含行级操作序列 + 背景色；state/inputType/needValue/protocolVersion 由外层 TurnRecord 携带，不在此重复。
+/// 作为 ops[] 的并行新格式输出——Web adapter 优先读 diff，CLI adapter 继续读 ops（Phase 4 再迁移）。
+/// Phase 5 切换完成后将废弃 ops。
+/// </summary>
+internal record DisplayDiff(
+    List<LineOp> lineOps,
+    string? bgColor
+);
+
+/// <summary>
+/// 行级差异操作（Phase 2）。仅三种尾部操作——
+/// Emuera 显示模型是追加式的：新内容追加到末尾，CLEARLINE 从末尾删除，CLEAR 全部清除，头部行永不变。
+/// 故 diff 只需 append/truncate/replace_all 三种；公共前缀 k 之后的差异用 Truncate(k)+Append 表达
+/// （含末行原地编辑：PRINT 不带换行落到最后一行 = Truncate(k)+Append(1)）。
+/// </summary>
+internal abstract record LineOp(string type);
+
+/// <summary>追加新行（curr 比 prev 多出的尾部）。</summary>
+internal record AppendLinesOp(List<DisplayLine> newLines) : LineOp("append");
+
+/// <summary>截断尾部，保留前 keepCount 行（CLEARLINE 场景）。</summary>
+internal record TruncateLinesOp(int keepCount) : LineOp("truncate");
+
+/// <summary>全量替换（CLEAR / 全重置场景，diff 不经济时 fallback）。</summary>
+internal record ReplaceAllOp(List<DisplayLine> allLines) : LineOp("replace_all");
 
 internal abstract record TurnOp(string type);
 
@@ -54,6 +83,22 @@ internal sealed class TurnOpConverter : JsonConverter<TurnOp>
         => throw new NotSupportedException("TurnOp deserialization not supported");
 
     public override void Write(Utf8JsonWriter writer, TurnOp value, JsonSerializerOptions options)
+    {
+        JsonSerializer.Serialize(writer, (object)value, options);
+    }
+}
+
+/// <summary>
+/// LineOp 多态序列化（Phase 2）。与 TurnOpConverter 同模式——
+/// 序列化时按具体子类型（AppendLinesOp/TruncateLinesOp/ReplaceAllOp）写出全部字段 + type 鉴别符；
+/// 反序列化不支持（服务端只产出 diff，前端单向消费）。
+/// </summary>
+internal sealed class LineOpConverter : JsonConverter<LineOp>
+{
+    public override LineOp? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        => throw new NotSupportedException("LineOp deserialization not supported");
+
+    public override void Write(Utf8JsonWriter writer, LineOp value, JsonSerializerOptions options)
     {
         JsonSerializer.Serialize(writer, (object)value, options);
     }
