@@ -1,0 +1,27 @@
+{
+  "lines": [
+    {
+      "entries": [
+        {
+          "segments": [
+            {
+              "text": "[OK]"
+            }
+          ],
+          "button": {
+            "value": 1,
+            "isInteger": true,
+            "col": 0,
+            "width": 4
+          }
+        }
+      ],
+      "align": "left",
+      "isLineEnd": true
+    }
+  ],
+  "bgColor": "#000000",
+  "state": "WaitInput",
+  "needValue": false,
+  "protocolVersion": 3
+}

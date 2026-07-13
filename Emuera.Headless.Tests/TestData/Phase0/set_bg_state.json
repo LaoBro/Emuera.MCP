@@ -1,0 +1,22 @@
+{
+  "lines": [
+    {
+      "entries": [
+        {
+          "segments": [
+            {
+              "text": "Text on dark blue background"
+            }
+          ]
+        }
+      ],
+      "align": "left",
+      "isLineEnd": true
+    }
+  ],
+  "bgColor": "#00008B",
+  "state": "WaitInput",
+  "inputType": "IntValue",
+  "needValue": true,
+  "protocolVersion": 3
+}

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime;
@@ -329,5 +331,60 @@ public class DisplayStateTests
             new List<ConsoleDisplayLine>(), EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
 
         Assert.Equal(3, snapshot.protocolVersion);
+    }
+
+    // ---------- Phase 0-2：快照确定性 / 等价性 ----------
+    // 相同输入 → BuildSnapshot 两次产出 byte-identical JSON（幂等）；
+    // 不同输入 → 不同 JSON（区分度）。
+    // 这是 Phase 2 ComputeDiff「不同快照不应产生空 diff」的前置（等价于「快照不等价 ⟺ JSON 不同」）。
+
+    /// <summary>
+    /// 与生产 DisplayState.JsonOpts 等价（WhenWritingNull）。测试内重建以避免修改生产可见性。
+    /// </summary>
+    private static readonly JsonSerializerOptions EquivalenceJsonOpts = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    [Fact]
+    public void BuildSnapshot_is_idempotent_same_input_produces_byte_identical_json()
+    {
+        var buttons = new[]
+        {
+            TestButtonFactory.CreateButton("[OK]", input: 1),
+            TestButtonFactory.CreateNonButton("plain"),
+        };
+        var line = new ConsoleDisplayLine(buttons, isLogical: true, temporary: false);
+        var list = new List<ConsoleDisplayLine> { line };
+        var req = new InputRequest { InputType = InputType.IntValue };
+
+        var snap1 = DisplayState.BuildSnapshot(
+            list, EmuColor.Black, ConsoleState.WaitInput, req, "TestFont");
+        var snap2 = DisplayState.BuildSnapshot(
+            list, EmuColor.Black, ConsoleState.WaitInput, req, "TestFont");
+
+        var json1 = JsonSerializer.Serialize(snap1, EquivalenceJsonOpts);
+        var json2 = JsonSerializer.Serialize(snap2, EquivalenceJsonOpts);
+        Assert.Equal(json1, json2);
+    }
+
+    [Fact]
+    public void BuildSnapshot_different_input_produces_different_json()
+    {
+        var lineA = new ConsoleDisplayLine(
+            new[] { TestButtonFactory.CreateButton("[A]", 1) }, isLogical: true, temporary: false);
+        var lineB = new ConsoleDisplayLine(
+            new[] { TestButtonFactory.CreateButton("[B]", 2) }, isLogical: true, temporary: false);
+
+        var snapA = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine> { lineA },
+            EmuColor.Black, ConsoleState.WaitInput, null, "TestFont");
+        var snapB = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine> { lineB },
+            EmuColor.Black, ConsoleState.WaitInput, null, "TestFont");
+
+        var jsonA = JsonSerializer.Serialize(snapA, EquivalenceJsonOpts);
+        var jsonB = JsonSerializer.Serialize(snapB, EquivalenceJsonOpts);
+        Assert.NotEqual(jsonA, jsonB);
     }
 }

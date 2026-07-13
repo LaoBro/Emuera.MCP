@@ -1,0 +1,40 @@
+{
+  "lines": [
+    {
+      "entries": [
+        {
+          "segments": [
+            {
+              "text": "Line 1 survives CLEARLINE"
+            }
+          ]
+        }
+      ],
+      "align": "left",
+      "isLineEnd": true
+    },
+    {
+      "entries": [
+        {
+          "segments": [
+            {
+              "text": "[Continue]"
+            }
+          ],
+          "button": {
+            "value": 1,
+            "isInteger": true,
+            "col": 0,
+            "width": 10
+          }
+        }
+      ],
+      "align": "left",
+      "isLineEnd": true
+    }
+  ],
+  "bgColor": "#000000",
+  "state": "WaitInput",
+  "needValue": false,
+  "protocolVersion": 3
+}

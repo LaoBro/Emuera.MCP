@@ -62,6 +62,26 @@ try:
     check("text" not in turn, "turn has no text field (v2)")
     check("ops" in turn, "turn contains ops field")
 
+    # Phase 0-1b: GET /snapshot 端点接线薄护栏——确保端点 wiring 未断，
+    # JSON 形状（state / lines / button.col+width）与 C# golden 一致。
+    snap_status, snap_body = server.get_snapshot(timeout=10)
+    check(snap_status == 200, f"GET /snapshot with active session returns 200, got {snap_status}")
+    snap = json.loads(snap_body)
+    check("state" in snap and isinstance(snap["state"], str), "snapshot has state string")
+    check("lines" in snap and isinstance(snap["lines"], list), "snapshot has lines[] list")
+    check(snap.get("protocolVersion") == 3, f"snapshot protocolVersion == 3, got {snap.get('protocolVersion')}")
+    # 验证按钮几何存在（至少一个按钮有 col + width 整数字段）
+    has_button_geometry = False
+    for line in snap.get("lines", []):
+        for entry in line.get("entries", []):
+            btn = entry.get("button")
+            if btn is not None and isinstance(btn.get("col"), int) and isinstance(btn.get("width"), int):
+                has_button_geometry = True
+                break
+        if has_button_geometry:
+            break
+    check(has_button_geometry, "snapshot has at least one button with int col+width geometry")
+
     # GET /state 有 session 时返回完整字段
     state_status, state_body = server.get_state()
     check(state_status == 200, f"GET /state with session returns 200, got {state_status}")

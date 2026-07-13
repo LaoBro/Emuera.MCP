@@ -18,4 +18,10 @@
     <ProjectReference Include="..\Emuera.Headless\Emuera.Headless.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="TestData\Phase0\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
