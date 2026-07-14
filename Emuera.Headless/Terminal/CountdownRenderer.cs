@@ -14,6 +14,7 @@ namespace MinorShift.Emuera.GameView
         private readonly EmueraConsole _console;
         private readonly Func<int> _getScrollOffset;
         private readonly Func<AgentCliVtScreen?> _getScreen;
+        private readonly Func<int> _getLastDrawnRows;
 
         // 倒计时行状态（viewport row，备用屏下与 buffer row 等价）
         private int _countdownLineRow = -1;
@@ -23,20 +24,24 @@ namespace MinorShift.Emuera.GameView
         public CountdownRenderer(
             EmueraConsole console,
             Func<int> getScrollOffset,
-            Func<AgentCliVtScreen?> getScreen)
+            Func<AgentCliVtScreen?> getScreen,
+            Func<int> getLastDrawnRows)
         {
             _console = console;
             _getScrollOffset = getScrollOffset;
             _getScreen = getScreen;
+            _getLastDrawnRows = getLastDrawnRows;
         }
 
         /// <summary>检测倒计时状态变化并刷新显示；倒计时结束时重置。
         /// ADR-0006：Scroll Mode（offset>0）下跳过 Update，不在历史行上覆盖倒计时。
         /// ADR-0007：接受外部传入的 elapsedMs（CLI 挂钟），绕过失效的 stopwatch。
-        /// ADR-0009：offset 从 Func<int> 读（替代 Func<AgentCliVtScreen?>）。</summary>
+        /// ADR-0009：offset 从 Func<int> 读（替代 Func<AgentCliVtScreen?>）。
+        /// ConPTY 修复：倒计时行位置从 TerminalRenderer.LastDrawnRows 推算（drawnRows - 1），
+        /// 替代 Console.CursorTop——后者在 ConPTY 下间歇抛异常或返回错误值导致倒计时永不渲染。</summary>
         internal void Update(long elapsedMs)
         {
-            // Scroll Mode 下跳过：光标在状态栏行，CursorTop-1 探测的倒计时行位置失效，
+            // Scroll Mode 下跳过：光标在状态栏行，倒计时行位置失效，
             // 且在历史切片上覆盖倒时会污染历史视图。
             if (_getScrollOffset() > 0) return;
 
@@ -47,8 +52,8 @@ namespace MinorShift.Emuera.GameView
                 {
                     if (_countdownLineRow < 0)
                     {
-                        try { _countdownLineRow = Console.CursorTop - 1; }
-                        catch (Exception) { /* CursorTop 探测失败，禁用行覆盖 */ _countdownLineRow = -1; }
+                        int drawnRows = _getLastDrawnRows();
+                        _countdownLineRow = drawnRows > 0 ? drawnRows - 1 : -1;
                     }
                     Overwrite(currentText);
                 }

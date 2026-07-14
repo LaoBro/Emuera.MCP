@@ -89,7 +89,7 @@ namespace MinorShift.Emuera.GameView
                 input => DispatchInput(input),
                 ClearInputBuffer,
                 _displayState);
-            _countdown = new CountdownRenderer(console, () => _scroll.ScrollOffset, () => _screen);
+            _countdown = new CountdownRenderer(console, () => _scroll.ScrollOffset, () => _screen, () => _renderer.LastDrawnRows);
             // ADR-0006：auto-follow 回调——FlushBuffer 检测到新行/ClearOp 且 offset>0 时
             // 归零 offset + FullRefresh 后调用，同步状态栏/倒计时/按钮区域。
             _renderer.OnScrollAutoFollow = () =>

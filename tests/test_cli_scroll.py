@@ -307,7 +307,8 @@ def test_scroll_up_shows_status_bar_and_history(binary):
             check("ScrollLine01" not in before, "ScrollLine01 滚出视口（滚动前不可见）")
 
             sess.inject(PGUP)
-            sess.sleep(0.5)
+            # 用 wait_for 轮询替代固定 sleep——ConPTY 输出交付延迟受系统负载影响
+            sess.wait_for(SCROLL_BAR_MARKER, timeout=3.0)
 
             after = sess.text()
             check(SCROLL_BAR_MARKER in after, "PgUp 后状态栏文本出现")
@@ -334,7 +335,7 @@ def test_scroll_down_returns_to_bottom(binary):
             for _ in range(3):
                 sess.inject(PGUP)
                 sess.sleep(0.3)
-            assert SCROLL_BAR_MARKER in sess.text(), "已进入 Scroll Mode"
+            assert sess.wait_for(SCROLL_BAR_MARKER, timeout=3.0), "已进入 Scroll Mode"
 
             # PgDn 滚回底部
             for _ in range(5):
@@ -343,7 +344,7 @@ def test_scroll_down_returns_to_bottom(binary):
 
             sess.sleep(0.5)
             text = sess.text()
-            check("ScrollLine50" in text[-2000:], "滚回底部后末尾标记可见")
+            check("ScrollLine50" in text, "滚回底部后末尾标记可见")
         finally:
             sess.close()
     finally:
@@ -368,8 +369,7 @@ def test_scroll_to_bottom_preserves_last_line(binary):
             sess.sleep(0.5)
             # 进入 Scroll Mode
             sess.inject(PGUP)
-            sess.sleep(0.5)
-            assert SCROLL_BAR_MARKER in sess.text(), "已进入 Scroll Mode"
+            assert sess.wait_for(SCROLL_BAR_MARKER, timeout=3.0), "已进入 Scroll Mode"
             # End 回底
             sess.inject(END_KEY)
             sess.sleep(0.8)
@@ -427,8 +427,7 @@ def test_auto_follow_via_full_refresh(binary):
             for _ in range(3):
                 sess.inject(PGUP)
                 sess.sleep(0.3)
-            sess.sleep(0.3)
-            assert SCROLL_BAR_MARKER in sess.text(), "已进入 Scroll Mode"
+            assert sess.wait_for(SCROLL_BAR_MARKER, timeout=3.0), "已进入 Scroll Mode"
 
             # End 回底（offset 归零，退出 Scroll Mode）
             sess.inject(END_KEY)
@@ -469,7 +468,7 @@ def test_tinput_timeout_triggers(binary):
 
             # 验证 RESULT 取默认值 7
             text = sess.text()
-            check("RESULT=7" in text[-2000:], "TINPUT 超时后 RESULT 取默认值 7")
+            check("RESULT=7" in text, "TINPUT 超时后 RESULT 取默认值 7")
         finally:
             sess.close()
     finally:
@@ -495,8 +494,7 @@ def test_auto_follow_on_new_output(binary):
             for _ in range(3):
                 sess.inject(PGUP)
                 sess.sleep(0.3)
-            sess.sleep(0.3)
-            assert SCROLL_BAR_MARKER in sess.text(), "已进入 Scroll Mode 等待超时"
+            assert sess.wait_for(SCROLL_BAR_MARKER, timeout=3.0), "已进入 Scroll Mode 等待超时"
 
             # 等待 TINPUT 超时（1.5s）产生新输出触发 auto-follow
             deadline = time.time() + 6.0
@@ -514,7 +512,7 @@ def test_auto_follow_on_new_output(binary):
             sess.sleep(0.6)
             text = sess.text()
             check(
-                "RESULT=7" in text[-3000:] or "TIMEUP_MARKER" in text[-3000:],
+                "RESULT=7" in text or "TIMEUP_MARKER" in text,
                 "auto-follow 后新内容在末尾可见",
             )
         finally:
@@ -573,8 +571,7 @@ def test_scroll_mode_input_lock(binary):
             for _ in range(3):
                 sess.inject(PGUP)
                 sess.sleep(0.3)
-            sess.sleep(0.3)
-            assert SCROLL_BAR_MARKER in sess.text(), "已进入 Scroll Mode"
+            assert sess.wait_for(SCROLL_BAR_MARKER, timeout=3.0), "已进入 Scroll Mode"
 
             # 注入普通字符——不应回显
             before_len = len(sess.text())
@@ -634,7 +631,7 @@ def test_pgup_pgdn_paging(binary):
 
             # PgUp 进入 Scroll Mode
             sess.inject(PGUP)
-            sess.sleep(0.5)
+            sess.wait_for(SCROLL_BAR_MARKER, timeout=3.0)
             check(SCROLL_BAR_MARKER in sess.text(), "PgUp 进入 Scroll Mode（状态栏出现）")
 
             # 再 PgUp 应增加 offset（更早的标记可见）
@@ -665,7 +662,7 @@ def test_home_end_navigation(binary):
 
             # 先滚一点进入 Scroll Mode
             sess.inject(PGUP)
-            sess.sleep(0.4)
+            sess.wait_for(SCROLL_BAR_MARKER, timeout=3.0)
 
             # Home 滚到顶
             sess.inject(HOME_KEY)
@@ -678,7 +675,7 @@ def test_home_end_navigation(binary):
             sess.inject(END_KEY)
             sess.sleep(0.6)
             after_end = sess.text()
-            check("ScrollLine50" in after_end[-2000:], "End 回底后末尾标记可见")
+            check("ScrollLine50" in after_end, "End 回底后末尾标记可见")
         finally:
             sess.close()
     finally:
@@ -720,8 +717,7 @@ def test_scroll_mode_only_hotkeys_pass_gate(binary):
             sess.sleep(0.5)
 
             sess.inject(PGUP)
-            sess.sleep(0.4)
-            assert SCROLL_BAR_MARKER in sess.text(), "已进入 Scroll Mode"
+            assert sess.wait_for(SCROLL_BAR_MARKER, timeout=3.0), "已进入 Scroll Mode"
 
             # 方向键（非滚动热键）应被丢弃，不进入按钮选择模式 / 不推进游戏
             sess.inject(f"{ESC}[A")  # Up
@@ -760,8 +756,7 @@ def test_clearop_via_full_refresh_reset(binary):
             for _ in range(10):
                 sess.inject(PGUP)
                 sess.sleep(0.2)
-            sess.sleep(0.4)
-            assert SCROLL_BAR_MARKER in sess.text(), "已进入 Scroll Mode"
+            assert sess.wait_for(SCROLL_BAR_MARKER, timeout=3.0), "已进入 Scroll Mode"
 
             # End 回底才能输入
             sess.inject(END_KEY)

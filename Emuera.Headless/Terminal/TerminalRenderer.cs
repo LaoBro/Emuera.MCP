@@ -35,6 +35,14 @@ namespace MinorShift.Emuera.GameView
         private string? _currentBgHex;
 
         /// <summary>
+        /// 最近一次 FullRefresh 绘制的可见内容行数（不含状态栏行）。
+        /// CountdownRenderer 经此推算倒计时行位置（drawnRows - 1），
+        /// 替代不可靠的 Console.CursorTop 探测（ConPTY 下间歇抛异常或返回错误值）。
+        /// -1 表示尚未渲染过。
+        /// </summary>
+        internal int LastDrawnRows { get; private set; } = -1;
+
+        /// <summary>
         /// auto-follow 回调：FlushBuffer 检测到新行且 offset>0 时，归零 offset + FullRefresh 后调用，
         /// 让 AgentCliProtocol 同步状态栏/倒计时/按钮区域。ADR-0006。
         /// </summary>
@@ -238,6 +246,7 @@ namespace MinorShift.Emuera.GameView
 
             int drawnRows = Math.Min(visibleLines, lines.Count - startLine);
             screen.SetCursor(drawnRows, 0);
+            LastDrawnRows = drawnRows;
 
             _lastRenderedLineNo = lines[^1].LineNo;
             _lastRenderedLastLine = lines[^1];
