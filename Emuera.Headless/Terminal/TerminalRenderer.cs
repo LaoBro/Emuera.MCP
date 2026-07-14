@@ -176,12 +176,19 @@ namespace MinorShift.Emuera.GameView
             }
             else
             {
-                // LineNo 不变但行对象变更：擦除末行后重写（R3：删除 ReferenceEquals 检查）。
-                // IsLineEnd=false 的情况已在上方由 FullRefresh 处理。
-                // BuildSnapshot 每次 new DisplayLine(...)，引用每次必不同，ReferenceEquals 恒 false 冗余；
-                // 简化为无条件擦末行重写——成本极低（一行 EraseTerminalRows(1) + WriteDisplayLine）。
-                EraseTerminalRows(1);
-                WriteDisplayLine(lastLine);
+                // LineNo 不变：仅当末行 SourceLine 引用变更时才擦除重写。
+                // Phase 4 R3 原删除 ReferenceEquals 检查（"DisplayLine 引用每次必不同"），
+                // 但忽略了 no-op 帧（INPUT 等待、DisplayLineList 未变）每帧都进入此分支，
+                // 无条件 EraseTerminalRows + WriteDisplayLine 触发 EraseTerminalRows
+                // 内部 SetCursor 参数顺序 bug，光标跑到窗口顶部，末行被反复擦写到顶部。
+                // 修正：改用 SourceLine（ConsoleDisplayLine）引用比较——Rebuild 浅拷贝 DisplayLineList，
+                // 游戏线程未替换行时 SourceLine 引用稳定，正确跳过 no-op 帧。
+                if (_lastRenderedLastLine == null ||
+                    !ReferenceEquals(_lastRenderedLastLine.SourceLine, lastLine.SourceLine))
+                {
+                    EraseTerminalRows(1);
+                    WriteDisplayLine(lastLine);
+                }
             }
 
             _lastRenderedLineNo = currentLineNo;
@@ -266,7 +273,9 @@ namespace MinorShift.Emuera.GameView
                 if (targetRow < 0) break;
                 screen.ClearLine(targetRow);
             }
-            screen.SetCursor(0, Math.Max(currentRow - rows, 0));
+            // 参数顺序修复：SetCursor(row, col)。原代码 SetCursor(0, X) 把 0 当 row、
+            // X 当 col，导致光标定位到 row=0（窗口顶部）。应为 row=X（擦除后行位置）、col=0（行首）。
+            screen.SetCursor(Math.Max(currentRow - rows, 0), 0);
         }
 
         private static void WriteBgEscape(string? hexColor)

@@ -303,6 +303,80 @@ def test_cli_setbg(binary, game_dir):
     check("RedBackground" in text, "Text after SETBGCOLOR visible")
 
 
+# Phase 4 回归：INPUT 等待期间末行被反复重写到窗口顶部。
+# 根因：Phase 4 删除 ReferenceEquals 检查后，no-op 帧每帧进入 else 分支无条件
+# EraseTerminalRows + WriteDisplayLine。EraseTerminalRows 内 SetCursor 参数顺序错误
+# 把光标定位到 row=0（窗口顶部），末行被反复擦写。
+ERB_NOOP_LOOP = """@SYSTEM_TITLE
+PRINTL BeforeInput
+PRINTL [0] Done
+INPUT
+QUIT
+"""
+
+
+def test_cli_noop_frame_no_rewrite(binary, game_dir):
+    """INPUT 等待期间 no-op 帧不应重写末行。
+
+    Phase 4 引入的回归：删除 ReferenceEquals 检查后，每帧 FlushBuffer 都进入
+    "LineNo 不变" else 分支无条件 EraseTerminalRows(1) + WriteDisplayLine(lastLine)。
+    EraseTerminalRows 内 SetCursor 参数顺序错误把光标定位到 row=0（窗口顶部），
+    导致末行被反复擦写到顶部——表现为"最后一行不断在窗口顶部刷新"。
+
+    修复：恢复 SourceLine 引用相等检查（游戏线程未替换行时跳过擦写）；
+    同时修 EraseTerminalRows SetCursor 参数顺序（row/col 修正）。
+    """
+    temp_dir, game_dir_local = copy_test_game_with_erb(ERB_NOOP_LOOP)
+    try:
+        proc = PtyProcess.spawn(
+            [str(binary), "--ExeDir", str(game_dir_local), "--protocol", "cli"]
+        )
+        output = []
+        stop = False
+
+        def reader():
+            while not stop:
+                try:
+                    data = proc.read()
+                    if data:
+                        output.append(data)
+                    elif not proc.isalive():
+                        break
+                except Exception:
+                    break
+
+        t = threading.Thread(target=reader, daemon=True)
+        t.start()
+
+        try:
+            # 等到末行出现（INPUT 状态）
+            deadline = time.time() + 10.0
+            while time.time() < deadline:
+                if "[0] Done" in "".join(output):
+                    break
+                if not proc.isalive():
+                    break
+                time.sleep(0.2)
+
+            # 不输入任何东西，让主循环空转 3 秒（约 60 帧）
+            time.sleep(3.0)
+
+            text = "".join(output)
+        finally:
+            stop = True
+            if proc.isalive():
+                proc.terminate()
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", text)
+    count = clean.count("[0] Done")
+    check(
+        count == 1,
+        f"INPUT 等待期间末行只渲染一次（实际 {count} 次，期望 1）",
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", help="Path to Emuera.Headless binary")
@@ -320,6 +394,7 @@ def main():
     test_cli_merge(binary_path, game_dir)
     test_cli_alignment(binary_path, game_dir)
     test_cli_setbg(binary_path, game_dir)
+    test_cli_noop_frame_no_rewrite(binary_path, game_dir)
 
     print(f"\n=== CLI basic test: {passed} passed, {failed} failed, {warned} warned ===")
     sys.exit(1 if failed else 0)
