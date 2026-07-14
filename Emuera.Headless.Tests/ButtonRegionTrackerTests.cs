@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.UI.Game;
@@ -304,6 +304,58 @@ public class ButtonRegionTrackerTests
             new DisplayLine(new List<DisplayEntry> { MakeEntry(button: null) }, null, true));
         tracker.UpdateFromSnapshot(snapshot2, scrollOffset: 0, viewportHeight: 1);
         Assert.Equal(0, tracker.RegionCount);
+    }
+
+    // ---------- Phase 4 align 偏移回归 ----------
+
+    /// <summary>
+    /// Phase 4 回归：align=CENTER/RIGHT 行的按钮命中区应包含居中/右对齐前导空格偏移。
+    /// BuildPrintOpsForLine 中 col 从 0 累加（相对列），不含 align 前导空格——
+    /// DisplayLine.AlignOffset 由 DisplayState.BuildSnapshot 填充（与 FormatLineForTerminal 一致），
+    /// UpdateFromSnapshot 把 AlignOffset 加到 button.col 上得到 PTY 绝对列。
+    /// 不加偏移时点击 PTY 中显示的居中按钮位置会落空（用户报告"点击任何按钮都无效"）。
+    /// </summary>
+    [Fact]
+    public void UpdateFromSnapshot_align_offset_added_to_button_col()
+    {
+        // 模拟 align=CENTER 行：AlignOffset=10，button.col=2, width=4
+        // 期望 Region.Left=12, Right=15（绝对列，与 PTY 显示位置匹配）
+        var line = MakeLineWithButton(col: 2, width: 4, value: 1L);
+        line.AlignOffset = 10;
+        var snapshot = MakeSnapshot(line);
+
+        var tracker = new ButtonRegionTracker();
+        tracker.UpdateFromSnapshot(snapshot, scrollOffset: 0, viewportHeight: 1);
+
+        Assert.Equal(1, tracker.RegionCount);
+        // col=2（相对）在绝对列 12 之前——不应命中
+        Assert.False(tracker.HitTest(row: 0, col: 2).HasValue, "相对列位置不应命中（align 偏移未应用）");
+        // col=12 是绝对起始列——应命中
+        var hit = tracker.HitTest(row: 0, col: 12);
+        Assert.True(hit.HasValue, "绝对列起始位置应命中");
+        Assert.Equal(12, hit!.Value.Left);
+        Assert.Equal(15, hit.Value.Right);
+        // col=15 是末列——应命中
+        Assert.True(tracker.HitTest(row: 0, col: 15).HasValue, "绝对列末列应命中");
+        // col=16 在区域之后——不应命中
+        Assert.False(tracker.HitTest(row: 0, col: 16).HasValue, "绝对列之后不应命中");
+    }
+
+    [Fact]
+    public void UpdateFromSnapshot_zero_align_offset_equivalent_to_no_offset()
+    {
+        // AlignOffset=0（LEFT align 或未设置）时行为与旧路径一致
+        var line = MakeLineWithButton(col: 2, width: 4, value: 1L);
+        // AlignOffset 默认 0
+        var snapshot = MakeSnapshot(line);
+
+        var tracker = new ButtonRegionTracker();
+        tracker.UpdateFromSnapshot(snapshot, scrollOffset: 0, viewportHeight: 1);
+
+        var hit = tracker.HitTest(row: 0, col: 2);
+        Assert.True(hit.HasValue);
+        Assert.Equal(2, hit!.Value.Left);
+        Assert.Equal(5, hit.Value.Right);
     }
 
     // ---------- 测试夹具 ----------

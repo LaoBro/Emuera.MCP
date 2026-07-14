@@ -50,6 +50,8 @@ namespace MinorShift.Emuera.GameView
         /// 从 DisplaySnapshot 构建命中区（Phase 3-3 / Q13）。
         /// value-based——从快照 entries[j].button 取 col/width/value/isInteger。
         /// scrollOffset/viewportHeight 决定可见行切片，Row=i 是视口内行号。
+        /// align 偏移：DisplayLine.AlignOffset（CLI 渲染专用）加到 button.col 上得到 PTY 绝对列——
+        /// 与 SGR mouse 的 Cb 列匹配。Web 路径 AlignOffset 为 0（JSON 反序列化默认），col 保持相对。
         /// </summary>
         public void UpdateFromSnapshot(DisplaySnapshot snapshot, int scrollOffset, int viewportHeight)
         {
@@ -62,14 +64,16 @@ namespace MinorShift.Emuera.GameView
             for (int i = 0; i < viewportHeight && (startLine + i) < snapshot.lines.Count; i++)
             {
                 var line = snapshot.lines[startLine + i];
+                int alignOffset = line.AlignOffset;
                 foreach (var entry in line.entries)
                 {
                     if (entry.button is { } btn && btn.col is { } c && btn.width is { } w)
                     {
+                        int absLeft = c + alignOffset;
                         _regions.Add(new Region(
                             Row: i,
-                            Left: c,
-                            Right: c + w - 1,
+                            Left: absLeft,
+                            Right: absLeft + w - 1,
                             Value: btn.value,
                             IsInteger: btn.isInteger));
                     }

@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView;
@@ -54,6 +55,16 @@ internal record DisplayLine(
     /// Web 路径不访问此字段。不进入 JSON。
     /// </summary>
     [JsonIgnore] internal ConsoleDisplayLine? SourceLine { get; set; }
+
+    /// <summary>
+    /// CLI 渲染专用：align 居中/右对齐时的前导空格数（绝对列偏移）。
+    /// BuildSnapshot 经 TerminalLineFormatter.GetGameColumnWidth + BuildTerminalLine 计算——
+    /// 与 FormatLineForTerminal 输出的前导空格数完全一致。
+    /// ButtonRegionTracker.UpdateFromSnapshot 把此偏移加到 entry.button.col 上，
+    /// 得到 PTY 显示的绝对列位置（与 SGR mouse 的 Cb 列匹配）。
+    /// Web 路径不访问此字段（前端用 CSS 处理 align，col 保持相对）。不进入 JSON。
+    /// </summary>
+    [JsonIgnore] internal int AlignOffset { get; set; }
 };
 
 /// <summary>
@@ -276,6 +287,7 @@ internal sealed class DisplayState
                 .ToList();
 
             // Phase 4-1：填入 CLI 渲染专用字段——LineNo（delta 算法）+ SourceLine（FormatLineForTerminal）
+            // + AlignOffset（绝对列偏移，与 FormatLineForTerminal 的 align 居中/右对齐前导空格一致）
             var dl = new DisplayLine(
                 entries: entries,
                 align: AlignToString(line.Align),
@@ -283,6 +295,7 @@ internal sealed class DisplayState
             );
             dl.LineNo = line.LineNo;
             dl.SourceLine = line;
+            dl.AlignOffset = ComputeAlignOffset(line);
             lines.Add(dl);
         }
 
@@ -307,4 +320,24 @@ internal sealed class DisplayState
         DisplayLineAlignment.RIGHT => "right",
         _ => null
     };
+
+    /// <summary>
+    /// 计算 align 居中/右对齐的前导空格数（与 TerminalLineFormatter.FormatLineForTerminal 一致）。
+    /// ButtonRegionTracker.UpdateFromSnapshot 把此偏移加到 entry.button.col 上得到 PTY 绝对列。
+    /// LEFT 或未知 align 返回 0。CENTER: (gameWidth - textWidth)/2，RIGHT: gameWidth - textWidth。
+    /// 测试环境（Config.Current 为 null）返回 0——BuildSnapshot 单测用反射设 align 绕过 Config，
+    /// 此处避免触发 NullReferenceException。生产路径 Config.Current 在 Program 启动时设置。
+    /// </summary>
+    private static int ComputeAlignOffset(ConsoleDisplayLine line)
+    {
+        if (line.Align != DisplayLineAlignment.CENTER && line.Align != DisplayLineAlignment.RIGHT)
+            return 0;
+        if (Config.Current == null)
+            return 0;
+        TerminalLineFormatter.BuildTerminalLine(line, out int textWidth);
+        int gameWidth = TerminalLineFormatter.GetGameColumnWidth();
+        return line.Align == DisplayLineAlignment.CENTER
+            ? Math.Max((gameWidth - textWidth) / 2, 0)
+            : Math.Max(gameWidth - textWidth, 0);
+    }
 }
