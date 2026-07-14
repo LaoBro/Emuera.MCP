@@ -40,7 +40,7 @@ public class DisplayDiffTests : IDisposable
 
     public void Dispose() => _scope.Dispose();
 
-    private void AddPendingOp(TurnOp op) => _console._state._pendingOps.Add(op);
+    private void AddPendingOp(TurnOp op) => _console._state._pendingOps.Enqueue(op);
     private void DrainPendingOps() => _console._state._pendingOps.Clear();
 
     private static ConsoleDisplayLine Line(string text) =>

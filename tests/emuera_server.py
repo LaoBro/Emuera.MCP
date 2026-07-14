@@ -109,12 +109,41 @@ class ServerProcess:
                 self.proc.wait(timeout=5)
 
 
-def ops_text(turn):
-    """Extract concatenated text from v2 turn ops[] for text-content assertions."""
+def diff_text(turn):
+    """Extract concatenated text from v4 turn diff.lineOps for text-content assertions.
+
+    Returns empty string when diff is null/absent (first turn or no-op turn).
+    For first-turn content checks, fetch GET /snapshot and use snapshot_text() instead.
+
+    Phase 5: replaces the v3 ops_text() helper. diff.lineOps carries append/truncate/replace_all;
+    only append.newLines and replace_all.allLines carry text. truncate is a pure tail-cut (no text).
+    """
+    diff = turn.get("diff")
+    if diff is None:
+        return ""
+    parts = []
+    for op in diff.get("lineOps", []):
+        op_type = op.get("type")
+        if op_type == "append":
+            lines = op.get("newLines", [])
+        elif op_type == "replace_all":
+            lines = op.get("allLines", [])
+        else:
+            continue  # truncate has no text
+        for line in lines:
+            for entry in line.get("entries", []):
+                for seg in entry.get("segments", []):
+                    parts.append(seg.get("text", ""))
+    return " ".join(parts)
+
+
+def snapshot_text(snap):
+    """Extract concatenated text from DisplaySnapshot lines[].entries[].segments[].text."""
     return " ".join(
-        seg.get("text", "") for op in turn.get("ops", [])
-        if op.get("type") == "print"
-        for seg in op.get("segments", [])
+        seg.get("text", "")
+        for line in snap.get("lines", [])
+        for entry in line.get("entries", [])
+        for seg in entry.get("segments", [])
     )
 
 

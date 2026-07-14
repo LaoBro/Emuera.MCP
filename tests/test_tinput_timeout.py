@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
-from emuera_server import copy_test_game_with_erb, ops_text, start_server
+from emuera_server import copy_test_game_with_erb, diff_text, snapshot_text, start_server
 
 passed = 0
 failed = 0
@@ -46,7 +46,10 @@ QUIT
     check(initial_status == 200, f"initial GET /turn returns 200, got {initial_status}")
     initial = json.loads(initial_body)
     check(initial.get("state") == "WaitInput", f"initial state is WaitInput, got {initial.get('state')}")
-    check("TINPUT Timeout Test" in ops_text(initial), "initial turn contains TINPUT test start")
+    # Phase 5: first turn diff is null → fetch snapshot for content check
+    snap_status, snap_body = server.get_snapshot(timeout=10)
+    check(snap_status == 200, f"GET /snapshot for initial content returns 200, got {snap_status}")
+    check("TINPUT Timeout Test" in snapshot_text(json.loads(snap_body)), "initial snapshot contains TINPUT test start")
     check(initial.get("inputType") == "IntValue", f"initial inputType is IntValue, got {initial.get('inputType')}")
     check(initial.get("needValue") is True, "initial request needs a value")
 
@@ -55,8 +58,8 @@ QUIT
     timeout_status, timeout_body = server.get_turn(timeout=10)
     check(timeout_status == 200, f"timeout GET /turn returns 200, got {timeout_status}")
     timeout_turn = json.loads(timeout_body)
-    check("TIME UP" in ops_text(timeout_turn), "timeout turn contains TimeUpMes")
-    check("RESULT=7" in ops_text(timeout_turn), "timeout turn executes default value 7")
+    check("TIME UP" in diff_text(timeout_turn), "timeout turn diff contains TimeUpMes")
+    check("RESULT=7" in diff_text(timeout_turn), "timeout turn diff executes default value 7")
     check(timeout_turn.get("state") == "WaitInput", f"timeout advances to next WaitInput, got {timeout_turn.get('state')}")
 
     input_status, input_body = server.post_input("1")
@@ -65,7 +68,7 @@ QUIT
     final_status, final_body = server.get_turn(timeout=10)
     check(final_status == 200, f"final GET /turn returns 200, got {final_status}")
     final_turn = json.loads(final_body)
-    check("INPUT RESULT=1" in ops_text(final_turn), "later input is not swallowed or shifted")
+    check("INPUT RESULT=1" in diff_text(final_turn), "later input is not swallowed or shifted")
     check(final_turn.get("state") == "Quit", f"final state is Quit, got {final_turn.get('state')}")
 
 finally:

@@ -62,7 +62,7 @@ internal sealed class ConsolePrintManager
 
     public void ClearDisplay()
     {
-        _state._pendingOps.Add(new ClearOp());
+        _state._pendingOps.Enqueue(new ClearOp());
         _state.CBProc?.ClearScreen();
         _state.displayLineList.Clear();
         _state._htmlElementList.Clear();
@@ -171,7 +171,7 @@ internal sealed class ConsolePrintManager
     public void DeleteLine(int argNum, bool suppressOp = false)
     {
         if (!suppressOp)
-            _state._pendingOps.Add(new ClearLineOp(argNum));
+            _state._pendingOps.Enqueue(new ClearLineOp(argNum));
 
         if (Config.CBUseClipboard)
             _state.CBProc!.DelLine(Math.Min(argNum, _state.displayLineList.Count));
@@ -546,7 +546,7 @@ internal sealed class ConsolePrintManager
 
     public void SetBgColor(EmuColor color)
     {
-        _state._pendingOps.Add(new SetBgOp(color.ToHex()));
+        _state._pendingOps.Enqueue(new SetBgOp(color.ToHex()));
         _state.bgColor = color;
         _state.forceTextBoxColor = true;
         if (_state.redraw == ConsoleRedraw.None && _ui.ScrollBar.Value == _ui.ScrollBar.Maximum)
@@ -567,7 +567,7 @@ internal sealed class ConsolePrintManager
     private void EmitPrintOps(ConsoleDisplayLine line)
     {
         foreach (var op in BuildPrintOpsForLine(line, Config.FontName))
-            _state._pendingOps.Add(op);
+            _state._pendingOps.Enqueue(op);
     }
 
     /// <summary>
@@ -644,7 +644,7 @@ internal sealed class ConsolePrintManager
             DisplayLineAlignment.RIGHT => "right",
             _ => null
         };
-        _state._pendingOps.Add(new NewLineOp(alignStr));
+        _state._pendingOps.Enqueue(new NewLineOp(alignStr));
     }
 
     // --- Log ---

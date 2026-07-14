@@ -7,12 +7,16 @@ Note: ERB THROW 抛出的 CodeEE 被 Process.DoScript() 内部 catch 捕获并�
 handleException 处理（Process.cs:345），不会传播到 AgentJsonlProtocol.StepAsync
 的 catch 块。StepAsync catch 是防御性兜底，仅捕获 Process 未预料的 C# 异常（如 NRE）。
 因此此测试验证的是 THROW 被 DoScript 处理后的 Error 状态 turn，而非 StepAsync catch
-的 fatal turn（ops=[] / error=ex.Message）。
+的 fatal turn（diff=null / error=ex.Message）。
 
 The test verifies:
-- Initial turn has protocolVersion == 3 and ops[] instead of text/buttons
-- After THROW, the turn has state=Error with error text in ops[]
+- Initial turn has protocolVersion == 4 and diff is null (first turn)
+- After THROW, the turn has state=Error with error text in diff.lineOps
 - protocolVersion is absent from non-initial turns
+
+Phase 5: migrated from v3 ops[] to v4 diff model.
+- First-turn content checks use GET /snapshot (diff is null on first turn).
+- Step-turn content checks use diff_text(turn).
 
 Usage:
     python test_fatal_turn.py
@@ -29,7 +33,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
-from emuera_server import copy_test_game_with_erb, ops_text, start_server
+from emuera_server import copy_test_game_with_erb, diff_text, snapshot_text, start_server
 
 
 def main():
@@ -76,9 +80,14 @@ ENDIF
         check(initial.get("state") == "WaitInput", f"initial state is WaitInput, got {initial.get('state')}")
         check("text" not in initial, "initial turn has no text field (v2)")
         check("buttons" not in initial, "initial turn has no buttons field (v2)")
-        check(initial.get("protocolVersion") == 3, "initial turn has protocolVersion == 3")
-        check("ops" in initial, "initial turn has ops field")
-        check("Fatal Turn Test" in ops_text(initial), "initial turn ops contain Fatal Turn Test")
+        check("ops" not in initial, "initial turn has no ops field (v4: removed)")
+        check(initial.get("protocolVersion") == 4, "initial turn has protocolVersion == 4")
+        check(initial.get("diff") is None, "initial turn diff is null (first turn)")
+        # First-turn content: diff is null → fetch snapshot
+        snap_status, snap_body = server.get_snapshot(timeout=10)
+        check(snap_status == 200, f"GET /snapshot for initial content returns 200, got {snap_status}")
+        check("Fatal Turn Test" in snapshot_text(json.loads(snap_body)),
+              "initial snapshot contains 'Fatal Turn Test'")
 
         input_status, _ = server.post_input("0")
         check(input_status == 200, f"POST /input 0 returns 200, got {input_status}")
@@ -89,7 +98,7 @@ ENDIF
             turn_status, turn_body = server.get_turn(timeout=10)
             check(turn_status == 200, f"GET /turn for error returns 200, got {turn_status}")
             turn = json.loads(turn_body)
-            if turn.get("state") == "Error" or ("fatal-test-marker" in ops_text(turn) and "THROW" in ops_text(turn)):
+            if turn.get("state") == "Error" or ("fatal-test-marker" in diff_text(turn) and "THROW" in diff_text(turn)):
                 error_turn = turn
                 break
             time.sleep(0.5)
@@ -99,9 +108,9 @@ ENDIF
         if error_turn is not None:
             check("text" not in error_turn, "error turn has no text field (v2)")
             check("buttons" not in error_turn, "error turn has no buttons field (v2)")
-            check("ops" in error_turn, "error turn has ops field")
-            check("fatal-test-marker" in ops_text(error_turn), "error turn ops contain 'fatal-test-marker'")
-            check("THROW" in ops_text(error_turn), "error turn ops contain THROW error info")
+            check("ops" not in error_turn, "error turn has no ops field (v4: removed)")
+            check("fatal-test-marker" in diff_text(error_turn), "error turn diff contains 'fatal-test-marker'")
+            check("THROW" in diff_text(error_turn), "error turn diff contains THROW error info")
             check(error_turn.get("state") != "WaitInput", f"error turn state is not WaitInput, got {error_turn.get('state')}")
             check("protocolVersion" not in error_turn, "error turn has no protocolVersion field")
 

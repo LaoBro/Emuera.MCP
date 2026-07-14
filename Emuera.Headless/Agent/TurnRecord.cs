@@ -9,26 +9,25 @@ internal record TurnRecord(
     string state,
     string? inputType,
     bool needValue,
-    List<TurnOp> ops,
     DisplayDiff? diff,
     string? error = null,
     int? protocolVersion = null
 )
 {
     /// <summary>
-    /// Agent 协议版本的单一来源（ADR-0013）。
-    /// TurnRecord（增量 ops 流）与 DisplaySnapshot（全量快照）必须携带同一版本号——
-    /// 晚加入者用 snapshot.protocolVersion 校验与 ops 流兼容性。
+    /// Agent 协议版本的单一来源（ADR-0013 / ADR-0014）。
+    /// TurnRecord（增量 diff 流）与 DisplaySnapshot（全量快照）必须携带同一版本号——
+    /// 晚加入者用 snapshot.protocolVersion 校验与 diff 流兼容性。
     /// AgentJsonlProtocol 与 DisplayState 共同引用此常量，避免版本升级时多处不同步。
+    /// Phase 5-2：v4 = diff 模式（ops 字段已移除，仅 diff）。
     /// </summary>
-    internal const int CurrentProtocolVersion = 3;
+    internal const int CurrentProtocolVersion = 4;
 }
 
 /// <summary>
 /// 两个连续 DisplaySnapshot 之间的差异（Phase 2 / ADR-0014）。
 /// 仅含行级操作序列 + 背景色；state/inputType/needValue/protocolVersion 由外层 TurnRecord 携带，不在此重复。
-/// 作为 ops[] 的并行新格式输出——Web adapter 优先读 diff，CLI adapter 继续读 ops（Phase 4 再迁移）。
-/// Phase 5 切换完成后将废弃 ops。
+/// Phase 5 后 diff 是唯一的增量格式（ops 已废弃移除）。
 /// </summary>
 internal record DisplayDiff(
     List<LineOp> lineOps,

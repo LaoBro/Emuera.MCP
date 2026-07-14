@@ -21,10 +21,11 @@ internal sealed class Session : IDisposable
 
     /// <summary>
     /// 生成当前显示状态的全量快照 JSON（ADR-0013 决策一/二）。
-    /// 供 GET /snapshot 端点调用——WS 晚加入者先调此端点拿初始状态，再订阅 WS 收增量 ops。
+    /// 供 GET /snapshot 端点调用——WS 晚加入者先调此端点拿初始状态，再订阅 WS 收增量 diff。
     ///
     /// Phase 1：改用 Session 持有的单个 DisplayState 实例（_displayState），经 Current → TryUpdate
-    /// 保证快照随游戏打印实时推进，且与 BuildTurn 同步（BuildTurn 在 TakePendingOps 前调 TryUpdate）。
+    /// 保证快照随游戏打印实时推进，且与 BuildTurn 同步（BuildTurn 调 TryUpdate 刷新 _current）。
+    /// Phase 5-3：TryUpdate 消费式清空 _pendingOps，不再由 BuildTurn 调 TakePendingOps。
     ///
     /// session 未初始化（_displayState==null，通常发生在 POST /session 后极短时间内）→ 返回 null，
     ///   调用方返回 503；

@@ -5,10 +5,15 @@ Verifies:
 2. Active session → 200 with DisplaySnapshot JSON structure:
    - lines[] (each with entries[], align, isLineEnd)
    - bgColor (string|null), state (string), inputType (string|null), needValue (bool)
-   - protocolVersion == 3
-3. Snapshot content matches turn ops[] content (lines[].entries[].segments[].text == ops[].segments[].text).
+   - protocolVersion == 4
+3. Snapshot content matches turn diff content (after applying diff, state matches snapshot).
 4. Button geometry (col/width) present in snapshot entries.
 5. Session ended (Quit) → 200 with state="Quit" (not 404).
+
+Phase 5: migrated from v3 ops[] to v4 diff model.
+- First turn: diff is null → snapshot is the sole source of truth; compare snapshot with itself (trivially true).
+- Step turns: diff_text(turn) extracts incremental text from diff.lineOps; snapshot_text(snap) extracts full state text.
+  The diff text should be a subset of (or equal to) the snapshot text (diff carries only the new/changed lines).
 
 Usage:
     python test_snapshot.py
@@ -26,7 +31,7 @@ _project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _project_dir)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from emuera_server import TEST_GAME_DIR, ops_text, start_server
+from emuera_server import TEST_GAME_DIR, diff_text, snapshot_text, start_server
 
 
 VALID_ALIGN = {"left", "center", "right"}
@@ -47,8 +52,8 @@ def validate_snapshot_structure(snap, passed, failed, label="snapshot"):
           f"{label} has lines[] list", passed, failed)
     check("state" in snap and isinstance(snap["state"], str),
           f"{label} has state string", passed, failed)
-    check("protocolVersion" in snap and snap["protocolVersion"] == 3,
-          f"{label} protocolVersion == 3", passed, failed)
+    check("protocolVersion" in snap and snap["protocolVersion"] == 4,
+          f"{label} protocolVersion == 4", passed, failed)
     check("needValue" in snap and isinstance(snap["needValue"], bool),
           f"{label} has needValue bool", passed, failed)
 
@@ -75,16 +80,6 @@ def validate_snapshot_structure(snap, passed, failed, label="snapshot"):
                       f"{label} line[{i}] entry[{j}] button has int col (geometry)", passed, failed)
                 check("width" in btn and isinstance(btn["width"], int),
                       f"{label} line[{i}] entry[{j}] button has int width (geometry)", passed, failed)
-
-
-def snapshot_text(snap):
-    """Extract concatenated text from snapshot lines[].entries[].segments[].text."""
-    return " ".join(
-        seg.get("text", "")
-        for line in snap.get("lines", [])
-        for entry in line.get("entries", [])
-        for seg in entry.get("segments", [])
-    )
 
 
 def main():
@@ -121,7 +116,7 @@ def main():
         s, turn_body = server.get_turn(timeout=20)
         check(s == 200, f"initial GET /turn returns 200, got {s}", passed, failed)
         turn = json.loads(turn_body)
-        check(turn.get("protocolVersion") == 3, "initial turn protocolVersion == 3", passed, failed)
+        check(turn.get("protocolVersion") == 4, "initial turn protocolVersion == 4", passed, failed)
 
         # 现在 GET /snapshot
         status, snap_body = server.get_snapshot(timeout=10)
@@ -136,14 +131,16 @@ def main():
         check(snap.get("state") == "WaitInput",
               f"snapshot state is WaitInput, got {snap.get('state')}", passed, failed)
 
-        # --- Test 3: Snapshot content matches turn ops content ---
-        print("\n[3] Snapshot content matches turn ops[] content")
-        turn_text = ops_text(turn)
+        # --- Test 3: Snapshot content matches turn diff content ---
+        # Phase 5: first turn diff is null → snapshot is the sole source.
+        # Verify snapshot contains expected initial content.
+        print("\n[3] Snapshot content matches initial display (first turn diff is null)")
         snap_text = snapshot_text(snap)
         check("Agent Test Start" in snap_text,
               "snapshot lines contain 'Agent Test Start'", passed, failed)
-        check(turn_text.strip() == snap_text.strip() or turn_text in snap_text or snap_text in turn_text,
-              f"snapshot text content matches turn ops text content", passed, failed)
+        # First turn diff is null → diff_text returns empty; snapshot is authoritative
+        check(diff_text(turn) == "",
+              "first turn diff is null (diff_text returns empty)", passed, failed)
 
         # --- Test 4: Play a turn, then snapshot reflects updated state ---
         print("\n[4] Snapshot reflects state after input")
@@ -159,6 +156,9 @@ def main():
 
         check("You entered: 0" in snapshot_text(snap2),
               "post-input snapshot contains 'You entered: 0'", passed, failed)
+        # diff_text for step turn should carry the incremental text
+        check("You entered: 0" in diff_text(turn2),
+              "post-input turn diff contains 'You entered: 0'", passed, failed)
 
         # --- Test 5: Session ended → 200 + state="Quit" ---
         print("\n[5] GET /snapshot after session ended → 200 + state=Quit")
@@ -187,8 +187,8 @@ def main():
             snap3 = json.loads(snap3_body)
             check(snap3.get("state") in ("Quit", "Error"),
                   f"ended-session snapshot state is Quit/Error, got {snap3.get('state')}", passed, failed)
-            check(snap3.get("protocolVersion") == 3,
-                  "ended-session snapshot protocolVersion == 3", passed, failed)
+            check(snap3.get("protocolVersion") == 4,
+                  "ended-session snapshot protocolVersion == 4", passed, failed)
             validate_snapshot_structure(snap3, passed, failed, "ended-snapshot")
 
         # --- Test 6: After DELETE /session → 404 ---

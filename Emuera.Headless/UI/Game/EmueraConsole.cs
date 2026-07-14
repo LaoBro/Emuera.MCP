@@ -402,27 +402,20 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     // Pending ops management
     // ========================================
 
-    internal List<TurnOp> TakePendingOps()
-    {
-        var ops = _state._pendingOps.ToList();
-        _state._pendingOps.Clear();
-        return ops;
-    }
-
     /// <summary>
     /// 当前待处理 op 数量（peek，不 drain）。
-    /// DisplayState.TryUpdate 用此作为权威变更信号——引擎每次显示变更都向 _pendingOps Add
+    /// DisplayState.TryUpdate 用此作为权威变更信号——引擎每次显示变更都向 _pendingOps Enqueue
     /// （ClearOp/ClearLineOp/SetBgOp/PrintOp/NewLineOp，见 ConsolePrintManager.cs:65/174/549/570/647）。
-    /// 单调无关（不受 CLEARLINE LineNo 回退影响），且捕捉原地末行编辑（会 Add(PrintOp)）。
+    /// 单调无关（不受 CLEARLINE LineNo 回退影响），且捕捉原地末行编辑（会 Enqueue(PrintOp)）。
+    /// Phase 5-3：_pendingOps 改为 ConcurrentQueue，Count/Enqueue/Clear 跨线程安全。
     /// </summary>
     internal int PendingOpCount => _state._pendingOps.Count;
 
-    internal void DrainPendingOpsForCli(Action<TurnOp> action)
-    {
-        foreach (var op in _state._pendingOps)
-            action(op);
-        _state._pendingOps.Clear();
-    }
+    /// <summary>
+    /// Phase 5-3：消费式清空 _pendingOps（TryUpdate rebuild 后调用，防无限增长）。
+    /// ConcurrentQueue.Clear 跨线程安全——游戏线程 Enqueue 与 HTTP 线程 Clear 可并发。
+    /// </summary>
+    internal void ClearPendingOps() => _state._pendingOps.Clear();
 
     // ========================================
     // Agent / Bridge

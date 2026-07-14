@@ -72,7 +72,6 @@ namespace MinorShift.Emuera.GameView
                     state: console.State.ToString(),
                     inputType: null,
                     needValue: false,
-                    ops: new List<TurnOp>(),
                     diff: null,
                     error: ex.Message
                 ), TurnJsonOptions);
@@ -217,14 +216,12 @@ namespace MinorShift.Emuera.GameView
 
         private string BuildTurn(bool isInitial = false)
         {
-            // Phase 1：在 TakePendingOps 前 peek pendingOps 做变更检测，刷新 DisplayState.Current。
-            // 必须在 drain 之前调，否则 pendingOps 已空，TryUpdate 检测永远 false。
+            // Phase 5-3：TryUpdate 消费式清空 _pendingOps（不再 TakePendingOps）。
+            // Phase 1：在 ComputeDiff 前调 TryUpdate 刷新 DisplayState.Current。
             _displayState.TryUpdate();
-            // Phase 2：在 TakePendingOps 前 ComputeDiff——此时 _current 已被 TryUpdate 刷新，
-            // 与 _previous 比对产出 DisplayDiff。TryUpdate 与 ComputeDiff 都持 _gate 锁，
+            // Phase 2：与 _previous 比对产出 DisplayDiff。TryUpdate 与 ComputeDiff 都持 _gate 锁，
             // 但 BuildTurn 是单线程（游戏循环）调用，无重入风险。
             var diff = _displayState.ComputeDiff();
-            var ops = console.TakePendingOps();
             var req = console.CurrentRequest;
             string? error = _pendingRejectReason;
             _pendingRejectReason = null;
@@ -232,7 +229,6 @@ namespace MinorShift.Emuera.GameView
                 state: console.State.ToString(),
                 inputType: req?.InputType.ToString(),
                 needValue: req?.NeedValue ?? false,
-                ops: ops,
                 diff: diff,
                 error: error,
                 protocolVersion: isInitial ? TurnRecord.CurrentProtocolVersion : null

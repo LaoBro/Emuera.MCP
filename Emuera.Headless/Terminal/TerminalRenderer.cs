@@ -14,6 +14,7 @@ namespace MinorShift.Emuera.GameView
     /// Phase 4-1（ADR-0014）：数据源从 <c>_console.DisplayLineList</c> 换成 <see cref="DisplayState.Current"/>。
     /// delta 算法（<c>_lastRenderedLineNo</c> 比较、FullRefresh/FlushBuffer 的尾部 delta）保持不变。
     /// 全屏事件（CLEAR/CLEARLINE/SET_BG）改用 snapshot 比对推断，脱离 <c>_pendingOps</c>（R1）。
+    /// Phase 5-3：TryUpdate 消费式清空 _pendingOps，FlushBuffer 不再显式 drain。
     /// CLEARLINE+reprint 检测：count/LineNo 比对之外，额外比较旧末行位置的 <c>SourceLine</c> 引用
     /// （spec R1 原方案漏检 count/LineNo 回到旧值的反例——SourceLine 持原 ConsoleDisplayLine 引用，引用变更 = 行被替换）。
     /// 末行类型 <c>ConsoleDisplayLine?</c> → <see cref="DisplayLine"/>?（R3），删除 <c>ReferenceEquals</c> 检查。
@@ -51,15 +52,12 @@ namespace MinorShift.Emuera.GameView
             _displayState = displayState;
         }
 
-        /// <summary>FlushBuffer：帧级刷新快照 + 渲染 delta（Phase 4-2 帧级 TryUpdate）。</summary>
+        /// <summary>FlushBuffer：帧级刷新快照 + 渲染 delta（Phase 4-2 帧级 TryUpdate）。
+        /// Phase 5-3：TryUpdate 已消费式清空 _pendingOps，无需再显式 drain。</summary>
         internal void FlushBuffer()
         {
             _displayState.TryUpdate();
             FlushBuffer(_displayState.Current);
-            // Phase 4-1：清空 _pendingOps（CLI 不消费 ops，仅防无限增长）。
-            // Phase 1 的 TryUpdate 是 peek only（不 drain），CLI 模式无 BuildTurn 调 TakePendingOps，
-            // 故由 FlushBuffer 末尾统一清空。Phase 5-3 后 TryUpdate 消费式 drain，此调用可删。
-            _console.TakePendingOps();
         }
 
         /// <summary>

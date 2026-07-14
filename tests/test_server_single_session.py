@@ -49,7 +49,9 @@ try:
     initial_turn = json.loads(initial_turn_body)
     check(initial_turn.get("state") == "WaitInput", f"initial turn state is WaitInput, got {initial_turn.get('state')}")
     check("text" not in initial_turn, "initial turn has no text field (v2)")
-    check("ops" in initial_turn, "initial turn contains ops field")
+    check("ops" not in initial_turn, "initial turn has no ops field (v4: removed)")
+    check(initial_turn.get("protocolVersion") == 4, f"initial turn protocolVersion == 4, got {initial_turn.get('protocolVersion')}")
+    check(initial_turn.get("diff") is None, "initial turn diff is null (first turn)")
 
     input_status, input_body = server.post_input("0")
     check(input_status == 200, f"POST /input returns 200, got {input_status}")
@@ -60,7 +62,8 @@ try:
     turn = json.loads(turn_body)
     check(turn.get("state") == "WaitInput", f"turn state is WaitInput, got {turn.get('state')}")
     check("text" not in turn, "turn has no text field (v2)")
-    check("ops" in turn, "turn contains ops field")
+    check("ops" not in turn, "turn has no ops field (v4: removed)")
+    check("diff" in turn, "step turn contains diff field (v4)")
 
     # Phase 0-1b: GET /snapshot 端点接线薄护栏——确保端点 wiring 未断，
     # JSON 形状（state / lines / button.col+width）与 C# golden 一致。
@@ -69,7 +72,7 @@ try:
     snap = json.loads(snap_body)
     check("state" in snap and isinstance(snap["state"], str), "snapshot has state string")
     check("lines" in snap and isinstance(snap["lines"], list), "snapshot has lines[] list")
-    check(snap.get("protocolVersion") == 3, f"snapshot protocolVersion == 3, got {snap.get('protocolVersion')}")
+    check(snap.get("protocolVersion") == 4, f"snapshot protocolVersion == 4, got {snap.get('protocolVersion')}")
     # 验证按钮几何存在（至少一个按钮有 col + width 整数字段）
     has_button_geometry = False
     for line in snap.get("lines", []):

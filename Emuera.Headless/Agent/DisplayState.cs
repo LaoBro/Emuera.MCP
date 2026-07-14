@@ -109,9 +109,9 @@ internal sealed class DisplayState
     }
 
     /// <summary>
-    /// peek _pendingOps 做变更检测（不 drain；drain 仍由 BuildTurn 的 TakePendingOps 负责）。
-    /// _pendingOps 非空 → 重建 _current 并返回 true；空且 _current 已存在 → 返回 false 且 _current 不变。
-    /// 必须在 BuildTurn 的 TakePendingOps() 之前调用，否则 pendingOps 已空，检测永远 false。
+    /// Phase 5-3：peek _pendingOps 做变更检测，rebuild 后消费式清空（防无限增长）。
+    /// _pendingOps 非空 → 重建 _current + Clear → 返回 true；空且 _current 已存在 → 返回 false 且 _current 不变。
+    /// ConcurrentQueue 保证跨线程安全：游戏线程 Enqueue 与此处的 Clear 可并发。
     /// </summary>
     internal bool TryUpdate()
     {
@@ -120,6 +120,7 @@ internal sealed class DisplayState
             if (_current != null && _console.PendingOpCount == 0)
                 return false; // 无变化
             _current = Rebuild();
+            _console.ClearPendingOps();
             return true;
         }
     }
@@ -132,6 +133,7 @@ internal sealed class DisplayState
     ///
     /// 调用契约：BuildTurn 必须在 ComputeDiff 之前调 TryUpdate。否则 _current 可能为 null（首次），
     /// ComputeDiff 返回 null。不再经 Current 触发 TryUpdate——避免 _gate 锁重入 + 重复 Rebuild。
+    /// Phase 5-3：TryUpdate 消费式清空 _pendingOps，BuildTurn 不再调 TakePendingOps。
     ///
     /// _previous 读写与 _current 同处 _gate 锁内。仅游戏线程 BuildTurn 调用，无新增并发。
     /// </summary>

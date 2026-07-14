@@ -24,7 +24,7 @@ namespace Emuera.Headless.Tests;
 public class DisplayStateSnapshotGoldenTests
 {
     private const string DefaultFontName = "MS Gothic";
-    private const int ExpectedProtocolVersion = 3;
+    private const int ExpectedProtocolVersion = 4;
 
     /// <summary>
     /// golden 序列化选项：与生产 DisplayState.JsonOpts 一致使用 WhenWritingNull，

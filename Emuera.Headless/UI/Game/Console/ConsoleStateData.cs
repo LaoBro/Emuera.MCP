@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
@@ -124,7 +125,12 @@ internal sealed class ConsoleStateData
 
     // --- Agent / Headless ---
     internal AgentProtocolBase? agentBridge;
-    internal readonly List<TurnOp> _pendingOps = [];
+    /// <summary>
+    /// Phase 5-3：变更信号队列（ADR-0014）。ConcurrentQueue 保证游戏线程 Enqueue 与 DisplayState.TryUpdate 的 Clear 跨线程安全。
+    /// 引擎每次显示变更都 Enqueue（ConsolePrintManager 5 个站点）；DisplayState.TryUpdate peek Count 做变更检测，
+    /// rebuild 后 Clear 消费式清空（防无限增长）。Phase 5 后 ops 不再序列化到 TurnRecord，仅作 dirty flag。
+    /// </summary>
+    internal readonly ConcurrentQueue<TurnOp> _pendingOps = new();
     internal bool _needFullRefresh;
     internal TerminalCharWidthConfig CharWidthConfig = TerminalCharWidthConfig.Default;
 

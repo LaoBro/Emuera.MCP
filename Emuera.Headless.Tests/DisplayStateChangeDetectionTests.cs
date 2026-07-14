@@ -35,9 +35,10 @@ public class DisplayStateChangeDetectionTests : IDisposable
     public void Dispose() => _scope.Dispose();
 
     /// <summary>直接向 _pendingOps 添加 op（绕过 ConsolePrintManager，模拟引擎打印后的状态）。</summary>
-    private void AddPendingOp(TurnOp op) => _console._state._pendingOps.Add(op);
+    private void AddPendingOp(TurnOp op) => _console._state._pendingOps.Enqueue(op);
 
-    /// <summary>排空 _pendingOps（模拟 BuildTurn 的 TakePendingOps drain）。</summary>
+    /// <summary>排空 _pendingOps（模拟 Phase 5-3 之前 BuildTurn 的 drain；
+    /// Phase 5-3 后 TryUpdate 自身已消费式清空，本方法仅供测试在 TryUpdate 之外手动清空使用）。</summary>
     private void DrainPendingOps() => _console._state._pendingOps.Clear();
 
     private static ConsoleDisplayLine Line(string text) =>
@@ -89,9 +90,8 @@ public class DisplayStateChangeDetectionTests : IDisposable
     public void TryUpdate_after_drain_returns_false_until_new_ops_arrive()
     {
         PrintLine("a");
-        _displayState.TryUpdate(); // 重建
+        _displayState.TryUpdate(); // 重建（Phase 5-3：内部已消费式清空 _pendingOps）
 
-        DrainPendingOps(); // BuildTurn 的 TakePendingOps 清空
         Assert.False(_displayState.TryUpdate()); // 无新 op → 无变化
 
         // 新 op 到达 → 变化
