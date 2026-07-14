@@ -84,7 +84,7 @@ internal static class HeadlessRunner
             AgentProtocolBase? protocol;
             try
             {
-                protocol = SelectProtocol(protocolArg, console, ui, terminalSetup, terminalInput);
+                protocol = SelectProtocol(protocolArg, console, ui, terminalSetup, terminalInput, configData);
             }
             catch (ArgumentException ex)
             {
@@ -127,19 +127,19 @@ internal static class HeadlessRunner
         }
     }
 
-    private static AgentCliProtocol? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
+    private static AgentCliProtocol? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput, ConfigData configData)
     {
         return protocolArg.Trim().ToLowerInvariant() switch
         {
-            "auto" => DetectProtocol(console, ui, terminalSetup, terminalInput),
-            "cli" => new AgentCliProtocol(console, ui, terminalSetup, terminalInput),
+            "auto" => DetectProtocol(console, ui, terminalSetup, terminalInput, configData),
+            "cli" => new AgentCliProtocol(console, ui, terminalSetup, terminalInput, configData),
             "jsonl" => throw new ArgumentException(
                 "stdin 管道 JSONL 模式已废弃（T-024），请使用 --server 模式", nameof(protocolArg)),
             _ => throw new ArgumentException($"未知协议模式: {protocolArg}", nameof(protocolArg))
         };
     }
 
-    private static AgentCliProtocol? DetectProtocol(EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
+    private static AgentCliProtocol? DetectProtocol(EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput, ConfigData configData)
     {
         // T-024：stdin 管道模式已废弃，非 server 模式仅支持交互式 CLI 终端。
         if (Console.IsInputRedirected)
@@ -157,7 +157,7 @@ internal static class HeadlessRunner
             return null;
         }
 
-        return new AgentCliProtocol(console, ui, terminalSetup, terminalInput);
+        return new AgentCliProtocol(console, ui, terminalSetup, terminalInput, configData);
     }
 
     private static void PrintTerminalGuidance(TerminalCharWidthConfig config)

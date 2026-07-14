@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
@@ -7,8 +7,8 @@ namespace MinorShift.Emuera.GameView
     /// 按钮命中区追踪器（Phase 3-3 / ADR-0014）。
     /// Phase 3：Region 改为 value-based（Value/IsInteger），移除 Generation 客户端过滤——
     /// 服务端 ConsoleInputHandler 按 button.Generation 校验兜底（ConsoleInputHandler.cs:210-267）。
-    /// 新增 UpdateFromSnapshot 从 DisplaySnapshot 构建命中区（value-based，供 Phase 4 CLI 消费快照）。
-    /// 旧 RecordLineRegions 路径保留，Phase 4 切换调用点后删旧方法。
+    /// Phase 4：生产路径改用 <see cref="UpdateFromSnapshot"/> 从 DisplaySnapshot 构建命中区；
+    /// <see cref="RecordLineRegions"/> 保留为底层 API 供测试直接构造区域。
     /// </summary>
     internal sealed class ButtonRegionTracker
     {
@@ -19,10 +19,8 @@ namespace MinorShift.Emuera.GameView
         public void Clear() => _regions.Clear();
 
         /// <summary>
-        /// 旧路径：从 ConsoleButtonString[] 记录命中区（引用式入口，Phase 4 切换后删）。
-        /// Phase 3：Region 改为 value-based，从此处提取 Value/IsInteger；
-        /// Generation 过滤移除——服务端 ConsoleInputHandler 校验兜底。
-        /// currentGeneration 参数保留以维持签名兼容，但不再用于过滤。
+        /// 从 ConsoleButtonString[] 记录命中区（底层 API，供测试直接构造区域）。
+        /// 生产路径 Phase 4 后改用 <see cref="UpdateFromSnapshot"/>。
         /// </summary>
         public void RecordLineRegions(string formattedLine, int bufferRow, ConsoleButtonString[]? buttons, long currentGeneration)
         {
@@ -49,7 +47,7 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>
-        /// 新路径：从 DisplaySnapshot 构建命中区（Phase 3-3 / Q13）。
+        /// 从 DisplaySnapshot 构建命中区（Phase 3-3 / Q13）。
         /// value-based——从快照 entries[j].button 取 col/width/value/isInteger。
         /// scrollOffset/viewportHeight 决定可见行切片，Row=i 是视口内行号。
         /// </summary>

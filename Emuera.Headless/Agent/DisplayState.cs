@@ -26,13 +26,35 @@ internal record DisplaySnapshot(
 /// <summary>
 /// 快照中的单行（ADR-0013 决策二）。
 /// 每行含 entries[]（每个对应一个 ConsoleButtonString）+ 对齐 + 是否行末。
-/// 不含 isLogicalLine / isTemporary / LineNo——这些是服务端内部概念。
+/// 不含 isLogicalLine / isTemporary——这些是服务端内部概念。
+///
+/// Phase 4-1（Q1 + R3）：新增 <see cref="LineNo"/> + <see cref="SourceLine"/> 两个 CLI 渲染专用字段。
+/// 二者均标 <c>[JsonIgnore]</c> 不进入 JSON 序列化——Web 契约保持 ADR-0013 形态。
+/// <see cref="LineNo"/> 用于 CLI delta 算法（<c>_lastRenderedLineNo</c> 比较）；
+/// <see cref="SourceLine"/> 持原 <see cref="ConsoleDisplayLine"/> 引用，供 <see cref="TerminalLineFormatter.FormatLineForTerminal"/>
+/// 格式化（PrintSegment 丢失 ConsoleSpacePart 几何，无法重建，故保留原引用）。
+/// record 默认 Equals 会纳入这两个字段——Phase 2 的 <see cref="DisplayState.LinesEqual"/> 已手写深度值比较
+/// 绕过 record.Equals，故 diff 正确性不受影响。
 /// </summary>
 internal record DisplayLine(
     List<DisplayEntry> entries,
     string? align,
     bool isLineEnd
-);
+)
+{
+    /// <summary>
+    /// CLI 渲染专用：原 ConsoleDisplayLine.LineNo（Q1）。用于 delta 算法比较。
+    /// BuildSnapshot 从 line.LineNo 传入。不进入 JSON。
+    /// </summary>
+    [JsonIgnore] internal int LineNo { get; set; }
+
+    /// <summary>
+    /// CLI 渲染专用：原 ConsoleDisplayLine 引用（R3 扩展）。
+    /// TerminalRenderer 经此调 FormatLineForTerminal（PrintSegment 丢失 ConsoleSpacePart 几何，无法重建）。
+    /// Web 路径不访问此字段。不进入 JSON。
+    /// </summary>
+    [JsonIgnore] internal ConsoleDisplayLine? SourceLine { get; set; }
+};
 
 /// <summary>
 /// 行内条目（ADR-0013 决策二）。
@@ -251,11 +273,15 @@ internal sealed class DisplayState
                 .Select(op => new DisplayEntry(op.segments, op.button))
                 .ToList();
 
-            lines.Add(new DisplayLine(
+            // Phase 4-1：填入 CLI 渲染专用字段——LineNo（delta 算法）+ SourceLine（FormatLineForTerminal）
+            var dl = new DisplayLine(
                 entries: entries,
                 align: AlignToString(line.Align),
                 isLineEnd: line.IsLineEnd
-            ));
+            );
+            dl.LineNo = line.LineNo;
+            dl.SourceLine = line;
+            lines.Add(dl);
         }
 
         return new DisplaySnapshot(

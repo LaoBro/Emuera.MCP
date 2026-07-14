@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
 using MinorShift.Emuera.UI.Game;
 
@@ -40,6 +41,9 @@ namespace MinorShift.Emuera.GameView
         private readonly ButtonSelectionMode _buttons;
         private readonly CountdownRenderer _countdown;
         private readonly TerminalRenderer _renderer;
+        // Phase 4-2：CLI 自有 DisplayState（Q7）。AgentCliProtocol 构造持有，FlushBuffer 帧级 TryUpdate。
+        // 与 server 路径的 DisplayState（Session 持有、BuildTurn 回合级 TryUpdate）独立。
+        private readonly DisplayState _displayState;
         // ADR-0006：Scroll Status Bar 渲染器，独立于 TerminalRenderer。
         private ScrollStatusBarRenderer? _scrollStatusBar;
 
@@ -61,23 +65,30 @@ namespace MinorShift.Emuera.GameView
         /// <summary>当前 Scroll Offset（IVtHost 门卫读取）。ADR-0009：从 ScrollController 读。</summary>
         int IVtHost.ScrollOffset => _scroll.ScrollOffset;
 
-        public AgentCliProtocol(EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput)
+        public AgentCliProtocol(EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput, ConfigData configData)
             : base(console, ui)
         {
             _terminalSetup = terminalSetup;
             _terminalInput = terminalInput;
             // ADR-0009：ScrollController 构造占位（visibleLines=1），RunVtLoop 内 UpdateVisibleLines(WindowHeight-2)。
             _scroll = new ScrollController(scrollVisibleLines: 1);
+            // Phase 4-2（Q7/R4）：CLI 自有 DisplayState——从 ConfigData 取 defaultFontName，
+            // 与 Session.cs:83 同一取值表达式。TerminalRenderer + ButtonSelectionMode 均注入此实例。
+            var defaultFontName = configData.GetConfigValue<string>(ConfigCode.FontName) ?? "";
+            _displayState = new DisplayState(console, defaultFontName);
             // ADR-0005：VT-only 后 ANSI 始终可用，_ansiEnabled 字段已删除。
             // ADR-0005 Issue 4：删除降级渲染分支后 _cursor/_requestFullRefresh 字段已移除，
             // 渲染器假设 _screen 在 VT 主循环内必非 null。
-            _renderer = new TerminalRenderer(console, _scroll, () => _screen);
+            // Phase 4-1：TerminalRenderer 数据源换成 DisplayState.Current.lines。
+            _renderer = new TerminalRenderer(console, _scroll, () => _screen, _displayState);
+            // Phase 3-3b：ButtonSelectionMode 注入 DisplayState，RefreshButtonRegionsFromSnapshot 启用。
             _buttons = new ButtonSelectionMode(
                 console,
                 _scroll,
                 () => _screen,
                 input => DispatchInput(input),
-                ClearInputBuffer);
+                ClearInputBuffer,
+                _displayState);
             _countdown = new CountdownRenderer(console, () => _scroll.ScrollOffset, () => _screen);
             // ADR-0006：auto-follow 回调——FlushBuffer 检测到新行/ClearOp 且 offset>0 时
             // 归零 offset + FullRefresh 后调用，同步状态栏/倒计时/按钮区域。
@@ -85,7 +96,7 @@ namespace MinorShift.Emuera.GameView
             {
                 _scrollStatusBar?.Render(0);
                 _countdown.Reset();
-                _buttons.RefreshButtonRegions(_vtInput!, force: true);
+                _buttons.RefreshButtonRegionsFromSnapshot(_vtInput!, force: true);
             };
             // ADR-0009：用户主动滚动（DispatchWheel/Scroll 路径）→ ScrollChanged 事件 → 4 步渲染反应。
             _scroll.ScrollChanged += OnScrollChanged;
@@ -99,7 +110,7 @@ namespace MinorShift.Emuera.GameView
             // offset 从 >0 转回 0 时重新探测倒计时行位置（Scroll Mode 期间 CursorTop-1 失效）。
             if (newOffset == 0)
                 _countdown.Reset();
-            _buttons.RefreshButtonRegions(_vtInput!, force: true);
+            _buttons.RefreshButtonRegionsFromSnapshot(_vtInput!, force: true);
         }
 
         internal override Task<string?> GetInitialTurnAsync() => Task.FromResult<string?>(null);
@@ -190,7 +201,7 @@ namespace MinorShift.Emuera.GameView
                         _renderer.FullRefresh();
                         _countdown.Reset();
                         _buttons.SyncButtonState();
-                        _buttons.RefreshButtonRegions(_vtInput, force: true);
+                        _buttons.RefreshButtonRegionsFromSnapshot(_vtInput, force: true);
                         continue;
                     }
 
@@ -249,13 +260,13 @@ namespace MinorShift.Emuera.GameView
                             // offset 未变，OnScrollChanged 未触发——仍需重绘（resize 改了布局）。
                             _renderer.FullRefresh();
                             _scrollStatusBar?.Render(_scroll.ScrollOffset);
-                            _buttons.RefreshButtonRegions(_vtInput, force: true);
+                            _buttons.RefreshButtonRegionsFromSnapshot(_vtInput, force: true);
                         }
                     }
 
                     _renderer.FlushBuffer();
                     _buttons.SyncButtonState();
-                    _buttons.RefreshButtonRegions(_vtInput, force: false);
+                    _buttons.RefreshButtonRegionsFromSnapshot(_vtInput, force: false);
                 }
             }
             finally
@@ -293,7 +304,7 @@ namespace MinorShift.Emuera.GameView
             _waitInputEnteredAt = null;
             _renderer.FlushBuffer();
             _buttons.SyncButtonState();
-            _buttons.RefreshButtonRegions(_vtInput!, force: false);
+            _buttons.RefreshButtonRegionsFromSnapshot(_vtInput!, force: false);
             return true;
         }
 

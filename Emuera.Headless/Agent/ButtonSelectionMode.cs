@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.UI.Game;
@@ -149,63 +149,13 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
-        /// <summary>刷新 VT 鼠标命中区域。ADR-0005 Issue 4：VT-only 后 vtInput 必非 null。
-        /// ADR-0006：Scroll Mode（offset>0）下走 ClearRegions 分支，不 SyncButtonState——
-        /// 避免点击触发旧 Generation 按钮分发导致 input rejection。</summary>
-        internal void RefreshButtonRegions(VtInputHandler vtInput, bool force = false)
-        {
-            // ADR-0006：Scroll Mode 下清空命中区，不更新 _lastRegionGeneration
-            // （退出 scroll mode 时由 force=true 路径重建）。
-            if (_scroll.ScrollOffset > 0)
-            {
-                vtInput.ClearRegions();
-                return;
-            }
-
-            // 非按钮模式或无请求时清除所有区域，防止过期按钮被点击触发
-            var req = _console.CurrentRequest;
-            if (req == null || req.InputType == InputType.EnterKey || req.InputType == InputType.AnyKey)
-            {
-                vtInput.ClearRegions();
-                _lastRegionGeneration = _console.LastButtonGeneration;
-                return;
-            }
-
-            long currentGen = _console.LastButtonGeneration;
-            if (!force && currentGen == _lastRegionGeneration) return;
-
-            _lastRegionGeneration = currentGen;
-            vtInput.ClearRegions();
-
-            var lines = _console.DisplayLineList;
-            if (lines == null || lines.Count == 0) return;
-
-            int windowHeight = _getScreen()!.WindowHeight;
-            int visibleLines = Math.Min(Math.Max(windowHeight - 1, 1), lines.Count);
-            int startLine = Math.Max(0, lines.Count - visibleLines);
-
-            for (int i = 0; i < visibleLines; i++)
-            {
-                int lineIndex = startLine + i;
-                var line = lines[lineIndex];
-                if (line?.Buttons == null || line.Buttons.Length == 0) continue;
-
-                string formatted = TerminalLineFormatter.FormatLineForTerminal(
-                    line, _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true);
-                // viewport row = i（备用屏绝对坐标，与 SGR mouse 的 Cy-1 同一空间）
-                vtInput.RecordLineRegions(formatted, i, line.Buttons, currentGen);
-            }
-        }
-
         /// <summary>
         /// Phase 3-3b 新路径：从 DisplayState.Current 快照构建命中区（value-based，单次调用）。
-        /// 与旧 <see cref="RefreshButtonRegions"/> 的差异：不经 VtInputHandler.RecordLineRegions 按行转发，
         /// 直接调 <see cref="ButtonRegionTracker.UpdateFromSnapshot"/>；Generation 过滤移除（服务端兜底）。
-        /// Phase 4 接线后替换 7 处旧 RefreshButtonRegions 调用点。
+        /// Phase 4 已将全部调用点从旧 RefreshButtonRegions 切换到此方法。
         /// </summary>
         /// <remarks>
         /// 调用前置：_displayState 必须已注入（Phase 4 AgentCliProtocol 传入自有实例）。
-        /// 当前 Phase 3 阶段 _displayState 为 null，本方法不应被调用——Phase 4 接线后启用。
         /// </remarks>
         internal void RefreshButtonRegionsFromSnapshot(VtInputHandler vtInput, bool force = false)
         {

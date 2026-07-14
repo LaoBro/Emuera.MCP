@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using MinorShift.Emuera.Terminal.Platform;
 using MinorShift.Emuera.UI.Game;
 
@@ -33,12 +33,9 @@ internal sealed class VtInputHandler : IDisposable, IVtEventSink
 
     internal void ClearRegions() => _tracker.Clear();
 
-    internal void RecordLineRegions(string formattedLine, int viewportRow, ConsoleButtonString[]? buttons, long currentGeneration)
-        => _tracker.RecordLineRegions(formattedLine, viewportRow, buttons, currentGeneration);
-
     /// <summary>
     /// Phase 3-3b：暴露 tracker 供 ButtonSelectionMode.RefreshButtonRegionsFromSnapshot
-    /// 直接调 UpdateFromSnapshot（不经 RecordLineRegions 转发——单次调用 vs 旧路径按行循环）。
+    /// 直接调 UpdateFromSnapshot（单次调用，替代旧 RecordLineRegions 按行循环）。
     /// </summary>
     internal ButtonRegionTracker Tracker => _tracker;
 

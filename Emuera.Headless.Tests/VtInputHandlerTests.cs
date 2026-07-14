@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Terminal.Platform;
@@ -180,7 +180,7 @@ public class VtInputHandlerTests
 
         // 注册按钮 "[OK]" 在 row=5, col=[0,3]
         var buttons = new[] { TestButtonFactory.CreateButton("[OK]", input: 1) };
-        handler.RecordLineRegions("X", viewportRow: 5, buttons, currentGeneration: 0);
+        handler.Tracker.RecordLineRegions("X", bufferRow: 5, buttons, currentGeneration: 0);
 
         // 点击 col=0（在 [0,3] 区域内）
         sink.OnMouseEvent(row: 5, col: 0, buttonCode: 0, isPress: true);
@@ -201,7 +201,7 @@ public class VtInputHandlerTests
 
         // 注册按钮 "[OK]" 在 row=5, col=[0,3]
         var buttons = new[] { TestButtonFactory.CreateButton("[OK]", input: 1) };
-        handler.RecordLineRegions("X", viewportRow: 5, buttons, currentGeneration: 0);
+        handler.Tracker.RecordLineRegions("X", bufferRow: 5, buttons, currentGeneration: 0);
 
         // 点击 col=5（在 [0,3] 区域外）
         sink.OnMouseEvent(row: 5, col: 5, buttonCode: 0, isPress: true);
@@ -218,7 +218,7 @@ public class VtInputHandlerTests
         IVtEventSink sink = handler;
 
         var buttons = new[] { TestButtonFactory.CreateButton("[OK]", input: 1) };
-        handler.RecordLineRegions("X", viewportRow: 5, buttons, currentGeneration: 0);
+        handler.Tracker.RecordLineRegions("X", bufferRow: 5, buttons, currentGeneration: 0);
 
         // 点击 row=4（按钮在 row=5）
         sink.OnMouseEvent(row: 4, col: 0, buttonCode: 0, isPress: true);
@@ -236,7 +236,7 @@ public class VtInputHandlerTests
 
         // "[OK]" col=[0,3], "[Cancel]" col=[4,11]
         var buttons = TestButtonFactory.CreateButtons(("[OK]", 1), ("[Cancel]", 2));
-        handler.RecordLineRegions("X", viewportRow: 0, buttons, currentGeneration: 0);
+        handler.Tracker.RecordLineRegions("X", bufferRow: 0, buttons, currentGeneration: 0);
 
         // 点击 col=7（在 "[Cancel]" 区域内）
         sink.OnMouseEvent(row: 0, col: 7, buttonCode: 0, isPress: true);
@@ -255,7 +255,7 @@ public class VtInputHandlerTests
         IVtEventSink sink = handler;
 
         var buttons = new[] { TestButtonFactory.CreateButton("[OK]", input: 1) };
-        handler.RecordLineRegions("X", viewportRow: 0, buttons, currentGeneration: 0);
+        handler.Tracker.RecordLineRegions("X", bufferRow: 0, buttons, currentGeneration: 0);
 
         // 释放事件（isPress=false）即使命中按钮也不应触发 DispatchMouseClick
         sink.OnMouseEvent(row: 0, col: 0, buttonCode: 0, isPress: false);
