@@ -136,7 +136,7 @@ namespace MinorShift.Emuera.GameView
 
             if (_lastRenderedLineNo < 0)
             {
-                FullRefresh(snapshot);
+                FullRefresh(snapshot, "init");
                 _lastSnapshotLineCount = lines.Count;
                 return;
             }
@@ -146,7 +146,7 @@ namespace MinorShift.Emuera.GameView
             // 增量擦除依赖光标位置会擦错行，改走 FullRefresh（绝对定位）最安全。
             if (_lastRenderedLastLine != null && !_lastRenderedLastLine.isLineEnd)
             {
-                FullRefresh(snapshot);
+                FullRefresh(snapshot, "lastLineNotEnd");
                 _lastSnapshotLineCount = lines.Count;
                 return;
             }
@@ -158,7 +158,7 @@ namespace MinorShift.Emuera.GameView
                 if (screen != null && _scroll.ScrollOffset > 0)
                 {
                     _scroll.Reset();
-                    FullRefresh(snapshot);
+                    FullRefresh(snapshot, "offset>0");
                     OnScrollAutoFollow?.Invoke();
                 }
                 // 内容超出视口时必须走 FullRefresh：WriteNewLinesSince 依赖 Console.WriteLine
@@ -167,7 +167,7 @@ namespace MinorShift.Emuera.GameView
                 // FullRefresh 用绝对定位（WriteLineAt）重绘整个可见区，不依赖滚动。
                 else if (screen != null && lines.Count > screen.WindowHeight - 1)
                 {
-                    FullRefresh(snapshot);
+                    FullRefresh(snapshot, "overflow");
                 }
                 else
                 {
@@ -198,17 +198,17 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>全量重绘可见行（外部调用：OnScrollChanged/CheckResize/ConsumeNeedFullRefresh）。
         /// Phase 4-1：内部调 _displayState.Current 保证最新快照。</summary>
-        internal void FullRefresh()
+        internal void FullRefresh(string reason = "?")
         {
             var snapshot = _displayState.Current;
-            FullRefresh(snapshot);
+            FullRefresh(snapshot, reason);
         }
 
         /// <summary>全量重绘可见行（内部实现，接受快照）。
         /// ADR-0005 Issue 4：删除非 VT 降级分支，仅保留 VT 备用屏绝对定位路径。
         /// ADR-0006：读 ScrollController.ScrollOffset 计算 startLine + visibleLines。
         /// ADR-0009：offset 从 ScrollController 读，visibleLines 内联算。</summary>
-        private void FullRefresh(DisplaySnapshot snapshot)
+        private void FullRefresh(DisplaySnapshot snapshot, string reason = "?")
         {
             var lines = snapshot.lines;
             var screen = _getScreen()!;

@@ -105,7 +105,7 @@ namespace MinorShift.Emuera.GameView
         /// <summary>ScrollChanged 订阅者：offset 变化后做 4 步渲染（FullRefresh → statusbar → countdown → buttons）。</summary>
         private void OnScrollChanged(int newOffset)
         {
-            _renderer.FullRefresh();
+            _renderer.FullRefresh("ScrollChanged");
             _scrollStatusBar?.Render(newOffset);
             // offset 从 >0 转回 0 时重新探测倒计时行位置（Scroll Mode 期间 CursorTop-1 失效）。
             if (newOffset == 0)
@@ -197,8 +197,10 @@ namespace MinorShift.Emuera.GameView
                         ResetScrollIfActive();
                         // ADR-0007：auto-follow 路径触发后清空计时上下文，避免误触发上一轮超时。
                         _waitInputEnteredAt = null;
-                        _renderer.FlushBuffer();
-                        _renderer.FullRefresh();
+                        // 仅 FullRefresh：FullRefresh 经 _displayState.Current 内部 TryUpdate 消费 pending ops
+                        // 并整屏重绘，已满足"强制整屏刷新"。前置 FlushBuffer() 在首次迭代会走 init 分支
+                        // 再做一次整屏渲染，造成启动期冗余双重整屏（CLI basic no-op 回归测试因此计数 2）。
+                        _renderer.FullRefresh("NeedFullRefresh");
                         _countdown.Reset();
                         _buttons.SyncButtonState();
                         _buttons.RefreshButtonRegionsFromSnapshot(_vtInput, force: true);
@@ -258,7 +260,7 @@ namespace MinorShift.Emuera.GameView
                         if (oldOffset == _scroll.ScrollOffset)
                         {
                             // offset 未变，OnScrollChanged 未触发——仍需重绘（resize 改了布局）。
-                            _renderer.FullRefresh();
+                            _renderer.FullRefresh("CheckResize");
                             _scrollStatusBar?.Render(_scroll.ScrollOffset);
                             _buttons.RefreshButtonRegionsFromSnapshot(_vtInput, force: true);
                         }
