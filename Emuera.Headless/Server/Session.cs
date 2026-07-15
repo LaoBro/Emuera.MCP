@@ -2,10 +2,10 @@ using System;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
-using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.Server;
 
@@ -42,7 +42,6 @@ internal sealed class Session : IDisposable
     private readonly HttpSessionIO _io;
     private readonly ConfigData _configData;
     private readonly ITerminalSetup _terminalSetup;
-    private HeadlessConsole? _ui;
     private EmueraConsole? _console;
     private DisplayState? _displayState;
     private AgentJsonlProtocol? _protocol;
@@ -71,62 +70,63 @@ internal sealed class Session : IDisposable
 
     private async Task GameLoopAsync()
     {
-        // ADR-0008：会话作用域 scope——Current 仅在此游戏 task 的 async 上下文存活。
-        // scope.Dispose 自动 Pfc.Dispose + Current 归 null，替代旧的 Reset()。
-        // 候选 2 / ADR-0009：scope 同时绑定 Config.Current / ConfigData.Current（配置仅经 scope 注入）。
-        // 必须在构造 HeadlessConsole/EmueraConsole 之前打开——后者构造时读 Config.*，无 scope 即 NPE。
-        using var scope = GlobalStatic.OpenScope(_configData);
-        _ui = new HeadlessConsole();
-        _console = new EmueraConsole(_ui, _terminalSetup);
-        // Phase 1：单个 DisplayState 实例由 Session 持有，注入 AgentJsonlProtocol。
-        // HTTP 线程上 Config.Current 不可用（AsyncLocal 仅在游戏循环 task 设置），
-        // 直接从 ConfigData 读默认字体名，传给 DisplayState 避免 BuildPrintOpsForLine 访问 Config.FontName 时 NRE。
-        var defaultFontName = _configData.GetConfigValue<string>(ConfigCode.FontName) ?? "";
-        _displayState = new DisplayState(_console, defaultFontName);
-        _protocol = new AgentJsonlProtocol(_console, _ui, _io, _displayState);
-        _console.SetAgentBridge(_protocol);
-        Program.LoadFonts();
-        try
-        {
-            await _console.Initialize();
-            await _protocol.RunLoopAsync(enableTimeout: true, _cts.Token);
-        }
-        catch (GameExitException)
-        {
-            // 脚本 QUIT/EXIT：正常终结 session，走 finally 清理（BuildFinalTurn/IO.Close）
-        }
-        catch (Exception ex)
-        {
-            AgentLog.Instance.Write("session game loop exception: " + ex);
-            _io.WriteLine(JsonSerializer.Serialize(new { error = ex.ToString(), state = _console!.State.ToString() }));
-        }
-        finally
-        {
-            // 先标记最终 turn 就绪，再写入队列，避免竞态下漏标记 delivered
-            lock (_turnLock)
+        await GameLoopComposer.RunAsync(
+            _configData,
+            _terminalSetup,
+            (console, ui, ts) =>
             {
-                _finalTurnReady = true;
-            }
-            try
+                _console = console;
+                // Phase 1：单个 DisplayState 实例由 Session 持有，注入 AgentJsonlProtocol。
+                // HTTP 线程上 Config.Current 不可用（AsyncLocal 仅在游戏循环 task 设置），
+                // 直接从 ConfigData 读默认字体名，传给 DisplayState 避免 BuildPrintOpsForLine 访问 Config.FontName 时 NRE。
+                var defaultFontName = _configData.GetConfigValue<string>(ConfigCode.FontName) ?? "";
+                _displayState = new DisplayState(_console, defaultFontName);
+                _protocol = new AgentJsonlProtocol(_console, ui, _io, _displayState);
+                return _protocol;
+            },
+            async p =>
             {
-                var finalTurn = _protocol!.BuildFinalTurn();
-                if (finalTurn != null)
-                    _io.WriteLine(finalTurn);
-            }
-            catch (Exception ex)
-            {
-                // 最终 turn 生成失败不阻断 Dispose；HasEnded 会让 GET /turn 返回 404
-                AgentLog.Instance.Write("final turn build failed: " + ex.Message);
-            }
-            _protocol?.Stop();
-            _console?.Dispose();
-            // 关闭 IO：Complete output Channel 后 TryTakeTurn 仍能 TryRead 已写入数据，
-            // 读完后返回 false；同时 Complete input Channel 防止后续 EnqueueInput。
-            _io.Close();
-            HasEnded = true;
-            // scope 在 using 块退出时自动 Dispose（Pfc.Dispose + Current 归 null）。
-            // 旧 Reset() 已删除——RAII 单一归属。
-        }
+                try
+                {
+                    await ((AgentJsonlProtocol)p).RunLoopAsync(enableTimeout: true, _cts.Token);
+                }
+                catch (GameExitException)
+                {
+                    // 脚本 QUIT/EXIT：正常终结 session，走 finally 清理（BuildFinalTurn/IO.Close）
+                }
+                catch (Exception ex)
+                {
+                    AgentLog.Instance.Write("session game loop exception: " + ex);
+                    _io.WriteLine(JsonSerializer.Serialize(new { error = ex.ToString(), state = _console!.State.ToString() }));
+                }
+                finally
+                {
+                    // 先标记最终 turn 就绪，再写入队列，避免竞态下漏标记 delivered
+                    lock (_turnLock)
+                    {
+                        _finalTurnReady = true;
+                    }
+                    try
+                    {
+                        var finalTurn = _protocol!.BuildFinalTurn();
+                        if (finalTurn != null)
+                            _io.WriteLine(finalTurn);
+                    }
+                    catch (Exception ex)
+                    {
+                        // 最终 turn 生成失败不阻断 Dispose；HasEnded 会让 GET /turn 返回 404
+                        AgentLog.Instance.Write("final turn build failed: " + ex.Message);
+                    }
+                    _protocol?.Stop();
+                    _console?.Dispose();
+                    // 关闭 IO：Complete output Channel 后 TryTakeTurn 仍能 TryRead 已写入数据，
+                    // 读完后返回 false；同时 Complete input Channel 防止后续 EnqueueInput。
+                    _io.Close();
+                    HasEnded = true;
+                    // scope 在 composer 的 using 块退出时自动 Dispose（Pfc.Dispose + Current 归 null）。
+                    // 旧 Reset() 已删除——RAII 单一归属。
+                }
+            });
     }
 
     /// <summary>

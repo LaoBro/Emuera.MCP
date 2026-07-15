@@ -39,9 +39,41 @@ internal static class HeadlessRunner
                     "或改用 --server 模式。",
                     ex);
             }
+
             using (terminalInput)
             {
-                await RunAsyncCore(paths, protocolArg, termWidthHint, terminalSetup, terminalInput, configData);
+                var result = await GameLoopComposer.RunAsync(
+                    configData,
+                    terminalSetup,
+                    (console, ui, ts) =>
+                    {
+                        string hint = (termWidthHint ?? "auto").Trim().ToLowerInvariant();
+                        TerminalCharWidthConfig charWidthConfig = hint == "auto"
+                            ? TerminalDisplayWidth.DetectCharWidths()
+                            : TerminalDisplayWidth.ApplyWidthHint(hint);
+                        console.CharWidthConfig = charWidthConfig;
+
+                        ts.DetectFont();
+                        PrintTerminalGuidance(charWidthConfig);
+
+                        int charWidth = Math.Max(Config.FontSize / 2, 1);
+                        int gameColumns = Config.DrawableWidth / charWidth;
+                        int gameRows = Config.WindowY / Config.LineHeight;
+                        if (gameColumns > 0 && gameRows > 0)
+                            ts.TrySetConsoleSize(gameColumns, gameRows + 4);
+
+                        return SelectCliProtocol(protocolArg, console, ui, ts, terminalInput, configData);
+                    },
+                    p =>
+                    {
+                        ((AgentCliProtocol)p).RunCliLoop();
+                        return Task.CompletedTask;
+                    });
+
+                if (result == GameLoopResult.Aborted)
+                {
+                    Environment.Exit(1);
+                }
             }
         }
         catch (HeadlessFatalException ex)
@@ -54,84 +86,21 @@ internal static class HeadlessRunner
             AgentLog.Instance.Write("HeadlessFatalException: " + ex);
             Environment.Exit(1);
         }
-    }
-
-    private static async Task RunAsyncCore(GamePaths paths, string protocolArg, string termWidthHint, ITerminalSetup terminalSetup, ITerminalInput terminalInput, ConfigData configData)
-    {
-        // ADR-0008 + 候选 2/ADR-0009：scope 必须在构造 HeadlessConsole/EmueraConsole 之前打开——
-        // HeadlessConsole 构造器读 Config.*（WindowX/WindowY/BackColor），配置仅经 scope 注入，无 scope 即 NPE。
-        // scope 包住构造 + Initialize + RunLoop 全块，Dispose 自动 Pfc.Dispose + Config/ConfigData.Current 归 null。
-        using (var scope = GlobalStatic.OpenScope(configData))
+        catch (GameExitException)
         {
-            var ui = new HeadlessConsole();
-            var console = new EmueraConsole(ui, terminalSetup);
-
-            string hint = (termWidthHint ?? "auto").Trim().ToLowerInvariant();
-            TerminalCharWidthConfig charWidthConfig;
-            if (hint == "auto")
-            {
-                charWidthConfig = TerminalDisplayWidth.DetectCharWidths();
-            }
-            else
-            {
-                charWidthConfig = TerminalDisplayWidth.ApplyWidthHint(hint);
-            }
-            console.CharWidthConfig = charWidthConfig;
-
-            terminalSetup.DetectFont();
-            PrintTerminalGuidance(charWidthConfig);
-
-            AgentProtocolBase? protocol;
-            try
-            {
-                protocol = SelectProtocol(protocolArg, console, ui, terminalSetup, terminalInput, configData);
-            }
-            catch (ArgumentException ex)
-            {
-                Console.Error.WriteLine($"[headless] {ex.Message}");
-                Environment.Exit(1);
-                return;
-            }
-
-            if (protocol == null)
-            {
-                Console.Error.WriteLine("[headless] 无法确定协议模式；请使用 --protocol cli 或 --server 模式");
-                Environment.Exit(1);
-                return;
-            }
-
-            console.SetAgentBridge(protocol);
-
-            // 终端尺寸需读 Config（仅 scope 内有效）。
-            int charWidth = Math.Max(Config.FontSize / 2, 1);
-            int gameColumns = Config.DrawableWidth / charWidth;
-            int gameRows = Config.WindowY / Config.LineHeight;
-            if (gameColumns > 0 && gameRows > 0)
-                terminalSetup.TrySetConsoleSize(gameColumns, gameRows + 4);
-
-            Program.LoadFonts();
-            try
-            {
-                await console.Initialize();
-
-                if (protocol is AgentCliProtocol cli)
-                    cli.RunCliLoop();
-                else
-                    Console.Error.WriteLine("[headless] 无法启动终端交互；请使用 --protocol cli 或 --server 模式");
-            }
-            catch (GameExitException)
-            {
-                // 脚本 QUIT/EXIT：静默退出 0
-            }
-            // HeadlessFatalException 不在此处捕获——向上传播到 RunAsync 统一处理。
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"[headless] {ex.Message}");
+            Environment.Exit(1);
         }
     }
 
-    private static AgentCliProtocol? SelectProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput, ConfigData configData)
+    private static AgentCliProtocol? SelectCliProtocol(string protocolArg, EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput, ConfigData configData)
     {
         return protocolArg.Trim().ToLowerInvariant() switch
         {
-            "auto" => DetectProtocol(console, ui, terminalSetup, terminalInput, configData),
+            "auto" => DetectCliProtocol(console, ui, terminalSetup, terminalInput, configData),
             "cli" => new AgentCliProtocol(console, ui, terminalSetup, terminalInput, configData),
             "jsonl" => throw new ArgumentException(
                 "stdin 管道 JSONL 模式已废弃（T-024），请使用 --server 模式", nameof(protocolArg)),
@@ -139,7 +108,7 @@ internal static class HeadlessRunner
         };
     }
 
-    private static AgentCliProtocol? DetectProtocol(EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput, ConfigData configData)
+    private static AgentCliProtocol? DetectCliProtocol(EmueraConsole console, IConsoleUI ui, ITerminalSetup terminalSetup, ITerminalInput terminalInput, ConfigData configData)
     {
         // T-024：stdin 管道模式已废弃，非 server 模式仅支持交互式 CLI 终端。
         if (Console.IsInputRedirected)
