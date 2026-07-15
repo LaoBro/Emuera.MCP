@@ -11,7 +11,7 @@ namespace MinorShift.Emuera.GameView
     /// 旧状态栏清理由 <see cref="ClearStatusBar"/> 在 offset 归零前显式调用。
     /// 独立于 TerminalRenderer，由 AgentCliProtocol 在 offset 变化时显式调用。
     /// </summary>
-    internal sealed class ScrollStatusBarRenderer
+    internal sealed class ScrollStatusBarRenderer : IScrollStatusBar
     {
         private readonly Func<AgentCliVtScreen?> _getScreen;
         private bool _cursorHidden;
@@ -22,7 +22,7 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>按当前 offset 渲染状态栏。offset>0 显示状态栏并隐藏光标；offset=0 仅恢复光标（不清行）。</summary>
-        internal void Render(int offset)
+        public void Render(int offset)
         {
             var screen = _getScreen();
             if (screen == null) return;

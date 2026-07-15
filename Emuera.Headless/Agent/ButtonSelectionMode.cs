@@ -12,7 +12,7 @@ namespace MinorShift.Emuera.GameView
     /// 降级分支与 <c>_requestFullRefresh</c> 字段，调用方保证 VT 主循环内必非 null。
     /// 从 AgentCliProtocol 拆分以隔离按钮相关状态与逻辑。
     /// </summary>
-    internal sealed class ButtonSelectionMode
+    internal sealed class ButtonSelectionMode : IButtonSelection
     {
         private readonly EmueraConsole _console;
         private readonly ScrollController _scroll;
@@ -89,7 +89,7 @@ namespace MinorShift.Emuera.GameView
         /// <summary>同步按钮位置状态，按需进入/退出选择模式或更新高亮。
         /// ADR-0006：Scroll Mode（offset>0）下跳过——按钮命中区由 RefreshButtonRegions 清空，
         /// 不维护选择模式状态（避免误触旧 Generation 按钮）。</summary>
-        internal void SyncButtonState()
+        public void SyncButtonState()
         {
             if (_scroll.ScrollOffset > 0) return;
 
@@ -157,7 +157,7 @@ namespace MinorShift.Emuera.GameView
         /// <remarks>
         /// 调用前置：_displayState 必须已注入（Phase 4 AgentCliProtocol 传入自有实例）。
         /// </remarks>
-        internal void RefreshButtonRegionsFromSnapshot(VtInputHandler vtInput, bool force = false)
+        public void RefreshButtonRegionsFromSnapshot(VtInputHandler vtInput, bool force = false)
         {
             if (_displayState == null)
                 throw new InvalidOperationException(

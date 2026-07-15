@@ -9,7 +9,7 @@ namespace MinorShift.Emuera.GameView
     /// ADR-0005 Issue 4：删除非 VT 光标定位分支与 <c>_cursor</c> 字段，仅保留 VT 绝对定位。
     /// 从 AgentCliProtocol 拆分以隔离倒计时显示状态。
     /// </summary>
-    internal sealed class CountdownRenderer
+    internal sealed class CountdownRenderer : ICountdownRenderer
     {
         private readonly EmueraConsole _console;
         private readonly Func<int> _getScrollOffset;
@@ -79,7 +79,7 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>重置倒计时行状态。</summary>
-        internal void Reset()
+        public void Reset()
         {
             _countdownLineRow = -1;
             _lastCountdownText = "";

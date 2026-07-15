@@ -11,19 +11,19 @@ namespace MinorShift.Emuera.GameView
 
     internal sealed class CliRedrawCoordinator
     {
-        private readonly TerminalRenderer _renderer;
+        private readonly IRedrawRenderer _renderer;
         private readonly ScrollController _scroll;
-        private readonly Func<ScrollStatusBarRenderer?> _getStatusBar;
-        private readonly CountdownRenderer _countdown;
-        private readonly ButtonSelectionMode _buttons;
+        private readonly Func<IScrollStatusBar?> _getStatusBar;
+        private readonly ICountdownRenderer _countdown;
+        private readonly IButtonSelection _buttons;
         private readonly Func<VtInputHandler?> _getVtInput;
 
         internal CliRedrawCoordinator(
-            TerminalRenderer renderer,
+            IRedrawRenderer renderer,
             ScrollController scroll,
-            Func<ScrollStatusBarRenderer?> getStatusBar,
-            CountdownRenderer countdown,
-            ButtonSelectionMode buttons,
+            Func<IScrollStatusBar?> getStatusBar,
+            ICountdownRenderer countdown,
+            IButtonSelection buttons,
             Func<VtInputHandler?> getVtInput)
         {
             _renderer = renderer;

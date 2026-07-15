@@ -20,7 +20,7 @@ namespace MinorShift.Emuera.GameView
     /// 末行类型 <c>ConsoleDisplayLine?</c> → <see cref="DisplayLine"/>?（R3），删除 <c>ReferenceEquals</c> 检查。
     /// SelectingButton / CharWidthConfig 仍由 <c>_console</c> 直读（R2：真相源边界 = DisplayLineList + bgColor）。
     /// </summary>
-    internal sealed class TerminalRenderer
+    internal sealed class TerminalRenderer : IRedrawRenderer
     {
         private readonly EmueraConsole _console;
         private readonly ScrollController _scroll;
@@ -62,7 +62,7 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>FlushBuffer：帧级刷新快照 + 渲染 delta（Phase 4-2 帧级 TryUpdate）。
         /// Phase 5-3：TryUpdate 已消费式清空 _pendingOps，无需再显式 drain。</summary>
-        internal void FlushBuffer()
+        public void FlushBuffer()
         {
             _displayState.TryUpdate();
             FlushBuffer(_displayState.Current);
@@ -198,7 +198,7 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>全量重绘可见行（外部调用：OnScrollChanged/CheckResize/ConsumeNeedFullRefresh）。
         /// Phase 4-1：内部调 _displayState.Current 保证最新快照。</summary>
-        internal void FullRefresh(string reason = "?")
+        public void FullRefresh(string reason = "?")
         {
             var snapshot = _displayState.Current;
             FullRefresh(snapshot, reason);
