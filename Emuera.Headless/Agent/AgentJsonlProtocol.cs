@@ -216,10 +216,9 @@ namespace MinorShift.Emuera.GameView
 
         private string BuildTurn(bool isInitial = false)
         {
-            // Phase 5-3：TryUpdate 消费式清空 _pendingOps（不再 TakePendingOps）。
-            // Phase 1：在 ComputeDiff 前调 TryUpdate 刷新 DisplayState.Current。
-            _displayState.TryUpdate();
-            // Phase 2：与 _previous 比对产出 DisplayDiff。TryUpdate 与 ComputeDiff 都持 _gate 锁，
+            // plan C（v5）：ComputeDiff 原子化刷新 _current 并 drain 分类权威清空信号，
+            // 不再前置 TryUpdate（避免跨调用窗口 + 清空信号错配，见 DisplayState.ComputeDiff）。
+            // ComputeDiff 与 _previous 比对产出 DisplayDiff；二者同持 _gate 锁，
             // 但 BuildTurn 是单线程（游戏循环）调用，无重入风险。
             var diff = _displayState.ComputeDiff();
             var req = console.CurrentRequest;

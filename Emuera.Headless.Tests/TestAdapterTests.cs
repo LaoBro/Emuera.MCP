@@ -377,4 +377,93 @@ public class TestAdapterTests
         Assert.Equal("#FF0000", adapter.BgColor);
         Assert.Equal("WaitInput", adapter.State);
     }
+
+    // ---------- plan C：ApplyDiff 消费 DisplayDiff（显式清空信号）----------
+
+    private static DisplayLine MakeDiffLine(string text) =>
+        new(new List<DisplayEntry>
+        {
+            new(new List<PrintSegment> { new(text, null, null, null, null) }, null),
+        }, "left", isLineEnd: true);
+
+    [Fact]
+    public void T_diff_append_adds_lines()
+    {
+        var adapter = new TestAdapter();
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("a"), MakeDiffLine("b") }) },
+            null));
+
+        Assert.Equal(2, adapter.Lines.Count);
+        Assert.Equal("a", adapter.Lines[0].Entries[0].Segments[0].text);
+        Assert.Equal("b", adapter.Lines[1].Entries[0].Segments[0].text);
+    }
+
+    [Fact]
+    public void T_diff_clearline_removes_last_n_lines()
+    {
+        var adapter = new TestAdapter();
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("a"), MakeDiffLine("b"), MakeDiffLine("c") }) },
+            null));
+
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new ClearLineDiffOp(2) },
+            null));
+
+        Assert.Single(adapter.Lines);
+        Assert.Equal("a", adapter.Lines[0].Entries[0].Segments[0].text);
+    }
+
+    [Fact]
+    public void T_diff_clear_empties_lines_and_sets_bg()
+    {
+        var adapter = new TestAdapter();
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("data") }) },
+            null));
+
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new ClearScreenOp() },
+            "#FF0000"));
+
+        Assert.Empty(adapter.Lines);
+        Assert.Equal("#FF0000", adapter.BgColor);
+    }
+
+    [Fact]
+    public void T_diff_clearscreen_then_append_rebuilds_state()
+    {
+        var adapter = new TestAdapter();
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("old") }) },
+            null));
+
+        // CLEAR + 重印新行：等价于引擎 CLEAR 后打印
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp>
+            {
+                new ClearScreenOp(),
+                new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("new") }),
+            },
+            null));
+
+        Assert.Single(adapter.Lines);
+        Assert.Equal("new", adapter.Lines[0].Entries[0].Segments[0].text);
+    }
+
+    [Fact]
+    public void T_diff_setbg_only_updates_bgcolor()
+    {
+        var adapter = new TestAdapter();
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("keep") }) },
+            "#00FF00"));
+
+        adapter.ApplyDiff(new DisplayDiff(new List<LineOp>(), "#0000FF"));
+
+        Assert.Single(adapter.Lines);
+        Assert.Equal("keep", adapter.Lines[0].Entries[0].Segments[0].text);
+        Assert.Equal("#0000FF", adapter.BgColor);
+    }
 }

@@ -10,11 +10,11 @@ handleException 处理（Process.cs:345），不会传播到 AgentJsonlProtocol.
 的 fatal turn（diff=null / error=ex.Message）。
 
 The test verifies:
-- Initial turn has protocolVersion == 4 and diff is null (first turn)
+- Initial turn has protocolVersion == 5 and diff is null (first turn)
 - After THROW, the turn has state=Error with error text in diff.lineOps
 - protocolVersion is absent from non-initial turns
 
-Phase 5: migrated from v3 ops[] to v4 diff model.
+plan C (v5): migrated from v4 truncate/replace_all to clear_line_diff/clear_screen.
 - First-turn content checks use GET /snapshot (diff is null on first turn).
 - Step-turn content checks use diff_text(turn).
 
@@ -80,8 +80,8 @@ ENDIF
         check(initial.get("state") == "WaitInput", f"initial state is WaitInput, got {initial.get('state')}")
         check("text" not in initial, "initial turn has no text field (v2)")
         check("buttons" not in initial, "initial turn has no buttons field (v2)")
-        check("ops" not in initial, "initial turn has no ops field (v4: removed)")
-        check(initial.get("protocolVersion") == 4, "initial turn has protocolVersion == 4")
+        check("ops" not in initial, "initial turn has no ops field (v5: removed)")
+        check(initial.get("protocolVersion") == 5, "Initial turn has protocolVersion == 5")
         check(initial.get("diff") is None, "initial turn diff is null (first turn)")
         # First-turn content: diff is null → fetch snapshot
         snap_status, snap_body = server.get_snapshot(timeout=10)
@@ -108,7 +108,7 @@ ENDIF
         if error_turn is not None:
             check("text" not in error_turn, "error turn has no text field (v2)")
             check("buttons" not in error_turn, "error turn has no buttons field (v2)")
-            check("ops" not in error_turn, "error turn has no ops field (v4: removed)")
+            check("ops" not in error_turn, "error turn has no ops field (v5: removed)")
             check("fatal-test-marker" in diff_text(error_turn), "error turn diff contains 'fatal-test-marker'")
             check("THROW" in diff_text(error_turn), "error turn diff contains THROW error info")
             check(error_turn.get("state") != "WaitInput", f"error turn state is not WaitInput, got {error_turn.get('state')}")
@@ -128,3 +128,4 @@ ENDIF
 
 if __name__ == "__main__":
     sys.exit(main())
+

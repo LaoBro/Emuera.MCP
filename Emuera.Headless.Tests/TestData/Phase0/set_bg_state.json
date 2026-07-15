@@ -18,5 +18,5 @@
   "state": "WaitInput",
   "inputType": "IntValue",
   "needValue": true,
-  "protocolVersion": 4
+  "protocolVersion": 5
 }

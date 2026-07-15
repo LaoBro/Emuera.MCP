@@ -4,7 +4,7 @@ Verifies the PRD "WebSocket 传输实现" wire contract end-to-end against a liv
 Emuera.Headless server:
 
 1. Gate: connecting /ws with no active session is rejected/closed.
-2. Initial frame over WS is TurnRecord v4 JSON (protocolVersion == 4, diff is null on first turn,
+2. Initial frame over WS is TurnRecord v5 JSON (protocolVersion == 5, diff is null on first turn,
    no legacy text/buttons/ops) — identical to GET /turn's response body.
 3. Frame format consistency: WS first frame == HTTP GET /turn first frame.
 4. Input round-trip: send {"type":"input","value":"..."} -> receive next turn (no protocolVersion).
@@ -13,8 +13,8 @@ Emuera.Headless server:
    and receive consistent turn streams.
 7. Late join: a WS connecting after the first turn receives only later turns, not history.
 
-Phase 5: migrated from v3 ops[] to v4 diff model. First turn diff is null (no previous snapshot);
-step turns carry diff.lineOps with append/truncate/replace_all.
+plan C (v5): migrated from v4 truncate/replace_all to clear_line_diff/clear_screen. First turn diff is null (no previous snapshot);
+step turns carry diff.lineOps with append/clear_line_diff/clear_screen.
 
 Only the public contract is exercised (ws://localhost:<port>/ws, POST /session,
 GET /turn, POST /input). No internal types or private fields are touched.
@@ -44,7 +44,7 @@ except Exception:  # pragma: no cover - exercised only without the dependency
     _ws_connect_impl = None
 
 
-VALID_LINE_OP_TYPES = {"append", "truncate", "replace_all"}
+VALID_LINE_OP_TYPES = {"append", "clear_line_diff", "clear_screen"}
 VALID_ALIGN = {"left", "center", "right"}
 
 
@@ -70,12 +70,11 @@ def check_diff(turn, passed, failed, turn_name):
         if op["type"] == "append":
             check("newLines" in op and isinstance(op["newLines"], list),
                   f"{turn_name} append lineOp[{i}] has newLines", passed, failed)
-        elif op["type"] == "truncate":
-            check("keepCount" in op and isinstance(op["keepCount"], int),
-                  f"{turn_name} truncate lineOp[{i}] has int keepCount", passed, failed)
-        elif op["type"] == "replace_all":
-            check("allLines" in op and isinstance(op["allLines"], list),
-                  f"{turn_name} replace_all lineOp[{i}] has allLines", passed, failed)
+        elif op["type"] == "clear_line_diff":
+            check("clearCount" in op and isinstance(op["clearCount"], int),
+                  f"{turn_name} clear_line_diff lineOp[{i}] has int clearCount", passed, failed)
+        elif op["type"] == "clear_screen":
+            pass  # clear_screen 无附带字段
 
 
 def ws_uri(base_url):
@@ -132,17 +131,17 @@ async def test_gate_no_session(server, passed, failed):
 
 
 async def test_initial_frame(server, passed, failed):
-    print("\n[initial] WS first frame is TurnRecord v4 JSON")
+    print("\n[initial] WS first frame is TurnRecord v5 JSON")
     s, _ = server.create_session()
     check(s == 201, f"POST /session returns 201, got {s}", passed, failed)
     ws = await ws_connect(server.base_url)
     try:
         turn = await recv_json(ws)
-        check(turn.get("protocolVersion") == 4, "WS initial frame protocolVersion == 4", passed, failed)
+        check(turn.get("protocolVersion") == 5, "WS initial frame protocolVersion == 5", passed, failed)
         check(turn.get("state") == "WaitInput", f"WS initial state WaitInput, got {turn.get('state')}", passed, failed)
         check("text" not in turn, "WS initial frame has no text field (v2)", passed, failed)
         check("buttons" not in turn, "WS initial frame has no buttons field (v2)", passed, failed)
-        check("ops" not in turn, "WS initial frame has no ops field (v4: removed)", passed, failed)
+        check("ops" not in turn, "WS initial frame has no ops field (v5: removed)", passed, failed)
         # First turn: diff is null (no previous snapshot); field suppressed by WhenWritingNull.
         check(turn.get("diff") is None, "WS initial frame diff is null (first turn)", passed, failed)
         check_diff(turn, passed, failed, "WS initial")
@@ -160,8 +159,8 @@ async def test_frame_consistency(server, passed, failed):
         _, http_body = server.get_turn(timeout=20)
         ws_turn = await recv_json(ws)
         http_turn = json.loads(http_body)
-        check(ws_turn.get("protocolVersion") == 4, "WS frame protocolVersion == 4", passed, failed)
-        check(http_turn.get("protocolVersion") == 4, "HTTP frame protocolVersion == 4", passed, failed)
+        check(ws_turn.get("protocolVersion") == 5, "WS frame protocolVersion == 5", passed, failed)
+        check(http_turn.get("protocolVersion") == 5, "HTTP frame protocolVersion == 5", passed, failed)
         check(ws_turn == http_turn, "WS initial frame == HTTP GET /turn initial frame (byte-identical payload)", passed, failed)
     finally:
         await ws.close()
@@ -175,7 +174,7 @@ async def test_input_roundtrip(server, passed, failed):
     ws = await ws_connect(server.base_url)
     try:
         init = await recv_json(ws)
-        check(init.get("protocolVersion") == 4, "initial frame protocolVersion == 4", passed, failed)
+        check(init.get("protocolVersion") == 5, "initial frame protocolVersion == 5", passed, failed)
         await ws.send(json.dumps({"type": "input", "value": "0"}))
         nxt = await recv_json(ws)
         check("protocolVersion" not in nxt, "step turn has no protocolVersion", passed, failed)
@@ -196,7 +195,7 @@ async def test_fanout(server, passed, failed):
     try:
         init1 = await recv_json(ws1)
         init2 = await recv_json(ws2)
-        check(init1.get("protocolVersion") == 4 and init2.get("protocolVersion") == 4,
+        check(init1.get("protocolVersion") == 5 and init2.get("protocolVersion") == 5,
               "both WS clients receive initial turn", passed, failed)
         await ws1.send(json.dumps({"type": "input", "value": "0"}))
         nxt1 = await recv_json(ws1)
@@ -239,7 +238,7 @@ async def test_late_join(server, passed, failed):
         # Consume the initial turn over HTTP: proves it was already published.
         _, http_init = server.get_turn(timeout=20)
         init_turn = json.loads(http_init)
-        check(init_turn.get("protocolVersion") == 4, "HTTP initial protocolVersion == 4", passed, failed)
+        check(init_turn.get("protocolVersion") == 5, "HTTP initial protocolVersion == 5", passed, failed)
 
         # Late WS connection: subscribes AFTER the initial turn -> must NOT receive it.
         ws = await ws_connect(server.base_url)
@@ -309,3 +308,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

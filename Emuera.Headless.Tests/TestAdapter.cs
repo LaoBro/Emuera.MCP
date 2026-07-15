@@ -48,6 +48,45 @@ internal sealed class TestAdapter
     }
 
     /// <summary>
+    /// 消费 DisplayDiff（plan C v5 显式清空信号）更新状态——模拟 Web 前端从 diff 重建显示。
+    /// 与 <see cref="ApplyOps"/> 并存：ApplyOps 验证引擎内部 TurnOp 流，ApplyDiff 验证对外 diff 契约。
+    /// - AppendLinesOp → 追加整行（diff 已按行结构化，逐条转为 AdapterLine）
+    /// - ClearLineDiffOp(n) → 从行列表末尾删除 n 行（清行）
+    /// - ClearScreenOp → 清空全部行（全清）
+    /// diff.bgColor 非空 → 更新 bgColor。
+    /// </summary>
+    public void ApplyDiff(DisplayDiff diff)
+    {
+        foreach (var op in diff.lineOps)
+        {
+            switch (op)
+            {
+                case AppendLinesOp append:
+                    foreach (var line in append.newLines)
+                    {
+                        var entries = line.entries
+                            .Select(e => new AdapterEntry(e.segments.ToList(), e.button))
+                            .ToList();
+                        Lines.Add(new AdapterLine(entries, line.align, line.isLineEnd));
+                    }
+                    break;
+                case ClearLineDiffOp clearline:
+                    var n = Math.Min(clearline.clearCount, Lines.Count);
+                    if (n > 0)
+                        Lines.RemoveRange(Lines.Count - n, n);
+                    break;
+                case ClearScreenOp:
+                    Lines.Clear();
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unknown diff op type: {op.type}");
+            }
+        }
+        if (diff.bgColor != null)
+            BgColor = diff.bgColor;
+    }
+
+    /// <summary>
     /// 消费增量 ops 更新状态。处理全部 op 类型：
     /// - PrintOp → 向当前行追加 entry（segments + button，含几何 col/width）
     /// - NewLineOp → 终止当前行（isLineEnd=true，记录 align），下一行开始

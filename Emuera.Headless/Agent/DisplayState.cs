@@ -104,6 +104,17 @@ internal sealed class DisplayState
     private DisplaySnapshot? _current;
     private DisplaySnapshot? _previous;
 
+    /// <summary>
+    /// plan C：本回合从 _pendingOps 分类出的权威清空信号。
+    /// ClearAll 主导（CLEAR），ClearLineCount 为累加的清行数，Bg 为最后一次 SetBgOp 颜色（可空）。
+    /// </summary>
+    private sealed record TurnClearSignal
+    {
+        public bool ClearAll;
+        public int ClearLineCount;
+        public string? Bg;
+    }
+
     internal DisplayState(EmueraConsole console, string defaultFontName)
     {
         _console = console;
@@ -137,21 +148,35 @@ internal sealed class DisplayState
     }
 
     /// <summary>
-    /// 计算本回合 DisplayDiff（Phase 2 / ADR-0014）。
-    /// 比对 _current（已被 BuildTurn 的 TryUpdate 刷新）与 _previous（上一回合的 _current）。
-    /// 返回 null 的三种情况：首次回合（_previous==null）、_current 未构建（BuildTurn 未调 TryUpdate）、
-    /// 本回合显示未变（ReferenceEquals(_previous, _current)——no-op 回合，仅 state/inputType 变化由 TurnRecord 顶层携带）。
+    /// 计算本回合 DisplayDiff（Phase 2 / ADR-0014 / plan C v5）。
+    /// 原子化（持 _gate）：先确保 _current 最新——若 _pendingOps 非空（本回合有显示变更）则 Rebuild
+    /// 并 drain 分类出<b>权威清空信号</b>（ClearOp/ClearLineOp/SetBgOp，见 ConsolePrintManager）；
+    /// 再比对 _current（本回合）与 _previous（上一回合）产出 diff。
+    /// 清空语义优先取权威事件（精确行数 n），队列被提前 drain（HTTP/CLI 帧刷新抢先 TryUpdate，见 Q11 race 降级）
+    /// 时回退 k 结构分类（<see cref="StructuralDiff"/>），退化为「快照推导」。
     ///
-    /// 调用契约：BuildTurn 必须在 ComputeDiff 之前调 TryUpdate。否则 _current 可能为 null（首次），
-    /// ComputeDiff 返回 null。不再经 Current 触发 TryUpdate——避免 _gate 锁重入 + 重复 Rebuild。
-    /// Phase 5-3：TryUpdate 消费式清空 _pendingOps，BuildTurn 不再调 TakePendingOps。
+    /// 返回 null 的三种情况：首次回合（_previous==null）、_current 未构建、本回合显示未变
+    /// （ReferenceEquals(_previous, _current)——no-op 回合，仅 state/inputType 变化由 TurnRecord 顶层携带）。
     ///
+    /// 调用契约：BuildTurn 直接调 ComputeDiff（不再前置 TryUpdate）；HTTP/CLI 的帧级刷新仍经 TryUpdate。
     /// _previous 读写与 _current 同处 _gate 锁内。仅游戏线程 BuildTurn 调用，无新增并发。
     /// </summary>
     internal DisplayDiff? ComputeDiff()
     {
         lock (_gate)
         {
+            // 1. 刷新 _current + 分类权威清空信号（仅本回合有变更时 drain）
+            TurnClearSignal signal;
+            if (_current == null || _console.PendingOpCount > 0)
+            {
+                _current = Rebuild();
+                signal = DrainAndClassifyClears();
+            }
+            else
+            {
+                signal = new TurnClearSignal(); // 无新变更，无权威清空事件
+            }
+
             var current = _current;
             if (current == null) return null; // _current 未构建
 
@@ -161,18 +186,68 @@ internal sealed class DisplayState
             if (prev == null) return null;                    // 首次回合，无 diff
             if (ReferenceEquals(prev, current)) return null;  // no-op：本回合显示未变
 
-            var lineOps = DiffSnapshots(prev, current);
-            string? bg = prev.bgColor == current.bgColor ? null : current.bgColor;
+            // 2. 行级操作：权威清空优先，否则结构分类（兼 race 降级）
+            List<LineOp> lineOps;
+            if (signal.ClearAll)
+            {
+                lineOps = new List<LineOp> { new ClearScreenOp() };
+                if (current.lines.Count > 0)
+                    lineOps.Add(new AppendLinesOp(current.lines));
+            }
+            else if (signal.ClearLineCount > 0)
+            {
+                int keep = prev.lines.Count - signal.ClearLineCount;
+                // race 降级（Q11）：部分清空信号被帧级 TryUpdate 抢先 drain，导致 clearCount
+                // 与真实快照行数冲突（keep<0 代表清行数超过上一帧总行；current 行数不足前缀
+                // 代表清行后又重印的行少于应保留的前缀）。两种情况都回退结构分类，避免
+                // GetRange 越界或将真实 CLEAR 误报为单行清空。
+                if (keep < 0 || current.lines.Count < keep)
+                    lineOps = StructuralDiff(prev, current);
+                else
+                {
+                    lineOps = new List<LineOp> { new ClearLineDiffOp(signal.ClearLineCount) };
+                    var appended = current.lines.GetRange(keep, current.lines.Count - keep);
+                    if (appended.Count > 0) lineOps.Add(new AppendLinesOp(appended));
+                }
+            }
+            else
+            {
+                lineOps = StructuralDiff(prev, current);
+            }
+
+            // 3. 背景色：权威 SetBgOp 优先，否则从快照比较推断
+            string? bg = signal.Bg ?? (prev.bgColor == current.bgColor ? null : current.bgColor);
             return new DisplayDiff(lineOps, bg);
         }
     }
 
     /// <summary>
-    /// 比对两个快照的 lines 产出 LineOp 序列（Phase 2）。
-    /// Emuera 显示模型是追加式的——头部行永不变，差异只在尾部。
-    /// 公共前缀 k 之后的差异用 Truncate(k)+Append 表达；k==0 且 prev 非空 → ReplaceAll。
+    /// plan C：drain _pendingOps 并分类出本回合的清空信号。ClearOp 主导（→ClearAll，吞掉 CLEARLINE）；
+    /// 多个 ClearLineOp 的 n 累加；SetBgOp 取最后一次（bg 由 DisplayDiff.bgColor 携带，不计入 lineOps）。
+    /// PrintOp/NewLineOp 不影响清空判定，忽略。
     /// </summary>
-    private static List<LineOp> DiffSnapshots(DisplaySnapshot prev, DisplaySnapshot curr)
+    private TurnClearSignal DrainAndClassifyClears()
+    {
+        var signal = new TurnClearSignal();
+        foreach (var op in _console.DrainPendingOps())
+        {
+            switch (op)
+            {
+                case ClearOp: signal.ClearAll = true; break;
+                case ClearLineOp clo: signal.ClearLineCount += clo.n; break;
+                case SetBgOp sbo: signal.Bg = sbo.color; break;
+            }
+        }
+        return signal;
+    }
+
+    /// <summary>
+    /// 比对两个快照的 lines 产出 LineOp 序列（plan C v5 + race 降级）。
+    /// Emuera 显示模型是追加式的——头部行永不变，差异只在尾部。
+    /// 公共前缀 k 之后的差异用 ClearLineDiffOp(clearCount=prev.Count-k)+Append 表达；
+    /// k==0 且 prev 非空 → ClearScreenOp + Append（全清后重印，等价于旧 ReplaceAll）。
+    /// </summary>
+    private static List<LineOp> StructuralDiff(DisplaySnapshot prev, DisplaySnapshot curr)
     {
         var p = prev.lines;
         var c = curr.lines;
@@ -185,9 +260,9 @@ internal sealed class DisplayState
                 ? new List<LineOp>()
                 : [new AppendLinesOp(c.GetRange(k, c.Count - k))];
         }
-        if (k == c.Count) return [new TruncateLinesOp(k)];                          // 纯截尾（CLEARLINE）
-        if (k == 0) return [new ReplaceAllOp(c)];                                    // 头部都变 = CLEAR/全重置
-        return [new TruncateLinesOp(k), new AppendLinesOp(c.GetRange(k, c.Count - k))]; // 尾部替换
+        if (k == c.Count) return [new ClearLineDiffOp(p.Count - k)];                 // 纯截尾（CLEARLINE）
+        if (k == 0) return [new ClearScreenOp(), new AppendLinesOp(c)];              // 头部都变 = CLEAR/全重置
+        return [new ClearLineDiffOp(p.Count - k), new AppendLinesOp(c.GetRange(k, c.Count - k))]; // 尾部替换
     }
 
     /// <summary>

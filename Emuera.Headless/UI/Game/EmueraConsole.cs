@@ -417,6 +417,19 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     /// </summary>
     internal void ClearPendingOps() => _state._pendingOps.Clear();
 
+    /// <summary>
+    /// plan C（清空信号溯源）：drain 全部 _pendingOps 并原样返回，供 DisplayState.ComputeDiff
+    /// 分类出权威清空事件（ClearOp/ClearLineOp/SetBgOp）。ConcurrentQueue.TryDequeue 跨线程安全。
+    /// 与 <see cref="ClearPendingOps"/> 互斥——调用方二选一，避免重复 drain。
+    /// </summary>
+    internal List<TurnOp> DrainPendingOps()
+    {
+        var list = new List<TurnOp>();
+        while (_state._pendingOps.TryDequeue(out var op))
+            list.Add(op);
+        return list;
+    }
+
     // ========================================
     // Agent / Bridge
     // ========================================

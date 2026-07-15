@@ -1,15 +1,15 @@
-"""Test: JSONL protocol v4 turn structure (diff model) via server mode.
+"""Test: JSONL protocol v5 turn structure (diff model) via server mode.
 
 Verifies:
-1. Initial turn has protocolVersion: 4 and diff: null (first turn, no previous snapshot).
+1. Initial turn has protocolVersion: 5 and diff: null (first turn, no previous snapshot).
 2. v1 fields (text, buttons) are NOT present.
-3. Step turns carry diff.lineOps with append/truncate/replace_all ops.
+3. Step turns carry diff.lineOps with append/clear_line_diff/clear_screen ops.
 4. append ops carry newLines[] with entries[].segments[] (per-segment style) + optional button.
-5. truncate ops carry keepCount (int).
+5. clear_line_diff ops carry clearCount (int); clear_screen has no fields.
 6. Step turns have no protocolVersion field.
 7. Final turn has no protocolVersion.
 
-Phase 5: migrated from v3 ops[] model to v4 diff model.
+plan C (v5): migrated from v4 truncate/replace_all to clear_line_diff/clear_screen.
 - First-turn content checks use GET /snapshot (diff is null on first turn).
 - Step-turn content checks use diff_text(turn) (extracts text from diff.lineOps).
 
@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from emuera_server import TEST_GAME_DIR, diff_text, snapshot_text, start_server
 
 
-VALID_LINE_OP_TYPES = {"append", "truncate", "replace_all"}
+VALID_LINE_OP_TYPES = {"append", "clear_line_diff", "clear_screen"}
 VALID_ALIGN = {"left", "center", "right"}
 
 
@@ -73,13 +73,13 @@ def check_diff(turn, passed, failed, turn_name):
                 check(op["align"] in VALID_ALIGN,
                       f"{turn_name} append lineOp[{i}] align is valid: {op['align']}", passed, failed)
 
-        elif op["type"] == "truncate":
-            check("keepCount" in op and isinstance(op["keepCount"], int),
-                  f"{turn_name} truncate lineOp[{i}] has int keepCount", passed, failed)
+        elif op["type"] == "clear_line_diff":
+            check("clearCount" in op and isinstance(op["clearCount"], int),
+                  f"{turn_name} clear_line_diff lineOp[{i}] has int clearCount", passed, failed)
 
-        elif op["type"] == "replace_all":
-            check("allLines" in op and isinstance(op["allLines"], list),
-                  f"{turn_name} replace_all lineOp[{i}] has allLines list", passed, failed)
+        elif op["type"] == "clear_screen":
+            # clear_screen 无附带字段（其后若有 append 则携带 newLines）
+            pass
 
 
 def check(condition, message, passed, failed):
@@ -95,7 +95,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", help="Path to Emuera binary (exe or dll)")
     parser.add_argument("--game-dir", default="test_game", help="Path to game directory")
-    parser.add_argument("--suite-name", default="JSONL v4 diff", help="Test suite name shown in the summary")
+    parser.add_argument("--suite-name", default="JSONL v5 diff", help="Test suite name shown in the summary")
     args = parser.parse_args()
 
     passed = [0]
@@ -124,8 +124,8 @@ def main():
         check(turn1.get("state") == "WaitInput", "Turn 1 is WaitInput", passed, failed)
         check("text" not in turn1, "Turn 1 has no text field (v2)", passed, failed)
         check("buttons" not in turn1, "Turn 1 has no buttons field (v2)", passed, failed)
-        check("ops" not in turn1, "Turn 1 has no ops field (v4: removed)", passed, failed)
-        check(turn1.get("protocolVersion") == 4, "Turn 1 has protocolVersion == 4", passed, failed)
+        check("ops" not in turn1, "Turn 1 has no ops field (v5: removed)", passed, failed)
+        check(turn1.get("protocolVersion") == 5, "Turn 1 has protocolVersion == 5", passed, failed)
         check(diff1 is None, "Turn 1 diff is null (first turn, no previous snapshot)", passed, failed)
         check_diff(turn1, passed, failed, "Turn 1")
 
@@ -186,3 +186,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

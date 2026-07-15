@@ -24,7 +24,7 @@ namespace Emuera.Headless.Tests;
 /// </summary>
 public class DisplayStateTests
 {
-    private const int ExpectedProtocolVersion = 4;
+    private const int ExpectedProtocolVersion = 5;
 
     /// <summary>
     /// 通过反射直接设置 ConsoleDisplayLine 的私有 align 字段，绕过 SetAlignment 对 Config.DrawableWidth 的依赖。
@@ -326,12 +326,12 @@ public class DisplayStateTests
     }
 
     [Fact]
-    public void ProtocolVersion_is_four()
+    public void ProtocolVersion_is_five()
     {
         var snapshot = DisplayState.BuildSnapshot(
             new List<ConsoleDisplayLine>(), EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
 
-        Assert.Equal(4, snapshot.protocolVersion);
+        Assert.Equal(5, snapshot.protocolVersion);
     }
 
     // ---------- Phase 0-2：快照确定性 / 等价性 ----------

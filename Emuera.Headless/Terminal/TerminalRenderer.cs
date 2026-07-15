@@ -68,6 +68,36 @@ namespace MinorShift.Emuera.GameView
             FlushBuffer(_displayState.Current);
         }
 
+        /// <summary>plan C 支线(2)：CLEARLINE 分类结果（Clear 空屏由 FlushBuffer 的 lines.Count==0 分支处理）。</summary>
+        internal enum FlushClearLineEventType { None, ClearLine }
+
+        /// <summary>
+        /// plan C 支线(2)：从 snapshot 比对推断 CLEARLINE 的纯函数（无副作用，可单测）。
+        /// 三子句 + SourceLine 引用反例（spec R1 漏检：CLEARLINE+reprint 使 count/LineNo 回到旧值但内容全换，
+        /// SourceLine 引用变更 = 行被替换）。返回 ClearLine 表示末部被截断/替换，需重置 delta tracking 走 FullRefresh。
+        /// </summary>
+        internal static FlushClearLineEventType ClassifyClearLineEvent(
+            DisplaySnapshot snapshot, int lastRenderedLineNo, int lastSnapshotLineCount, DisplayLine? lastRenderedLastLine)
+        {
+            var lines = snapshot.lines;
+            if (lines.Count == 0) return FlushClearLineEventType.None; // 空屏归 Clear 分支
+
+            int currentLineNo = lines[^1].LineNo;
+            bool clearLine = lines.Count < lastSnapshotLineCount ||
+                (lastRenderedLineNo >= 0 && currentLineNo < lastRenderedLineNo);
+            if (!clearLine && lastSnapshotLineCount > 0 && lastRenderedLastLine != null)
+            {
+                int oldLastIdx = lastSnapshotLineCount - 1;
+                if (oldLastIdx < lines.Count)
+                {
+                    var oldPositionSource = lines[oldLastIdx].SourceLine;
+                    if (!ReferenceEquals(oldPositionSource, lastRenderedLastLine.SourceLine))
+                        clearLine = true;
+                }
+            }
+            return clearLine ? FlushClearLineEventType.ClearLine : FlushClearLineEventType.None;
+        }
+
         /// <summary>
         /// Phase 4-1：从 snapshot 比对推断全屏事件 + delta 渲染。
         /// 全屏事件检测（R1）：
@@ -110,24 +140,10 @@ namespace MinorShift.Emuera.GameView
             var lastLine = lines[^1];
             int currentLineNo = lastLine.LineNo;
 
-            // CLEARLINE 检测（R1 + 修正：snapshot 比对 + SourceLine 引用）
-            // 1. count 减少 → CLEARLINE（reprint 不足 N 行）
-            // 2. 末行 LineNo 回退 → CLEARLINE（reprint 使 LineNo 回环但仍 < 旧值）
-            // 3. 旧末行位置的 SourceLine 变更 → CLEARLINE+reprint 使 count/LineNo 回到旧值
-            //    （spec R1 原方案漏检的反例：CLEARLINE 3 + 3 行 reprint 后 count/LineNo 与旧值相等，
-            //     但内容全换。SourceLine 持原 ConsoleDisplayLine 引用，引用变更 = 行对象被替换）
-            bool clearlineDetected = lines.Count < _lastSnapshotLineCount ||
-                (_lastRenderedLineNo >= 0 && currentLineNo < _lastRenderedLineNo);
-            if (!clearlineDetected && _lastSnapshotLineCount > 0 && _lastRenderedLastLine != null)
-            {
-                int oldLastIdx = _lastSnapshotLineCount - 1;
-                if (oldLastIdx < lines.Count)
-                {
-                    var oldPositionSource = lines[oldLastIdx].SourceLine;
-                    if (!ReferenceEquals(oldPositionSource, _lastRenderedLastLine.SourceLine))
-                        clearlineDetected = true;
-                }
-            }
+            // CLEARLINE 检测（R1 + 修正）：委托纯函数 ClassifyClearLineEvent（plan C 支线(2) 可单测）。
+            bool clearlineDetected =
+                ClassifyClearLineEvent(snapshot, _lastRenderedLineNo, _lastSnapshotLineCount, _lastRenderedLastLine)
+                == FlushClearLineEventType.ClearLine;
             if (clearlineDetected)
             {
                 _lastRenderedLineNo = -1;
