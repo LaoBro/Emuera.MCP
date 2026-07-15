@@ -41,6 +41,7 @@ namespace MinorShift.Emuera.GameView
         private readonly ButtonSelectionMode _buttons;
         private readonly CountdownRenderer _countdown;
         private readonly TerminalRenderer _renderer;
+        private readonly CliRedrawCoordinator _redraw;
         // Phase 4-2：CLI 自有 DisplayState（Q7）。AgentCliProtocol 构造持有，FlushBuffer 帧级 TryUpdate。
         // 与 server 路径的 DisplayState（Session 持有、BuildTurn 回合级 TryUpdate）独立。
         private readonly DisplayState _displayState;
@@ -90,27 +91,8 @@ namespace MinorShift.Emuera.GameView
                 ClearInputBuffer,
                 _displayState);
             _countdown = new CountdownRenderer(console, () => _scroll.ScrollOffset, () => _screen, () => _renderer.LastDrawnRows);
-            // ADR-0006：auto-follow 回调——FlushBuffer 检测到新行/ClearOp 且 offset>0 时
-            // 归零 offset + FullRefresh 后调用，同步状态栏/倒计时/按钮区域。
-            _renderer.OnScrollAutoFollow = () =>
-            {
-                _scrollStatusBar?.Render(0);
-                _countdown.Reset();
-                _buttons.RefreshButtonRegionsFromSnapshot(_vtInput!, force: true);
-            };
-            // ADR-0009：用户主动滚动（DispatchWheel/Scroll 路径）→ ScrollChanged 事件 → 4 步渲染反应。
-            _scroll.ScrollChanged += OnScrollChanged;
-        }
-
-        /// <summary>ScrollChanged 订阅者：offset 变化后做 4 步渲染（FullRefresh → statusbar → countdown → buttons）。</summary>
-        private void OnScrollChanged(int newOffset)
-        {
-            _renderer.FullRefresh("ScrollChanged");
-            _scrollStatusBar?.Render(newOffset);
-            // offset 从 >0 转回 0 时重新探测倒计时行位置（Scroll Mode 期间 CursorTop-1 失效）。
-            if (newOffset == 0)
-                _countdown.Reset();
-            _buttons.RefreshButtonRegionsFromSnapshot(_vtInput!, force: true);
+            _redraw = new CliRedrawCoordinator(_renderer, _scroll, () => _scrollStatusBar, _countdown, _buttons, () => _vtInput);
+            _renderer.OnScrollAutoFollow = () => _redraw.Redraw(RedrawKind.ChromeOnly, true);
         }
 
         internal override Task<string?> GetInitialTurnAsync() => Task.FromResult<string?>(null);
@@ -193,17 +175,9 @@ namespace MinorShift.Emuera.GameView
                 {
                     if (console.ConsumeNeedFullRefresh())
                     {
-                        // ADR-0006 Issue 004：ConsumeNeedFullRefresh 归零 Scroll Offset 后再 FullRefresh。
                         ResetScrollIfActive();
-                        // ADR-0007：auto-follow 路径触发后清空计时上下文，避免误触发上一轮超时。
                         _waitInputEnteredAt = null;
-                        // 仅 FullRefresh：FullRefresh 经 _displayState.Current 内部 TryUpdate 消费 pending ops
-                        // 并整屏重绘，已满足"强制整屏刷新"。前置 FlushBuffer() 在首次迭代会走 init 分支
-                        // 再做一次整屏渲染，造成启动期冗余双重整屏（CLI basic no-op 回归测试因此计数 2）。
-                        _renderer.FullRefresh("NeedFullRefresh");
-                        _countdown.Reset();
-                        _buttons.SyncButtonState();
-                        _buttons.RefreshButtonRegionsFromSnapshot(_vtInput, force: true);
+                        _redraw.Redraw(RedrawKind.FullRefresh, true);
                         continue;
                     }
 
@@ -259,16 +233,11 @@ namespace MinorShift.Emuera.GameView
                         _waitInputEnteredAt = null;
                         if (oldOffset == _scroll.ScrollOffset)
                         {
-                            // offset 未变，OnScrollChanged 未触发——仍需重绘（resize 改了布局）。
-                            _renderer.FullRefresh("CheckResize");
-                            _scrollStatusBar?.Render(_scroll.ScrollOffset);
-                            _buttons.RefreshButtonRegionsFromSnapshot(_vtInput, force: true);
+                            _redraw.Redraw(RedrawKind.FullRefresh, true);
                         }
                     }
 
-                    _renderer.FlushBuffer();
-                    _buttons.SyncButtonState();
-                    _buttons.RefreshButtonRegionsFromSnapshot(_vtInput, force: false);
+                    _redraw.Redraw(RedrawKind.Flush, false);
                 }
             }
             finally
@@ -304,9 +273,7 @@ namespace MinorShift.Emuera.GameView
             console.SubmitTimeout();
             // SubmitTimeout 推进脚本后立即清空计时上下文，避免残留触发下一轮
             _waitInputEnteredAt = null;
-            _renderer.FlushBuffer();
-            _buttons.SyncButtonState();
-            _buttons.RefreshButtonRegionsFromSnapshot(_vtInput!, force: false);
+            _redraw.Redraw(RedrawKind.Flush, false);
             return true;
         }
 
