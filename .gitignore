@@ -18,8 +18,13 @@ Emuera/obj/*
 Emuera.Headless/bin/*
 Emuera.Headless/obj/*
 Emuera.Headless/publish/*
+Emuera.Headless/wwwroot/*
 Emuera.Headless.Tests/bin/*
 Emuera.Headless.Tests/obj/*
+
+# Emuera.Web（Vue 3 + Vite）—— 源码入库，依赖与构建产物不入库
+Emuera.Web/node_modules/*
+Emuera.Web/dist/*
 docs/agents/*
 docs/adr/*
 docs/2026.6.16.mouse-input/spikes/*
