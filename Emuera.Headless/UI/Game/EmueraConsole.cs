@@ -19,7 +19,7 @@ using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.GameView;
 
-internal sealed class EmueraConsole : IDisposable, IConsoleStateView
+internal sealed class EmueraConsole : IDisposable, IConsoleStateView, IButtonDisplayContext
 {
     internal readonly ConsoleStateData _state;
     internal readonly ConsoleStateManager _stateManager;
@@ -71,6 +71,8 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
     internal long LineCount => _state.logicalLineCount;
     internal long DeletedLines => _state.deletedLines;
     internal ConsoleButtonString? SelectingButton => _state.selectingButton;
+    ConsoleButtonString? IButtonDisplayContext.SelectingButton => _state.selectingButton;
+    TerminalCharWidthConfig IButtonDisplayContext.CharWidthConfig => _state.CharWidthConfig;
     internal ConsoleButtonString? PointingSring => _state.pointingString;
     internal bool AlwaysRefresh { get => _state.AlwaysRefresh; set => _state.AlwaysRefresh = value; }
     internal bool RunERBFromMemory { get => _state.runningERBfromMemory; set => _state.runningERBfromMemory = value; }

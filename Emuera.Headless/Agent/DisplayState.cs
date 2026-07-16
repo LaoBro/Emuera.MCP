@@ -86,7 +86,7 @@ internal record DisplayEntry(
 /// 持有当前 DisplaySnapshot（_current），以 _pendingOps 为权威变更信号做变更检测（TryUpdate）。
 /// _gate 锁保护跨线程读写——游戏线程 BuildTurn 调 TryUpdate，HTTP 线程 GET /snapshot 读 Current。
 /// </summary>
-internal sealed class DisplayState
+internal sealed class DisplayState : IDisplayState
 {
     /// <summary>
     /// DisplaySnapshot 的 JSON 序列化选项（ADR-0013 决策二）。
@@ -120,6 +120,9 @@ internal sealed class DisplayState
         _console = console;
         _defaultFontName = defaultFontName;
     }
+
+    bool IDisplayState.TryUpdate() => TryUpdate();
+    DisplaySnapshot IDisplayState.Current => Current;
 
     /// <summary>
     /// 当前快照（线程安全）。读取时先 TryUpdate 保证最新。

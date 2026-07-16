@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
 {
@@ -18,14 +17,14 @@ namespace MinorShift.Emuera.GameView
     /// CLEARLINE+reprint 检测：count/LineNo 比对之外，额外比较旧末行位置的 <c>SourceLine</c> 引用
     /// （spec R1 原方案漏检 count/LineNo 回到旧值的反例——SourceLine 持原 ConsoleDisplayLine 引用，引用变更 = 行被替换）。
     /// 末行类型 <c>ConsoleDisplayLine?</c> → <see cref="DisplayLine"/>?（R3），删除 <c>ReferenceEquals</c> 检查。
-    /// SelectingButton / CharWidthConfig 仍由 <c>_console</c> 直读（R2：真相源边界 = DisplayLineList + bgColor）。
+    /// SelectingButton / CharWidthConfig 由 <c>IButtonDisplayContext</c> 提供（R2：真相源边界 = DisplayLineList + bgColor）。
     /// </summary>
     internal sealed class TerminalRenderer : IRedrawRenderer
     {
-        private readonly EmueraConsole _console;
+        private readonly IButtonDisplayContext _buttonContext;
         private readonly ScrollController _scroll;
-        private readonly Func<AgentCliVtScreen?> _getScreen;
-        private readonly DisplayState _displayState;
+        private IAgentCliVtScreen? _screen;
+        private readonly IDisplayState _displayState;
 
         private int _lastRenderedLineNo = -1;
         // Phase 4-1：CLEARLINE 检测——行数减少时重置 delta tracking（R1）
@@ -48,15 +47,22 @@ namespace MinorShift.Emuera.GameView
         /// </summary>
         internal Action? OnScrollAutoFollow { get; set; }
 
-        public TerminalRenderer(
-            EmueraConsole console,
-            ScrollController scroll,
-            Func<AgentCliVtScreen?> getScreen,
-            DisplayState displayState)
+        /// <summary>注入或更换 VT 屏幕（生产：RunVtLoop 内创建后设置；测试：构造时直接传入）。</summary>
+        internal IAgentCliVtScreen? Screen
         {
-            _console = console;
+            get => _screen;
+            set => _screen = value;
+        }
+
+        public TerminalRenderer(
+            IButtonDisplayContext buttonContext,
+            ScrollController scroll,
+            IAgentCliVtScreen? screen,
+            IDisplayState displayState)
+        {
+            _buttonContext = buttonContext;
             _scroll = scroll;
-            _getScreen = getScreen;
+            _screen = screen;
             _displayState = displayState;
         }
 
@@ -108,7 +114,7 @@ namespace MinorShift.Emuera.GameView
         private void FlushBuffer(DisplaySnapshot snapshot)
         {
             var lines = snapshot.lines;
-            var screen = _getScreen();
+            var screen = _screen;
 
             // SET_BG：背景色变更（独立于 CLEAR/CLEARLINE，VT 全局状态——ClearScreen 不重置背景色）
             if (snapshot.bgColor != _currentBgHex)
@@ -227,7 +233,7 @@ namespace MinorShift.Emuera.GameView
         private void FullRefresh(DisplaySnapshot snapshot, string reason = "?")
         {
             var lines = snapshot.lines;
-            var screen = _getScreen()!;
+            var screen = _screen!;
 
             screen.ClearScreen();
 
@@ -262,7 +268,7 @@ namespace MinorShift.Emuera.GameView
                 var sourceLine = dl.SourceLine;
                 string formatted = sourceLine != null
                     ? TerminalLineFormatter.FormatLineForTerminal(
-                        sourceLine, _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true)
+                        sourceLine, _buttonContext.SelectingButton, _buttonContext.CharWidthConfig, ansiEnabled: true)
                     : "";
                 screen.WriteLineAt(viewportRow, formatted.Length > 0 ? formatted : "");
             }
@@ -281,7 +287,7 @@ namespace MinorShift.Emuera.GameView
         {
             if (rows <= 0) return;
 
-            var screen = _getScreen()!;
+            var screen = _screen!;
             int currentRow = screen.GetCurrentRow();
             for (int i = 0; i < rows; i++)
             {
@@ -310,7 +316,7 @@ namespace MinorShift.Emuera.GameView
             var sourceLine = line.SourceLine;
             if (sourceLine == null) return;  // 不应发生（BuildSnapshot 总会填入）
             string text = TerminalLineFormatter.FormatLineForTerminal(
-                sourceLine, _console.SelectingButton, _console.CharWidthConfig, ansiEnabled: true);
+                sourceLine, _buttonContext.SelectingButton, _buttonContext.CharWidthConfig, ansiEnabled: true);
             if (line.isLineEnd)
                 Console.WriteLine(text);
             else

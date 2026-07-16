@@ -75,7 +75,7 @@ namespace MinorShift.Emuera.GameView
             // ADR-0005 Issue 4：删除降级渲染分支后 _cursor/_requestFullRefresh 字段已移除，
             // 渲染器假设 _screen 在 VT 主循环内必非 null。
             // Phase 4-1：TerminalRenderer 数据源换成 DisplayState.Current.lines。
-            _renderer = new TerminalRenderer(console, _scroll, () => _screen, _displayState);
+            _renderer = new TerminalRenderer(console, _scroll, null, _displayState);
             // Phase 3-3b：ButtonSelectionMode 注入 DisplayState，RefreshButtonRegionsFromSnapshot 启用。
             _buttons = new ButtonSelectionMode(
                 console,
@@ -163,6 +163,7 @@ namespace MinorShift.Emuera.GameView
         {
             _vtInput = new VtInputHandler(this, _terminalInput);
             _screen = new AgentCliVtScreen();
+            _renderer.Screen = _screen;
             _scrollStatusBar = new ScrollStatusBarRenderer(() => _screen);
             _scroll.UpdateVisibleLines(Math.Max(1, _screen.WindowHeight - 2));
             RegisterVtCleanupHooks();
@@ -288,6 +289,7 @@ namespace MinorShift.Emuera.GameView
 
             _vtInput = null;
             _screen = null;
+            _renderer.Screen = null;
             _scrollStatusBar = null;
         }
 
