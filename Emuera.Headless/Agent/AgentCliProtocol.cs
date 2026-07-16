@@ -10,15 +10,6 @@ using MinorShift.Emuera.UI.Game;
 
 namespace MinorShift.Emuera.GameView
 {
-    /// <summary>Scroll Mode 滚动热键动作（ADR-0006 Issue 003）。</summary>
-    internal enum ScrollAction
-    {
-        Home,
-        End,
-        PageUp,
-        PageDown,
-    }
-
     internal sealed class AgentCliProtocol : AgentProtocolBase, IVtHost, IInputTimer
     {
         private readonly StringBuilder _buf = new();
@@ -71,9 +62,7 @@ namespace MinorShift.Emuera.GameView
             // 与 Session.cs:83 同一取值表达式。TerminalRenderer + ButtonSelectionMode 均注入此实例。
             var defaultFontName = configData.GetConfigValue<string>(ConfigCode.FontName) ?? "";
             _displayState = new DisplayState(console, defaultFontName);
-            // ADR-0005：VT-only 后 ANSI 始终可用，_ansiEnabled 字段已删除。
-            // ADR-0005 Issue 4：删除降级渲染分支后 _cursor/_requestFullRefresh 字段已移除，
-            // 渲染器假设 _screen 在 VT 主循环内必非 null。
+            // VT-only 后 ANSI 始终可用，渲染器假设 _screen 在 VT 主循环内必非 null。
             // Phase 4-1：TerminalRenderer 数据源换成 DisplayState.Current.lines。
             _renderer = new TerminalRenderer(console, _scroll, null, _displayState);
             // Phase 3-3b：ButtonSelectionMode 注入 DisplayState，RefreshButtonRegionsFromSnapshot 启用。
@@ -130,8 +119,8 @@ namespace MinorShift.Emuera.GameView
                 Console.Error.WriteLine("[headless] 终端路径: VT（备用屏 + SGR mouse + DA1 探测）");
                 Console.Error.Flush();
 
-                // ADR-0005 Issue 4：删除外层 FlushBuffer——RunVtLoop 的循环末尾已刷新最终状态，
-                // CleanupVt() 在 finally 中将 _screen 置 null 后再 FlushBuffer 会走到已删除的降级分支。
+                // RunVtLoop 的循环末尾已刷新最终状态，CleanupVt() 在 finally 中将 _screen 置 null，
+                // 故此处不再额外 FlushBuffer。
                 RunVtLoop();
             }
             catch (Exception ex)
@@ -154,7 +143,6 @@ namespace MinorShift.Emuera.GameView
         /// 调用前 <see cref="ITerminalSetup.TryPrepareVtInput"/> 必须已返回 true（VT-only）。
         /// VT 终端恢复由 RegisterVtCleanupHooks（AppDomain.UnhandledException /
         /// ProcessExit）的多钩子保障，finally 块负责禁用 mouse + 退出备用屏。
-        /// ADR-0005：原 LoopStrategy 策略模式已删除，主循环逻辑直接内联（VT-only）。
         /// </summary>
         private void RunVtLoop()
         {
@@ -191,38 +179,13 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>键盘滚动热键分发（PgUp/PgDn/Home/End）。由 VtInputHandler.OnKeyEvent 调用。
-        /// ADR-0009：算术委托给 ScrollController，offset 变化时 ScrollChanged 事件触发 OnScrollChanged 做 4 步渲染。
-        /// PageUp/PageDown delta 用正常模式 visibleLines（WindowHeight - 1），maxOffset 用 Scroll Mode visibleLines（WindowHeight - 2）。</summary>
+        /// ADR-0009：动作→算子翻译已收归 ScrollController.ApplyAction，此处仅一行转发；
+        /// offset 变化时 ScrollChanged 事件触发 OnScrollChanged 做 4 步渲染。</summary>
         void IVtHost.DispatchScroll(ScrollAction action)
         {
             var screen = _screen;
             if (screen == null) return;
-            int lineCount = console.DisplayLineList.Count;
-            // ADR-0009：PageUp/PageDown delta 用动态 visibleLines——offset==0 用正常模式（W-1），
-            // offset>0 用 Scroll Mode（W-2）。保持与原 AgentCliVtScreen.GetVisibleLines() 行为零变化。
-            int pageLines = _scroll.IsScrollMode
-                ? Math.Max(1, screen.WindowHeight - 2)
-                : Math.Max(1, screen.WindowHeight - 1);
-
-            switch (action)
-            {
-                case ScrollAction.Home:
-                    // 滚到顶：ScrollTo(int.MaxValue) 钳到 max。
-                    _scroll.ScrollTo(int.MaxValue, lineCount);
-                    break;
-                case ScrollAction.End:
-                    // 回底退出 Scroll Mode。
-                    _scroll.ScrollTo(0, lineCount);
-                    break;
-                case ScrollAction.PageUp:
-                    _scroll.ScrollBy(pageLines, lineCount);
-                    break;
-                case ScrollAction.PageDown:
-                    _scroll.ScrollBy(-pageLines, lineCount);
-                    break;
-                default:
-                    return;
-            }
+            _scroll.ApplyAction(action, screen.WindowHeight, console.DisplayLineList.Count);
         }
 
         #endregion
@@ -349,8 +312,6 @@ namespace MinorShift.Emuera.GameView
                 ProcessChar(key.KeyChar);
         }
 
-        internal void ProcessKeyFromMouseInput(ConsoleKeyInfo key) => ProcessKey(key);
-
         #endregion
 
         #region Mouse dispatch
@@ -377,18 +338,12 @@ namespace MinorShift.Emuera.GameView
             if (req == null) return;
 
             // 仅在允许空输入的请求类型下才 dispatch 空输入（模拟回车）；
-            // 整数输入等场景下点击空白区域直接忽略，与 winforms 行为一致
-            switch (req.InputType)
-            {
-                case InputType.EnterKey:
-                case InputType.AnyKey:
-                case InputType.StrValue:
-                case InputType.AnyValue:
-                case InputType.IntButton:
-                case InputType.StrButton:
-                    DispatchInput("");
-                    break;
-            }
+            // 整数输入等场景下点击空白区域直接忽略，与 winforms 行为一致。
+            // 判定复用 AgentProtocolBase.AllowsEmptyInput 单一真相源。
+            // 注：AnyValue 不在清单内——其空输入经 DispatchInput 必被 long.TryParse("") 拒绝，
+            // 与"忽略"净效果相同，故此处不再单独派发（非回归）。
+            if (AllowsEmptyInput(req.InputType))
+                DispatchInput("");
         }
 
         #endregion
@@ -408,11 +363,11 @@ namespace MinorShift.Emuera.GameView
             Echo("\r" + new string(' ', _buf.Length) + "\r");
         }
 
-        /// <summary>输入回显：优先经 VT 备用屏（与光标/滚动状态一致），屏幕不可用时降级直写 Console。</summary>
+        /// <summary>输入回显：经 VT 备用屏（与光标/滚动状态一致）。ADR-0005 VT-only 后
+        /// _screen 在输入等待态必非 null，故直接断言解引用，不再保留主屏降级分支。</summary>
         private void Echo(string text)
         {
-            if (_screen != null) _screen.WriteRaw(text);
-            else Console.Write(text);
+            _screen!.WriteRaw(text);
         }
 
         protected override void OnInputRejected(string reason)

@@ -2,11 +2,21 @@ using System;
 
 namespace MinorShift.Emuera.GameView
 {
+    /// <summary>Scroll Mode 滚动热键动作（ADR-0006 Issue 003）。</summary>
+    internal enum ScrollAction
+    {
+        Home,
+        End,
+        PageUp,
+        PageDown,
+    }
+
     /// <summary>
     /// 纯逻辑视口偏移控制器（ADR-0009）。
-    /// 持有 ScrollOffset + 算术（ScrollBy/ScrollTo/Clamp/Reset）+ ScrollChanged 事件 + _scrollVisibleLines（构造注入）。
+    /// 持有 ScrollOffset + 算术（ScrollBy/ScrollTo/Clamp/Reset + ApplyAction）+ ScrollChanged 事件 + _scrollVisibleLines（构造注入）。
     /// ScrollBy/ScrollTo/Clamp 在 offset 变化时 raise 事件，Reset() 静默（系统归零由调用方编排渲染）。
     /// 替代 AgentCliVtScreen 的 scroll 算术职责——screen 只保留 VT I/O。
+    /// ADR-0006：滚动热键语义（ScrollAction → 算子）随 ApplyAction 一并收归本类，协议层只做一行转发。
     /// </summary>
     internal sealed class ScrollController
     {
@@ -75,5 +85,36 @@ namespace MinorShift.Emuera.GameView
 
         private int MaxOffset(int lineCount)
             => Math.Max(0, lineCount - _scrollVisibleLines);
+
+        /// <summary>
+        /// 将滚动热键动作翻译为偏移算子并应用（ADR-0006）。
+        /// PageUp/PageDown 的 delta 用动态 visibleLines：offset==0 用正常模式（W-1），
+        /// offset>0 用 Scroll Mode（W-2），保持与原 AgentCliVtScreen.GetVisibleLines() 行为零变化。
+        /// Home 滚到顶（ScrollTo(int.MaxValue) 钳到 max），End 回底退出 Scroll Mode（ScrollTo(0)）。
+        /// </summary>
+        internal void ApplyAction(ScrollAction action, int windowHeight, int lineCount)
+        {
+            int pageLines = IsScrollMode
+                ? Math.Max(1, windowHeight - 2)
+                : Math.Max(1, windowHeight - 1);
+
+            switch (action)
+            {
+                case ScrollAction.Home:
+                    ScrollTo(int.MaxValue, lineCount);
+                    break;
+                case ScrollAction.End:
+                    ScrollTo(0, lineCount);
+                    break;
+                case ScrollAction.PageUp:
+                    ScrollBy(pageLines, lineCount);
+                    break;
+                case ScrollAction.PageDown:
+                    ScrollBy(-pageLines, lineCount);
+                    break;
+                default:
+                    return;
+            }
+        }
     }
 }

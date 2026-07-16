@@ -4,10 +4,13 @@ namespace MinorShift.Emuera.GameView
 {
     internal enum RedrawKind
     {
+        /// <summary>全量重绘内容区（renderer.FullRefresh）+ 同步 chrome（状态栏/倒计时/按钮）。重置倒计时。</summary>
         FullRefresh,
+        /// <summary>帧级增量刷新（renderer.FlushBuffer，无变更时返回 false 跳过 chrome 同步）；
+        /// 有变更则同步 chrome，不重置倒计时。</summary>
         Flush,
-        /// <summary>ChromeOnly：内容区已由调用方（如 TerminalRenderer 的 auto-follow FullRefresh）
-        /// 绘制完毕，协调器只同步状态栏/倒计时/按钮等 chrome。不触发 renderer 重绘、不重置倒计时。</summary>
+        /// <summary>内容区已由调用方（如 TerminalRenderer 的 auto-follow FullRefresh）绘制完毕，
+        /// 协调器只同步状态栏/倒计时/按钮等 chrome。不触发 renderer 重绘、不重置倒计时。</summary>
         ChromeOnly,
     }
 
@@ -58,7 +61,8 @@ namespace MinorShift.Emuera.GameView
                     SyncChrome(force, resetCountdown: true);
                     break;
                 case RedrawKind.Flush:
-                    // no-op 帧（FlushBuffer 返回 false）：内容未变，跳过整轮 chrome 同步。
+                    // FlushBuffer 返回 false = 本帧内容无变更，跳过 chrome 同步；
+                    // 返回 true = 已增量重绘，继续同步状态栏/倒计时/按钮（不重置倒计时）。
                     if (!_renderer.FlushBuffer()) return;
                     SyncChrome(force, resetCountdown: false);
                     break;

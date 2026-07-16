@@ -51,6 +51,19 @@ namespace MinorShift.Emuera.GameView
 
         internal virtual void Stop() => _cts.Cancel();
 
+        /// <summary>是否允许以空输入（模拟回车/点击空白）提交。空串在 IntValue/AnyValue 下会被
+        /// long.TryParse 拒绝，故仅 EnterKey/AnyKey/StrValue/IntButton/StrButton 返回 true。
+        /// 单一真相源，供 DispatchInput 与 DispatchMouseMiss 共用，避免两份 InputType 清单漂移。</summary>
+        protected static bool AllowsEmptyInput(InputType type) => type switch
+        {
+            InputType.EnterKey => true,
+            InputType.AnyKey => true,
+            InputType.StrValue => true,
+            InputType.IntButton => true,
+            InputType.StrButton => true,
+            _ => false,
+        };
+
         protected virtual void DispatchInput(string input)
         {
             if (console.State != ConsoleState.WaitInput)
