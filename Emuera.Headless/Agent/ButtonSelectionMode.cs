@@ -192,14 +192,6 @@ namespace MinorShift.Emuera.GameView
             vtInput.Tracker.UpdateFromSnapshot(snapshot, _scroll.ScrollOffset, viewportHeight);
         }
 
-        // 按钮位置信息：viewport 行号 + 终端列范围，用于二维方向键导航
-        private readonly record struct ButtonPos(
-            int Row,
-            int Left,
-            int Right,
-            ConsoleButtonString Button,
-            string InputKey);
-
         /// <summary>
         /// 遍历可见 displayLineList，按终端显示宽度计算每个按钮的 (row, left, right)。
         /// 同一 InputKey 的分裂片段（DivideAt 产生）只保留第一个。
@@ -293,29 +285,17 @@ namespace MinorShift.Emuera.GameView
                 ? _selectedButtonIndex
                 : 0;
 
-            var current = _buttonPositions[currentIdx];
-            int currentCenter = (current.Left + current.Right) / 2;
-
-            // 四方向导航：候选过滤 + 更优判定，统一走 FindNextButton。
-            // Up/Down：跨行选取最近行，同行取中心列最近；Left/Right：同行取最远边界。
-            int newIdx = key.Key switch
+            var dir = key.Key switch
             {
-                ConsoleKey.UpArrow => FindNextButton(
-                    p => p.Row < current.Row,
-                    (a, best) => a.Row > best.Row
-                        || (a.Row == best.Row && CenterDist(a, currentCenter) < CenterDist(best, currentCenter))),
-                ConsoleKey.DownArrow => FindNextButton(
-                    p => p.Row > current.Row,
-                    (a, best) => a.Row < best.Row
-                        || (a.Row == best.Row && CenterDist(a, currentCenter) < CenterDist(best, currentCenter))),
-                ConsoleKey.LeftArrow => FindNextButton(
-                    p => p.Row == current.Row && p.Right < current.Left,
-                    (a, best) => a.Right > best.Right),
-                ConsoleKey.RightArrow => FindNextButton(
-                    p => p.Row == current.Row && p.Left > current.Right,
-                    (a, best) => a.Left < best.Left),
-                _ => -1,
+                ConsoleKey.UpArrow => ButtonNavigator.Direction.Up,
+                ConsoleKey.DownArrow => ButtonNavigator.Direction.Down,
+                ConsoleKey.LeftArrow => ButtonNavigator.Direction.Left,
+                ConsoleKey.RightArrow => ButtonNavigator.Direction.Right,
+                _ => (ButtonNavigator.Direction?)null,
             };
+            if (dir == null) return;
+
+            int newIdx = ButtonNavigator.FindNext(_buttonPositions, _buttonPositions[currentIdx], dir.Value);
 
             if (newIdx >= 0 && newIdx != currentIdx)
             {
@@ -328,27 +308,6 @@ namespace MinorShift.Emuera.GameView
                     RedrawButtonLine(newRow);
             }
         }
-
-        /// <summary>
-        /// 在按钮列表中查找下一个目标按钮。
-        /// <paramref name="isCandidate"/> 过滤候选；<paramref name="isBetter"/> 判定候选是否优于当前最优。
-        /// 返回命中索引，无候选返回 -1。
-        /// </summary>
-        private int FindNextButton(Func<ButtonPos, bool> isCandidate, Func<ButtonPos, ButtonPos, bool> isBetter)
-        {
-            int newIdx = -1;
-            for (int i = 0; i < _buttonPositions.Count; i++)
-            {
-                var p = _buttonPositions[i];
-                if (!isCandidate(p)) continue;
-                if (newIdx < 0 || isBetter(p, _buttonPositions[newIdx]))
-                    newIdx = i;
-            }
-            return newIdx;
-        }
-
-        private static int CenterDist(ButtonPos p, int center)
-            => Math.Abs((p.Left + p.Right) / 2 - center);
 
         private void ConfirmButton()
         {
