@@ -104,9 +104,6 @@ namespace MinorShift.Emuera.GameView
                 _screen!.WindowHeight);
         }
 
-        internal override Task<string?> GetInitialTurnAsync() => Task.FromResult<string?>(null);
-        internal override Task<string?> StepAsync(string input) => Task.FromResult<string?>(null);
-
         internal void RunCliLoop()
         {
             // 顶层异常边界：覆盖 HandleTimeout / ProcessChar / DispatchMouseClick /
@@ -321,7 +318,7 @@ namespace MinorShift.Emuera.GameView
                 if (_buf.Length > 0)
                 {
                     _buf.Remove(_buf.Length - 1, 1);
-                    WriteOutput("\b \b", false);
+                    Echo("\b \b");
                 }
             }
             else if (ch == 27)
@@ -332,7 +329,7 @@ namespace MinorShift.Emuera.GameView
             else if (!char.IsControl(ch))
             {
                 _buf.Append(ch);
-                WriteOutput(ch.ToString(), false);
+                Echo(ch.ToString());
             }
         }
 
@@ -408,12 +405,13 @@ namespace MinorShift.Emuera.GameView
         /// <summary>擦除终端上当前输入行的显示内容（不含缓冲区清除）。</summary>
         private void EraseInputLine()
         {
-            WriteOutput("\r" + new string(' ', _buf.Length) + "\r", false);
+            Echo("\r" + new string(' ', _buf.Length) + "\r");
         }
 
-        private static void WriteOutput(string text, bool newLine = true)
+        /// <summary>输入回显：优先经 VT 备用屏（与光标/滚动状态一致），屏幕不可用时降级直写 Console。</summary>
+        private void Echo(string text)
         {
-            if (newLine) Console.WriteLine(text);
+            if (_screen != null) _screen.WriteRaw(text);
             else Console.Write(text);
         }
 

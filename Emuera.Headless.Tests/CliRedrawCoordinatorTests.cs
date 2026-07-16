@@ -15,7 +15,7 @@ namespace Emuera.Headless.Tests;
 ///   - statusbar.Render 每轮都调用
 ///   - countdown.Reset 仅 FullRefresh 调用
 ///   - buttons.SyncButtonState + RefreshButtonRegionsFromSnapshot 每轮都调用，force 随 kind
-///   - ScrollController.ScrollChanged 自订阅 → 触发 FullRefresh + force=true
+///   - ScrollController.ScrollChanged 置位 pending，PumpPendingScrollRedraw 帧末单次 FullRefresh + force=true
 ///   - statusbar 为 null 时安全跳过（?. 守卫）
 /// 不依赖真实 VT 屏幕 / EmueraConsole。
 /// </summary>
@@ -27,6 +27,7 @@ public class CliRedrawCoordinatorTests
         public int FullRefreshCalls;
         public string? LastReason;
         public int FlushCalls;
+        public bool FlushResult = true;
         public FakeRenderer(Action<string> log) => _log = log;
         public void FullRefresh(string reason = "?")
         {
@@ -34,10 +35,11 @@ public class CliRedrawCoordinatorTests
             LastReason = reason;
             _log("renderer.FullRefresh");
         }
-        public void FlushBuffer()
+        public bool FlushBuffer()
         {
             FlushCalls++;
             _log("renderer.FlushBuffer");
+            return FlushResult;
         }
     }
 
@@ -171,6 +173,22 @@ public class CliRedrawCoordinatorTests
     }
 
     [Fact]
+    public void Flush_noop_frame_skips_chrome_sync()
+    {
+        var h = new Harness();
+        h.Renderer.FlushResult = false;
+
+        h.Coordinator.Redraw(RedrawKind.Flush, force: false);
+
+        Assert.Equal(1, h.Renderer.FlushCalls);
+        // no-op 帧不触达任何 chrome 协作者
+        Assert.Equal(0, h.StatusBar.RenderCalls);
+        Assert.Equal(0, h.Countdown.ResetCalls);
+        Assert.Equal(0, h.Buttons.SyncCalls);
+        Assert.Equal(0, h.Buttons.RefreshCalls);
+    }
+
+    [Fact]
     public void ChromeOnly_renders_no_content_and_does_not_reset_countdown()
     {
         var h = new Harness();
@@ -186,18 +204,52 @@ public class CliRedrawCoordinatorTests
     }
 
     [Fact]
-    public void ScrollChanged_event_triggers_FullRefresh_with_force_true()
+    public void ScrollChanged_event_defers_FullRefresh_to_Pump()
     {
         var h = new Harness();
 
-        // offset 变化 raise ScrollChanged → 协调器自订阅触发 Redraw(FullRefresh, true)
+        // offset 变化 raise ScrollChanged → 仅置位 pending 标志，不立即重绘
         h.Scroll.ScrollBy(1, lineCount: 10);
 
         Assert.Equal(1, h.Scroll.ScrollOffset);
+        Assert.Equal(0, h.Renderer.FullRefreshCalls);
+
+        // 帧末 Pump 一次性整屏重绘（force=true + 重置倒计时 + 同步按钮）
+        h.Coordinator.PumpPendingScrollRedraw();
+
         Assert.Equal(1, h.Renderer.FullRefreshCalls);
+        Assert.Equal("scroll", h.Renderer.LastReason);
         Assert.Equal(1, h.Countdown.ResetCalls);
         Assert.Equal(1, h.Buttons.RefreshCalls);
         Assert.True(h.Buttons.LastForce);
+    }
+
+    [Fact]
+    public void Multiple_scroll_events_in_one_frame_trigger_single_FullRefresh()
+    {
+        var h = new Harness();
+
+        // 一帧内多次滚轮/PageUp：每档都 raise ScrollChanged，但只置位一次 pending
+        h.Scroll.ScrollBy(1, lineCount: 10);
+        h.Scroll.ScrollBy(1, lineCount: 10);
+        h.Scroll.ScrollBy(1, lineCount: 10);
+
+        // 帧末 Pump 仅一次整屏重绘（替代原先三次 FullRefresh）
+        h.Coordinator.PumpPendingScrollRedraw();
+
+        Assert.Equal(3, h.Scroll.ScrollOffset);
+        Assert.Equal(1, h.Renderer.FullRefreshCalls);
+    }
+
+    [Fact]
+    public void Pump_without_pending_does_nothing()
+    {
+        var h = new Harness();
+
+        bool acted = h.Coordinator.PumpPendingScrollRedraw();
+
+        Assert.False(acted);
+        Assert.Equal(0, h.Renderer.FullRefreshCalls);
     }
 
     [Fact]

@@ -11,7 +11,8 @@ namespace MinorShift.Emuera.GameView;
 internal interface IRedrawRenderer
 {
     void FullRefresh(string reason = "?");
-    void FlushBuffer();
+    /// <summary>帧级刷新。返回 true 表示内容确有变更并重绘；false 表示无变化（no-op 帧），调用方可跳过 chrome 同步。</summary>
+    bool FlushBuffer();
 }
 
 internal interface ICountdownRenderer

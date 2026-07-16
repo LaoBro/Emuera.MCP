@@ -78,6 +78,8 @@ namespace MinorShift.Emuera.GameView
             _buf.Append("\x1b[K");
         }
 
+        public void WriteRaw(string text) => _buf.Append(text);
+
         public int WindowWidth => _windowWidth;
         public int WindowHeight => _windowHeight;
         public int GetCurrentRow() => _currentRow;

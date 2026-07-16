@@ -33,6 +33,8 @@ namespace MinorShift.Emuera.GameView
         private DisplayLine? _lastRenderedLastLine;
         private string? _currentBgHex;
 
+        private static readonly Dictionary<string, (int, int, int)> _bgRgbCache = new(StringComparer.Ordinal);
+
         /// <summary>
         /// 最近一次 FullRefresh 绘制的可见内容行数（不含状态栏行）。
         /// CountdownRenderer 经此推算倒计时行位置（drawnRows - 1），
@@ -67,11 +69,14 @@ namespace MinorShift.Emuera.GameView
         }
 
         /// <summary>FlushBuffer：帧级刷新快照 + 渲染 delta（Phase 4-2 帧级 TryUpdate）。
-        /// Phase 5-3：TryUpdate 已消费式清空 _pendingOps，无需再显式 drain。</summary>
-        public void FlushBuffer()
+        /// Phase 5-3：TryUpdate 已消费式清空 _pendingOps，无需再显式 drain。
+        /// 返回 true 表示快照确有变更并重绘（False = no-op 帧，无重绘）。</summary>
+        public bool FlushBuffer()
         {
-            _displayState.TryUpdate();
+            bool changed = _displayState.TryUpdate();
+            if (!changed) return false;
             FlushBuffer(_displayState.Current);
+            return true;
         }
 
         /// <summary>plan C 支线(2)：CLEARLINE 分类结果（Clear 空屏由 FlushBuffer 的 lines.Count==0 分支处理）。</summary>
@@ -303,11 +308,16 @@ namespace MinorShift.Emuera.GameView
         private static void WriteBgEscape(string? hexColor)
         {
             if (hexColor == null) return;
-            string hex = hexColor.TrimStart('#');
-            int r = Convert.ToInt32(hex.Substring(0, 2), 16);
-            int g = Convert.ToInt32(hex.Substring(2, 2), 16);
-            int b = Convert.ToInt32(hex.Substring(4, 2), 16);
-            Console.Write($"\x1b[48;2;{r};{g};{b}m");
+            if (!_bgRgbCache.TryGetValue(hexColor, out var rgb))
+            {
+                string hex = hexColor.TrimStart('#');
+                rgb = (
+                    Convert.ToInt32(hex.Substring(0, 2), 16),
+                    Convert.ToInt32(hex.Substring(2, 2), 16),
+                    Convert.ToInt32(hex.Substring(4, 2), 16));
+                _bgRgbCache[hexColor] = rgb;
+            }
+            Console.Write($"\x1b[48;2;{rgb.Item1};{rgb.Item2};{rgb.Item3}m");
         }
 
         // Phase 4-1（R3）：参数类型从 ConsoleDisplayLine 改为 DisplayLine

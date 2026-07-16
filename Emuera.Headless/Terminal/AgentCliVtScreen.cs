@@ -18,6 +18,8 @@ namespace MinorShift.Emuera.GameView
         void ClearLineToEnd();
         void WriteAt(int row, int col, string text);
         void WriteLineAt(int row, string text);
+        /// <summary>在当前光标位置原样写入文本（不清行尾）。输入回显走此路径，与备用屏光标状态一致。</summary>
+        void WriteRaw(string text);
         int WindowWidth { get; }
         int WindowHeight { get; }
         int GetCurrentRow();
@@ -88,6 +90,9 @@ namespace MinorShift.Emuera.GameView
             TerminalCursor.TryWrite(text);
             TerminalCursor.TryWrite("\x1b[K");
         }
+
+        /// <summary>在当前光标位置原样写入文本（不清行尾）。</summary>
+        public void WriteRaw(string text) => TerminalCursor.TryWrite(text);
 
         /// <summary>终端可见列数。</summary>
         public int WindowWidth => TerminalCursor.TryGetWindowWidth();

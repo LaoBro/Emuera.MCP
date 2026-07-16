@@ -114,7 +114,8 @@ internal sealed class CliGameLoop
             }
         }
 
-        _redraw.Redraw(RedrawKind.Flush, false);
+        if (!_redraw.PumpPendingScrollRedraw())
+            _redraw.Redraw(RedrawKind.Flush, false);
 
         return _execState.IsGameExited ? RunState.GameExited : RunState.Running;
     }

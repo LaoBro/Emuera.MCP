@@ -51,8 +51,9 @@ public class CliGameLoopTests
         public int FullRefreshCalls;
         public string? LastReason;
         public int FlushBufferCalls;
+        public bool FlushResult = true;
         public void FullRefresh(string reason = "?") { FullRefreshCalls++; LastReason = reason; }
-        public void FlushBuffer() => FlushBufferCalls++;
+        public bool FlushBuffer() { FlushBufferCalls++; return FlushResult; }
     }
 
     private sealed class FakeCountdownRenderer : ICountdownRenderer
