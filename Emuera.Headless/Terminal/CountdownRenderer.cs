@@ -78,6 +78,10 @@ namespace MinorShift.Emuera.GameView
             _lastCountdownWidth = Math.Max(newWidth, _lastCountdownWidth);
         }
 
+        void ICountdownRenderer.Update(long elapsedMs) => Update(elapsedMs);
+
+        void ICountdownRenderer.Overwrite(string newText) => Overwrite(newText);
+
         /// <summary>重置倒计时行状态。</summary>
         public void Reset()
         {

@@ -45,7 +45,11 @@ public class CliRedrawCoordinatorTests
     {
         private readonly Action<string> _log;
         public int ResetCalls;
+        public int UpdateCalls;
+        public int OverwriteCalls;
         public FakeCountdown(Action<string> log) => _log = log;
+        public void Update(long elapsedMs) { UpdateCalls++; _log("countdown.Update"); }
+        public void Overwrite(string text) { OverwriteCalls++; _log("countdown.Overwrite"); }
         public void Reset()
         {
             ResetCalls++;

@@ -16,6 +16,8 @@ internal interface IRedrawRenderer
 
 internal interface ICountdownRenderer
 {
+    void Update(long elapsedMs);
+    void Overwrite(string newText);
     void Reset();
 }
 

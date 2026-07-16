@@ -30,7 +30,7 @@ namespace MinorShift.Emuera.GameView
     /// ADR-0009：scroll 算术已移至 ScrollController，本类只保留 VT I/O 职责。
     /// Phase 3-0：实现 IAgentCliVtScreen 接口，允许 BufferedVtScreen 替换注入。
     /// </summary>
-    internal sealed class AgentCliVtScreen : IAgentCliVtScreen
+    internal sealed class AgentCliVtScreen : IAgentCliVtScreen, IWindowSize
     {
         private bool _inAltScreen;
         private bool _disposed;

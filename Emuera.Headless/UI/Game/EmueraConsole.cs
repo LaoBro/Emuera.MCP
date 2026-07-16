@@ -397,6 +397,9 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView
         return v;
     }
 
+    public bool IsGameExited => State is ConsoleState.Quit or ConsoleState.Error;
+
+    public int DisplayLineCount => DisplayLineList.Count;
 
     // ========================================
     // Pending ops management

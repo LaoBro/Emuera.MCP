@@ -7,11 +7,8 @@ namespace MinorShift.Emuera.GameView
     /// </summary>
     internal interface IConsoleStateView
     {
-        /// <summary>
-        /// 消费"需要全量刷新"标记。返回 true 表示需要刷新，并自动清零标记。
-        /// </summary>
         bool ConsumeNeedFullRefresh();
-
-
+        bool IsGameExited { get; }
+        int DisplayLineCount { get; }
     }
 }

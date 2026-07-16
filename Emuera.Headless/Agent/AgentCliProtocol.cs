@@ -19,7 +19,7 @@ namespace MinorShift.Emuera.GameView
         PageDown,
     }
 
-    internal sealed class AgentCliProtocol : AgentProtocolBase, IVtHost
+    internal sealed class AgentCliProtocol : AgentProtocolBase, IVtHost, IInputTimer
     {
         private readonly StringBuilder _buf = new();
 
@@ -34,10 +34,6 @@ namespace MinorShift.Emuera.GameView
         // ADR-0009：scroll 状态由 ScrollController 持有（纯逻辑，构造时占位，RunVtLoop 内 UpdateVisibleLines）。
         private readonly ScrollController _scroll;
 
-        // resize 检测
-        private int _lastWindowWidth = -1;
-        private int _lastWindowHeight = -1;
-
         private readonly ButtonSelectionMode _buttons;
         private readonly CountdownRenderer _countdown;
         private readonly TerminalRenderer _renderer;
@@ -48,9 +44,7 @@ namespace MinorShift.Emuera.GameView
         // ADR-0006：Scroll Status Bar 渲染器，独立于 TerminalRenderer。
         private ScrollStatusBarRenderer? _scrollStatusBar;
 
-        // ADR-0007：CLI 模式 TINPUT 挂钟计时。记录进入 WaitInput 状态的时刻。
-        // null 表示不在 WaitInput 或计时已失效。genericTimer stopwatch 在 CLI 不启动，改用此字段。
-        private DateTime? _waitInputEnteredAt;
+        private CliGameLoop _gameLoop = null!;
 
         /// <summary>是否在 primitive 输入等待状态。ADR-0009：通过 IVtHost 暴露给 VtInputHandler 门卫。</summary>
         bool IVtHost.IsWaitingPrimitive => console.IsWaitingPrimitive;
@@ -93,6 +87,21 @@ namespace MinorShift.Emuera.GameView
             _countdown = new CountdownRenderer(console, () => _scroll.ScrollOffset, () => _screen, () => _renderer.LastDrawnRows);
             _redraw = new CliRedrawCoordinator(_renderer, _scroll, () => _scrollStatusBar, _countdown, _buttons, () => _vtInput);
             _renderer.OnScrollAutoFollow = () => _redraw.Redraw(RedrawKind.ChromeOnly, true);
+        }
+
+        private void CreateGameLoop()
+        {
+            _gameLoop = new CliGameLoop(
+                console,
+                this,
+                _screen!,
+                _scroll,
+                _scrollStatusBar,
+                _redraw,
+                _vtInput!,
+                _countdown,
+                _screen!.WindowWidth,
+                _screen!.WindowHeight);
         }
 
         internal override Task<string?> GetInitialTurnAsync() => Task.FromResult<string?>(null);
@@ -155,126 +164,20 @@ namespace MinorShift.Emuera.GameView
             _vtInput = new VtInputHandler(this, _terminalInput);
             _screen = new AgentCliVtScreen();
             _scrollStatusBar = new ScrollStatusBarRenderer(() => _screen);
-            // ADR-0009：screen 就绪后更新 ScrollController 的视口高度（Scroll Mode = WindowHeight - 2）。
             _scroll.UpdateVisibleLines(Math.Max(1, _screen.WindowHeight - 2));
             RegisterVtCleanupHooks();
+            CreateGameLoop();
 
             try
             {
-                // 进入备用屏 → 启用 SGR mouse
                 _screen.EnterAlternateScreen();
                 _vtInput.EnableSgrMouse();
-
-                // resize 检测基线
-                _lastWindowWidth = _screen.WindowWidth;
-                _lastWindowHeight = _screen.WindowHeight;
-
-                var token = StopToken;
-                // 游戏进入 Quit/Error 后立即退出循环，避免 CLI 空转等待永远不会到来的输入。
-                while (!token.IsCancellationRequested && !IsGameExited())
-                {
-                    if (console.ConsumeNeedFullRefresh())
-                    {
-                        ResetScrollIfActive();
-                        _waitInputEnteredAt = null;
-                        _redraw.Redraw(RedrawKind.FullRefresh, true);
-                        continue;
-                    }
-
-                    // ADR-0007：维护 WaitInputEnteredAt 生命周期。
-                    // InputTimeoutMs == null 表示不在 WaitInput 或无超时设置 → 清空。
-                    // 进入 WaitInput 且有超时但未记录 → 记录当前时刻。
-                    var timeoutMs = console.InputTimeoutMs;
-                    if (!timeoutMs.HasValue)
-                    {
-                        _waitInputEnteredAt = null;
-                    }
-                    else if (!_waitInputEnteredAt.HasValue && console.InputTimelimit > 0)
-                    {
-                        _waitInputEnteredAt = DateTime.UtcNow;
-                    }
-
-                    // ADR-0007：超时检查必须在输入处理之前，确保 poll 每轮都检查挂钟 elapsed，
-                    // 不会被连续的输入读取饿死。
-                    if (HandleTimeout())
-                        continue;
-
-                    // VT 输入轮询：有真实字节时连续读取并 Feed；无字节时更新 countdown 并短暂等待。
-                    // ADR-0007：WindowsTerminalInput 用后台线程读 stdin 入队，HasInputAvailable
-                    // 检查队列而非 WaitForSingleObject，避免 phantom 事件误报导致 ReadFile 阻塞。
-                    if (_vtInput.HasInputAvailable())
-                    {
-                        int b = _vtInput.ReadByte();
-                        if (b >= 0)
-                        {
-                            _vtInput.Feed((byte)b);
-                        }
-                    }
-                    else
-                    {
-                        // ADR-0007：传入挂钟 elapsed 给 CountdownRenderer，绕过 stopwatch。
-                        long elapsedMs = _waitInputEnteredAt.HasValue
-                            ? (long)(DateTime.UtcNow - _waitInputEnteredAt.Value).TotalMilliseconds
-                            : 0;
-                        _countdown.Update(elapsedMs);
-                        token.WaitHandle.WaitOne(PollIntervalMs);
-                    }
-
-                    // 末尾刷新：resize 检测 + FlushBuffer + SyncButtonState + RefreshButtonRegions
-                    if (CheckResize())
-                    {
-                        // ADR-0006 Issue 004 + ADR-0009：resize 后更新 ScrollController 视口高度 + 钳位 offset。
-                        // Clamp 若改变 offset 会 raise ScrollChanged → OnScrollChanged 做 4 步渲染。
-                        // offset 不变时（Clamp no-op）不 raise，此处仍需 FullRefresh + statusbar + buttons（WindowHeight 变了）。
-                        _scroll.UpdateVisibleLines(Math.Max(1, _screen!.WindowHeight - 2));
-                        int oldOffset = _scroll.ScrollOffset;
-                        _scroll.Clamp(console.DisplayLineList.Count);
-                        // ADR-0007：auto-follow 路径触发后清空计时上下文。
-                        _waitInputEnteredAt = null;
-                        if (oldOffset == _scroll.ScrollOffset)
-                        {
-                            _redraw.Redraw(RedrawKind.FullRefresh, true);
-                        }
-                    }
-
-                    _redraw.Redraw(RedrawKind.Flush, false);
-                }
+                _gameLoop.RunLoop(StopToken);
             }
             finally
             {
-                // 严格顺序：禁用 SGR mouse → 恢复 input mode → 退出备用屏
-                // VtInput.Dispose 负责前两步，VtScreen.Dispose 负责第三步
                 CleanupVt();
             }
-        }
-
-        /// <summary>游戏是否已进入终止状态（Quit/Error），用于主循环退出判定。</summary>
-        private bool IsGameExited() =>
-            console.State is ConsoleState.Quit or ConsoleState.Error;
-
-        /// <summary>
-        /// 超时处理（TINPUT）。返回 true 表示已处理（调用方 continue），false 表示未超时。
-        /// ADR-0005：VT-only 后 _vtInput 必非 null，移除原可空参数。
-        /// ADR-0006：SubmitTimeout 产生新输出后走 FlushBuffer 新行路径，auto-follow 归零 offset
-        /// （由 TerminalRenderer.FlushBuffer 内部处理，此处无需显式 reset）。
-        /// </summary>
-        private bool HandleTimeout()
-        {
-            // ADR-0007：CLI 模式用挂钟计时，绕过失效的 genericTimer stopwatch。
-            if (!_waitInputEnteredAt.HasValue) return false;
-            long timelimit = console.InputTimelimit;
-            if (timelimit <= 0) return false;
-            var elapsed = (long)(DateTime.UtcNow - _waitInputEnteredAt.Value).TotalMilliseconds;
-            if (elapsed < timelimit) return false;
-
-            _countdown.Overwrite(console.TimeUpMessage ?? "");
-            _countdown.Reset();
-            ClearInputBuffer();
-            console.SubmitTimeout();
-            // SubmitTimeout 推进脚本后立即清空计时上下文，避免残留触发下一轮
-            _waitInputEnteredAt = null;
-            _redraw.Redraw(RedrawKind.Flush, false);
-            return true;
         }
 
         #endregion
@@ -324,19 +227,6 @@ namespace MinorShift.Emuera.GameView
             }
         }
 
-        /// <summary>ConsumeNeedFullRefresh 路径调用：若 offset>0 则清旧状态栏 + 归零。
-        /// ClearStatusBar 必须在 Reset 之前调用——此时屏幕仍是 offset>0 旧布局，
-        /// row consoleHeight-2 是旧状态栏行；归零后的 FullRefresh 会重绘 offset=0 布局。
-        /// ADR-0009：Reset() 静默不 raise 事件（系统归零由调用方编排渲染）。</summary>
-        private void ResetScrollIfActive()
-        {
-            if (_scroll.ScrollOffset > 0)
-            {
-                _scrollStatusBar?.ClearStatusBar();
-                _scroll.Reset();
-            }
-        }
-
         #endregion
 
         #region VT lifecycle helpers
@@ -346,17 +236,6 @@ namespace MinorShift.Emuera.GameView
 
         /// <summary>VT 解析器输出的 ConsoleKeyInfo 入口，复用现有 ProcessKey 分支。</summary>
         void IVtHost.ProcessKeyFromVt(ConsoleKeyInfo key) => ProcessKey(key);
-
-        /// <summary>检测终端尺寸变化，返回 true 时调用方触发 FullRefresh。ADR-0005 Issue 4：_screen 在 VT 主循环内必非 null。</summary>
-        private bool CheckResize()
-        {
-            int w = _screen!.WindowWidth;
-            int h = _screen!.WindowHeight;
-            if (w == _lastWindowWidth && h == _lastWindowHeight) return false;
-            _lastWindowWidth = w;
-            _lastWindowHeight = h;
-            return true;
-        }
 
         /// <summary>注册异常退出钩子，确保终端恢复。多钩子保障，cleanup 幂等。</summary>
         private void RegisterVtCleanupHooks()
@@ -411,6 +290,16 @@ namespace MinorShift.Emuera.GameView
             _screen = null;
             _scrollStatusBar = null;
         }
+
+        #endregion
+
+        #region IInputTimer
+
+        bool IInputTimer.IsWaitingInput => console.State == ConsoleState.WaitInput;
+        long IInputTimer.InputTimelimit => console.InputTimelimit;
+        string? IInputTimer.TimeUpMessage => console.TimeUpMessage;
+        void IInputTimer.SubmitTimeout() => console.SubmitTimeout();
+        void IInputTimer.ClearInputBuffer() => ClearInputBuffer();
 
         #endregion
 
