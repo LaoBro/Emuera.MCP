@@ -32,11 +32,5 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  function reset(): void {
-    lastTurnJson.value = null;
-    turnHistory.value = [];
-    lastError.value = null;
-  }
-
-  return { lastTurnJson, turnHistory, lastError, applyTurn, reset };
+  return { lastTurnJson, turnHistory, lastError, applyTurn };
 });

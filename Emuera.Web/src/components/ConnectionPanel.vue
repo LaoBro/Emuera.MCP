@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useConnectionStore } from '../stores/connection';
+import { useConnectionStore, type ConnectionStatus } from '../stores/connection';
 
 const conn = useConnectionStore();
 const urlInput = ref<string>(conn.serverUrl);
@@ -13,11 +13,13 @@ function onDisconnect(): void {
   conn.disconnect();
 }
 
-const statusText: Record<string, string> = {
+// v1 不做自动重连（issue 06 引入指数退避）。'reconnecting' 仅标记"曾异常断开"，
+// 文案诚实显示"已断开（异常）"，避免误导用户以为正在重连。
+const statusText: Record<ConnectionStatus, string> = {
   disconnected: '已断开',
   connecting: '连接中…',
   connected: '已连接',
-  reconnecting: '重连中…',
+  reconnecting: '已断开（异常）',
 };
 </script>
 

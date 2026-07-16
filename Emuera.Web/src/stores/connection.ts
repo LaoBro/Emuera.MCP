@@ -12,7 +12,8 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 're
  * - 客户端发送：`{"type":"input","value":"..."}` 文本帧
  *   （C# HandleWsInput 直接入队，AgentJsonlProtocol 校验 type=="input"）
  *
- * 重连策略：v1 仅做单次尝试 + 状态切换，issue 06 会引入指数退避自动重连。
+ * 重连策略：v1 不做自动重连。`'reconnecting'` 状态在 v1 仅作为"曾异常断开"标记
+ * （与用户主动 `disconnect()` 的 `'disconnected'` 区分），issue 06 起接入指数退避重连。
  */
 export const useConnectionStore = defineStore('connection', () => {
   /** 当前连接状态。 */
@@ -74,7 +75,9 @@ export const useConnectionStore = defineStore('connection', () => {
       status.value = 'disconnected';
       ws = null;
       closeReason.value = event.reason || `code=${event.code}`;
-      // v1 不做自动重连；issue 06 引入指数退避。这里仅在曾经连上过的情况下标记 reconnecting。
+      // v1 不做自动重连。异常断开（非 1000 关闭码）时标记为 'reconnecting' 以与
+      // 主动 disconnect 的 'disconnected' 区分，给 UI 显示"已断开（异常）"诊断信号。
+      // issue 06 接入真正的指数退避重连后会在此触发 connect()。
       if (wasConnected && event.code !== 1000) {
         status.value = 'reconnecting';
       }

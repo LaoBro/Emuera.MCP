@@ -8,16 +8,13 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // spec.md user story 1+2：WS 旁路端点，开发期由 Vite 代理到 C# Kestrel。
       '/ws': {
         target: 'ws://localhost:8080',
         ws: true,
         changeOrigin: true,
       },
-      // 调试用：HTTP 端点（/snapshot、/session 等）也走代理，避免 CORS
-      '/session': 'http://localhost:8080',
-      '/turn': 'http://localhost:8080',
-      '/input': 'http://localhost:8080',
-      '/state': 'http://localhost:8080',
+      // spec.md user story 6：晚加入者先调 GET /snapshot 拿初始全屏状态。
       '/snapshot': 'http://localhost:8080',
     },
   },

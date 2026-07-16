@@ -13,10 +13,6 @@ function onSend(): void {
   conn.sendInput(v);
   // 不清空输入框，方便反复发送同一输入调试
 }
-
-function onSendKey(key: string): void {
-  conn.sendInput(key);
-}
 </script>
 
 <template>
@@ -45,17 +41,6 @@ function onSendKey(key: string): void {
             @click="onSend"
           >
             发送
-          </button>
-        </div>
-        <div class="quick-keys">
-          <button
-            v-for="k in ['0', '1', '2', '3', '100']"
-            :key="k"
-            class="quick-key"
-            :disabled="conn.status !== 'connected'"
-            @click="onSendKey(k)"
-          >
-            {{ k }}
           </button>
         </div>
         <p class="hint">帧格式：<code>{"type":"input","value":"..."}</code></p>
@@ -168,26 +153,6 @@ h3 {
 }
 .send-btn:disabled {
   background: #444;
-  cursor: not-allowed;
-}
-.quick-keys {
-  display: flex;
-  gap: 4px;
-  padding: 0 12px 8px;
-  flex-wrap: wrap;
-}
-.quick-key {
-  background: #333;
-  color: #ccc;
-  border: 1px solid #444;
-  padding: 2px 10px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
-}
-.quick-key:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
 }
 .hint {
