@@ -1,8 +1,12 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 // Vite 配置：dev server 监听 5173，/ws 代理到 C# Kestrel server (localhost:8080)，
 // 避免开发时浏览器跨域。生产构建产物 dist/ 由 C# csproj pre-build target 复制到 wwwroot/。
+//
+// Vitest 配置合并到同一文件（spec.md：「vitest.config.ts（可合并到 vite.config.ts）」）。
+// test.environment='node' 因被测对象是协议层纯函数，无 DOM 依赖。
 export default defineConfig({
   plugins: [vue()],
   server: {
@@ -17,5 +21,9 @@ export default defineConfig({
       // spec.md user story 6：晚加入者先调 GET /snapshot 拿初始全屏状态。
       '/snapshot': 'http://localhost:8080',
     },
+  },
+  test: {
+    environment: 'node',
+    include: ['src/**/__tests__/**/*.test.ts'],
   },
 });
