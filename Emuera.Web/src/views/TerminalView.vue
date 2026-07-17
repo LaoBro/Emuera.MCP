@@ -2,6 +2,7 @@
 import { useConnectionStore } from '../stores/connection';
 import { useGameStore } from '../stores/game';
 import TerminalDisplay from '../components/TerminalDisplay.vue';
+import InputBar from '../components/InputBar.vue';
 
 const conn = useConnectionStore();
 const game = useGameStore();
@@ -10,6 +11,7 @@ const game = useGameStore();
 <template>
   <section class="terminal-view">
     <TerminalDisplay />
+    <InputBar />
     <div v-if="game.lastError" class="terminal-status-bar error">
       <span>解析错误：{{ game.lastError }}</span>
     </div>

@@ -124,7 +124,10 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
   white-space: pre-wrap;
   word-break: break-word;
   overflow: auto;
-  height: 100%;
+  /* flex: 1 + min-height: 0：在 TerminalView 的 flex column 中占据剩余空间，
+     同时允许内部滚动（issue 04 起下方有 InputBar，需要让出空间）。 */
+  flex: 1;
+  min-height: 0;
   width: 100%;
   padding: 8px 12px;
   box-sizing: border-box;

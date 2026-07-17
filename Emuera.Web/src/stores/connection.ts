@@ -274,11 +274,16 @@ export const useConnectionStore = defineStore('connection', () => {
    *
    * 帧格式与 C# HTTP /input 端点对称：`{"type":"input","value":"..."}`，
    * 由 HandleWsInput 直接 EnqueueInput 给 HttpSessionIO，再被 AgentJsonlProtocol 消费。
+   *
+   * Issue 04：调 `game.markUserInput()` 标记用户已提交——game store 据此区分
+   * TINPUT 超时（server 主动推进）vs 用户主动输入（用户触发推进），避免误报
+   * timeoutNotice。同时清空 timeoutNotice，让"已超时"提示在用户输入瞬间消失。
    */
   function sendInput(value: string): void {
     if (!ws || status.value !== 'connected') return;
     const payload = JSON.stringify({ type: 'input', value });
     ws.send(payload);
+    game.markUserInput();
   }
 
   return {
