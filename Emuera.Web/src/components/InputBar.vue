@@ -208,9 +208,8 @@ const submitLabel = computed<string>(() => {
   const t = game.displayState.inputType;
   if (t === 'IntValue' || t === 'StrValue') return '提交';
   if (t === 'AnyValue') return '提交（可空）';
-  if (t === 'AnyKey') return '继续';
-  if (t === 'EnterKey') return '继续';
-  return '提交';
+  // AnyKey / EnterKey 都用"继续"
+  return '继续';
 });
 
 /** 当前 inputType 中文显示——用于状态栏提示。 */
@@ -244,7 +243,7 @@ const inputTypeLabel = computed<string>(() => {
           ref="inputEl"
           v-model="inputValue"
           class="text-input"
-          :type="game.displayState.inputType === 'IntValue' ? 'text' : 'text'"
+          type="text"
           :inputmode="inputMode"
           :placeholder="inputPlaceholder"
           :disabled="!canSubmit"
