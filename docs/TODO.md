@@ -38,17 +38,33 @@
   - `SKIPDISP 1` 期间终端不输出。
   - `SKIPDISP 0` 恢复后终端显示与 `displayLineList` 一致。
 
-### T-004：server timer 数据契约暂缓
+### T-004a：server TINPUT timer metadata（ADR-0016）
+
+- 状态：已落地（[ADR-0016](./adr/0016-tinput-timer-metadata-v6.md)，2026-07-18 落地，T-004a 范围）
+- 范围：`TurnRecord`、`DisplaySnapshot`、`AgentJsonlProtocol.BuildTurn`、`DisplayState.BuildSnapshot`、`SubmitTimeoutAsync`（`_pendingTimeoutFlag`）
+- 说明：`InputRequest` 早已持有 `Timelimit` / `DisplayTime` / `TimeUpMes`，`ConsoleTimerManager` 已算好剩余时间，但 `TurnRecord` / `DisplaySnapshot` 不携带，导致 issue 04 前端 TINPUT 实时倒计时只能降级为启发式检测。本项把 timer 数据以结构化字段暴露给前端。
+- 设计（ADR-0016）：
+  - `TurnRecord` 新增 `timeLimit?: long`(ms) / `displayTime?: bool` / `timeUpMessage?: string` / `timedOut: bool`（默认 false）
+  - `DisplaySnapshot` 新增 `timeLimit?` / `displayTime?` / `timeUpMessage?`（无 `timedOut`）
+  - `protocolVersion` bump v5 → v6
+  - 前端移除 `userInputSinceLastTurn` 启发式 + `markUserInput`，`timeoutNotice` 改为 `turn.timedOut` 派生
+  - 前端倒计时静态 + 本地钟表（server 不周期 push tick）
+- 验收（落地后）：
+  - WaitInput turn 携带 `timeLimit > 0` + `displayTime == true`
+  - 超时后下一帧携带 `timedOut == true` + `timeUpMessage`
+  - `InputBar.vue` 显示 `<progress>` 实时倒计时
+  - 前端测试覆盖 `parseTurnRecord` 4 字段 + `game` `timedOut` 派生；C# 补 `AgentJsonlProtocolTests` / `DisplayStateTests`
+
+### T-004b：server 动画 timer + 事件驱动 HTTP（继续暂缓）
 
 - 状态：暂缓，不纳入本次实现
-- 范围：`HttpGameServer`、`Session`、`AgentJsonlProtocol`
-- 说明：server 模式未来需要为前端提供足够数据，以便前端实现接近 WinForms 窗口的功能，例如倒计时刷新、动画帧、按钮状态等；本次只聚焦 CLI 文字 timer 与 JSONL 阻塞策略。
+- 范围：`SETANIMETIMER` / `SpriteAnime` 前端同步；`HttpGameServer` / `Session` 层事件驱动化（周期 push / 动画 tick）
+- 说明：T-004 原暂缓项的剩余子项（(b) 动画帧数据 + (c) 事件驱动 HTTP）。依赖 sprite 加载（ADR-0013 决策五排除，未来 sprite 加载落地后扩展）与 server worker thread 边界重构。
 - 当前不实现：
   - server 端图形动画 timer 数据。
   - `SETANIMETIMER` / `SpriteAnime` 前端同步。
   - server HTTP 层进一步事件驱动化。
 - 后续再议：
-  - 定义 turn 中 timer metadata。
   - 定义前端刷新间隔或动画帧数据。
   - 保持 server worker thread 与游戏步进边界清晰。
 

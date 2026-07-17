@@ -4,7 +4,7 @@ import { useGameStore } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
 
 /**
- * InputBar.vue — 输入栏 + 游戏状态显示（issue 04）。
+ * InputBar.vue — 输入栏 + 游戏状态显示 + TINPUT 倒计时（issue 04 / ADR-0016）。
  *
  * 职责：
  * 1. 根据 `snapshot.inputType` 分支渲染 5 种输入 UI：
@@ -18,12 +18,11 @@ import { useConnectionStore } from '../stores/connection';
  *    - `Running`：显示"游戏运行中..."
  *    - `Quit`：显示"游戏结束"
  *    - `Error`：显示错误提示（`lastTurn.error` 优先于 `lastError`）
- * 3. TINPUT 超时通知：`game.timeoutNotice` 非空时在输入栏上方显示提示
- * 4. 输入框聚焦：`WaitInput` 状态时自动聚焦输入框
- *
- * **TINPUT 实时倒计时未实现**：C# v5 协议不携带 timelimit/timeUpMessage 字段
- * （T-004 暂缓 server timer 数据契约），故只能检测超时已发生并显示提示文案，
- * 无法显示剩余毫秒数倒计时。T-004 落地协议扩展后可在此处加 countdown UI。
+ * 3. ADR-0016：TINPUT 超时通知——`game.timeoutNotice` 非空时显示提示文案
+ *    （派生自 `turn.timedOut`，超时发生时显示，下一帧 turn.timedOut=false 时自动清空）
+ * 4. ADR-0016：TINPUT 实时倒计时——`game.showTinputCountdown` 为 true 时显示
+ *    `<progress>` 进度条 + 剩余秒数，由 game store 的本地钟表驱动（setInterval 100ms）
+ * 5. 输入框聚焦：`WaitInput` 状态时自动聚焦输入框
  */
 const game = useGameStore();
 const conn = useConnectionStore();
@@ -225,10 +224,37 @@ const inputTypeLabel = computed<string>(() => {
   };
   return labels[t] ?? t;
 });
+
+// ---------- ADR-0016：TINPUT 倒计时 UI 派生 ----------
+
+/** 倒计时进度条 max 值——总毫秒数。null 时不渲染。 */
+const tinputProgressMax = computed<number | null>(() => game.tinputTimeLimit);
+
+/** 倒计时进度条 value 值——剩余毫秒数。null 时不渲染。 */
+const tinputProgressValue = computed<number | null>(() => game.tinputRemainingMs);
+
+/** 倒计时显示文案——剩余秒数（保留 1 位小数）。null 时不显示。 */
+const tinputCountdownText = computed<string | null>(() => {
+  const remaining = game.tinputRemainingMs;
+  if (remaining === null) return null;
+  const seconds = remaining / 1000;
+  return `${seconds.toFixed(1)}s`;
+});
+
 </script>
 
 <template>
   <div class="input-bar">
+    <!-- ADR-0016：TINPUT 实时倒计时（displayTime=true 时显示） -->
+    <div v-if="game.showTinputCountdown" class="tinput-countdown">
+      <progress
+        class="tinput-progress"
+        :max="tinputProgressMax ?? 1"
+        :value="tinputProgressValue ?? 0"
+      ></progress>
+      <span class="tinput-countdown-text">⏱ {{ tinputCountdownText ?? '' }}</span>
+    </div>
+
     <!-- TINPUT 超时通知 -->
     <div v-if="game.timeoutNotice" class="tinput-notice">
       <span class="tinput-icon">⏱</span>
@@ -341,6 +367,47 @@ const inputTypeLabel = computed<string>(() => {
 }
 .tinput-icon {
   font-size: 14px;
+}
+
+/* ADR-0016：TINPUT 实时倒计时——进度条 + 剩余秒数 */
+.tinput-countdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #1e3a5f;
+  border-radius: 3px;
+  border: 1px solid #2a5a8f;
+  font-size: 12px;
+  color: #9cdcfe;
+}
+.tinput-progress {
+  flex: 1;
+  height: 6px;
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 2px;
+  /* progress 元素原生外观重置 */
+  -webkit-appearance: none;
+  appearance: none;
+}
+.tinput-progress::-webkit-progress-bar {
+  background: #1e1e1e;
+  border-radius: 2px;
+}
+.tinput-progress::-webkit-progress-value {
+  background: #0e639c;
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+.tinput-progress::-moz-progress-bar {
+  background: #0e639c;
+  border-radius: 2px;
+}
+.tinput-countdown-text {
+  font-family: ui-monospace, Consolas, monospace;
+  min-width: 60px;
+  text-align: right;
 }
 
 /* 输入行：input + submit + hint */

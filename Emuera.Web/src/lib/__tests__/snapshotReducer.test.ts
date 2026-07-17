@@ -42,7 +42,7 @@ function snapshot(partial: Partial<DisplaySnapshot> & Pick<DisplaySnapshot, 'sta
     state: partial.state,
     inputType: partial.inputType ?? null,
     needValue: partial.needValue,
-    protocolVersion: partial.protocolVersion ?? 5,
+    protocolVersion: partial.protocolVersion ?? 6,
   };
 }
 

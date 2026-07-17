@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -11,19 +11,25 @@ internal record TurnRecord(
     bool needValue,
     DisplayDiff? diff,
     string? error = null,
-    int? protocolVersion = null
+    int? protocolVersion = null,
+    long? timeLimit = null,
+    bool? displayTime = null,
+    string? timeUpMessage = null,
+    bool timedOut = false
 )
 {
     /// <summary>
-    /// Agent 协议版本的单一来源（ADR-0013 / ADR-0014）。
+    /// Agent 协议版本的单一来源（ADR-0013 / ADR-0014 / ADR-0016）。
     /// TurnRecord（增量 diff 流）与 DisplaySnapshot（全量快照）必须携带同一版本号——
     /// 晚加入者用 snapshot.protocolVersion 校验与 diff 流兼容性。
     /// AgentJsonlProtocol 与 DisplayState 共同引用此常量，避免版本升级时多处不同步。
     /// Phase 5-2：v4 = diff 模式（ops 字段已移除，仅 diff）。
     /// Phase 5-3/plan C：v5 = diff 显式清空信号——TruncateLinesOp/ReplaceAllOp 被
     /// ClearLineDiffOp(截断即清行)/ClearScreenOp(全清) 取代，清空语义自描述（ADR-0014 统一真相源）。
+    /// ADR-0016（v6）：新增 4 个 TINPUT timer 字段——timeLimit / displayTime / timeUpMessage
+    /// （nullable + WhenWritingNull，非 TINPUT 时不出现）+ timedOut（非 nullable bool，默认 false）。
     /// </summary>
-    internal const int CurrentProtocolVersion = 5;
+    internal const int CurrentProtocolVersion = 6;
 }
 
 /// <summary>

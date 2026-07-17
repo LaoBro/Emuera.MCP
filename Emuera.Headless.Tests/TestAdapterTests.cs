@@ -466,4 +466,50 @@ public class TestAdapterTests
         Assert.Equal("keep", adapter.Lines[0].Entries[0].Segments[0].text);
         Assert.Equal("#0000FF", adapter.BgColor);
     }
+
+    // ---------- ADR-0016：timer 字段 ApplySnapshot 保留 ----------
+
+    [Fact]
+    public void T_snapshot_tinput_populates_timer_fields()
+    {
+        // TINPUT 期间：Timelimit>0 + DisplayTime=true + 非空 TimeUpMes → 三字段全填
+        var req = new InputRequest
+        {
+            InputType = InputType.EnterKey,
+            Timelimit = 5000,
+            DisplayTime = true,
+            TimeUpMes = "时间到",
+        };
+        var snapshot = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine>(),
+            EmuColor.Black,
+            ConsoleState.WaitInput,
+            req,
+            "TestFont");
+
+        var adapter = new TestAdapter();
+        adapter.ApplySnapshot(snapshot);
+
+        Assert.Equal(5000L, adapter.TimeLimit);
+        Assert.True(adapter.DisplayTime);
+        Assert.Equal("时间到", adapter.TimeUpMessage);
+    }
+
+    [Fact]
+    public void T_snapshot_non_tinput_leaves_timer_fields_null()
+    {
+        var snapshot = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine>(),
+            EmuColor.Black,
+            ConsoleState.WaitInput,
+            currentRequest: null,
+            "TestFont");
+
+        var adapter = new TestAdapter();
+        adapter.ApplySnapshot(snapshot);
+
+        Assert.Null(adapter.TimeLimit);
+        Assert.Null(adapter.DisplayTime);
+        Assert.Null(adapter.TimeUpMessage);
+    }
 }

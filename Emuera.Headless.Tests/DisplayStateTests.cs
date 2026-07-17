@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -24,7 +24,7 @@ namespace Emuera.Headless.Tests;
 /// </summary>
 public class DisplayStateTests
 {
-    private const int ExpectedProtocolVersion = 5;
+    private const int ExpectedProtocolVersion = 6;
 
     /// <summary>
     /// 通过反射直接设置 ConsoleDisplayLine 的私有 align 字段，绕过 SetAlignment 对 Config.DrawableWidth 的依赖。
@@ -326,12 +326,81 @@ public class DisplayStateTests
     }
 
     [Fact]
-    public void ProtocolVersion_is_five()
+    public void ProtocolVersion_is_six()
     {
         var snapshot = DisplayState.BuildSnapshot(
             new List<ConsoleDisplayLine>(), EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
 
-        Assert.Equal(5, snapshot.protocolVersion);
+        Assert.Equal(6, snapshot.protocolVersion);
+    }
+
+    // ---------- ADR-0016：TINPUT timer 元数据填充 ----------
+
+    [Fact]
+    public void BuildSnapshot_tinput_request_populates_timer_fields()
+    {
+        // Timelimit>0 + DisplayTime=true + 非空 TimeUpMes → 三字段全填
+        var req = new InputRequest
+        {
+            InputType = InputType.EnterKey,
+            Timelimit = 5000,
+            DisplayTime = true,
+            TimeUpMes = "时间到",
+        };
+
+        var snapshot = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine>(), EmuColor.Black, ConsoleState.WaitInput, req, "TestFont");
+
+        Assert.Equal(5000L, snapshot.timeLimit);
+        Assert.True(snapshot.displayTime);
+        Assert.Equal("时间到", snapshot.timeUpMessage);
+    }
+
+    [Fact]
+    public void BuildSnapshot_non_tinput_request_leaves_timer_fields_null()
+    {
+        // currentRequest=null → 三字段均为 null（非 TINPUT 期间）
+        var snapshot = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine>(), EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+
+        Assert.Null(snapshot.timeLimit);
+        Assert.Null(snapshot.displayTime);
+        Assert.Null(snapshot.timeUpMessage);
+    }
+
+    [Fact]
+    public void BuildSnapshot_negative_timelimit_leaves_timer_fields_null()
+    {
+        // Timelimit=-1（InputRequest 默认值，等同于"无 TINPUT"）→ 三字段均 null
+        var req = new InputRequest { InputType = InputType.EnterKey };
+
+        var snapshot = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine>(), EmuColor.Black, ConsoleState.WaitInput, req, "TestFont");
+
+        Assert.Null(snapshot.timeLimit);
+        Assert.Null(snapshot.displayTime);
+        Assert.Null(snapshot.timeUpMessage);
+    }
+
+    [Fact]
+    public void BuildSnapshot_tinput_without_displaytime_leaves_displaytime_null()
+    {
+        // Timelimit>0 + DisplayTime=false → displayTime=null（ERB 要求前端不显示倒计时）
+        // timeLimit 仍填，timeUpMes 空 → timeUpMessage=null
+        var req = new InputRequest
+        {
+            InputType = InputType.EnterKey,
+            Timelimit = 3000,
+            DisplayTime = false,
+            TimeUpMes = "",
+        };
+
+        var snapshot = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine>(), EmuColor.Black, ConsoleState.WaitInput, req, "TestFont");
+
+        Assert.Equal(3000L, snapshot.timeLimit);
+        Assert.Null(snapshot.displayTime);
+        Assert.Null(snapshot.timeUpMessage);
     }
 
     // ---------- Phase 0-2：快照确定性 / 等价性 ----------

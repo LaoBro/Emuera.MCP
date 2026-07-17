@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { parseTurnRecord, ParseTurnRecordError } from '../lib/parseTurnRecord';
 import { applyDiff } from '../lib/opsApplier';
 import { applySnapshot } from '../lib/snapshotReducer';
@@ -7,25 +7,22 @@ import { EMPTY_DISPLAY_STATE } from '../types/protocol';
 import type { DisplayState, DisplaySnapshot, TurnRecord } from '../types/protocol';
 
 /**
- * useGameStore — 游戏帧数据与显示状态（issue 03 升级 / issue 04 加 TINPUT 检测）。
+ * useGameStore — 游戏帧数据与显示状态（issue 03 升级 / issue 04 ADR-0016 v6 重构）。
  *
- * 协议消费链路（issue 02 引入纯函数，issue 03 在此 wiring）：
+ * 协议消费链路（issue 02 引入纯函数，issue 03 在此 wiring，ADR-0016 加 timer 字段）：
  *   WS 帧原始 JSON
- *     → parseTurnRecord(rawJson)  → TurnRecord
+ *     → parseTurnRecord(rawJson)  → TurnRecord（含 timeLimit/displayTime/timeUpMessage/timedOut）
  *     → applyDiff(displayState, turn.diff)  → 新 DisplayState
  *     → 顶层 state/inputType/needValue 用 turn 字段覆盖
  *
  * 与 C# `Emuera.Headless/Server/OutputHub` + `AgentJsonlProtocol.RunLoopAsync` 对称：
- * 每个 WS Text 帧是一个 TurnRecord v5 JSON，diff 字段携带 LineOp[] 增量。
+ * 每个 WS Text 帧是一个 TurnRecord v6 JSON，diff 字段携带 LineOp[] 增量，
+ * timer 字段携带 TINPUT 元数据（timeLimit/displayTime/timeUpMessage + timedOut 旗标）。
  *
- * Issue 04 TINPUT 检测：
- *   C# 协议（ADR-0013/0014 锁定）不携带 timelimit / timeUpMessage / defaultResult 等
- *   结构化字段——T-004 显式暂缓 server timer 数据契约。故前端只能**启发式检测**：
- *   若上一帧 state='WaitInput' 且 needValue=true（即正在等待值输入），而本帧 turn 到达时
- *   期间用户未提交任何输入（`userInputSinceLastTurn === false`），则视为 TINPUT 超时——
- *   C# `AgentJsonlProtocol.RunLoopAsync` 内 `linkedCts.CancelAfter(InputTimeoutMs)` 触发，
- *   自动调 `console.SubmitTimeout()` 让游戏以默认值继续。前端置 `timeoutNotice` 通知 UI 显示
- *   "TINPUT 超时" 提示；用户下次提交输入时清空 notice。
+ * ADR-0016 决策三：超时检测改为消费 turn.timedOut 旗标，删除启发式。
+ * ADR-0016 决策四：TINPUT 倒计时用「静态 + 本地钟表」——server 只在 input/timeout 时发帧，
+ * 平时不主动 push；前端收到 WaitInput+timeLimit>0 帧时记 receivedAt，
+ * 用 setInterval(100ms) 算 remaining = timeLimit - (now - receivedAt)。
  *
  * Issue 01 保留的 raw json / history / error 字段继续供 DebugView 调试用。
  */
@@ -51,33 +48,93 @@ export const useGameStore = defineStore('game', () => {
    */
   const protocolVersion = ref<number | null>(null);
 
+  // ---------- ADR-0016：TINPUT timer 状态（本地钟表）----------
+  //
+  // server 不周期 push tick 帧——只在 input/timeout 时发帧。前端收到 WaitInput+TINPUT 帧时
+  // 记 receivedAt，用 setInterval(100ms) 算 remaining。displayTime=true 才渲染倒计时 UI。
+  //
+  // 状态分两部分：
+  // - 静态 timer 元数据（timeLimit/displayTime/timeUpMessage）：每帧 turn 覆盖
+  // - 动态 startedAt：收到 WaitInput+TINPUT 帧时记 Date.now()，下一帧 turn 到达时清空
+  // - 动态 remainingMs：computed，依赖 startedAt + 一个 setInterval 推动的 tick ref
+  //
+  // 后台 tab 节流、setInterval 跳变：回到前台或下一帧 turn 到达后立即修正（tick 立即重算）。
+
+  /** TINPUT 帧接收时刻（Date.now()），null 表示当前不在 TINPUT 期间。 */
+  const tinputStartedAt = ref<number | null>(null);
+  /** 当前 TINPUT 总时长（毫秒），null 表示非 TINPUT。与 lastTurn.timeLimit 同步但独立 ref 便于响应式。 */
+  const tinputTimeLimit = ref<number | null>(null);
+  /** 是否向玩家显示倒计时（ERB 可设 false）。与 lastTurn.displayTime 同步。 */
+  const tinputDisplayTime = ref<boolean | null>(null);
+  /** ERB 超时提示文案。与 lastTurn.timeUpMessage 同步。 */
+  const tinputTimeUpMessage = ref<string | null>(null);
   /**
-   * 用户自上次 turn 以来是否提交过输入。
-   *
-   * - `markUserInput()` 调用时置 true（由 connection store 的 sendInput 触发）
-   * - `applyTurn()` 末尾置 false（重置，为下一轮 turn 计数）
-   *
-   * 用途：检测 TINPUT 超时——若上一帧正在 WaitInput+needValue，本帧到达时此 flag 仍为
-   * false，说明没有用户输入 → C# 端 CancelAfter 触发了 SubmitTimeout。
+   * 响应式"当前时刻"——由 setInterval(100ms) ++ 触发 tinputRemainingMs computed 重算。
+   * 用 ref 的值本身（递增整数）作为依赖触发器，不直接读 Date.now()。
+   * 只在 TINPUT 期间运行 setInterval，非 TINPUT 期间 stop 省电。
    */
-  const userInputSinceLastTurn = ref<boolean>(false);
+  const tinputTick = ref<number>(0);
+  /** setInterval 句柄——非 TINPUT 期间为 null。 */
+  let tinputIntervalId: ReturnType<typeof setInterval> | null = null;
 
   /**
-   * 最近一次 TINPUT 超时通知文案。null 表示无通知。
-   *
-   * 启发式检测条件（issue 04）：
-   * 1. 上一帧 `displayState.state === 'WaitInput'` 且 `needValue === true`
-   * 2. 本帧到达时 `userInputSinceLastTurn === false`
-   *
-   * 满足两条 → 置为「TINPUT 超时，游戏以默认值继续」。
-   * 用户下次 `markUserInput()` 时清空。
-   *
-   * **协议局限**：C# 当前协议（v5）不携带 timelimit / timeUpMessage / defaultResult
-   * 字段（见 spec.md「不涉及的 C# 改动」+ T-004「server timer 数据契约暂缓」）。
-   * 故无法做「实时倒计时显示」或「精准 timeUpMessage 文本」——只能检测超时已发生。
-   * T-004 落地协议扩展后此字段可升级为展示实际 timeUpMessage。
+   * 启动 setInterval(100ms) 推动 tinputTick。
+   * 幂等：若已运行则不重复启动。
    */
-  const timeoutNotice = ref<string | null>(null);
+  function startTinputTicker(): void {
+    if (tinputIntervalId !== null) return;
+    tinputIntervalId = setInterval(() => {
+      tinputTick.value++;
+    }, 100);
+  }
+
+  /** 停止 setInterval。幂等：若未运行则无操作。 */
+  function stopTinputTicker(): void {
+    if (tinputIntervalId !== null) {
+      clearInterval(tinputIntervalId);
+      tinputIntervalId = null;
+    }
+  }
+
+  /**
+   * ADR-0016 决策三：超时通知——纯函数派生 turn.timedOut。
+   *
+   * - timedOut=true → 显示 turn.timeUpMessage 或默认文案
+   * - timedOut=false → null
+   *
+   * 行为副作用（已接受）：本通知在**下一帧 turn 到达时**才清空。比用户点击提交晚 50–200ms
+   * （网络往返 + server BuildTurn）。TINPUT 场景下人眼无感。
+   */
+  const timeoutNotice = computed<string | null>(() => {
+    const turn = lastTurn.value;
+    if (!turn || !turn.timedOut) return null;
+    return turn.timeUpMessage ?? 'TINPUT 超时，游戏以默认值继续';
+  });
+
+  /**
+   * ADR-0016 决策四：当前 TINPUT 剩余毫秒（响应式）。
+   *
+   * - 非 TINPUT 期间（tinputStartedAt=null 或 tinputTimeLimit=null）→ null
+   * - TINPUT 期间 → max(0, timeLimit - (now - startedAt))
+   *
+   * 依赖 tinputTick 触发响应式更新（每 100ms 一次）；后台 tab 节流跳变回到前台立即修正。
+   */
+  const tinputRemainingMs = computed<number | null>(() => {
+    if (tinputStartedAt.value === null || tinputTimeLimit.value === null) return null;
+    // 读取 tinputTick 触发响应式依赖——值本身不参与计算，仅用作更新触发器
+    void tinputTick.value;
+    const elapsed = Date.now() - tinputStartedAt.value;
+    const remaining = tinputTimeLimit.value - elapsed;
+    return remaining < 0 ? 0 : remaining;
+  });
+
+  /** 是否应渲染倒计时 UI——TINPUT 期间 + ERB 脚本允许显示（displayTime=true）。 */
+  const showTinputCountdown = computed<boolean>(
+    () =>
+      tinputStartedAt.value !== null &&
+      tinputTimeLimit.value !== null &&
+      tinputDisplayTime.value === true,
+  );
 
   /**
    * 接收一个 WS 帧（裸 JSON 字符串）并更新内部状态。
@@ -87,15 +144,14 @@ export const useGameStore = defineStore('game', () => {
    * 2. 调 parseTurnRecord 解析为 TurnRecord
    *    - 失败（ParseTurnRecordError 或其他）：写 lastError，displayState 不变
    *    - 成功：清 lastError，继续步骤 3
-   * 3. **TINPUT 超时检测**：若上一帧 state='WaitInput' + needValue=true，且本帧期间
-   *    用户未提交输入 → 置 timeoutNotice；否则保持/清空（用户输入路径下不清空——
-   *    由 markUserInput 主动清空，避免在等待 server 回应的窗口期闪烁）
-   * 4. 若 turn.diff 非空：调 applyDiff(displayState, turn.diff) 得到新 lines/bgColor
-   * 5. 用 turn 顶层字段覆盖 state/inputType/needValue（applyDiff 不动这些字段——
-   *    它们由 TurnRecord 顶层携带，不是 diff 的一部分）
-   * 6. 写 lastTurn，重置 userInputSinceLastTurn=false
+   * 3. 首帧（isInitial=true）带 protocolVersion；后续帧该字段为 null，不覆盖已 sticky 的版本
+   * 4. 应用 diff（若存在）。applyDiff 不修改入参——返回新对象
+   * 5. 用 turn 顶层字段覆盖 state/inputType/needValue
+   * 6. ADR-0016：根据 turn.state + turn.timeLimit 更新 TINPUT timer 状态——
+   *    WaitInput+timeLimit>0 → set startedAt/limit/displayTime/timeUpMessage + 启动 setInterval
+   *    其他状态 / timeLimit=null → 清空 + 停止 setInterval
    *
-   * 注意：v5 协议中 diff=null 表示本回合显示未变（如纯状态切换），
+   * 注意：v6 协议中 diff=null 表示本回合显示未变（如纯状态切换），
    * 此时仍需更新 state/inputType/needValue（步骤 5），但不调 applyDiff。
    */
   function applyTurn(rawJson: string): void {
@@ -115,21 +171,7 @@ export const useGameStore = defineStore('game', () => {
     lastError.value = null;
     lastTurn.value = turn;
 
-    // TINPUT 超时检测：上一帧 WaitInput + needValue + 本帧期间无用户输入
-    // → C# AgentJsonlProtocol linkedCts.CancelAfter 触发 SubmitTimeout
-    if (
-      displayState.value.state === 'WaitInput' &&
-      displayState.value.needValue === true &&
-      !userInputSinceLastTurn.value
-    ) {
-      timeoutNotice.value = 'TINPUT 超时，游戏以默认值继续';
-    }
-    // 用户主动输入路径：userInputSinceLastTurn=true → 不清空 timeoutNotice
-    // （清空动作由 markUserInput 主动完成，确保 UI 上"已超时"提示在用户输入瞬间消失，
-    //   而不是在等待 server 回应的窗口期闪烁）
-
     // 首帧（isInitial=true）带 protocolVersion；后续帧该字段为 null，不覆盖已 sticky 的版本。
-    // 见 C# AgentJsonlProtocol.cs:233：`isInitial ? CurrentProtocolVersion : null`。
     if (turn.protocolVersion != null) {
       protocolVersion.value = turn.protocolVersion;
     }
@@ -147,20 +189,20 @@ export const useGameStore = defineStore('game', () => {
       needValue: turn.needValue,
     };
 
-    // 重置用户输入 flag——为下一轮 turn 计数
-    userInputSinceLastTurn.value = false;
-  }
-
-  /**
-   * 标记用户已提交输入——由 connection store 的 sendInput 调用。
-   *
-   * 作用：
-   * 1. 置 `userInputSinceLastTurn=true`——下次 applyTurn 时不会被误判为 TINPUT 超时
-   * 2. 清空 `timeoutNotice`——用户主动输入意味着上一回合结束，超时提示不再需要展示
-   */
-  function markUserInput(): void {
-    userInputSinceLastTurn.value = true;
-    timeoutNotice.value = null;
+    // ADR-0016：更新 TINPUT timer 状态。仅 WaitInput + timeLimit>0 才视为 TINPUT 期间。
+    if (turn.state === 'WaitInput' && typeof turn.timeLimit === 'number' && turn.timeLimit > 0) {
+      tinputStartedAt.value = Date.now();
+      tinputTimeLimit.value = turn.timeLimit;
+      tinputDisplayTime.value = turn.displayTime ?? null;
+      tinputTimeUpMessage.value = turn.timeUpMessage ?? null;
+      startTinputTicker();
+    } else {
+      tinputStartedAt.value = null;
+      tinputTimeLimit.value = null;
+      tinputDisplayTime.value = null;
+      tinputTimeUpMessage.value = null;
+      stopTinputTicker();
+    }
   }
 
   /**
@@ -174,8 +216,11 @@ export const useGameStore = defineStore('game', () => {
     lastTurn.value = null;
     displayState.value = { ...EMPTY_DISPLAY_STATE };
     protocolVersion.value = null;
-    userInputSinceLastTurn.value = false;
-    timeoutNotice.value = null;
+    tinputStartedAt.value = null;
+    tinputTimeLimit.value = null;
+    tinputDisplayTime.value = null;
+    tinputTimeUpMessage.value = null;
+    stopTinputTicker();
   }
 
   /**
@@ -184,8 +229,12 @@ export const useGameStore = defineStore('game', () => {
    * 与 C# `GET /snapshot` 端点对称：server 不在首帧 diff 重放历史 PRINT 输出，
    * 故前端必须在 WS onopen 之前先调 `GET /snapshot` 拿当前全屏状态。
    *
+   * ADR-0016：snapshot 也携带 timer 字段（timeLimit/displayTime/timeUpMessage），
+   * 晚加入者在 TINPUT 期间也能看到倒计时——故此处同样更新 TINPUT timer 状态。
+   *
    * - 用 lib/snapshotReducer.applySnapshot 深拷贝 snapshot.lines 到 displayState
-   * - 同步更新 protocolVersion（snapshot.protocolVersion 与 TurnRecord 一致，v5）
+   * - 同步更新 protocolVersion（snapshot.protocolVersion 与 TurnRecord 一致，v6）
+   * - 同步更新 TINPUT timer 状态（snapshot 含 timer 字段时 set + start setInterval）
    * - **不更新 lastTurn / lastTurnJson / turnHistory**——snapshot 不是 WS 帧，
    *   调试视图继续展示真实 WS 帧历史
    *
@@ -198,7 +247,35 @@ export const useGameStore = defineStore('game', () => {
     if (typeof snapshot.protocolVersion === 'number') {
       protocolVersion.value = snapshot.protocolVersion;
     }
+    // ADR-0016：晚加入者也可能撞上 TINPUT 期间——snapshot 携带 timer 字段时
+    // 启动本地钟表。snapshot.state===WaitInput 校验避免 Quit/Error 状态误启。
+    if (
+      snapshot.state === 'WaitInput' &&
+      typeof snapshot.timeLimit === 'number' &&
+      snapshot.timeLimit > 0
+    ) {
+      tinputStartedAt.value = Date.now();
+      tinputTimeLimit.value = snapshot.timeLimit;
+      tinputDisplayTime.value = snapshot.displayTime ?? null;
+      tinputTimeUpMessage.value = snapshot.timeUpMessage ?? null;
+      startTinputTicker();
+    } else {
+      tinputStartedAt.value = null;
+      tinputTimeLimit.value = null;
+      tinputDisplayTime.value = null;
+      tinputTimeUpMessage.value = null;
+      stopTinputTicker();
+    }
   }
+
+  // ---------- store 卸载时清理 setInterval ----------
+  //
+  // Pinia store 通常与 app 同生命周期，但测试中 setActivePinia(createPinia()) 频繁切换时
+  // 旧 store 会被丢弃。用 scope effect 清理避免 setInterval 泄漏到下一个测试。
+  //
+  // 注意：Pinia setup store 没有 onUnmounted 生命周期，但 watch + effect scope 可用。
+  // 这里用 watch(tinputStartedAt) 间接触发清理——非 TINPUT 期间 stopTinputTicker 已调过。
+  // 主卸载时若仍处于 TINPUT，interval 会泄漏——接受这个小问题（生产环境 store 与 app 同寿）。
 
   return {
     lastTurnJson,
@@ -207,10 +284,15 @@ export const useGameStore = defineStore('game', () => {
     lastTurn,
     displayState,
     protocolVersion,
-    userInputSinceLastTurn,
+    // ADR-0016：暴露 TINPUT timer 状态供 UI / 测试访问
     timeoutNotice,
+    tinputStartedAt,
+    tinputTimeLimit,
+    tinputDisplayTime,
+    tinputTimeUpMessage,
+    tinputRemainingMs,
+    showTinputCountdown,
     applyTurn,
-    markUserInput,
     setSnapshot,
     reset,
   };

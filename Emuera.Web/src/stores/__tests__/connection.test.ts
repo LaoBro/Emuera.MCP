@@ -128,7 +128,7 @@ function snapshotJson(lines: unknown[] = [], opts: { state?: string; needValue?:
     state: opts.state ?? 'WaitInput',
     inputType: null,
     needValue: opts.needValue ?? false,
-    protocolVersion: opts.protocolVersion ?? 5,
+    protocolVersion: opts.protocolVersion ?? 6,
   });
 }
 
@@ -157,7 +157,7 @@ describe('useConnectionStore.fetchSnapshot', () => {
     const snapshot = await conn.fetchSnapshot('http://localhost:5173');
     expect(snapshot.lines).toHaveLength(1);
     expect(snapshot.state).toBe('WaitInput');
-    expect(snapshot.protocolVersion).toBe(5);
+    expect(snapshot.protocolVersion).toBe(6);
     expect(fetchSpy).toHaveBeenCalledWith('http://localhost:5173/snapshot');
   });
 
@@ -392,7 +392,7 @@ describe('useConnectionStore.connect — session 前置 + WS 首帧 snapshot 补
     const turnJson = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
-      protocolVersion: 5,
+      protocolVersion: 6,
       diff: {
         lineOps: [
           { type: 'append', newLines: [{ entries: [{ segments: [{ text: 'Hello' }] }], isLineEnd: true }] },
@@ -404,7 +404,7 @@ describe('useConnectionStore.connect — session 前置 + WS 首帧 snapshot 补
     expect(game.lastTurnJson).toBe(turnJson);
     expect(game.displayState.lines).toHaveLength(1);
     expect(game.displayState.lines[0].entries[0].segments[0].text).toBe('Hello');
-    expect(game.protocolVersion).toBe(5);
+    expect(game.protocolVersion).toBe(6);
     // displayState 已有内容——不应触发 fetchSnapshot
     expect(fetchSpy).toHaveBeenCalledTimes(1); // 仅 POST /session
   });
@@ -416,7 +416,7 @@ describe('useConnectionStore.connect — session 前置 + WS 首帧 snapshot 补
     // refreshSnapshot 内的 GET /snapshot——返回 1 行 "Snapshot init"
     const snapshotBody = snapshotJson(
       [{ entries: [{ segments: [{ text: 'Snapshot init' }] }], isLineEnd: true }],
-      { state: 'WaitInput', needValue: true, protocolVersion: 5 },
+      { state: 'WaitInput', needValue: true, protocolVersion: 6 },
     );
     fetchSpy.mockResolvedValueOnce(new Response(snapshotBody, { status: 200 }));
 
@@ -427,13 +427,13 @@ describe('useConnectionStore.connect — session 前置 + WS 首帧 snapshot 补
     await conn.connect('ws://localhost:5173/ws');
     FakeWebSocket.lastInstance!.triggerOpen();
 
-    // 模拟 C# 首帧：state=WaitInput + protocolVersion=5，无 diff 字段
+    // 模拟 C# 首帧：state=WaitInput + protocolVersion=6，无 diff 字段
     // （ComputeDiff 首次 _previous==null → 返回 null，见 DisplayState.cs:189）
     const firstTurnJson = JSON.stringify({
       state: 'WaitInput',
       inputType: 'IntValue',
       needValue: true,
-      protocolVersion: 5,
+      protocolVersion: 6,
     });
     FakeWebSocket.lastInstance!.triggerMessage(firstTurnJson);
 
@@ -441,7 +441,7 @@ describe('useConnectionStore.connect — session 前置 + WS 首帧 snapshot 补
     expect(game.lastTurnJson).toBe(firstTurnJson);
     expect(game.displayState.state).toBe('WaitInput');
     expect(game.displayState.needValue).toBe(true);
-    expect(game.protocolVersion).toBe(5);
+    expect(game.protocolVersion).toBe(6);
 
     // onmessage 触发 refreshSnapshot（fire-and-forget）——vi.waitFor 轮询直到 setSnapshot 完成
     await vi.waitFor(() => {
@@ -471,7 +471,7 @@ describe('useConnectionStore.connect — session 前置 + WS 首帧 snapshot 补
 
     // 首帧 diff=null → 触发 refreshSnapshot
     FakeWebSocket.lastInstance!.triggerMessage(
-      JSON.stringify({ state: 'WaitInput', needValue: true, protocolVersion: 5 }),
+      JSON.stringify({ state: 'WaitInput', needValue: true, protocolVersion: 6 }),
     );
 
     // vi.waitFor 等 fire-and-forget 的 catch 块写完 closeReason

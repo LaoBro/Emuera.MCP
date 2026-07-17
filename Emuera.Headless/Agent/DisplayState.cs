@@ -11,9 +11,11 @@ using MinorShift.Emuera.UI.Game;
 namespace MinorShift.Emuera.GameView;
 
 /// <summary>
-/// 当前全量显示状态的快照（ADR-0013 决策二）。
+/// 当前全量显示状态的快照（ADR-0013 决策二 / ADR-0016 加 timer 字段）。
 /// state-based 格式——直接表示当前显示状态，不是操作序列的回放。
 /// WS 晚加入者调 GET /snapshot 拿初始状态，再订阅 WS 收增量 ops。
+/// ADR-0016：新增 timeLimit / displayTime / timeUpMessage 三字段（无 timedOut——
+/// snapshot 表示"当前状态"，"上一帧是否超时触发"对晚加入者无意义）。
 /// </summary>
 internal record DisplaySnapshot(
     List<DisplayLine> lines,
@@ -21,7 +23,10 @@ internal record DisplaySnapshot(
     string state,
     string? inputType,
     bool needValue,
-    int protocolVersion
+    int protocolVersion,
+    long? timeLimit = null,
+    bool? displayTime = null,
+    string? timeUpMessage = null
 );
 
 /// <summary>
@@ -383,7 +388,16 @@ internal sealed class DisplayState : IDisplayState
             state: state.ToString(),
             inputType: currentRequest?.InputType.ToString(),
             needValue: currentRequest?.NeedValue ?? false,
-            protocolVersion: TurnRecord.CurrentProtocolVersion
+            protocolVersion: TurnRecord.CurrentProtocolVersion,
+            // ADR-0016：TINPUT timer 元数据——仅在 TINPUT 期间（Timelimit > 0）填充。
+            // 非非 TINPUT 期间 / 无 currentRequest → 三字段均为 null（WhenWritingNull 时不写入 JSON）。
+            // displayTime 取 InputRequest.DisplayTime——尊重 ERB 脚本"别给玩家看"的意图。
+            timeLimit: currentRequest is { Timelimit: > 0 } req ? req.Timelimit : null,
+            displayTime: currentRequest is { Timelimit: > 0, DisplayTime: true } ? true : null,
+            timeUpMessage: currentRequest is { Timelimit: > 0 } reqWithMes
+                && !string.IsNullOrEmpty(reqWithMes.TimeUpMes)
+                ? reqWithMes.TimeUpMes
+                : null
         );
     }
 

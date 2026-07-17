@@ -44,6 +44,14 @@ export function parseTurnRecord(rawJson: string): TurnRecord {
   const inputType = readStringOrNull(root.inputType, 'inputType');
   const error = readStringOrNull(root.error, 'error');
   const protocolVersion = readIntOrNull(root.protocolVersion, 'protocolVersion');
+  // ADR-0016：timer 字段——timeLimit / displayTime / timeUpMessage nullable + WhenWritingNull
+  const timeLimit = readIntOrNull(root.timeLimit, 'timeLimit');
+  const displayTime = readBoolOrNull(root.displayTime, 'displayTime');
+  const timeUpMessage = readStringOrNull(root.timeUpMessage, 'timeUpMessage');
+  // ADR-0016：timedOut 非 nullable bool，默认 false（C# record 默认值）
+  // 当 JSON 中省略该字段时（理论不会发生——C# WhenWritingNull 不抑制非 nullable bool），
+  // 视为 false，与 C# 默认值对称。
+  const timedOut = readBoolWithDefault(root.timedOut, 'timedOut', false);
   const diff = root.diff === undefined || root.diff === null ? null : parseDiff(root.diff);
 
   return {
@@ -53,6 +61,10 @@ export function parseTurnRecord(rawJson: string): TurnRecord {
     diff,
     error,
     protocolVersion,
+    timeLimit,
+    displayTime,
+    timeUpMessage,
+    timedOut,
   };
 }
 
@@ -209,6 +221,21 @@ function readBoolOrNull(v: unknown, path: string): boolean | null {
   if (v === undefined || v === null) return null;
   if (typeof v !== 'boolean') {
     throw new ParseTurnRecordError(`${path} 期望 boolean|null，得到 ${typeof v}`);
+  }
+  return v;
+}
+
+/**
+ * ADR-0016：读非 nullable bool 字段，省略时返回 default。
+ *
+ * 用于 `timedOut`——C# record 默认 false，`JsonSerializerOptions.WhenWritingNull`
+ * 不抑制非 nullable bool，故正常情况下 server 每帧都发该字段。
+ * 防御性允许省略（与 v5 兼容性 / 测试构造方便），省略时视为 false。
+ */
+function readBoolWithDefault(v: unknown, path: string, defaultValue: boolean): boolean {
+  if (v === undefined || v === null) return defaultValue;
+  if (typeof v !== 'boolean') {
+    throw new ParseTurnRecordError(`${path} 期望 boolean，得到 ${typeof v}`);
   }
   return v;
 }

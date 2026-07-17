@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json;
@@ -25,6 +25,13 @@ namespace MinorShift.Emuera.GameView
 
         private int VisibleLineCount => Math.Max(1, ui.ClientHeight / Config.LineHeight);
         private string? _pendingRejectReason;
+        /// <summary>
+        /// ADR-0016：TINPUT 超时 flag——SubmitTimeoutAsync 路径置 true，
+        /// 下次 BuildTurn 写出后清空。复用 _pendingRejectReason 同样的"一次性旗标"模式。
+        /// RunLoopAsync 的 OperationCanceledException 分支调 HandleTimeoutAndWriteAsync
+        /// → SubmitTimeoutAsync → 此处置 true → BuildTurn 读出写入 turn.timedOut → 清空。
+        /// </summary>
+        private bool _pendingTimeoutFlag;
 
         public AgentJsonlProtocol(EmueraConsole console, IConsoleUI ui, SessionIO io, DisplayState displayState)
             : base(console, ui)
@@ -87,9 +94,12 @@ namespace MinorShift.Emuera.GameView
         /// 不会自动触发超时，客户端不发 input 时进程永久阻塞等待。
         /// I-08：原先同步 BuildTurn 拿快照，绕过 WaitForInputAsync 的 30s 超时与取消保护；
         /// 若 RunEmueraProgram 卡死整个 server 线程被阻塞。
+        /// ADR-0016：进入此路径前置 _pendingTimeoutFlag=true，让下一帧 BuildTurn 写出
+        /// turn.timedOut=true，前端据此清空启发式检测（issue 04 已删，改消费 timedOut 旗标）。
         /// </summary>
         internal override async Task<string?> SubmitTimeoutAsync()
         {
+            _pendingTimeoutFlag = true;
             console.SubmitTimeout();
             if (!await WaitForInputAsync())
                 return null;
@@ -218,19 +228,38 @@ namespace MinorShift.Emuera.GameView
         {
             // plan C（v5）：ComputeDiff 原子化刷新 _current 并 drain 分类权威清空信号，
             // 不再前置 TryUpdate（避免跨调用窗口 + 清空信号错配，见 DisplayState.ComputeDiff）。
-            // ComputeDiff 与 _previous 比对产出 DisplayDiff；二者同持 _gate 锁，
+            // ComputeDiff 与 _previous 比对产出 DisplayDiff；二者同处 _gate 锁，
             // 但 BuildTurn 是单线程（游戏循环）调用，无重入风险。
             var diff = _displayState.ComputeDiff();
             var req = console.CurrentRequest;
             string? error = _pendingRejectReason;
             _pendingRejectReason = null;
+
+            // ADR-0016：读出超时 flag 并清空（一次性旗标），与 _pendingRejectReason 同模式
+            bool timedOut = _pendingTimeoutFlag;
+            _pendingTimeoutFlag = false;
+
+            // ADR-0016：TINPUT timer 字段——仅 TINPUT 期间（Timelimit > 0）填充。
+            // displayTime 取 InputRequest.DisplayTime（ERB 可设 false 让前端不显示倒计时）。
+            // timeUpMessage 仅在非空时携带。
+            long? timeLimit = req is { Timelimit: > 0 } ? req.Timelimit : null;
+            bool? displayTime = req is { Timelimit: > 0, DisplayTime: true } ? true : null;
+            string? timeUpMessage = req is { Timelimit: > 0 } reqWithMes
+                && !string.IsNullOrEmpty(reqWithMes.TimeUpMes)
+                ? reqWithMes.TimeUpMes
+                : null;
+
             return JsonSerializer.Serialize(new TurnRecord(
                 state: console.State.ToString(),
                 inputType: req?.InputType.ToString(),
                 needValue: req?.NeedValue ?? false,
                 diff: diff,
                 error: error,
-                protocolVersion: isInitial ? TurnRecord.CurrentProtocolVersion : null
+                protocolVersion: isInitial ? TurnRecord.CurrentProtocolVersion : null,
+                timeLimit: timeLimit,
+                displayTime: displayTime,
+                timeUpMessage: timeUpMessage,
+                timedOut: timedOut
             ), TurnJsonOptions);
         }
 

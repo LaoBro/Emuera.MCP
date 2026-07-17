@@ -27,9 +27,16 @@ internal sealed class TestAdapter
     public string State { get; private set; } = "";
     public string? InputType { get; private set; }
     public bool NeedValue { get; private set; }
+    /// <summary>ADR-0016：TINPUT 总时长（毫秒），null = 无 TINPUT。</summary>
+    public long? TimeLimit { get; private set; }
+    /// <summary>ADR-0016：是否向玩家显示倒计时（ERB 可设 false）。</summary>
+    public bool? DisplayTime { get; private set; }
+    /// <summary>ADR-0016：ERB 超时提示文案。</summary>
+    public string? TimeUpMessage { get; private set; }
 
     /// <summary>
-    /// 用 DisplaySnapshot 替换内部状态——lines[] 转为内部行列表，bgColor/state/inputType/needValue 覆盖。
+    /// 用 DisplaySnapshot 替换内部状态——lines[] 转为内部行列表，bgColor/state/inputType/needValue
+    /// 与 ADR-0016 timer 字段（timeLimit/displayTime/timeUpMessage）覆盖。
     /// </summary>
     public void ApplySnapshot(DisplaySnapshot snapshot)
     {
@@ -45,6 +52,9 @@ internal sealed class TestAdapter
         State = snapshot.state;
         InputType = snapshot.inputType;
         NeedValue = snapshot.needValue;
+        TimeLimit = snapshot.timeLimit;
+        DisplayTime = snapshot.displayTime;
+        TimeUpMessage = snapshot.timeUpMessage;
     }
 
     /// <summary>

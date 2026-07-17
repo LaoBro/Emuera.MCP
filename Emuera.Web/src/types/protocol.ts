@@ -75,7 +75,7 @@ export interface DisplayLine {
 }
 
 /**
- * 全量显示状态（C# `DisplaySnapshot`，ADR-0013 决策二）。
+ * 全量显示状态（C# `DisplaySnapshot`，ADR-0013 决策二 / ADR-0016 加 timer 字段）。
  *
  * 由 C# `GET /snapshot` 端点产出，或前端从初始空状态经多轮 ops 重建得到。
  * WS 晚加入者先调 GET /snapshot 拿到这个，再订阅 WS 收增量 ops/diff。
@@ -85,7 +85,13 @@ export interface DisplayLine {
  * - `state`：游戏状态字符串（C# `ConsoleState.ToString()`，如 "WaitInput"/"Quit"/"Error"）
  * - `inputType`：当前输入请求类型（C# `InputType.ToString()`，如 "IntValue"/"StrValue"/"AnyKey"/"EnterKey"）
  * - `needValue`：是否需要值输入（inputType=IntValue/StrValue 时 true）
- * - `protocolVersion`：协议版本号（与 `TurnRecord.protocolVersion` 一致，v5 当前）
+ * - `protocolVersion`：协议版本号（与 `TurnRecord.protocolVersion` 一致，v6 当前）
+ * - `timeLimit`：ADR-0016——TINPUT 总时长（毫秒），null/省略 = 非 TINPUT 期间
+ * - `displayTime`：ADR-0016——是否向玩家显示倒计时（ERB 可设 false）
+ * - `timeUpMessage`：ADR-0016——ERB 超时提示文案
+ *
+ * `timedOut` **不在 DisplaySnapshot**——snapshot 表示"当前状态"而非"如何到达此状态"，
+ * 晚加入者只关心"现在还有多久超时"，不关心上一帧是否刚超时。
  */
 export interface DisplaySnapshot {
   lines: DisplayLine[];
@@ -94,6 +100,9 @@ export interface DisplaySnapshot {
   inputType?: string | null;
   needValue: boolean;
   protocolVersion: number;
+  timeLimit?: number | null;
+  displayTime?: boolean | null;
+  timeUpMessage?: string | null;
 }
 
 // ---------- DisplayDiff：行级差异（增量） ----------
@@ -150,7 +159,7 @@ export type TurnOp =
 // ---------- TurnRecord：单回合 WS 帧 ----------
 
 /**
- * WS 单回合帧（C# `TurnRecord`）。
+ * WS 单回合帧（C# `TurnRecord`，ADR-0016 v6 加 timer 字段）。
  *
  * 每个 WS Text 帧是一个 `TurnRecord` JSON。前端 `parseTurnRecord` 把原始 JSON 字符串
  * 解析为该类型。v5 后 `diff` 是唯一增量格式（`ops` 已废弃移除）。
@@ -160,7 +169,11 @@ export type TurnOp =
  * - `needValue`：是否需要值输入
  * - `diff`：行级差异（null 表示本回合显示未变——例如纯状态切换）
  * - `error`：错误信息（state=Error 时填充）
- * - `protocolVersion`：协议版本（v5 当前；首次帧必带，后续帧可省略）
+ * - `protocolVersion`：协议版本（v6 当前；首次帧必带，后续帧可省略）
+ * - `timeLimit`：ADR-0016——TINPUT 总时长（毫秒），null/省略 = 非 TINPUT 期间
+ * - `displayTime`：ADR-0016——是否向玩家显示倒计时（ERB 可设 false）
+ * - `timeUpMessage`：ADR-0016——ERB 超时提示文案
+ * - `timedOut`：ADR-0016——本帧是否由 TINPUT 超时触发（非 nullable bool，默认 false）
  *
  * 注意：v5 协议中 `ops[]` 字段已废弃，本类型不包含该字段。C# `TestAdapter.ApplyOps`
  * 直接消费 `TurnOp[]`——TS 端做对称测试时也直接构造 `TurnOp[]`，不经 TurnRecord。
@@ -172,14 +185,19 @@ export interface TurnRecord {
   diff?: DisplayDiff | null;
   error?: string | null;
   protocolVersion?: number | null;
+  timeLimit?: number | null;
+  displayTime?: boolean | null;
+  timeUpMessage?: string | null;
+  /** ADR-0016：非 nullable bool，C# 每帧都发（默认 false） */
+  timedOut: boolean;
 }
 
 /**
- * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 5` 对称）。
+ * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 6` 对称，ADR-0016 bump v5→v6）。
  *
  * 用于前端校验：WS 帧 protocolVersion 与本常量不匹配时给出降级提示。
  */
-export const CURRENT_PROTOCOL_VERSION = 5;
+export const CURRENT_PROTOCOL_VERSION = 6;
 
 // ---------- DisplayState：前端内部可变状态 ----------
 //

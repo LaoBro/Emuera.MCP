@@ -28,7 +28,7 @@ describe('parseTurnRecord', () => {
       state: 'WaitInput',
       inputType: 'IntValue',
       needValue: true,
-      protocolVersion: 5,
+      protocolVersion: 6,
       diff: {
         lineOps: [
           { type: 'append', newLines: [{ entries: [{ segments: [{ text: 'Hello' }] }], isLineEnd: true }] },
@@ -42,7 +42,7 @@ describe('parseTurnRecord', () => {
     expect(turn.state).toBe('WaitInput');
     expect(turn.inputType).toBe('IntValue');
     expect(turn.needValue).toBe(true);
-    expect(turn.protocolVersion).toBe(5);
+    expect(turn.protocolVersion).toBe(6);
     expect(turn.diff).not.toBeNull();
     expect(turn.diff!.bgColor).toBe('#FF0000');
     expect(turn.diff!.lineOps).toHaveLength(3);
@@ -208,6 +208,103 @@ describe('parseTurnRecord', () => {
           },
         ],
       },
+    });
+    expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
+  });
+});
+
+// ---------- ADR-0016：timer 字段 ----------
+//
+// v6 协议新增 4 个 TurnRecord 字段：
+// - timeLimit (int|null)：TINPUT 总时长（毫秒），仅 WaitInput+Timelimit>0 时下发
+// - displayTime (bool|null)：是否向玩家显示倒计时，仅 displayTime=true 时下发
+// - timeUpMessage (string|null)：ERB 自定义超时文案
+// - timedOut (bool，非 nullable)：本回合是否由 TINPUT 超时推进（默认 false）
+//
+// 与 C# AgentJsonlProtocolTests 的 7 个用例对称：覆盖填充、省略、形状校验。
+
+describe('parseTurnRecord - ADR-0016 timer fields', () => {
+  it('TINPUT turn：timeLimit/displayTime/timeUpMessage/timedOut 全部正确解析', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      inputType: 'IntValue',
+      needValue: true,
+      protocolVersion: 6,
+      timeLimit: 5000,
+      displayTime: true,
+      timeUpMessage: '时间到！',
+      timedOut: false,
+      diff: null,
+    });
+    const turn = parseTurnRecord(json);
+    expect(turn.timeLimit).toBe(5000);
+    expect(turn.displayTime).toBe(true);
+    expect(turn.timeUpMessage).toBe('时间到！');
+    expect(turn.timedOut).toBe(false);
+  });
+
+  it('超时帧：timedOut=true 透传', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      inputType: 'IntValue',
+      needValue: true,
+      timedOut: true,
+      timeUpMessage: 'Time up, continue with default',
+      diff: null,
+    });
+    const turn = parseTurnRecord(json);
+    expect(turn.timedOut).toBe(true);
+    expect(turn.timeUpMessage).toBe('Time up, continue with default');
+  });
+
+  it('非 TINPUT turn：timer 字段省略时 timeLimit/displayTime/timeUpMessage=null, timedOut=false', () => {
+    // C# WhenWritingNull 抑制 null 字段——非 TINPUT 帧的 JSON 不含 timer 字段
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      inputType: 'AnyKey',
+      needValue: false,
+      diff: null,
+    });
+    const turn = parseTurnRecord(json);
+    expect(turn.timeLimit).toBeNull();
+    expect(turn.displayTime).toBeNull();
+    expect(turn.timeUpMessage).toBeNull();
+    // timedOut 非 nullable，C# 每帧必发；防御性允许省略时视为 false
+    expect(turn.timedOut).toBe(false);
+  });
+
+  it('timedOut 省略时默认 false（防御性，与 C# 默认值对称）', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+    });
+    const turn = parseTurnRecord(json);
+    expect(turn.timedOut).toBe(false);
+  });
+
+  it('timeLimit 非 int 抛 ParseTurnRecordError', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      timeLimit: '5000',
+    });
+    expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
+  });
+
+  it('displayTime 非 boolean 抛 ParseTurnRecordError', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      displayTime: 'yes',
+    });
+    expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
+  });
+
+  it('timedOut 非 boolean 抛 ParseTurnRecordError', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      timedOut: 1,
     });
     expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
   });

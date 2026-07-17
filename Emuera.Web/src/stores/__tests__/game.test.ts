@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useGameStore } from '../game';
-import type { DisplayLine, PrintSegment } from '../../types/protocol';
+import type { DisplayLine, PrintSegment, DisplaySnapshot } from '../../types/protocol';
 
 /**
- * useGameStore.applyTurn 单测——集成 issue 02 的 parseTurnRecord + applyDiff。
+ * useGameStore.applyTurn / setSnapshot 单测——集成 issue 02 的 parseTurnRecord + applyDiff。
  *
  * 这是 issue 03 的协议层 wiring 测试（spec.md 决策：Vitest 仅覆盖协议层 seam，
  * 不写 Vue 组件 e2e）。验证：
@@ -14,6 +14,12 @@ import type { DisplayLine, PrintSegment } from '../../types/protocol';
  * - diff=null 的帧（纯状态切换）→ state 字段更新，lines 不变
  * - protocolVersion 派生：从 lastTurn 正确推导
  * - reset() 复位所有状态
+ *
+ * ADR-0016（v6）新增：
+ * - timeoutNotice 改为 turn.timedOut 派生（删除 issue 04 启发式检测）
+ * - TINPUT timer 状态（tinputStartedAt/tinputTimeLimit/displayTime/timeUpMessage）
+ *   由 turn.timeLimit>0 + state=WaitInput 触发；setSnapshot 也填充
+ * - showTinputCountdown 仅在 displayTime=true 时为 true
  */
 
 // ---------- 测试夹具 ----------
@@ -84,6 +90,35 @@ function stateOnlyFrameJson(state: string, inputType?: string, needValue?: boole
   });
 }
 
+/**
+ * ADR-0016：构造 TINPUT timer 帧 JSON。
+ *
+ * 模拟 C# WhenWritingNull 行为：null 字段不下发。
+ * - timedOut 总是下发（非 nullable bool）
+ * - timeLimit / displayTime / timeUpMessage 仅在非 null 时下发
+ */
+function tinputFrameJson(opts: {
+  state?: string;
+  inputType?: string | null;
+  needValue?: boolean;
+  timeLimit?: number | null;
+  displayTime?: boolean | null;
+  timeUpMessage?: string | null;
+  timedOut?: boolean;
+}): string {
+  const obj: Record<string, unknown> = {
+    state: opts.state ?? 'WaitInput',
+    inputType: opts.inputType ?? null,
+    needValue: opts.needValue ?? false,
+    timedOut: opts.timedOut ?? false,
+    diff: null,
+  };
+  if (opts.timeLimit != null) obj.timeLimit = opts.timeLimit;
+  if (opts.displayTime != null) obj.displayTime = opts.displayTime;
+  if (opts.timeUpMessage != null) obj.timeUpMessage = opts.timeUpMessage;
+  return JSON.stringify(obj);
+}
+
 // ---------- 测试 ----------
 
 describe('useGameStore.applyTurn', () => {
@@ -113,7 +148,7 @@ describe('useGameStore.applyTurn', () => {
       inputType: 'AnyKey',
       needValue: false,
       bgColor: '#FF0000',
-      protocolVersion: 5,
+      protocolVersion: 6,
     }));
 
     expect(game.lastError).toBeNull();
@@ -124,7 +159,7 @@ describe('useGameStore.applyTurn', () => {
     expect(game.displayState.state).toBe('WaitInput');
     expect(game.displayState.inputType).toBe('AnyKey');
     expect(game.displayState.needValue).toBe(false);
-    expect(game.protocolVersion).toBe(5);
+    expect(game.protocolVersion).toBe(6);
     expect(game.lastTurnJson).not.toBeNull();
     expect(game.turnHistory).toHaveLength(1);
   });
@@ -205,14 +240,14 @@ describe('useGameStore.applyTurn', () => {
 
   it('protocolVersion sticky：首帧后后续帧省略时保留版本（C# isInitial 行为对称）', () => {
     const game = useGameStore();
-    // 第一帧带 protocolVersion=5（C# AgentJsonlProtocol isInitial=true）
-    game.applyTurn(appendFrameJson(['A'], { protocolVersion: 5 }));
-    expect(game.protocolVersion).toBe(5);
+    // 第一帧带 protocolVersion=6（C# AgentJsonlProtocol isInitial=true）
+    game.applyTurn(appendFrameJson(['A'], { protocolVersion: 6 }));
+    expect(game.protocolVersion).toBe(6);
 
     // 第二帧不带 protocolVersion（C# isInitial=false 时该字段为 null）
     game.applyTurn(appendFrameJson(['B'], { protocolVersion: null }));
     // sticky 行为：版本号保留，不闪烁归 null
-    expect(game.protocolVersion).toBe(5);
+    expect(game.protocolVersion).toBe(6);
   });
 
   it('protocolVersion sticky：后续帧带新版本时更新（罕见场景，协议升级时）', () => {
@@ -226,8 +261,8 @@ describe('useGameStore.applyTurn', () => {
 
   it('protocolVersion sticky：reset 后清空', () => {
     const game = useGameStore();
-    game.applyTurn(appendFrameJson(['A'], { protocolVersion: 5 }));
-    expect(game.protocolVersion).toBe(5);
+    game.applyTurn(appendFrameJson(['A'], { protocolVersion: 6 }));
+    expect(game.protocolVersion).toBe(6);
 
     game.reset();
     expect(game.protocolVersion).toBeNull();
@@ -235,7 +270,7 @@ describe('useGameStore.applyTurn', () => {
 
   it('reset()：所有状态复位到空', () => {
     const game = useGameStore();
-    game.applyTurn(appendFrameJson(['data'], { state: 'WaitInput', protocolVersion: 5 }));
+    game.applyTurn(appendFrameJson(['data'], { state: 'WaitInput', protocolVersion: 6 }));
     expect(game.displayState.lines).toHaveLength(1);
 
     game.reset();
@@ -358,244 +393,235 @@ describe('useGameStore.applyTurn', () => {
   });
 });
 
-// ---------- Issue 04: TINPUT 超时检测 ----------
+// ---------- ADR-0016：timeoutNotice 派生（issue 04） ----------
 //
-// C# 协议（v5）不携带结构化 TINPUT 字段（T-004 暂缓），前端只能启发式检测：
-// 若上一帧 state='WaitInput' + needValue=true，且本帧到达期间用户未提交输入
-// （userInputSinceLastTurn=false），则视为 C# 端 CancelAfter 触发了 SubmitTimeout。
+// v6 协议携带 turn.timedOut 旗标——前端不再依赖启发式检测。
+// timeoutNotice 改为 computed：turn.timedOut=true 时显示文案，否则 null。
+// 文案优先级：turn.timeUpMessage → 默认「TINPUT 超时，游戏以默认值继续」。
 //
-// 测试矩阵：
-// - 初始状态：timeoutNotice=null, userInputSinceLastTurn=false
-// - 首帧 WaitInput+needValue：不触发 timeoutNotice（无上一帧可比）
-// - 第二帧 WaitInput+needValue 但用户已 markUserInput：不触发 timeoutNotice
-// - 第二帧 WaitInput+needValue 且用户未输入：触发 timeoutNotice
-// - timeoutNotice 设置后 markUserInput 清空
-// - 上一帧 needValue=false：不触发（仅值输入可被 TINPUT 超时）
-// - 上一帧 state != WaitInput：不触发
-// - reset()：清空 timeoutNotice + userInputSinceLastTurn
-// - 解析失败帧：不触发 timeoutNotice（applyTurn 早退）
+// 行为副作用（已接受）：本通知在**下一帧 turn 到达时**才清空（turn.timedOut=false）。
+// 比用户点击提交晚 50–200ms——TINPUT 场景下人眼无感。
 
-describe('useGameStore — TINPUT 超时检测（issue 04）', () => {
+describe('useGameStore - ADR-0016 timeoutNotice 派生', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
-  it('初始状态：timeoutNotice=null, userInputSinceLastTurn=false', () => {
+  it('初始状态：timeoutNotice=null', () => {
     const game = useGameStore();
-    expect(game.timeoutNotice).toBeNull();
-    expect(game.userInputSinceLastTurn).toBe(false);
-  });
-
-  it('首帧 WaitInput+needValue：不触发 timeoutNotice（无上一帧可比）', () => {
-    const game = useGameStore();
-    game.applyTurn(appendFrameJson(['init'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
     expect(game.timeoutNotice).toBeNull();
   });
 
-  it('第二帧 WaitInput+needValue 且用户已 markUserInput：不触发 timeoutNotice', () => {
+  it('turn.timedOut=true + 无 timeUpMessage → 显示默认文案', () => {
     const game = useGameStore();
-    game.applyTurn(appendFrameJson(['init'], {
+    game.applyTurn(tinputFrameJson({
       state: 'WaitInput',
       inputType: 'IntValue',
       needValue: true,
+      timedOut: true,
     }));
-
-    game.markUserInput(); // 用户主动输入
-
-    game.applyTurn(appendFrameJson(['next'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
-    expect(game.timeoutNotice).toBeNull();
-    expect(game.userInputSinceLastTurn).toBe(false); // applyTurn 末尾重置
-  });
-
-  it('第二帧 WaitInput+needValue 且用户未输入：触发 timeoutNotice', () => {
-    const game = useGameStore();
-    game.applyTurn(appendFrameJson(['init'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
-
-    // 模拟 TINPUT 超时：用户未提交任何输入，server 主动推进下一帧
-    game.applyTurn(appendFrameJson(['TIME UP', 'RESULT=7'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
-
     expect(game.timeoutNotice).toBe('TINPUT 超时，游戏以默认值继续');
   });
 
-  it('timeoutNotice 设置后 markUserInput 清空', () => {
+  it('turn.timedOut=true + 自定义 timeUpMessage → 显示自定义文案', () => {
     const game = useGameStore();
-    game.applyTurn(appendFrameJson(['init'], {
+    game.applyTurn(tinputFrameJson({
       state: 'WaitInput',
       inputType: 'IntValue',
       needValue: true,
+      timedOut: true,
+      timeUpMessage: '时间到，使用默认值继续',
     }));
-    game.applyTurn(appendFrameJson(['timeout'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
-    expect(game.timeoutNotice).not.toBeNull();
-
-    game.markUserInput();
-    expect(game.timeoutNotice).toBeNull();
-    expect(game.userInputSinceLastTurn).toBe(true);
+    expect(game.timeoutNotice).toBe('时间到，使用默认值继续');
   });
 
-  it('上一帧 needValue=false：不触发 timeoutNotice（仅值输入可被 TINPUT 超时）', () => {
+  it('turn.timedOut=false → timeoutNotice=null（下一帧清空）', () => {
     const game = useGameStore();
-    // AnyKey 输入不需要值——TINPUT 不会发生在 needValue=false 的输入上
-    game.applyTurn(appendFrameJson(['press any key'], {
-      state: 'WaitInput',
-      inputType: 'AnyKey',
-      needValue: false,
-    }));
-
-    // 用户未输入，但下帧仍到达——AnyKey 超时虽也由 server 推进，
-    // 但 needValue=false 时不是 TINPUT（可能是 Twuint 之类）。
-    // 当前启发式只覆盖 needValue=true 的 TINPUT 场景，故不触发 notice。
-    game.applyTurn(appendFrameJson(['after'], {
+    // 帧 1：超时
+    game.applyTurn(tinputFrameJson({
       state: 'WaitInput',
       inputType: 'IntValue',
       needValue: true,
+      timedOut: true,
+      timeUpMessage: '时间到',
     }));
+    expect(game.timeoutNotice).toBe('时间到');
 
+    // 帧 2：玩家正常输入推进——timedOut=false
+    game.applyTurn(tinputFrameJson({
+      state: 'WaitInput',
+      inputType: 'IntValue',
+      needValue: true,
+      timedOut: false,
+    }));
     expect(game.timeoutNotice).toBeNull();
   });
 
-  it('上一帧 state != WaitInput（如首帧 Running）：不触发 timeoutNotice', () => {
+  it('reset()：清空 timeoutNotice', () => {
     const game = useGameStore();
-    game.applyTurn(stateOnlyFrameJson('Running'));
-
-    // 即使 needValue 在 Running 期间被置位，state!=WaitInput 不应触发 TINPUT 误判
-    game.applyTurn(appendFrameJson(['after'], {
+    game.applyTurn(tinputFrameJson({
       state: 'WaitInput',
-      inputType: 'IntValue',
       needValue: true,
-    }));
-
-    expect(game.timeoutNotice).toBeNull();
-  });
-
-  it('reset()：清空 timeoutNotice + userInputSinceLastTurn', () => {
-    const game = useGameStore();
-    game.applyTurn(appendFrameJson(['init'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
-    game.applyTurn(appendFrameJson(['timeout'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
+      timedOut: true,
     }));
     expect(game.timeoutNotice).not.toBeNull();
 
     game.reset();
     expect(game.timeoutNotice).toBeNull();
-    expect(game.userInputSinceLastTurn).toBe(false);
-  });
-
-  it('解析失败帧：不触发 timeoutNotice（applyTurn 早退，displayState 不变）', () => {
-    const game = useGameStore();
-    game.applyTurn(appendFrameJson(['init'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
-
-    // 非法 JSON——parseTurnRecord 抛错，applyTurn 早退
-    game.applyTurn('not a json');
-
-    expect(game.lastError).not.toBeNull();
-    expect(game.timeoutNotice).toBeNull();
-    // displayState 保持上一帧状态
-    expect(game.displayState.state).toBe('WaitInput');
-    expect(game.displayState.needValue).toBe(true);
-  });
-
-  it('连续两轮 TINPUT 超时：timeoutNotice 持续被设置（不闪烁）', () => {
-    const game = useGameStore();
-    // 帧 1：进入 WaitInput+needValue
-    game.applyTurn(appendFrameJson(['round1'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
-    // 帧 2：TINPUT 超时 → 进入下一轮 WaitInput+needValue
-    game.applyTurn(appendFrameJson(['round2'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
-    expect(game.timeoutNotice).toBe('TINPUT 超时，游戏以默认值继续');
-
-    // 帧 3：再次 TINPUT 超时 → 仍触发 notice（保持显示）
-    game.applyTurn(appendFrameJson(['round3'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
-    expect(game.timeoutNotice).toBe('TINPUT 超时，游戏以默认值继续');
   });
 });
 
-// ---------- Issue 04: markUserInput 行为 ----------
+// ---------- ADR-0016：TINPUT timer 状态 ----------
+//
+// applyTurn 末尾根据 turn.state + turn.timeLimit 更新 TINPUT timer 状态：
+// - WaitInput + timeLimit > 0 → 记 tinputStartedAt=Date.now()，启动 setInterval ticker
+// - 其他状态 / timeLimit=null → 清空状态，停止 ticker
+//
+// showTinputCountdown 仅在 displayTime=true 时为 true（ERB 可隐藏倒计时）。
+// tinputRemainingMs 是 computed，依赖 tinputTick（setInterval 100ms ++）触发响应式更新。
+//
+// setSnapshot 也填充 TINPUT 状态——晚加入者撞上 TINPUT 期间也能看到倒计时。
 
-describe('useGameStore.markUserInput（issue 04）', () => {
+describe('useGameStore - ADR-0016 TINPUT timer 状态', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
-  it('markUserInput：置 userInputSinceLastTurn=true + 清空 timeoutNotice', () => {
+  it('WaitInput + timeLimit>0 + displayTime=true → 启动 timer + showTinputCountdown=true', () => {
     const game = useGameStore();
-    // 先制造一个 timeoutNotice
-    game.applyTurn(appendFrameJson(['init'], {
+    const start = Date.now();
+    game.applyTurn(tinputFrameJson({
       state: 'WaitInput',
       inputType: 'IntValue',
       needValue: true,
+      timeLimit: 5000,
+      displayTime: true,
+      timeUpMessage: '时间到',
     }));
-    game.applyTurn(appendFrameJson(['timeout'], {
-      state: 'WaitInput',
-      inputType: 'IntValue',
-      needValue: true,
-    }));
-    expect(game.timeoutNotice).not.toBeNull();
 
-    game.markUserInput();
-    expect(game.userInputSinceLastTurn).toBe(true);
-    expect(game.timeoutNotice).toBeNull();
+    expect(game.tinputStartedAt).not.toBeNull();
+    expect(game.tinputStartedAt!).toBeGreaterThanOrEqual(start);
+    expect(game.tinputStartedAt!).toBeLessThanOrEqual(Date.now());
+    expect(game.tinputTimeLimit).toBe(5000);
+    expect(game.tinputDisplayTime).toBe(true);
+    expect(game.tinputTimeUpMessage).toBe('时间到');
+    expect(game.showTinputCountdown).toBe(true);
+    // remaining ≈ 5000ms（刚启动，elapsed 极小）
+    expect(game.tinputRemainingMs).not.toBeNull();
+    expect(game.tinputRemainingMs!).toBeLessThanOrEqual(5000);
+    expect(game.tinputRemainingMs!).toBeGreaterThan(4900); // 容差 100ms
+
+    // 清理 setInterval
+    game.reset();
   });
 
-  it('markUserInput 后接 applyTurn：userInputSinceLastTurn 重置为 false', () => {
+  it('非 WaitInput 状态（如 Quit）→ 清空 timer 状态 + showTinputCountdown=false', () => {
     const game = useGameStore();
-    game.applyTurn(appendFrameJson(['init'], {
+    // 先进入 TINPUT
+    game.applyTurn(tinputFrameJson({
       state: 'WaitInput',
-      inputType: 'IntValue',
       needValue: true,
+      timeLimit: 5000,
+      displayTime: true,
     }));
-    game.markUserInput();
-    expect(game.userInputSinceLastTurn).toBe(true);
+    expect(game.tinputStartedAt).not.toBeNull();
 
-    game.applyTurn(appendFrameJson(['next'], {
+    // 切到 Quit——timer 状态清空
+    game.applyTurn(tinputFrameJson({
+      state: 'Quit',
+      needValue: false,
+    }));
+    expect(game.tinputStartedAt).toBeNull();
+    expect(game.tinputTimeLimit).toBeNull();
+    expect(game.tinputDisplayTime).toBeNull();
+    expect(game.tinputTimeUpMessage).toBeNull();
+    expect(game.showTinputCountdown).toBe(false);
+    expect(game.tinputRemainingMs).toBeNull();
+  });
+
+  it('WaitInput 但 timeLimit=null（非 TINPUT 输入）→ 清空 timer 状态', () => {
+    const game = useGameStore();
+    // 先进入 TINPUT
+    game.applyTurn(tinputFrameJson({
+      state: 'WaitInput',
+      needValue: true,
+      timeLimit: 5000,
+      displayTime: true,
+    }));
+    expect(game.tinputStartedAt).not.toBeNull();
+
+    // 切到非 TINPUT 的 WaitInput（如 AnyKey）——timer 状态清空
+    game.applyTurn(tinputFrameJson({
+      state: 'WaitInput',
+      inputType: 'AnyKey',
+      needValue: false,
+      // 不带 timeLimit——C# WhenWritingNull 不发该字段
+    }));
+    expect(game.tinputStartedAt).toBeNull();
+    expect(game.tinputTimeLimit).toBeNull();
+    expect(game.showTinputCountdown).toBe(false);
+  });
+
+  it('displayTime=false → tinputStartedAt 仍 set 但 showTinputCountdown=false（ERB 隐藏倒计时）', () => {
+    const game = useGameStore();
+    game.applyTurn(tinputFrameJson({
+      state: 'WaitInput',
+      needValue: true,
+      timeLimit: 5000,
+      displayTime: false, // ERB 显式禁用倒计时显示
+    }));
+
+    // 内部 timer 状态仍填充（timeoutNotice 仍可派生）
+    expect(game.tinputStartedAt).not.toBeNull();
+    expect(game.tinputTimeLimit).toBe(5000);
+    expect(game.tinputDisplayTime).toBe(false);
+    // 但 UI 不渲染倒计时
+    expect(game.showTinputCountdown).toBe(false);
+
+    game.reset();
+  });
+
+  it('setSnapshot 也填充 TINPUT 状态（晚加入者撞上 TINPUT 期间）', () => {
+    const game = useGameStore();
+    const snap: DisplaySnapshot = {
+      lines: [],
+      bgColor: null,
       state: 'WaitInput',
       inputType: 'IntValue',
       needValue: true,
-    }));
-    // applyTurn 末尾重置 flag
-    expect(game.userInputSinceLastTurn).toBe(false);
-    // 因 markUserInput 已置 true → 此帧不视为 TINPUT 超时
-    expect(game.timeoutNotice).toBeNull();
+      protocolVersion: 6,
+      timeLimit: 3000,
+      displayTime: true,
+      timeUpMessage: '快选择！',
+    };
+
+    const start = Date.now();
+    game.setSnapshot(snap);
+
+    expect(game.tinputStartedAt).not.toBeNull();
+    expect(game.tinputStartedAt!).toBeGreaterThanOrEqual(start);
+    expect(game.tinputTimeLimit).toBe(3000);
+    expect(game.tinputDisplayTime).toBe(true);
+    expect(game.tinputTimeUpMessage).toBe('快选择！');
+    expect(game.showTinputCountdown).toBe(true);
+
+    game.reset();
+  });
+
+  it('setSnapshot 非 TINPUT 状态 → 不启动 timer', () => {
+    const game = useGameStore();
+    const snap: DisplaySnapshot = {
+      lines: [],
+      bgColor: null,
+      state: 'Quit',
+      inputType: null,
+      needValue: false,
+      protocolVersion: 6,
+      // 不带 timer 字段
+    };
+    game.setSnapshot(snap);
+    expect(game.tinputStartedAt).toBeNull();
+    expect(game.tinputTimeLimit).toBeNull();
+    expect(game.showTinputCountdown).toBe(false);
   });
 });
-
