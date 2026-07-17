@@ -3,18 +3,21 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useConnectionStore } from '../connection';
 
 /**
- * useConnectionStore 单测——覆盖 issue 03 的 session 创建前置修复。
+ * useConnectionStore 单测——覆盖 issue 03 的 session + snapshot 双重前置修复。
  *
- * 修复背景：C# KestrelGameServer 协议契约——WS 升级前必须先 POST /session 创建会话，
+ * 修复背景 1：C# KestrelGameServer 协议契约——WS 升级前必须先 POST /session 创建会话，
  * 否则 server 接受 WS 升级后立即下发关闭码 4004 + reason "No active session"。
- * 前端 connect() 流程改为：POST /session → WS connect。
+ * 修复背景 2：C# server 不在首帧 diff 重放历史 PRINT 输出——必须 GET /snapshot 拿全量状态。
+ * 前端 connect() 流程改为：POST /session → GET /snapshot → setSnapshot → WS connect。
  *
  * 测试矩阵：
  * - deriveHttpBase（纯函数）：ws:// / wss:// / 不同 host:port / 含路径
  * - ensureSession（mock fetch）：201 / 409 / 500+JSON / 500+text / fetch 异常
+ * - fetchSnapshot（mock fetch）：200 / 503 重试 / 503 上限 / 404 / 字段校验 / 网络异常
  * - connect 端到端（mock fetch + fake WebSocket）：
- *   - session 创建成功 → WS onopen → status=connected
- *   - session 创建失败 → status=disconnected + closeReason，不创建 WS
+ *   - session + snapshot 成功 → WS onopen → status=connected + displayState 已填充
+ *   - session 创建失败 → status=disconnected + closeReason，不创建 WS、不拉 snapshot
+ *   - snapshot 拉取失败 → status=disconnected + closeReason，不创建 WS
  */
 
 // ---------- deriveHttpBase 纯函数测试 ----------
@@ -110,6 +113,107 @@ describe('useConnectionStore.ensureSession', () => {
   });
 });
 
+// ---------- fetchSnapshot mock fetch 测试 ----------
+
+/**
+ * 构造合法 DisplaySnapshot JSON body——只覆盖 fetchSnapshot 校验的必填字段。
+ */
+function snapshotJson(lines: unknown[] = [], opts: { state?: string; needValue?: boolean; protocolVersion?: number } = {}): string {
+  return JSON.stringify({
+    lines,
+    state: opts.state ?? 'WaitInput',
+    inputType: null,
+    needValue: opts.needValue ?? false,
+    protocolVersion: opts.protocolVersion ?? 5,
+  });
+}
+
+describe('useConnectionStore.fetchSnapshot', () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  let originalSetTimeout: typeof globalThis.setTimeout;
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    fetchSpy = vi.spyOn(globalThis, 'fetch');
+    // setTimeout 替换为同步立即执行——503 重试测试不等真实 100ms
+    originalSetTimeout = globalThis.setTimeout;
+    globalThis.setTimeout = ((cb: () => void) => { cb(); return 0; }) as unknown as typeof globalThis.setTimeout;
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    globalThis.setTimeout = originalSetTimeout;
+  });
+
+  it('200 + 合法 JSON：返回 DisplaySnapshot', async () => {
+    const body = snapshotJson([{ entries: [{ segments: [{ text: 'Hello' }] }], isLineEnd: true }]);
+    fetchSpy.mockResolvedValueOnce(new Response(body, { status: 200 }));
+
+    const conn = useConnectionStore();
+    const snapshot = await conn.fetchSnapshot('http://localhost:5173');
+    expect(snapshot.lines).toHaveLength(1);
+    expect(snapshot.state).toBe('WaitInput');
+    expect(snapshot.protocolVersion).toBe(5);
+    expect(fetchSpy).toHaveBeenCalledWith('http://localhost:5173/snapshot');
+  });
+
+  it('503 后 200：重试成功', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response('session not yet initialized', { status: 503 }));
+    fetchSpy.mockResolvedValueOnce(new Response(snapshotJson(), { status: 200 }));
+
+    const conn = useConnectionStore();
+    const snapshot = await conn.fetchSnapshot('http://localhost:5173');
+    expect(snapshot.state).toBe('WaitInput');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('连续 503 直到上限：throw 含重试次数', async () => {
+    for (let i = 0; i < 10; i++) {
+      fetchSpy.mockResolvedValueOnce(new Response('session not initialized', { status: 503 }));
+    }
+
+    const conn = useConnectionStore();
+    await expect(conn.fetchSnapshot('http://localhost:5173')).rejects.toThrow(
+      /GET \/snapshot 重试 5 次仍 503/,
+    );
+  });
+
+  it('404（无 session）：立即抛错不重试', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'No active session' }), { status: 404 }));
+
+    const conn = useConnectionStore();
+    await expect(conn.fetchSnapshot('http://localhost:5173')).rejects.toThrow(
+      /GET \/snapshot 失败：HTTP 404.*No active session/,
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('200 但 lines 非数组：抛解析失败', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ state: 'WaitInput', needValue: false, lines: 'oops' }), { status: 200 }));
+
+    const conn = useConnectionStore();
+    await expect(conn.fetchSnapshot('http://localhost:5173')).rejects.toThrow(
+      /snapshot\.lines 缺失或非数组/,
+    );
+  });
+
+  it('200 但 state 非 string：抛解析失败', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ state: 123, needValue: false, lines: [] }), { status: 200 }));
+
+    const conn = useConnectionStore();
+    await expect(conn.fetchSnapshot('http://localhost:5173')).rejects.toThrow(
+      /snapshot\.state 缺失或非 string/,
+    );
+  });
+
+  it('fetch 网络异常：throw 原始 Error', async () => {
+    fetchSpy.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    const conn = useConnectionStore();
+    await expect(conn.fetchSnapshot('http://localhost:5173')).rejects.toThrow('Failed to fetch');
+  });
+});
+
 // ---------- connect 端到端流程测试（mock fetch + fake WebSocket） ----------
 
 /**
@@ -157,14 +261,18 @@ class FakeWebSocket {
   }
 }
 
-describe('useConnectionStore.connect — session 创建前置', () => {
+describe('useConnectionStore.connect — session + snapshot 前置', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
   let originalWebSocket: typeof globalThis.WebSocket | undefined;
+  let originalSetTimeout: typeof globalThis.setTimeout;
 
   beforeEach(() => {
     setActivePinia(createPinia());
     fetchSpy = vi.spyOn(globalThis, 'fetch');
     originalWebSocket = globalThis.WebSocket;
+    // setTimeout 替换为同步立即执行——503 重试路径不等真实 100ms
+    originalSetTimeout = globalThis.setTimeout;
+    globalThis.setTimeout = ((cb: () => void) => { cb(); return 0; }) as unknown as typeof globalThis.setTimeout;
     FakeWebSocket.lastInstance = null;
     FakeWebSocket.instances = [];
     globalThis.WebSocket = FakeWebSocket as unknown as typeof globalThis.WebSocket;
@@ -172,6 +280,7 @@ describe('useConnectionStore.connect — session 创建前置', () => {
 
   afterEach(() => {
     fetchSpy.mockRestore();
+    globalThis.setTimeout = originalSetTimeout;
     if (originalWebSocket === undefined) {
       delete (globalThis as { WebSocket?: unknown }).WebSocket;
     } else {
@@ -183,6 +292,7 @@ describe('useConnectionStore.connect — session 创建前置', () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ sessionId: 'abc', state: 'Idle' }), { status: 201 }),
     );
+    fetchSpy.mockResolvedValueOnce(new Response(snapshotJson(), { status: 200 }));
     const conn = useConnectionStore();
     const connectPromise = conn.connect('ws://localhost:5173/ws');
 
@@ -227,6 +337,7 @@ describe('useConnectionStore.connect — session 创建前置', () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ error: 'A session is already active' }), { status: 409 }),
     );
+    fetchSpy.mockResolvedValueOnce(new Response(snapshotJson(), { status: 200 }));
     const conn = useConnectionStore();
     await conn.connect('ws://localhost:5173/ws');
 
@@ -238,6 +349,7 @@ describe('useConnectionStore.connect — session 创建前置', () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ sessionId: 'abc', state: 'Idle' }), { status: 201 }),
     );
+    fetchSpy.mockResolvedValueOnce(new Response(snapshotJson(), { status: 200 }));
     const conn = useConnectionStore();
     await conn.connect('ws://localhost:5173/ws');
     FakeWebSocket.lastInstance!.triggerOpen();
@@ -254,6 +366,7 @@ describe('useConnectionStore.connect — session 创建前置', () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ sessionId: 'abc', state: 'Idle' }), { status: 201 }),
     );
+    fetchSpy.mockResolvedValueOnce(new Response(snapshotJson(), { status: 200 }));
     const conn = useConnectionStore();
     await conn.connect('ws://localhost:5173/ws');
     FakeWebSocket.lastInstance!.triggerOpen();
@@ -268,6 +381,8 @@ describe('useConnectionStore.connect — session 创建前置', () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ sessionId: 'abc', state: 'Idle' }), { status: 201 }),
     );
+    // snapshot 返回空 lines——确保后续 applyTurn 后 displayState 只含 turn 新增的一行
+    fetchSpy.mockResolvedValueOnce(new Response(snapshotJson(), { status: 200 }));
     const conn = useConnectionStore();
     const { useGameStore } = await import('../game');
     const game = useGameStore();
@@ -298,6 +413,7 @@ describe('useConnectionStore.connect — session 创建前置', () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ sessionId: 'abc', state: 'Idle' }), { status: 201 }),
     );
+    fetchSpy.mockResolvedValueOnce(new Response(snapshotJson(), { status: 200 }));
     const conn = useConnectionStore();
     await conn.connect('ws://localhost:5173/ws');
     FakeWebSocket.lastInstance!.triggerOpen();
@@ -305,5 +421,66 @@ describe('useConnectionStore.connect — session 创建前置', () => {
 
     conn.disconnect();
     expect(conn.status).toBe('disconnected');
+  });
+
+  it('snapshot 拉取失败（500）→ status=disconnected + closeReason，不创建 WS', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ sessionId: 'abc', state: 'Idle' }), { status: 201 }),
+    );
+    // GET /snapshot 立即 500——fetchSnapshot 不重试非 503 状态码
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: 'Snapshot internal error' }), { status: 500 }),
+    );
+    const conn = useConnectionStore();
+    await conn.connect('ws://localhost:5173/ws');
+
+    expect(conn.status).toBe('disconnected');
+    expect(conn.closeReason).toMatch(/GET \/snapshot 失败：HTTP 500.*Snapshot internal error/);
+    expect(FakeWebSocket.lastInstance).toBeNull();
+  });
+
+  it('snapshot 拉取成功 → game.setSnapshot 被调用 → displayState 有内容', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ sessionId: 'abc', state: 'Idle' }), { status: 201 }),
+    );
+    // snapshot 返回带 1 行 "Snapshot init"——验证 setSnapshot 把它写进 displayState
+    const snapshotBody = snapshotJson(
+      [{ entries: [{ segments: [{ text: 'Snapshot init' }] }], isLineEnd: true }],
+      { state: 'WaitInput', needValue: true, protocolVersion: 5 },
+    );
+    fetchSpy.mockResolvedValueOnce(new Response(snapshotBody, { status: 200 }));
+
+    const conn = useConnectionStore();
+    const { useGameStore } = await import('../game');
+    const game = useGameStore();
+
+    await conn.connect('ws://localhost:5173/ws');
+    // 注意：此时 WS 已构造但未 triggerOpen——displayState 应已由 setSnapshot 填充
+    expect(game.displayState.lines).toHaveLength(1);
+    expect(game.displayState.lines[0].entries[0].segments[0].text).toBe('Snapshot init');
+    expect(game.displayState.state).toBe('WaitInput');
+    expect(game.displayState.needValue).toBe(true);
+    expect(game.protocolVersion).toBe(5);
+    // setSnapshot 不写 lastTurnJson/turnHistory（snapshot 不是 WS 帧）
+    expect(game.lastTurnJson).toBeNull();
+    expect(game.turnHistory).toHaveLength(0);
+
+    // 后续 WS 增量 diff 在 snapshot 基础上叠加——验证 wiring 正确
+    FakeWebSocket.lastInstance!.triggerOpen();
+    const turnJson = JSON.stringify({
+      state: 'WaitInput',
+      needValue: true,
+      diff: {
+        lineOps: [
+          { type: 'append', newLines: [{ entries: [{ segments: [{ text: 'Appended' }] }], isLineEnd: true }] },
+        ],
+      },
+    });
+    FakeWebSocket.lastInstance!.triggerMessage(turnJson);
+
+    expect(game.displayState.lines).toHaveLength(2);
+    expect(game.displayState.lines[0].entries[0].segments[0].text).toBe('Snapshot init');
+    expect(game.displayState.lines[1].entries[0].segments[0].text).toBe('Appended');
+    expect(game.lastTurnJson).toBe(turnJson);
   });
 });

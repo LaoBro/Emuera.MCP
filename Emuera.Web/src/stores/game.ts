@@ -2,8 +2,9 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { parseTurnRecord, ParseTurnRecordError } from '../lib/parseTurnRecord';
 import { applyDiff } from '../lib/opsApplier';
+import { applySnapshot } from '../lib/snapshotReducer';
 import { EMPTY_DISPLAY_STATE } from '../types/protocol';
-import type { DisplayState, TurnRecord } from '../types/protocol';
+import type { DisplayState, DisplaySnapshot, TurnRecord } from '../types/protocol';
 
 /**
  * useGameStore — 游戏帧数据与显示状态（issue 03 升级）。
@@ -107,5 +108,27 @@ export const useGameStore = defineStore('game', () => {
     protocolVersion.value = null;
   }
 
-  return { lastTurnJson, turnHistory, lastError, lastTurn, displayState, protocolVersion, applyTurn, reset };
+  /**
+   * 用全量快照重建 displayState——WS 升级后立即调用，处理晚加入者场景。
+   *
+   * 与 C# `GET /snapshot` 端点对称：server 不在首帧 diff 重放历史 PRINT 输出，
+   * 故前端必须在 WS onopen 之前先调 `GET /snapshot` 拿当前全屏状态。
+   *
+   * - 用 lib/snapshotReducer.applySnapshot 深拷贝 snapshot.lines 到 displayState
+   * - 同步更新 protocolVersion（snapshot.protocolVersion 与 TurnRecord 一致，v5）
+   * - **不更新 lastTurn / lastTurnJson / turnHistory**——snapshot 不是 WS 帧，
+   *   调试视图继续展示真实 WS 帧历史
+   *
+   * Issue 03 就地修复（spec 盲点）：原计划 issue 06 接入，但 issue 03 手测被
+   * 「首帧无 diff」阻塞，提前实现 setSnapshot 部分；issue 06 剩余的断线重连 +
+   * 指数退避才真正属于其范围。
+   */
+  function setSnapshot(snapshot: DisplaySnapshot): void {
+    displayState.value = applySnapshot(displayState.value, snapshot);
+    if (typeof snapshot.protocolVersion === 'number') {
+      protocolVersion.value = snapshot.protocolVersion;
+    }
+  }
+
+  return { lastTurnJson, turnHistory, lastError, lastTurn, displayState, protocolVersion, applyTurn, setSnapshot, reset };
 });
