@@ -30,6 +30,11 @@ export const useConnectionStore = defineStore('connection', () => {
   const serverUrl = ref<string>('ws://localhost:5173/ws');
   /** WS 关闭时收到的 reason/错误信息（用于 UI 诊断）。 */
   const closeReason = ref<string | null>(null);
+  /**
+   * 关联的 game store——store 顶层声明，供 connect / refreshSnapshot 共享同一引用。
+   * Pinia store 是单例，useGameStore() 多次调用返回同一实例。
+   */
+  const game = useGameStore();
 
   /**
    * 派生 HTTP base URL——从 serverUrl（ws://host:port/ws）推导同源 http://host:port。
@@ -163,15 +168,18 @@ export const useConnectionStore = defineStore('connection', () => {
   /**
    * 连接到指定 WS URL——异步方法。
    *
-   * 流程（issue 03 起，含 snapshot 前置）：
+   * 流程（issue 03 修复 v2：WS 首帧后拉 snapshot）：
    * 1. 标记 status='connecting'，清 closeReason
    * 2. **POST /session 创建会话**（KestrelGameServer 协议契约）
    *    - 失败：status='disconnected' + closeReason，return
-   * 3. **GET /snapshot 拿当前全屏状态**（C# 不在首帧 diff 重放历史）
-   *    - 失败：status='disconnected' + closeReason，return
-   *    - 成功：调 game.setSnapshot 重建 displayState——终端立即渲染初始画面
-   * 4. 创建 WebSocket，绑定 onopen/onmessage/onerror/onclose
-   *    - onopen 后 status='connected'，此时 displayState 已就绪，WS 增量 diff 可叠加
+   * 3. 创建 WebSocket，绑定 onopen/onmessage/onerror/onclose
+   *    - onopen 后 status='connected'
+   * 4. **WS 首帧到达后，若 displayState.lines 仍为空 → 主动 GET /snapshot**
+   *    - 原因：C# `DisplayState.ComputeDiff` 首帧时 `_previous==null` 返回 null diff
+   *      （DisplayState.cs:189），故 WS 首帧不携带任何 LineOp——displayState 不会被填充
+   *    - 时机保证：WS 首帧由 `GetInitialTurnAsync` 在 `WaitForInputAsync` 返回后发出，
+   *      即游戏已进入 WaitInput 状态——此时 DisplayLineList 必有内容（首回合 PRINT 已完成）
+   *    - 失败：写 closeReason，不阻断 WS（已连接，只是没有初始画面）
    *
    * 默认 `ws://localhost:5173/ws` 走 Vite 代理到 C# 8080。
    * 生产构建后用户访问 `localhost:8080`，应传 `ws://localhost:8080/ws`。
@@ -185,7 +193,6 @@ export const useConnectionStore = defineStore('connection', () => {
     status.value = 'connecting';
 
     const httpBase = deriveHttpBase(url);
-    const game = useGameStore();
 
     // 步骤 2：创建会话——失败立即放弃
     try {
@@ -196,22 +203,9 @@ export const useConnectionStore = defineStore('connection', () => {
       return;
     }
 
-    // 用户在 ensureSession 期间手动 disconnect() 的并发处理
     if (status.value !== 'connecting') return;
 
-    // 步骤 3：拉全量快照——失败立即放弃
-    try {
-      const snapshot = await fetchSnapshot(httpBase);
-      game.setSnapshot(snapshot);
-    } catch (e) {
-      status.value = 'disconnected';
-      closeReason.value = e instanceof Error ? e.message : String(e);
-      return;
-    }
-
-    if (status.value !== 'connecting') return;
-
-    // 步骤 4：会话 + 快照就绪——升级 WebSocket
+    // 步骤 3：升级 WebSocket
     const socket = new WebSocket(url);
     ws = socket;
 
@@ -225,6 +219,13 @@ export const useConnectionStore = defineStore('connection', () => {
       const data = typeof event.data === 'string' ? event.data : '';
       if (!data) return;
       game.applyTurn(data);
+
+      // 首帧补救：C# 首帧 diff=null（ComputeDiff 首次返回 null），displayState 不变。
+      // 若此时 displayState 仍空（首帧没有 LineOp 可叠加），主动拉 snapshot 拿初始画面。
+      // 重连场景（issue 06）同样适用：displayState 空 + 任何帧 → 拉 snapshot 恢复。
+      if (game.displayState.lines.length === 0) {
+        void refreshSnapshot(httpBase);
+      }
     };
 
     socket.onerror = () => {
@@ -242,6 +243,21 @@ export const useConnectionStore = defineStore('connection', () => {
         status.value = 'reconnecting';
       }
     };
+  }
+
+  /**
+   * 拉 GET /snapshot 并把结果灌入 game store——首帧无 diff 时补救初始画面。
+   *
+   * fire-and-forget 调用（onmessage 是 sync 回调，不能 await）。失败只写 closeReason，
+   * 不改 status——WS 已连接，没有初始画面不等于断开。
+   */
+  async function refreshSnapshot(httpBase: string): Promise<void> {
+    try {
+      const snapshot = await fetchSnapshot(httpBase);
+      game.setSnapshot(snapshot);
+    } catch (e) {
+      closeReason.value = e instanceof Error ? e.message : String(e);
+    }
   }
 
   /** 主动断开。 */
