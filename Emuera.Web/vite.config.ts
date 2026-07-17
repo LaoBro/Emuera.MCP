@@ -20,6 +20,10 @@ export default defineConfig({
       },
       // spec.md user story 6：晚加入者先调 GET /snapshot 拿初始全屏状态。
       '/snapshot': 'http://localhost:8080',
+      // C# KestrelGameServer 协议契约：WS 升级前必须先 POST /session 创建会话，
+      // 否则 server 接受 WS 升级后立即下发关闭码 4004 + reason "No active session"。
+      // 此代理让 dev 模式下 fetch('/session') 直达 8080，避免 CORS。
+      '/session': 'http://localhost:8080',
     },
   },
   test: {

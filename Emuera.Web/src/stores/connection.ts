@@ -7,7 +7,10 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 're
 /**
  * useConnectionStore — WebSocket 连接生命周期。
  *
- * 协议契约（与 C# KestrelGameServer.HandleWebSocketAsync 对齐）：
+ * 协议契约（与 C# KestrelGameServer 对齐）：
+ * - **必须先 POST /session 创建会话**，server 才会接受 WS 升级；
+ *   否则 server 接受 WS 升级后立即下发关闭码 4004 + reason "No active session"
+ *   （KestrelGameServer.cs:271）
  * - 服务端发送：裸 JSON 文本帧（每个帧是一个 TurnRecord v5 JSON）
  * - 客户端发送：`{"type":"input","value":"..."}` 文本帧
  *   （C# HandleWsInput 直接入队，AgentJsonlProtocol 校验 type=="input"）
@@ -29,18 +32,96 @@ export const useConnectionStore = defineStore('connection', () => {
   const closeReason = ref<string | null>(null);
 
   /**
-   * 连接到指定 WS URL。
+   * 派生 HTTP base URL——从 serverUrl（ws://host:port/ws）推导同源 http://host:port。
+   *
+   * Dev 模式：serverUrl='ws://localhost:5173/ws' → httpBase='http://localhost:5173'
+   *   POST /session 经 Vite 代理到 C# 8080（见 vite.config.ts proxy 配置）。
+   * 生产模式：serverUrl='ws://localhost:8080/ws' → httpBase='http://localhost:8080'
+   *   POST /session 直达 C# Kestrel。
+   */
+  function deriveHttpBase(url: string): string {
+    // ws:// → http://, wss:// → https://；并去掉末尾的 /ws 路径
+    const httpScheme = url.startsWith('wss://') ? 'https://' : 'http://';
+    const rest = url.replace(/^wss?:\/\//, '');
+    const hostPort = rest.split('/')[0]; // 取 host:port，丢弃 /ws 等路径
+    return `${httpScheme}${hostPort}`;
+  }
+
+  /**
+   * 调 `POST /session` 创建会话——WS 升级前的前置步骤。
+   *
+   * 返回值约定：
+   * - 成功（201）：会话已创建，可继续 WS 升级
+   * - 已有活跃会话（409）：视为成功——上个会话还活着，WS 可直接连入
+   *   （KestrelGameServer.cs:104 的 conflict 分支）
+   * - 其他失败（网络错误 / 4xx / 5xx）：抛 Error，调用方决定如何展示
+   *
+   * 注：成功响应 body 含 sessionId / createdAt / state，当前 issue 03 暂不使用——
+   * 这些字段属于 session 元数据，issue 06（snapshot 恢复）会用到。
+   */
+  async function ensureSession(httpBase: string): Promise<void> {
+    const resp = await fetch(`${httpBase}/session`, {
+      method: 'POST',
+      // 同源 dev 模式靠 Vite 代理；生产构建后浏览器访问 http://localhost:8080 也是同源。
+      // 不显式设 CORS headers——server 端 Kestrel 默认不启 CORS。
+    });
+
+    if (resp.status === 201 || resp.status === 409) {
+      return;
+    }
+
+    // 非 201/409——读 body 做诊断。Response body 是一次性 stream，故先 text() 一次，
+    // 再尝试 JSON.parse 提取 error 字段——失败则用原文作 detail。
+    let detail = '';
+    try {
+      const text = await resp.text();
+      try {
+        const body = JSON.parse(text);
+        detail = typeof body?.error === 'string' ? body.error : text;
+      } catch {
+        detail = text;
+      }
+    } catch {
+      // body 读取失败（极罕见，如连接被中断）——detail 留空
+    }
+    throw new Error(`POST /session 失败：HTTP ${resp.status}${detail ? ` (${detail})` : ''}`);
+  }
+
+  /**
+   * 连接到指定 WS URL——异步方法。
+   *
+   * 流程（issue 03 起）：
+   * 1. 标记 status='connecting'，清 closeReason
+   * 2. **先调 `POST /session` 创建会话**（KestrelGameServer 协议契约——无 session 时
+   *    WS 升级会被立即关闭）
+   *    - 失败：status='disconnected' + closeReason，return
+   *    - 成功（201 / 409）：继续步骤 3
+   * 3. 创建 WebSocket，绑定 onopen/onmessage/onerror/onclose
    *
    * 默认 `ws://localhost:5173/ws` 走 Vite 代理到 C# 8080，避免浏览器 dev 模式跨域。
    * 生产构建后用户访问 `localhost:8080`，应传 `ws://localhost:8080/ws`。
    */
-  function connect(url: string = serverUrl.value): void {
+  async function connect(url: string = serverUrl.value): Promise<void> {
     if (ws && (status.value === 'connected' || status.value === 'connecting')) {
       return;
     }
     serverUrl.value = url;
     closeReason.value = null;
     status.value = 'connecting';
+
+    // 步骤 2：先创建会话——失败立即放弃，不留半连接状态
+    const httpBase = deriveHttpBase(url);
+    try {
+      await ensureSession(httpBase);
+    } catch (e) {
+      status.value = 'disconnected';
+      closeReason.value = e instanceof Error ? e.message : String(e);
+      return;
+    }
+
+    // 步骤 3：会话就绪——升级 WebSocket
+    // 用户在 ensureSession 期间手动 disconnect() 的并发处理：检查 status
+    if (status.value !== 'connecting') return;
 
     const socket = new WebSocket(url);
     ws = socket;
@@ -98,5 +179,15 @@ export const useConnectionStore = defineStore('connection', () => {
     ws.send(payload);
   }
 
-  return { status, serverUrl, closeReason, connect, disconnect, sendInput };
+  return {
+    status,
+    serverUrl,
+    closeReason,
+    connect,
+    disconnect,
+    sendInput,
+    // 测试 seam：导出内部纯函数便于单测
+    deriveHttpBase,
+    ensureSession,
+  };
 });
