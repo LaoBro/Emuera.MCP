@@ -14,6 +14,9 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 're
  *
  * 重连策略：v1 不做自动重连。`'reconnecting'` 状态在 v1 仅作为"曾异常断开"标记
  * （与用户主动 `disconnect()` 的 `'disconnected'` 区分），issue 06 起接入指数退避重连。
+ *
+ * Issue 03 起：协议版本号 protocolVersion 移到 game store 暴露（避免重复 parse），
+ * 由 game.lastTurn?.protocolVersion 派生。本 store 只管连接生命周期。
  */
 export const useConnectionStore = defineStore('connection', () => {
   /** 当前连接状态。 */
@@ -24,8 +27,6 @@ export const useConnectionStore = defineStore('connection', () => {
   const serverUrl = ref<string>('ws://localhost:5173/ws');
   /** WS 关闭时收到的 reason/错误信息（用于 UI 诊断）。 */
   const closeReason = ref<string | null>(null);
-  /** 服务端通过 TurnRecord.protocolVersion 报告的协议版本，由 game store 推断后回填。 */
-  const protocolVersion = ref<number | null>(null);
 
   /**
    * 连接到指定 WS URL。
@@ -50,19 +51,11 @@ export const useConnectionStore = defineStore('connection', () => {
 
     socket.onmessage = (event) => {
       // C# SendLoopAsync 把 turn 字符串作为单个 Text 帧下发，data 即原始 JSON。
+      // 直接交给 game store——它内部会 parseTurnRecord + applyDiff 更新显示状态。
       const data = typeof event.data === 'string' ? event.data : '';
       if (!data) return;
       const game = useGameStore();
       game.applyTurn(data);
-      // 协议版本探测：合法帧且包含 protocolVersion 字段时回填（v1 调试用）。
-      try {
-        const obj = JSON.parse(data) as { protocolVersion?: unknown };
-        if (typeof obj.protocolVersion === 'number') {
-          protocolVersion.value = obj.protocolVersion;
-        }
-      } catch {
-        // 非 JSON 帧忽略——issue 01 仅展示原文，不强制结构化。
-      }
     };
 
     socket.onerror = () => {
@@ -105,5 +98,5 @@ export const useConnectionStore = defineStore('connection', () => {
     ws.send(payload);
   }
 
-  return { status, serverUrl, closeReason, protocolVersion, connect, disconnect, sendInput };
+  return { status, serverUrl, closeReason, connect, disconnect, sendInput };
 });

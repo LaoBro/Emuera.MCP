@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useConnectionStore, type ConnectionStatus } from '../stores/connection';
+import { useGameStore } from '../stores/game';
 
 const conn = useConnectionStore();
+const game = useGameStore();
 const urlInput = ref<string>(conn.serverUrl);
 
 function onConnect(): void {
@@ -51,8 +53,8 @@ const statusText: Record<ConnectionStatus, string> = {
       连接
     </button>
     <button v-else class="conn-btn disconnect" @click="onDisconnect">断开</button>
-    <span v-if="conn.protocolVersion !== null" class="proto-version">
-      v{{ conn.protocolVersion }}
+    <span v-if="game.protocolVersion !== null" class="proto-version">
+      v{{ game.protocolVersion }}
     </span>
     <span v-if="conn.closeReason && conn.status !== 'connected'" class="close-reason">
       {{ conn.closeReason }}

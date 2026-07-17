@@ -10,7 +10,9 @@ import { ref } from 'vue';
 export type UiView = 'terminal' | 'debug';
 
 export const useUiStore = defineStore('ui', () => {
-  const currentView = ref<UiView>('debug');
+  // Issue 03 起 Terminal 视图正式可用——默认展示用户视角。
+  // Debug 视图仍保留供协议调试（顶部 view-switch 切换）。
+  const currentView = ref<UiView>('terminal');
 
   function switchView(view: UiView): void {
     currentView.value = view;
