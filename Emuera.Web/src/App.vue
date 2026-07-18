@@ -1,16 +1,62 @@
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import { useUiStore } from './stores/ui';
+import { useGameStore, readGameDirFromStorage } from './stores/game';
+import { useConnectionStore } from './stores/connection';
 import ConnectionPanel from './components/ConnectionPanel.vue';
+import GamePicker from './components/GamePicker.vue';
+import GamePickerMobile from './components/GamePickerMobile.vue';
 import DebugView from './views/DebugView.vue';
 import TerminalView from './views/TerminalView.vue';
 
 const ui = useUiStore();
+const game = useGameStore();
+const conn = useConnectionStore();
+
+/**
+ * Issue 05：App 挂载自动加载逻辑（spec L36）。
+ *
+ * 流程：
+ * 1. GET /state → 拿 server 当前 gameDir
+ * 2. 比对 server gameDir vs localStorage `emuera.gameDir`
+ *   - 同 / localStorage 无值 → conn.connect()（不重启当前局；server 已有 session 直接重连）
+ *   - 异 → game.loadGame(localStorage.emuera.gameDir)（disconnect → /load-game → connect）
+ *
+ * 失败容错：GET /state 失败（server 未启动）→ 不自动连，让用户用 ConnectionPanel 手动连
+ */
+onMounted(async () => {
+  const httpBase = conn.deriveHttpBase(conn.serverUrl);
+  let serverGameDir: string | null = null;
+  try {
+    const resp = await fetch(`${httpBase}/state`);
+    if (resp.status === 200) {
+      const body = await resp.json();
+      if (typeof body?.gameDir === 'string') serverGameDir = body.gameDir;
+    }
+  } catch {
+    // server 未启动——不自动连
+    return;
+  }
+
+  const localGameDir = readGameDirFromStorage();
+
+  if (localGameDir && localGameDir !== serverGameDir) {
+    // localStorage 目录与 server 当前不同——切到 localStorage
+    await game.loadGame(localGameDir);
+  } else {
+    // 同目录 / localStorage 无值——直接 connect
+    await conn.connect();
+  }
+});
 </script>
 
 <template>
   <div class="app-root">
     <header class="app-header">
       <ConnectionPanel />
+      <!-- Issue 05：游戏选择器，按平台条件渲染 -->
+      <GamePickerMobile v-if="ui.platform === 'android'" />
+      <GamePicker v-else />
       <nav class="view-switch">
         <button
           :class="{ active: ui.currentView === 'debug' }"

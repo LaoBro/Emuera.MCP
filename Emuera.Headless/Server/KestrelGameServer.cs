@@ -14,6 +14,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Terminal.Platform;
 
 namespace MinorShift.Emuera.Server;
@@ -27,9 +28,19 @@ internal sealed class KestrelGameServer : IDisposable
 
     private readonly WebApplication _app;
     private readonly ITerminalSetup _terminalSetup;
-    private readonly ConfigData _configData;
+    /// <summary>
+    /// 当前 ConfigData。issue 05 起可变——/load-game 重载游戏目录时整体重建并替换。
+    /// 替换发生在 _sessionLock 内，新 Session 构造时拿到新 ConfigData 引用。
+    /// </summary>
+    private ConfigData _configData;
     private volatile Session? _session;
-    private readonly object _sessionLock = new();
+    /// <summary>
+    /// 异步兼容锁——issue 05 起 /load-game 需在持锁期间 await Preload.Load（读 ERB/CSV 文件可秒级），
+    /// 故从 <c>object</c> + <c>lock</c> 改为 <c>SemaphoreSlim(1,1)</c>。
+    /// 串行化 /session、/load-game、DELETE /session 三个会话变更操作；
+    /// /input、/snapshot、/ws 仅读 <c>_session</c> volatile 引用，不入锁。
+    /// </summary>
+    private readonly SemaphoreSlim _sessionLock = new(1, 1);
 
     public KestrelGameServer(int port, ITerminalSetup terminalSetup, ConfigData configData)
     {
@@ -57,6 +68,9 @@ internal sealed class KestrelGameServer : IDisposable
         _app.MapGet("/snapshot", (Delegate)HandleGetSnapshotAsync);
         _app.MapDelete("/session", (Delegate)HandleDeleteSessionAsync);
         _app.MapGet("/ws", (Delegate)HandleWebSocketAsync);
+        // issue 05：游戏选择器端点——/load-game 重载游戏目录，/native/pick-directory 安卓 SAF 桩
+        _app.MapPost("/load-game", (Delegate)HandleLoadGameAsync);
+        _app.MapPost("/native/pick-directory", (Delegate)HandlePickDirectoryAsync);
     }
 
     public async Task StartAsync()
@@ -70,14 +84,15 @@ internal sealed class KestrelGameServer : IDisposable
         await _app.WaitForShutdownAsync();
     }
 
-    private IResult HandleCreateSessionAsync()
+    private async Task<IResult> HandleCreateSessionAsync()
     {
         bool conflict;
         string? sessionId = null;
         DateTimeOffset createdAt = default;
         string? state = null;
 
-        lock (_sessionLock)
+        await _sessionLock.WaitAsync();
+        try
         {
             if (_session != null && !_session.HasEnded)
             {
@@ -99,6 +114,10 @@ internal sealed class KestrelGameServer : IDisposable
                 createdAt = _session.CreatedAt;
                 state = _session.StateString;
             }
+        }
+        finally
+        {
+            _sessionLock.Release();
         }
 
         if (conflict)
@@ -166,19 +185,27 @@ internal sealed class KestrelGameServer : IDisposable
         return JsonSerializer.Serialize(new { type = "input", value });
     }
 
+    /// <summary>
+    /// GET /state —— 当前会话状态 + gameDir（issue 05）。
+    ///
+    /// 前端 App.vue 挂载时调用：比对 localStorage 的 gameDir 与 server 当前 gameDir，
+    /// 决定是直接 connect（同目录）还是 loadGame（异目录自动切换）。
+    /// </summary>
     private IResult HandleGetStateAsync()
     {
         var session = _session;
+        var gameDir = GamePaths.Current.ExeDir;
 
         if (session == null)
-            return Results.Json(new { state = "Idle", isRunning = false });
+            return Results.Json(new { state = "Idle", isRunning = false, gameDir });
 
         return Results.Json(new
         {
             state = session.StateString,
             isRunning = session.IsRunning,
             sessionId = session.Id,
-            createdAt = session.CreatedAt
+            createdAt = session.CreatedAt,
+            gameDir,
         });
     }
 
@@ -207,10 +234,11 @@ internal sealed class KestrelGameServer : IDisposable
         return Results.Text(json, "application/json", Encoding.UTF8, 200);
     }
 
-    private IResult HandleDeleteSessionAsync()
+    private async Task<IResult> HandleDeleteSessionAsync()
     {
         bool removed;
-        lock (_sessionLock)
+        await _sessionLock.WaitAsync();
+        try
         {
             if (_session != null)
             {
@@ -223,13 +251,170 @@ internal sealed class KestrelGameServer : IDisposable
                 removed = false;
             }
         }
+        finally
+        {
+            _sessionLock.Release();
+        }
 
         return Results.Json(new { removed }, statusCode: removed ? 200 : 404);
+    }
+
+    /// <summary>
+    /// POST /load-game {gameDir} —— 原子重载游戏目录（issue 05）。
+    ///
+    /// 全程序在 _sessionLock 内完成（spec L224-229）：
+    /// 1. 校验路径（拆旧前拦路径级错误）—— GamePaths.Resolve + Validate，失败抛 GamePathValidationException
+    /// 2. dispose 旧 Session（若有）
+    /// 3. Preload.Clear()
+    /// 4. GamePaths.Resolve(newDir)（步骤 1 已完成——重赋静态 GamePaths.Current）
+    /// 5. 重建 ConfigData：new ConfigData().LoadConfig(), ConfigData.SetCurrent()
+    /// 6. Preload.Load(ErbDir/CsvDir) —— 读 ERB/CSV 文件到缓存
+    /// 7. 建新 Session（传入新 _configData）
+    /// 8. 返 {sessionId, state, gameDir}
+    ///
+    /// 错误契约（spec L229）：
+    /// - 路径级错误（DIR_NOT_FOUND / MISSING_CSV / MISSING_ERB）→ 400 `{error:{code,message}}`
+    /// - 加载级失败（ERB 损坏、Preload.Load 异常等）→ 500 `{error:{code:"LOAD_FAILED",message:"..."}}`
+    ///
+    /// 限制：ConfigData.configPath 是 `static readonly`，首次 ConfigData 构造时绑定 Program.ExeDir。
+    /// 重载到含 emuera.config 的新目录时，该 config 文件不会被读取——v1 已知限制，
+    /// 测试游戏（test_game）无 emuera.config，不受影响。后续 spec 可让 configPath 改为实例字段。
+    /// </summary>
+    private async Task<IResult> HandleLoadGameAsync(HttpContext context)
+    {
+        string? gameDir;
+        using (var reader = new StreamReader(context.Request.Body))
+        {
+            var body = await reader.ReadToEndAsync();
+            try
+            {
+                var payload = JsonSerializer.Deserialize<LoadGameRequest>(body);
+                gameDir = payload?.gameDir;
+            }
+            catch
+            {
+                return Results.Json(
+                    new { error = new { code = "INVALID_JSON", message = "Invalid JSON, expected {\"gameDir\":\"...\"}" } },
+                    statusCode: 400);
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(gameDir))
+            return Results.Json(
+                new { error = new { code = "MISSING_GAME_DIR", message = "Missing or empty 'gameDir' field" } },
+                statusCode: 400);
+
+        await _sessionLock.WaitAsync();
+        try
+        {
+            // 1. 校验路径——GamePathValidationException 转 400。
+            //
+            // 注意：GamePaths.Resolve(gameDir) 内部会先把静态 Current 指向新 paths 再返回。
+            // 若 Validate 抛异常，Current 已被污染——spec L229 要求"拆旧前拦路径级错误"，
+            // 即 server 状态不应被失败的 /load-game 改动。故在 catch 内回滚 Current 到旧值
+            // （旧值 = 进入 /load-game 前的 GamePaths.Current，可能为 null 启动期场景）。
+            GamePaths paths;
+            GamePaths? previousPaths = GamePaths.Current;
+            try
+            {
+                paths = GamePaths.Resolve(gameDir);
+                paths.Validate();
+            }
+            catch (GamePathValidationException ex)
+            {
+                // 回滚 Current 到校验前的值——避免 GET /state 返回被拒绝的非法路径
+                if (previousPaths != null)
+                {
+                    GamePaths.SetCurrent(previousPaths);
+                }
+                return Results.Json(
+                    new { error = new { code = ex.Code, message = ex.Message } },
+                    statusCode: 400);
+            }
+
+            // 2. dispose 旧 Session（若有）—— Dispose 等待旧 GameLoopAsync 退出，scope 自动清理
+            if (_session != null)
+            {
+                _session.Dispose();
+                _session = null;
+            }
+
+            // 3. Preload.Clear —— 清空旧 ERB/CSV 文件缓存
+            Preload.Clear();
+
+            // 4. GamePaths.Resolve 已在步骤 1 完成——GamePaths.Current 指向新目录
+
+            // 5. 重建 ConfigData 并 SetCurrent（HTTP 线程 AsyncLocal——主要供 Preload.Load 间接读）
+            var newConfig = new ConfigData();
+            newConfig.LoadConfig();
+            ConfigData.SetCurrent(newConfig);
+            _configData = newConfig;
+
+            // 6. Preload.Load —— 读 ERB/CSV 文件到缓存。失败返 500 LOAD_FAILED
+            try
+            {
+                await Preload.Load(paths.ErbDir);
+                await Preload.Load(paths.CsvDir);
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(
+                    new { error = new { code = "LOAD_FAILED", message = $"Preload.Load failed: {ex.Message}" } },
+                    statusCode: 500);
+            }
+
+            // 7. 建新 Session——GameLoopAsync 内 GameLoopComposer.OpenScope(_configData) 注入新配置
+            var io = new HttpSessionIO(new OutputHub());
+            var newSession = new Session(io, _terminalSetup, _configData);
+            newSession.Start();
+            _session = newSession;
+
+            // 8. 返 {sessionId, state, gameDir}
+            return Results.Json(new
+            {
+                sessionId = newSession.Id,
+                state = newSession.StateString,
+                gameDir = paths.ExeDir,
+            });
+        }
+        catch (Exception ex)
+        {
+            // 兜底：未预期异常归为 LOAD_FAILED
+            return Results.Json(
+                new { error = new { code = "LOAD_FAILED", message = ex.Message } },
+                statusCode: 500);
+        }
+        finally
+        {
+            _sessionLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// POST /native/pick-directory —— 安卓 SAF 目录选择器桩（issue 05）。
+    ///
+    /// 当前桩实现：返 200 `{platform:"web", supported:false, message:"Not implemented on this platform"}`。
+    /// MAUI 阶段由 .NET MAUI 壳替换为真实现（调 Android Storage Access Framework 目录选择器）。
+    /// 前端拿到 supported=false 时回退到路径输入框。
+    /// </summary>
+    private IResult HandlePickDirectoryAsync()
+    {
+        return Results.Json(new
+        {
+            platform = "web",
+            supported = false,
+            message = "Not implemented on this platform",
+        });
     }
 
     private sealed class HttpInput
     {
         public string? value { get; set; }
+    }
+
+    private sealed class LoadGameRequest
+    {
+        public string? gameDir { get; set; }
     }
 
     /// <summary>
@@ -256,7 +441,8 @@ internal sealed class KestrelGameServer : IDisposable
         Session? session = null;
         OutputHub? hub = null;
 
-        lock (_sessionLock)
+        await _sessionLock.WaitAsync();
+        try
         {
             session = _session;
             if (session is { HasEnded: false })
@@ -264,6 +450,10 @@ internal sealed class KestrelGameServer : IDisposable
                 hub = session.IO.Hub;
                 reader = hub?.Subscribe();
             }
+        }
+        finally
+        {
+            _sessionLock.Release();
         }
 
         if (reader == null)
@@ -367,10 +557,15 @@ internal sealed class KestrelGameServer : IDisposable
 
     public void Dispose()
     {
-        lock (_sessionLock)
+        _sessionLock.Wait();
+        try
         {
             _session?.Dispose();
             _session = null;
+        }
+        finally
+        {
+            _sessionLock.Release();
         }
         ((IDisposable)_app).Dispose();
     }

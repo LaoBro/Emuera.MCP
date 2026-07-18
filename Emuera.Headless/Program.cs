@@ -49,7 +49,18 @@ static partial class Program
         Lang.LoadLanguageFiles();
         Lang.SetLanguage();
 
-        paths.Validate();
+        // issue 05：GamePaths.Validate 改抛异常——CLI 启动路径捕获后退出（保留原行为），
+        // server /load-game 路径捕获后返 400（不杀进程）。
+        try
+        {
+            paths.Validate();
+        }
+        catch (GamePathValidationException ex)
+        {
+            Console.Error.WriteLine($"[error] {ex.Code}: {ex.Message}");
+            Environment.Exit(1);
+            return;
+        }
 
         // 字体加载迁移至 runners 内 scope 打开后执行（ADR-0008：Pfc 是实例成员，随 scope 生灭）
         if (options.Server)

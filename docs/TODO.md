@@ -124,3 +124,22 @@
 - 参考：
   - 复评报告 [I-12 — csproj 质量护栏缺失](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性复评报告.md)
   - 评估报告 [4.4 性能与发布配置（I-12, I-13）](2026.6.30.架构健壮性重构/Emuera.Headless%20架构健壮性评估报告.md)
+
+### T-025：server 模式空闲启动（无预绑游戏目录）
+
+- 状态：未实现（follow-up）
+- 范围：`KestrelGameServer`、`Program.Main`、`GamePaths`、`GamePicker.vue` 首次启动流程
+- 说明：当前 `Emuera.Headless.exe --server` 必须带 `--ExeDir` 通过 `GamePaths.Validate()`（csv/erb 目录检查），否则进程直接退出。这导致用户无法通过"双击 exe → 浏览器 → picker 选目录"的流程首次启动，必须由启动器/CLI 预先填写目录。
+- 设计纪要（详见 [web-frontend 决策树](../.scratch/web-frontend/issues/05-game-picker-desktop-android.md) Q7，结论：v1 不纳入范围）：
+  - 放宽 `Program.Main` 在无 `--ExeDir` 时跳过 `GamePaths.Validate()`（或降级为 warn）
+  - `GamePaths.Current` 允许 null（所有 `Program.ErbDir/CsvDir/...` 读取点加守卫，否则 NRE）
+  - `POST /session` 在无游戏时返 503
+  - 前端 `connect()` 改为先 `GET /state` 判断 server 有无 session，无 session 则直接显示 picker
+  - `GamePaths.Resolve` 与 `Preload.Load` 推迟到 `/load-game` 第一次调用时
+- 不纳入范围：
+  - C# 端持久化 last-used dir（由前端 localStorage 承担）
+  - exe 自身硬重启记住目录
+- 验收：
+  - `Emuera.Headless.exe --server`（无 --ExeDir）正常启动，浏览器可打开 picker
+  - picker 选目录后正常加载游戏
+  - 刷新页面后按现有 Q7-b 逻辑自动加载

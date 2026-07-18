@@ -5,6 +5,102 @@ import { applyDiff } from '../lib/opsApplier';
 import { applySnapshot } from '../lib/snapshotReducer';
 import { EMPTY_DISPLAY_STATE } from '../types/protocol';
 import type { DisplayState, DisplaySnapshot, TurnRecord } from '../types/protocol';
+import { useConnectionStore } from './connection';
+
+/**
+ * Issue 05：游戏目录持久化 key（localStorage）。
+ *
+ * App.vue 挂载时读此 key 与 GET /state 的 gameDir 比对：
+ * - 同 → 直接 connect()（不重启当前局）
+ * - 异 → loadGame(localStorage value) 切换
+ */
+const GAME_DIR_STORAGE_KEY = 'emuera.gameDir';
+
+/**
+ * Issue 05：结构化错误码——与 C# `KestrelGameServer.HandleLoadGameAsync` 错误契约对齐。
+ *
+ * 路径级错误（400）：
+ * - DIR_NOT_FOUND：目录不存在
+ * - MISSING_CSV：缺 csv 子目录
+ * - MISSING_ERB：缺 erb 子目录
+ * - MISSING_GAME_DIR / INVALID_JSON：请求体错误（前端构造时不应触发，作兜底）
+ *
+ * 加载级错误（500）：
+ * - LOAD_FAILED：Preload.Load / ERB 解析等失败
+ */
+export type LoadGameErrorCode =
+  | 'DIR_NOT_FOUND'
+  | 'MISSING_CSV'
+  | 'MISSING_ERB'
+  | 'MISSING_GAME_DIR'
+  | 'INVALID_JSON'
+  | 'LOAD_FAILED';
+
+/** Issue 05：loadGame 抛出的结构化错误——UI 按代码映射提示文案。 */
+export class LoadGameError extends Error {
+  readonly code: LoadGameErrorCode;
+  readonly httpStatus: number;
+
+  constructor(code: LoadGameErrorCode, message: string, httpStatus: number) {
+    super(message);
+    this.name = 'LoadGameError';
+    this.code = code;
+    this.httpStatus = httpStatus;
+  }
+}
+
+/**
+ * 错误码 → UI 文案映射——纯函数，便于单测。
+ *
+ * 与 C# `KestrelGameServer.HandleLoadGameAsync` 的 5 个 code 对称：
+ * - DIR_NOT_FOUND：目录不存在
+ * - MISSING_CSV：缺 csv 目录
+ * - MISSING_ERB：缺 erb 目录
+ * - LOAD_FAILED：加载游戏失败（ERB 损坏等）
+ * - MISSING_GAME_DIR / INVALID_JSON：请求格式错误（前端 bug，不应让用户看到原文）
+ */
+export function mapLoadGameErrorCode(code: LoadGameErrorCode): string {
+  switch (code) {
+    case 'DIR_NOT_FOUND':
+      return '目录不存在，请检查路径';
+    case 'MISSING_CSV':
+      return '缺少 csv 子目录，请确认是 Emuera 游戏目录';
+    case 'MISSING_ERB':
+      return '缺少 erb 子目录，请确认是 Emuera 游戏目录';
+    case 'LOAD_FAILED':
+      return '游戏加载失败（ERB 文件可能损坏），请查看服务器日志';
+    case 'MISSING_GAME_DIR':
+    case 'INVALID_JSON':
+      return '请求格式错误，请刷新页面重试';
+  }
+}
+
+/**
+ * 从 localStorage 读 gameDir——纯函数，便于单测。
+ *
+ * SSR / 旧浏览器无 localStorage 时返 null。读到非 string 值（被外部污染）也返 null。
+ */
+export function readGameDirFromStorage(
+  storage: Storage | null = typeof localStorage !== 'undefined' ? localStorage : null,
+): string | null {
+  if (!storage) return null;
+  try {
+    const v = storage.getItem(GAME_DIR_STORAGE_KEY);
+    return typeof v === 'string' && v.length > 0 ? v : null;
+  } catch {
+    // localStorage 访问被禁用（隐私模式 / 跨域）——返 null 不抛
+    return null;
+  }
+}
+
+/** 写 gameDir 到 localStorage——失败时静默（隐私模式 / 容量超限）。 */
+function writeGameDirToStorage(dir: string): void {
+  try {
+    localStorage.setItem(GAME_DIR_STORAGE_KEY, dir);
+  } catch {
+    // 静默——gameDir ref 仍更新，只是不持久化
+  }
+}
 
 /**
  * useGameStore — 游戏帧数据与显示状态（issue 03 升级 / issue 04 ADR-0016 v6 重构）。
@@ -35,6 +131,22 @@ export const useGameStore = defineStore('game', () => {
   const lastError = ref<string | null>(null);
   /** 最新解析后的 TurnRecord（调试用，UI 也可读 inputType 等顶层字段）。 */
   const lastTurn = ref<TurnRecord | null>(null);
+
+  // ---------- Issue 05：游戏目录与重载状态 ----------
+  //
+  // gameDir 持久化到 localStorage，App.vue 挂载时与 GET /state 比对决定 connect / loadGame。
+  // reloadStatus 标记 /load-game 序列进行中——UI 禁用切换按钮、显示 loading。
+  // loadGame(dir) 是跨 store 复合动作：disconnect → POST /load-game → connect。
+  //   成功：reloadStatus='idle'，gameDir 更新，WS 重连入新游戏
+  //   失败：reloadStatus='idle'，loadGameError 写入，UI 按错误码映射提示
+  //         路径级错误（400）不拆旧 session——server 端 dispose 旧前拦下，前端 connect() 回旧局
+  //         加载级错误（500）旧 session 已被 dispose——connect() 时 server 会建新空 session
+  /** 当前游戏目录（持久化到 localStorage）。null 表示尚未加载过任何游戏。 */
+  const gameDir = ref<string | null>(readGameDirFromStorage());
+  /** /load-game 进行中标志——UI 禁用切换按钮 + 显示 loading。 */
+  const reloadStatus = ref<'idle' | 'loading'>('idle');
+  /** 最近一次 loadGame 错误——UI 展示结构化提示。null 表示无错误或已清除。 */
+  const loadGameError = ref<LoadGameError | null>(null);
   /**
    * 最近一次 GET /snapshot 拿到的原始快照（调试展示用）。
    *
@@ -287,6 +399,95 @@ export const useGameStore = defineStore('game', () => {
   // 这里用 watch(tinputStartedAt) 间接触发清理——非 TINPUT 期间 stopTinputTicker 已调过。
   // 主卸载时若仍处于 TINPUT，interval 会泄漏——接受这个小问题（生产环境 store 与 app 同寿）。
 
+  // ---------- Issue 05：loadGame 跨 store 复合动作 ----------
+  //
+  // 延迟解引用 connection store——Pinia 单例模式允许 store 互相 use，
+  // 调用 loadGame 时才 useConnectionStore()，避免初始化期循环依赖。
+  // spec L221 流程：disconnect → POST /load-game → connect
+  //   - disconnect 先断旧 WS（用户视角立即"loading"）
+  //   - POST /load-game 让 C# server 原子重载游戏目录（dispose 旧 session + Preload.Clear
+  //     + 重建 ConfigData + Preload.Load + 建新 session）
+  //   - connect 让 WS 重新升级到新 session（onopen 后 refreshSnapshot 拿新游戏画面）
+  //
+  // 错误恢复：
+  //   - 路径级错误（400 DIR_NOT_FOUND/MISSING_CSV/MISSING_ERB）：server 端拦在 dispose 前，
+  //     旧 session 还活着——前端 connect() 回旧局，UI 显示错误提示
+  //   - 加载级错误（500 LOAD_FAILED）：server 端已 dispose 旧 session + Preload.Clear，
+  //     新 session 未建——前端 connect() 时 server 建新空 session，旧画面丢失（接受）
+  //   - 网络错误（fetch 抛错）：视为 LOAD_FAILED 同样处理
+  async function loadGame(dir: string): Promise<void> {
+    // 二次进入保护——reload 进行中时拒绝（UI 也应禁用按钮，作兜底）
+    if (reloadStatus.value === 'loading') return;
+    if (!dir || !dir.trim()) {
+      loadGameError.value = new LoadGameError('MISSING_GAME_DIR', 'gameDir 为空', 400);
+      return;
+    }
+    const trimmed = dir.trim();
+    reloadStatus.value = 'loading';
+    loadGameError.value = null;
+
+    // 延迟解引用 connection store——避免 store 初始化期循环依赖
+    const conn = useConnectionStore();
+    const httpBase = conn.deriveHttpBase(conn.serverUrl);
+
+    // 步骤 1：disconnect 旧 WS——用户视角立即"loading"
+    // 注意：server 端旧 session 还在，/load-game 内部会 dispose 它
+    conn.disconnect();
+    // 清空本地显示状态——避免新游戏加载时画面闪烁旧帧
+    reset();
+
+    // 步骤 2：POST /load-game {gameDir}
+    try {
+      const resp = await fetch(`${httpBase}/load-game`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameDir: trimmed }),
+      });
+
+      if (resp.status === 200) {
+        // 成功——更新 gameDir + 持久化
+        gameDir.value = trimmed;
+        writeGameDirToStorage(trimmed);
+        // 步骤 3：connect 新 session（server 已建好新 session 等待 WS 升级）
+        await conn.connect(conn.serverUrl);
+      } else {
+        // 错误——解析 {error:{code,message}} 结构
+        let code: LoadGameErrorCode = 'LOAD_FAILED';
+        let message = `HTTP ${resp.status}`;
+        try {
+          const body = await resp.json();
+          if (body?.error?.code) code = body.error.code as LoadGameErrorCode;
+          if (body?.error?.message) message = body.error.message;
+        } catch {
+          // body 非 JSON——用默认 code/message
+        }
+        loadGameError.value = new LoadGameError(code, message, resp.status);
+        // 错误时仍 connect 回旧 session（路径级错误）/ 建空 session（加载级错误）
+        await conn.connect(conn.serverUrl);
+      }
+    } catch (e) {
+      // 网络错误——fetch 抛错
+      loadGameError.value = new LoadGameError(
+        'LOAD_FAILED',
+        e instanceof Error ? e.message : String(e),
+        0,
+      );
+      // 尝试重连——可能 server 重启中
+      try {
+        await conn.connect(conn.serverUrl);
+      } catch {
+        // 重连也失败——保持 loadGameError 状态，UI 显示"无法连接服务器"
+      }
+    } finally {
+      reloadStatus.value = 'idle';
+    }
+  }
+
+  /** Issue 05：清空 loadGameError——用户关闭错误提示时调用。 */
+  function clearLoadGameError(): void {
+    loadGameError.value = null;
+  }
+
   return {
     lastTurnJson,
     turnHistory,
@@ -306,5 +507,11 @@ export const useGameStore = defineStore('game', () => {
     applyTurn,
     setSnapshot,
     reset,
+    // Issue 05：游戏目录与重载状态
+    gameDir,
+    reloadStatus,
+    loadGameError,
+    loadGame,
+    clearLoadGameError,
   };
 });

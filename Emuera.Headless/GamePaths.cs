@@ -36,6 +36,15 @@ internal sealed class GamePaths
         return paths;
     }
 
+    /// <summary>
+    /// 显式重设静态 <see cref="Current"/>——issue 05 /load-game 校验失败时回滚到旧值。
+    /// 仅 server 内部使用，CLI / 启动期不调。
+    /// </summary>
+    internal static void SetCurrent(GamePaths paths)
+    {
+        Current = paths;
+    }
+
     private static string DetectDefault()
     {
         var baseDirectory = AppContext.BaseDirectory;
@@ -44,17 +53,31 @@ internal sealed class GamePaths
         return baseDirectory;
     }
 
+    /// <summary>
+    /// 校验游戏目录结构。失败时抛 <see cref="GamePathValidationException"/>（issue 05）——
+    /// 旧实现调 <c>Environment.Exit(1)</c>，会让 /load-game 校验失败时杀死整个 server 进程，
+    /// 故改为抛异常：CLI 启动路径在 Program.Main 捕获后退出，server /load-game 路径捕获后返 400。
+    /// </summary>
     public void Validate()
     {
+        if (!Directory.Exists(ExeDir))
+            throw new GamePathValidationException("DIR_NOT_FOUND", $"目录不存在: {ExeDir}");
         if (!Directory.Exists(CsvDir))
-        {
-            Console.Error.WriteLine($"[error] CSV 目录不存在: {CsvDir}");
-            Environment.Exit(1);
-        }
+            throw new GamePathValidationException("MISSING_CSV", $"缺少 csv 目录: {CsvDir}");
         if (!Directory.Exists(ErbDir))
-        {
-            Console.Error.WriteLine($"[error] ERB 目录不存在: {ErbDir}");
-            Environment.Exit(1);
-        }
+            throw new GamePathValidationException("MISSING_ERB", $"缺少 erb 目录: {ErbDir}");
+    }
+}
+
+/// <summary>
+/// 游戏目录校验失败异常（issue 05）。<see cref="Code"/> 与前端错误契约对称：
+/// <c>DIR_NOT_FOUND</c> / <c>MISSING_CSV</c> / <c>MISSING_ERB</c>。
+/// </summary>
+internal sealed class GamePathValidationException : Exception
+{
+    public string Code { get; }
+    public GamePathValidationException(string code, string message) : base(message)
+    {
+        Code = code;
     }
 }

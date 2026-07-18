@@ -281,6 +281,24 @@ def main():
         )
     )
 
+    results.append(
+        (
+            "load-game endpoints",
+            _run_script(
+                "load-game endpoints",
+                [
+                    sys.executable,
+                    str(TESTS_DIR / "test_load_game.py"),
+                    "--binary",
+                    str(binary_path),
+                    "--game-dir",
+                    str(game_dir),
+                ],
+                timeout=180,
+            ),
+        )
+    )
+
     print("\n=== Summary ===")
     all_passed = True
     for name, (passed, code, skipped) in results:
