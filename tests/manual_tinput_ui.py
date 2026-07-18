@@ -1,7 +1,8 @@
 """手动测试脚本：ADR-0016 TINPUT timer metadata UI 验证。
 
-与 `test_tinput_timeout.py`（自动化断言）不同，本脚本只启动 C# headless server
-并注入一份覆盖所有 ADR-0016 测试场景的 ERB，由开发者用浏览器手动验证 UI 行为。
+一键启动 C# headless server（8080）+ Vite dev server（5173），注入覆盖所有
+ADR-0016 测试场景的 ERB，并自动打开浏览器。开发者按 ERB 菜单选择测试场景，
+肉眼验证 UI 行为。
 
 用法
 ----
@@ -9,20 +10,20 @@
 
        dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug
 
-2. 启动前端 Vite dev server（另一终端，监听 5173）：
+2. 安装前端依赖（仅首次运行）：
 
-       cd Emuera.Web && npm run dev
+       cd Emuera.Web && npm install
 
-3. 启动本脚本（注入 ERB + 启动 C# server，监听 8080）：
+3. 一键启动（C# server + Vite + 浏览器）：
 
        python tests/manual_tinput_ui.py
 
-4. 浏览器访问 http://localhost:5173，按 ERB 菜单选择测试场景。
+4. 浏览器加载后，按 ERB 菜单选择测试场景。
 
    也可直接访问 http://localhost:8080/snapshot 查看原始 JSON，
    或用 curl GET /turn 验证 WS / HTTP 帧中的 4 个 timer 字段。
 
-5. 验证完毕后按 Enter 关闭 server。
+5. 验证完毕后按 Enter 关闭两个 server。
 
 测试场景（ERB 内置菜单）
 ------------------------
@@ -39,13 +40,17 @@
 每个场景结束后返回菜单，可重复测试。
 """
 import shutil
+import subprocess
 import sys
+import time
+import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+WEB_DIR = ROOT / "Emuera.Web"
 sys.path.insert(0, str(ROOT / "tests"))
 
-from emuera_server import copy_test_game_with_erb, start_server
+from emuera_server import copy_test_game_with_erb, start_server, wait_for_port
 
 
 # 注入到临时游戏目录的 ERB。覆盖 ADR-0016 全部测试场景。
@@ -108,9 +113,57 @@ GOTO LOOP
 """
 
 
+def start_vite_dev(web_dir: Path, port: int = 5173, timeout: float = 30.0):
+    """启动 Vite dev server（在 Emuera.Web 目录运行 `npm run dev`）。
+
+    - shell=True 让 Windows 找到 npm.cmd
+    - stdout/stderr 走 DEVNULL，避免管道缓冲被填满导致 npm 阻塞
+      （Vite 启动后持续输出日志，若 Popen 用 PIPE 且不读会死锁）
+    - --strictPort 强制端口，被占用时直接报错而不是漂移到 5174
+    """
+    if not (web_dir / "node_modules").is_dir():
+        raise FileNotFoundError(
+            f"{web_dir} 下没有 node_modules，请先运行：cd Emuera.Web && npm install"
+        )
+
+    proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--port", str(port), "--strictPort"],
+        cwd=str(web_dir),
+        shell=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        wait_for_port(port, timeout=timeout)
+    except Exception:
+        stop_process_tree(proc)
+        raise
+    return proc
+
+
+def stop_process_tree(proc):
+    """杀掉进程树。Windows 用 taskkill /T 一并杀掉 npm.cmd 派生的 vite 子进程，
+    避免单独 kill npm 后 vite 仍监听 5173。
+    """
+    if proc.poll() is not None:
+        return
+    if sys.platform == "win32":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+            capture_output=True,
+        )
+    else:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
 def main():
     temp_dir = None
     server = None
+    vite_proc = None
     try:
         temp_dir, game_dir = copy_test_game_with_erb(ERB)
         # 固定 8080 端口：vite.config.ts 的 /ws /snapshot /session 代理都指向 8080
@@ -121,21 +174,36 @@ def main():
             print(f"ERROR: POST /session 返回 {status}: {body}")
             return 1
 
+        vite_url = "http://localhost:5173"
+        try:
+            vite_proc = start_vite_dev(WEB_DIR, port=5173)
+            vite_ready = True
+        except Exception as e:
+            print(f"WARNING: 启动 Vite dev server 失败：{e}")
+            print(f"         可手动在另一终端运行：cd Emuera.Web && npm run dev")
+            vite_ready = False
+
         print()
         print("=" * 64)
-        print("ADR-0016 TINPUT 手动测试 server 已启动")
+        print("ADR-0016 TINPUT 手动测试环境已启动")
         print("=" * 64)
         print()
         print(f"  C# server      : {server.base_url}")
+        if vite_ready:
+            print(f"  Vite dev server: {vite_url}")
         print(f"  临时游戏目录   : {game_dir}")
         print()
-        print("前端访问（推荐）：")
-        print("  1. 在另一终端：cd Emuera.Web && npm run dev")
-        print("  2. 浏览器访问 http://localhost:5173")
-        print()
-        print("协议层直接验证（无需前端）：")
-        print(f"  - curl {server.base_url}/snapshot  # 应含 timeLimit/displayTime/timeUpMessage")
-        print(f"  - curl {server.base_url}/turn       # WaitInput 帧应含 4 个 timer 字段")
+        if vite_ready:
+            print(f"3 秒后自动打开浏览器：{vite_url}")
+            time.sleep(3)
+            try:
+                webbrowser.open(vite_url)
+            except Exception:
+                pass
+        else:
+            print("协议层直接验证（无前端）：")
+            print(f"  - curl {server.base_url}/snapshot  # 应含 timeLimit/displayTime/timeUpMessage")
+            print(f"  - curl {server.base_url}/turn       # WaitInput 帧应含 4 个 timer 字段")
         print()
         print("ERB 内置测试场景：")
         print("  [0] 场景 A：5s 显示倒计时 + 超时      → 验证 timeUpMessage 横幅")
@@ -154,13 +222,15 @@ def main():
         print("  [ ] 协议版本 protocolVersion=6")
         print("  [ ] 晚加入者 GET /snapshot 携带 timer 字段")
         print()
-        print("按 Enter 关闭 server（或 Ctrl+C 强制退出）...")
+        print("按 Enter 关闭两个 server（或 Ctrl+C 强制退出）...")
         try:
             input()
         except KeyboardInterrupt:
             pass
         return 0
     finally:
+        if vite_proc is not None:
+            stop_process_tree(vite_proc)
         if server is not None:
             try:
                 server.delete_session()
