@@ -390,7 +390,7 @@ internal sealed class DisplayState : IDisplayState
             needValue: currentRequest?.NeedValue ?? false,
             protocolVersion: TurnRecord.CurrentProtocolVersion,
             // ADR-0016：TINPUT timer 元数据——仅在 TINPUT 期间（Timelimit > 0）填充。
-            // 非非 TINPUT 期间 / 无 currentRequest → 三字段均为 null（WhenWritingNull 时不写入 JSON）。
+            // 非 TINPUT 期间 / 无 currentRequest → 三字段均为 null（WhenWritingNull 时不写入 JSON）。
             // displayTime 取 InputRequest.DisplayTime——尊重 ERB 脚本"别给玩家看"的意图。
             timeLimit: currentRequest is { Timelimit: > 0 } req ? req.Timelimit : null,
             displayTime: currentRequest is { Timelimit: > 0, DisplayTime: true } ? true : null,
