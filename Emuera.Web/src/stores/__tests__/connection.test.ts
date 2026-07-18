@@ -187,13 +187,13 @@ describe('useConnectionStore.fetchSnapshot', () => {
   });
 
   it('连续 503 直到上限：throw 含重试次数', async () => {
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 30; i++) {
       fetchSpy.mockResolvedValueOnce(new Response('session not initialized', { status: 503 }));
     }
 
     const conn = useConnectionStore();
     await expect(conn.fetchSnapshot('http://localhost:5173')).rejects.toThrow(
-      /GET \/snapshot 重试 5 次仍 503/,
+      /GET \/snapshot 重试 30 次仍 503/,
     );
   });
 
@@ -581,6 +581,63 @@ describe('useConnectionStore.connect — onopen 立即拉 snapshot', () => {
     expect(conn.status).toBe('disconnected');
     expect(conn.retryCount).toBe(0);
     expect(conn.reconnectFailed).toBe(false);
+  });
+
+  it('首帧 turn diff=null + snapshot 拿到空 lines → onmessage fallback 再次拉 snapshot', async () => {
+    // 模拟 C# 真实场景：POST /session 后 _displayState 已构造但游戏循环还没产出 PRINT。
+    // GET /snapshot 首次返回 lines=[]，首帧 turn 的 diff 必为 null（DisplayState.ComputeDiff 第一次返回 null）。
+    // 期望：onmessage fallback 再次触发 refreshSnapshot，拿到游戏已产出画面。
+    let snapshotCallCount = 0;
+    fetchSpy.mockImplementation(async (url: Parameters<typeof fetch>[0]) => {
+      const urlStr = typeof url === 'string' ? url : url.toString();
+      if (urlStr.endsWith('/session')) {
+        return new Response(JSON.stringify({ sessionId: 'abc', state: 'Idle' }), { status: 201 });
+      }
+      if (urlStr.endsWith('/snapshot')) {
+        snapshotCallCount++;
+        if (snapshotCallCount === 1) {
+          // 第一次：游戏循环还没产出任何 PRINT——空 lines
+          return new Response(snapshotJson([], { state: 'WaitInput' }), { status: 200 });
+        }
+        // 第二次（fallback 触发）：游戏已产出 1 行 "Title"
+        return new Response(
+          snapshotJson([{ entries: [{ segments: [{ text: 'Title' }] }], isLineEnd: true }]),
+          { status: 200 },
+        );
+      }
+      return new Response('not found', { status: 404 });
+    });
+
+    const conn = useConnectionStore();
+    const { useGameStore } = await import('../game');
+    const game = useGameStore();
+
+    await conn.connect('ws://localhost:5173/ws');
+    FakeWebSocket.lastInstance!.triggerOpen();
+
+    // 等 onopen 的 refreshSnapshot 完成——snapshot 拿到空 lines
+    await vi.waitFor(() => {
+      expect(snapshotCallCount).toBeGreaterThanOrEqual(1);
+    });
+    expect(game.displayState.lines).toHaveLength(0);
+
+    // 模拟 C# 推送首帧 turn（diff 必为 null——ComputeDiff 第一次返回 null）
+    const firstTurnJson = JSON.stringify({
+      state: 'WaitInput',
+      inputType: 'IntValue',
+      needValue: true,
+      protocolVersion: 6,
+      // 注意：没有 diff 字段
+    });
+    FakeWebSocket.lastInstance!.triggerMessage(firstTurnJson);
+
+    // onmessage 应触发 fallback refreshSnapshot——拿到 1 行 "Title"
+    await vi.waitFor(() => {
+      expect(snapshotCallCount).toBeGreaterThanOrEqual(2);
+      expect(game.displayState.lines).toHaveLength(1);
+    });
+    expect(game.displayState.lines[0].entries[0].segments[0].text).toBe('Title');
+    expect(game.lastTurnJson).toBe(firstTurnJson);
   });
 });
 

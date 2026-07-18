@@ -128,9 +128,14 @@ export const useConnectionStore = defineStore('connection', () => {
     throw new Error(`POST /session 失败：HTTP ${resp.status}${detail ? ` (${detail})` : ''}`);
   }
 
-  /** GET /snapshot 503 重试上限与间隔——C# POST /session 后 _displayState 极短窗口为 null。 */
-  const SNAPSHOT_503_RETRIES = 5;
-  const SNAPSHOT_503_INTERVAL_MS = 100;
+  /** GET /snapshot 503 重试上限与间隔——C# POST /session 后 _displayState 极短窗口为 null。
+   *
+   * 选 30 次 × 200ms = 6s 总窗口：覆盖大多数游戏启动场景（OpenScope + 构造 console +
+   * ERB 解析 + 首帧 BuildTurn）。原 5 × 100ms = 500ms 在慢机或首次启动时不够，
+   * 表现为前端首帧 turn 到达后画面仍空白（首帧 turn diff 必为 null——见 onmessage fallback 注释）。
+   */
+  const SNAPSHOT_503_RETRIES = 30;
+  const SNAPSHOT_503_INTERVAL_MS = 200;
 
   /**
    * 调 `GET /snapshot` 拿当前全量显示状态——WS onopen 后立即调用。
@@ -317,6 +322,15 @@ export const useConnectionStore = defineStore('connection', () => {
         }
       }
       game.applyTurn(data);
+      // 首帧 fallback：C# DisplayState.ComputeDiff 第一次调用必返回 null
+      // （_previous==null，DisplayState.cs:166-167）——首帧 turn 永远 diff=null。
+      // 若 onopen 的 refreshSnapshot 撞上 503 窗口或拿到 lines=[]（游戏循环
+      // 还没产出 PRINT），displayState.lines 仍空，applyTurn 不会改它。
+      // 此时再触发一次 refreshSnapshot——in-flight 检查防重复请求，最多多发一次。
+      // 后续游戏循环推进后，game.displayState.lines 会被 diff 帧刷新，fallback 不再触发。
+      if (game.displayState.lines.length === 0 && !snapshotInFlight) {
+        void refreshSnapshot(httpBase);
+      }
     };
 
     socket.onerror = () => {
