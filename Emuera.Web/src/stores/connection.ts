@@ -6,20 +6,55 @@ import type { DisplaySnapshot } from '../types/protocol';
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
 /**
- * useConnectionStore — WebSocket 连接生命周期。
+ * 自动重连最大尝试次数——达到后停止，UI 显示"连接失败"。
+ *
+ * 选 10 次的依据：1s → 2s → 4s → 8s → 16s → 30s → 30s → 30s → 30s → 30s ≈ 2.5 分钟，
+ * 足够覆盖临时网络抖动 + 用户重启 C# server 的时间，又不至于让 UI 卡死太久。
+ */
+export const MAX_RECONNECT_ATTEMPTS = 10;
+/** 自动重连初始延迟（毫秒）——第 1 次重试等待 1s。 */
+export const INITIAL_BACKOFF_MS = 1000;
+/** 自动重连最大延迟（毫秒）——指数退避封顶 30s。 */
+export const MAX_BACKOFF_MS = 30000;
+
+/**
+ * 指数退避计算——纯函数，便于单测。
+ *
+ * attempt=0 → 1s（首次重试）
+ * attempt=1 → 2s
+ * attempt=2 → 4s
+ * ...
+ * attempt≥4 → 封顶 30s（1·2^5=32s 已超 30s，attempt=4 时 16s 仍未封顶；attempt=5 时 32s→30s）
+ *
+ * 调用方负责在调用前递增 retryCount。
+ */
+export function computeBackoffMs(attempt: number): number {
+  const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+  return Math.min(backoff, MAX_BACKOFF_MS);
+}
+
+/**
+ * useConnectionStore — WebSocket 连接生命周期（issue 06：自动重连 + snapshot 恢复）。
  *
  * 协议契约（与 C# KestrelGameServer 对齐）：
  * - **必须先 POST /session 创建会话**，server 才会接受 WS 升级；
  *   否则 server 接受 WS 升级后立即下发关闭码 4004 + reason "No active session"
  *   （KestrelGameServer.cs:271）
- * - **WS 升级前必须先 GET /snapshot 拿当前全屏状态**——C# server 不在首帧 diff
- *   重放历史 PRINT 输出，故前端必须主动拉快照渲染初始画面
- * - 服务端发送：裸 JSON 文本帧（每个帧是一个 TurnRecord v5 JSON）
+ * - **WS onopen 后立即 GET /snapshot**——C# server 不在首帧 diff 重放历史 PRINT 输出，
+ *   故前端必须主动拉快照渲染初始画面（issue 06 明确此举；issue 03 的"等首帧再决定"方案
+ *   被 issue 06 替换为更可靠的"onopen 立即拉"）。snapshot 恢复覆盖所有晚加入者场景：
+ *   断线重连、多标签观察、调试工具中途连接、刷新浏览器页面
+ * - 服务端发送：裸 JSON 文本帧（每个帧是一个 TurnRecord v6 JSON）
  * - 客户端发送：`{"type":"input","value":"..."}` 文本帧
  *   （C# HandleWsInput 直接入队，AgentJsonlProtocol 校验 type=="input"）
  *
- * 重连策略：v1 不做自动重连。`'reconnecting'` 状态在 v1 仅作为"曾异常断开"标记
- * （与用户主动 `disconnect()` 的 `'disconnected'` 区分），issue 06 起接入指数退避重连。
+ * 重连策略（issue 06）：
+ * - 异常断开（onclose code !== 1000）→ status='reconnecting' → 调度 setTimeout
+ * - 指数退避：1s → 2s → 4s → 8s → 16s → 30s（封顶）
+ * - 重试 MAX_RECONNECT_ATTEMPTS=10 次后停止：reconnectFailed=true + status='disconnected'
+ * - 重连成功（onopen）后 retryCount 清零
+ * - 手动重连按钮：retryConnect() 重置 retryCount + 立即 connect
+ * - 用户主动 disconnect()：取消 pending 重连定时器 + isManualDisconnect flag 抑制 onclose 重连
  */
 export const useConnectionStore = defineStore('connection', () => {
   /** 当前连接状态。 */
@@ -30,6 +65,14 @@ export const useConnectionStore = defineStore('connection', () => {
   const serverUrl = ref<string>('ws://localhost:5173/ws');
   /** WS 关闭时收到的 reason/错误信息（用于 UI 诊断）。 */
   const closeReason = ref<string | null>(null);
+  /** 当前重连尝试次数（成功 onopen 后清零）。每次 scheduleReconnect 调用 ++。 */
+  const retryCount = ref<number>(0);
+  /** 重连失败上限标志——true 时 UI 显示"连接失败，请检查服务器" + 手动重连按钮。 */
+  const reconnectFailed = ref<boolean>(false);
+  /** 待执行的重连定时器——非响应式；disconnect() 时清除。null 表示无 pending 重连。 */
+  let reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  /** 用户主动断开标志——onclose 看到此 flag 不调度重连。connect() 时重置为 false。 */
+  let isManualDisconnect = false;
   /**
    * 关联的 game store——store 顶层声明，供 connect / refreshSnapshot 共享同一引用。
    * Pinia store 是单例，useGameStore() 多次调用返回同一实例。
@@ -58,7 +101,7 @@ export const useConnectionStore = defineStore('connection', () => {
    * 返回值约定：
    * - 成功（201）：会话已创建，可继续后续步骤
    * - 已有活跃会话（409）：视为成功——上个会话还活着，可直接连入
-   *   （KestrelGameServer.cs:104 的 conflict 分支）
+   *   （KestrelGameServer.cs:104 的 conflict 分支；多观察者场景的关键路径）
    * - 其他失败（网络错误 / 4xx / 5xx）：抛 Error，调用方决定如何展示
    */
   async function ensureSession(httpBase: string): Promise<void> {
@@ -90,7 +133,7 @@ export const useConnectionStore = defineStore('connection', () => {
   const SNAPSHOT_503_INTERVAL_MS = 100;
 
   /**
-   * 调 `GET /snapshot` 拿当前全量显示状态——WS 升级前的前置步骤。
+   * 调 `GET /snapshot` 拿当前全量显示状态——WS onopen 后立即调用。
    *
    * C# `Session.GetDisplaySnapshot()`（Session.cs:34）：
    * - session 未初始化（_displayState==null，POST /session 后极短窗口）→ 503
@@ -160,72 +203,120 @@ export const useConnectionStore = defineStore('connection', () => {
     );
   }
 
-  /** Promise-based setTimeout——503 重试间隔。*/
+  /** Promise-based setTimeout——503 重试间隔。 */
   function delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /** 清除 pending 重连定时器——connect/retryConnect/disconnect 共用。 */
+  function clearPendingReconnect(): void {
+    if (reconnectTimeoutId !== null) {
+      clearTimeout(reconnectTimeoutId);
+      reconnectTimeoutId = null;
+    }
+  }
+
   /**
-   * 连接到指定 WS URL——异步方法。
+   * 调度下一次重连——若已达上限则置 reconnectFailed=true 并停止。
    *
-   * 流程（issue 03 修复 v2：WS 首帧后拉 snapshot）：
-   * 1. 标记 status='connecting'，清 closeReason
-   * 2. **POST /session 创建会话**（KestrelGameServer 协议契约）
-   *    - 失败：status='disconnected' + closeReason，return
-   * 3. 创建 WebSocket，绑定 onopen/onmessage/onerror/onclose
-   *    - onopen 后 status='connected'
-   * 4. **WS 首帧到达后，若 displayState.lines 仍为空 → 主动 GET /snapshot**
-   *    - 原因：C# `DisplayState.ComputeDiff` 首帧时 `_previous==null` 返回 null diff
-   *      （DisplayState.cs:189），故 WS 首帧不携带任何 LineOp——displayState 不会被填充
-   *    - 时机保证：WS 首帧由 `GetInitialTurnAsync` 在 `WaitForInputAsync` 返回后发出，
-   *      即游戏已进入 WaitInput 状态——此时 DisplayLineList 必有内容（首回合 PRINT 已完成）
-   *    - 失败：写 closeReason，不阻断 WS（已连接，只是没有初始画面）
+   * 触发点：
+   * - WS onclose 异常断开（code !== 1000）
+   * - POST /session 失败（仅在 isReconnect=true 路径——用户主动 connect 失败不自动重试）
    *
-   * 默认 `ws://localhost:5173/ws` 走 Vite 代理到 C# 8080。
-   * 生产构建后用户访问 `localhost:8080`，应传 `ws://localhost:8080/ws`。
+   * 幂等：若已有 pending 重连定时器，return（防 onerror + onclose 双触发）。
+   * 取消：disconnect() / connect() / retryConnect() 主动清除定时器。
    */
-  async function connect(url: string = serverUrl.value): Promise<void> {
+  function scheduleReconnect(): void {
+    if (isManualDisconnect) return;
+    if (reconnectTimeoutId !== null) return; // 已在等待
+    if (retryCount.value >= MAX_RECONNECT_ATTEMPTS) {
+      reconnectFailed.value = true;
+      status.value = 'disconnected';
+      closeReason.value = `重连 ${MAX_RECONNECT_ATTEMPTS} 次仍失败，请检查服务器`;
+      return;
+    }
+    const backoff = computeBackoffMs(retryCount.value);
+    retryCount.value++;
+    status.value = 'reconnecting';
+    reconnectTimeoutId = setTimeout(() => {
+      reconnectTimeoutId = null;
+      void connectInternal(serverUrl.value, true);
+    }, backoff);
+  }
+
+  /**
+   * 连接 internal 实现——区分 initial 与 reconnect。
+   *
+   * isReconnect=true 时（由 scheduleReconnect 触发）：
+   * - 不重置 retryCount（保留计数用于退避）
+   * - POST /session 失败 → scheduleReconnect（继续重试）
+   *
+   * isReconnect=false 时（由 connect / retryConnect 触发）：
+   * - 重置 retryCount + reconnectFailed（用户主动连接，从 0 开始）
+   * - POST /session 失败 → status='disconnected'（不自动重试，让用户看错误并手动重试）
+   *
+   * WS onopen 后立即 refreshSnapshot——issue 06 明确：snapshot 恢复覆盖所有晚加入者场景。
+   */
+  async function connectInternal(url: string, isReconnect: boolean): Promise<void> {
     if (ws && (status.value === 'connected' || status.value === 'connecting')) {
       return;
     }
     serverUrl.value = url;
     closeReason.value = null;
-    status.value = 'connecting';
+    if (!isReconnect) {
+      retryCount.value = 0;
+      reconnectFailed.value = false;
+    }
+    status.value = isReconnect ? 'reconnecting' : 'connecting';
 
     const httpBase = deriveHttpBase(url);
 
-    // 步骤 2：创建会话——失败立即放弃
+    // 步骤 1：创建会话——失败按 isReconnect 区分处理
     try {
       await ensureSession(httpBase);
     } catch (e) {
-      status.value = 'disconnected';
       closeReason.value = e instanceof Error ? e.message : String(e);
+      if (isReconnect) {
+        scheduleReconnect();
+      } else {
+        status.value = 'disconnected';
+      }
       return;
     }
 
-    if (status.value !== 'connecting') return;
+    // 在 ensureSession 期间用户可能 disconnect()——此时 status='disconnected'，放弃
+    if (status.value !== 'connecting' && status.value !== 'reconnecting') return;
 
-    // 步骤 3：升级 WebSocket
+    // 步骤 2：升级 WebSocket
     const socket = new WebSocket(url);
     ws = socket;
 
     socket.onopen = () => {
       status.value = 'connected';
+      // 成功连接后重置退避计数——下次断线从 1s 开始重新退避
+      retryCount.value = 0;
+      reconnectFailed.value = false;
+      // Issue 06：连接建立后立即拉 snapshot 恢复全量状态（覆盖晚加入者场景）。
+      // pendingSnapshotPromise 由 refreshSnapshot 设置，onmessage 会 await 它
+      // 再应用 delta——保证 spec 要求的"先 snapshot 后 delta"顺序，避免
+      // delta 帧先于 snapshot resolve 到达被覆盖的竞态。
+      pendingSnapshotPromise = refreshSnapshot(httpBase);
     };
 
-    socket.onmessage = (event) => {
+    socket.onmessage = async (event) => {
       // C# SendLoopAsync 把 turn 字符串作为单个 Text 帧下发，data 即原始 JSON。
-      // 直接交给 game store——它内部会 parseTurnRecord + applyDiff 更新显示状态。
       const data = typeof event.data === 'string' ? event.data : '';
       if (!data) return;
-      game.applyTurn(data);
-
-      // 首帧补救：C# 首帧 diff=null（ComputeDiff 首次返回 null），displayState 不变。
-      // 若此时 displayState 仍空（首帧没有 LineOp 可叠加），主动拉 snapshot 拿初始画面。
-      // 重连场景（issue 06）同样适用：displayState 空 + 任何帧 → 拉 snapshot 恢复。
-      if (game.displayState.lines.length === 0) {
-        void refreshSnapshot(httpBase);
+      // 若 snapshot 还在拉，等它完成再应用 delta——保证 spec 要求的
+      // "先 snapshot 后 delta"顺序，避免 delta 先到后被 snapshot 覆盖。
+      if (pendingSnapshotPromise) {
+        try {
+          await pendingSnapshotPromise;
+        } catch {
+          // refreshSnapshot 内部已捕获并写 closeReason——这里吞掉即可
+        }
       }
+      game.applyTurn(data);
     };
 
     socket.onerror = () => {
@@ -234,39 +325,82 @@ export const useConnectionStore = defineStore('connection', () => {
     };
 
     socket.onclose = (event) => {
-      const wasConnected = status.value === 'connected';
-      status.value = 'disconnected';
       ws = null;
       closeReason.value = event.reason || `code=${event.code}`;
-      // v1 不做自动重连。异常断开（非 1000 关闭码）时标记为 'reconnecting'。
-      if (wasConnected && event.code !== 1000) {
-        status.value = 'reconnecting';
+      // 用户主动断开（disconnect()）→ 不重连；正常关闭（code=1000）→ 不重连
+      if (isManualDisconnect || event.code === 1000) {
+        status.value = 'disconnected';
+        return;
       }
+      // 异常断开 → 调度自动重连（指数退避）
+      scheduleReconnect();
     };
   }
 
   /**
-   * 拉 GET /snapshot 并把结果灌入 game store——首帧无 diff 时补救初始画面。
+   * 公开连接入口——用户点击"连接"按钮 / App 挂载时自动调用。
    *
-   * fire-and-forget 调用（onmessage 是 sync 回调，不能 await）。失败只写 closeReason，
-   * 不改 status——WS 已连接，没有初始画面不等于断开。
+   * 取消任何 pending 重连定时器，重置退避计数，从 0 开始一次全新连接。
    */
-  async function refreshSnapshot(httpBase: string): Promise<void> {
-    try {
-      const snapshot = await fetchSnapshot(httpBase);
-      game.setSnapshot(snapshot);
-    } catch (e) {
-      closeReason.value = e instanceof Error ? e.message : String(e);
-    }
+  async function connect(url: string = serverUrl.value): Promise<void> {
+    clearPendingReconnect();
+    isManualDisconnect = false;
+    await connectInternal(url, false);
   }
 
-  /** 主动断开。 */
+  /**
+   * 手动重连——重连失败上限后 UI 显示"重新连接"按钮，用户点击触发。
+   *
+   * 语义与 connect() 等价（重置 retryCount + reconnectFailed + 立即重连），
+   * 直接委托；保留独立函数名是为了让 UI 代码意图清晰、测试用例可读。
+   */
+  async function retryConnect(): Promise<void> {
+    await connect(serverUrl.value);
+  }
+
+  /**
+   * 拉 GET /snapshot 并把结果灌入 game store——onopen 后立即调用恢复全量状态。
+   *
+   * 返回 Promise（onopen 是 sync 回调不能 await，但 onmessage 会 await 它
+   * 保证"先 snapshot 后 delta"顺序——见 connectInternal.onmessage）。
+   * 失败只写 closeReason，不改 status——WS 已连接，没有初始画面不等于断开。
+   *
+   * in-flight 去重：onopen 触发一次 refreshSnapshot，期间若 WS 首帧到达，
+   * onmessage 会 await 同一个 pendingSnapshotPromise——避免重复请求。
+   */
+  let snapshotInFlight = false;
+  let pendingSnapshotPromise: Promise<void> | null = null;
+  async function refreshSnapshot(httpBase: string): Promise<void> {
+    if (snapshotInFlight) {
+      // 已在拉——返回已有 Promise，让调用方 await 同一实例
+      return pendingSnapshotPromise ?? Promise.resolve();
+    }
+    snapshotInFlight = true;
+    pendingSnapshotPromise = (async () => {
+      try {
+        const snapshot = await fetchSnapshot(httpBase);
+        game.setSnapshot(snapshot);
+      } catch (e) {
+        closeReason.value = e instanceof Error ? e.message : String(e);
+      } finally {
+        snapshotInFlight = false;
+        pendingSnapshotPromise = null;
+      }
+    })();
+    return pendingSnapshotPromise;
+  }
+
+  /** 主动断开——取消 pending 重连 + 关闭 WS + 抑制 onclose 重连。 */
   function disconnect(): void {
+    isManualDisconnect = true;
+    clearPendingReconnect();
     if (ws) {
       ws.close(1000, 'client disconnect');
       ws = null;
     }
     status.value = 'disconnected';
+    retryCount.value = 0;
+    reconnectFailed.value = false;
   }
 
   /**
@@ -288,8 +422,11 @@ export const useConnectionStore = defineStore('connection', () => {
     status,
     serverUrl,
     closeReason,
+    retryCount,
+    reconnectFailed,
     connect,
     disconnect,
+    retryConnect,
     sendInput,
     // 测试 seam：导出内部纯函数便于单测
     deriveHttpBase,
