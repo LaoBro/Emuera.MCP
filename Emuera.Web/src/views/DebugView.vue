@@ -18,10 +18,19 @@ function onSend(): void {
 <template>
   <section class="debug-view">
     <div class="left-pane">
-      <h3>最新帧（原始 JSON）</h3>
-      <pre v-if="game.lastTurnJson" class="raw-json">{{ game.lastTurnJson }}</pre>
-      <div v-else class="empty">等待 WS 帧…</div>
-      <p v-if="game.lastError" class="error">解析错误：{{ game.lastError }}</p>
+      <div class="snapshot-section">
+        <h3>最近 Snapshot（GET /snapshot）</h3>
+        <pre v-if="game.lastSnapshot" class="raw-json snapshot-json">{{
+          JSON.stringify(game.lastSnapshot, null, 2)
+        }}</pre>
+        <div v-else class="empty">尚未拉取 snapshot（连接建立后由 onopen 触发）</div>
+      </div>
+      <div class="latest-frame-section">
+        <h3>最新 WS 帧（原始 JSON）</h3>
+        <pre v-if="game.lastTurnJson" class="raw-json">{{ game.lastTurnJson }}</pre>
+        <div v-else class="empty">等待 WS 帧…</div>
+        <p v-if="game.lastError" class="error">解析错误：{{ game.lastError }}</p>
+      </div>
     </div>
     <div class="right-pane">
       <div class="input-section">
@@ -78,6 +87,20 @@ function onSend(): void {
   flex-direction: column;
   overflow: hidden;
 }
+.snapshot-section,
+.latest-frame-section {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.snapshot-section {
+  flex: 0 0 45%;
+  border-bottom: 2px solid #3c3c3c;
+}
+.latest-frame-section {
+  flex: 1;
+  min-height: 0;
+}
 h3 {
   margin: 0;
   padding: 8px 12px;
@@ -86,6 +109,9 @@ h3 {
   color: #9cdcfe;
   border-bottom: 1px solid #3c3c3c;
   flex-shrink: 0;
+}
+.snapshot-section h3 {
+  color: #dcdcaa;
 }
 .raw-json,
 .frame-json {
@@ -101,6 +127,10 @@ h3 {
 .raw-json {
   flex: 1;
   overflow: auto;
+}
+.snapshot-json {
+  color: #dcdcaa;
+  background: #1a1a1a;
 }
 .empty {
   padding: 16px;

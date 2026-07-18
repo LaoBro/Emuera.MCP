@@ -35,6 +35,14 @@ export const useGameStore = defineStore('game', () => {
   const lastError = ref<string | null>(null);
   /** 最新解析后的 TurnRecord（调试用，UI 也可读 inputType 等顶层字段）。 */
   const lastTurn = ref<TurnRecord | null>(null);
+  /**
+   * 最近一次 GET /snapshot 拿到的原始快照（调试展示用）。
+   *
+   * 与 lastTurn/turnHistory 分离——snapshot 不是 WS 帧，不进入 turnHistory；
+   * 但调试视图需要独立展示它，便于排查"晚加入者画面"恢复是否符合预期。
+   * setSnapshot 调用时更新；reset() 时清空。
+   */
+  const lastSnapshot = ref<DisplaySnapshot | null>(null);
   /** 当前显示状态——纯函数 applyDiff 累积应用 WS 帧 diff 后的不可变结果。 */
   const displayState = ref<DisplayState>({ ...EMPTY_DISPLAY_STATE });
   /**
@@ -214,6 +222,7 @@ export const useGameStore = defineStore('game', () => {
     turnHistory.value = [];
     lastError.value = null;
     lastTurn.value = null;
+    lastSnapshot.value = null;
     displayState.value = { ...EMPTY_DISPLAY_STATE };
     protocolVersion.value = null;
     tinputStartedAt.value = null;
@@ -243,6 +252,7 @@ export const useGameStore = defineStore('game', () => {
    * 指数退避才真正属于其范围。
    */
   function setSnapshot(snapshot: DisplaySnapshot): void {
+    lastSnapshot.value = snapshot;
     displayState.value = applySnapshot(displayState.value, snapshot);
     if (typeof snapshot.protocolVersion === 'number') {
       protocolVersion.value = snapshot.protocolVersion;
@@ -282,6 +292,7 @@ export const useGameStore = defineStore('game', () => {
     turnHistory,
     lastError,
     lastTurn,
+    lastSnapshot,
     displayState,
     protocolVersion,
     // ADR-0016：暴露 TINPUT timer 状态供 UI / 测试访问

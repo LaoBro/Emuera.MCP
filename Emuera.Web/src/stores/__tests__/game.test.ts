@@ -624,4 +624,43 @@ describe('useGameStore - ADR-0016 TINPUT timer 状态', () => {
     expect(game.tinputTimeLimit).toBeNull();
     expect(game.showTinputCountdown).toBe(false);
   });
+
+  it('setSnapshot 写入 lastSnapshot——调试视图独立展示用', () => {
+    const game = useGameStore();
+    expect(game.lastSnapshot).toBeNull();
+
+    const snap: DisplaySnapshot = {
+      lines: [
+        { entries: [{ segments: [{ text: 'Title' }] }], isLineEnd: true },
+      ],
+      bgColor: '#000000',
+      state: 'WaitInput',
+      inputType: 'IntValue',
+      needValue: true,
+      protocolVersion: 6,
+    };
+    game.setSnapshot(snap);
+
+    // Pinia ref 包装后 getter 返回的是 reactive proxy，不是原对象引用——用 toStrictEqual 比深值
+    expect(game.lastSnapshot).toStrictEqual(snap);
+    expect(game.lastSnapshot!.lines).toHaveLength(1);
+    expect(game.lastSnapshot!.lines[0].entries[0].segments[0].text).toBe('Title');
+  });
+
+  it('reset() 清空 lastSnapshot', () => {
+    const game = useGameStore();
+    const snap: DisplaySnapshot = {
+      lines: [],
+      bgColor: null,
+      state: 'Quit',
+      inputType: null,
+      needValue: false,
+      protocolVersion: 6,
+    };
+    game.setSnapshot(snap);
+    expect(game.lastSnapshot).not.toBeNull();
+
+    game.reset();
+    expect(game.lastSnapshot).toBeNull();
+  });
 });
