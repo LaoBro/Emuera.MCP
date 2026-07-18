@@ -169,10 +169,12 @@ def main():
         # 固定 8080 端口：vite.config.ts 的 /ws /snapshot /session 代理都指向 8080
         server = start_server(game_dir, port=8080)
 
-        status, body = server.create_session()
-        if status != 201:
-            print(f"ERROR: POST /session 返回 {status}: {body}")
-            return 1
+        # 注意：这里不调 server.create_session()——session 由浏览器加载后
+        # 通过 POST /session 创建。若脚本抢先创建 session，server 立即跑
+        # 游戏循环 → 几毫秒内写出 initialTurn 到 Hub → 此时浏览器还没
+        # WS 订阅，Hub 不回放历史 → initialTurn 被丢弃 → 浏览器永远收不到
+        # 首帧 → ERB 在 INPUT 处等待输入，不产生新 turn → WS 卡死。
+        # 交给浏览器创建 session 才能保证 WS 订阅在前、initialTurn 在后。
 
         vite_url = "http://localhost:5173"
         try:
