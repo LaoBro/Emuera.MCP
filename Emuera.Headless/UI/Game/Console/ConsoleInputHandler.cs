@@ -183,7 +183,12 @@ internal sealed class ConsoleInputHandler
             switch (_state.inputReq!.InputType)
             {
                 case InputType.IntValue:
-                    if (string.IsNullOrEmpty(str) && _state.inputReq!.HasDefValue && !_console._timer.IsDisplayTimeActive)
+                    // TINPUT 超时路径（_state.isTimeout=true）由 EndTimerCore 调 RunEmueraProgram("")
+                    // 推进游戏——此时必须用默认值，否则 DoInputToEmueraProgram 返回 false、游戏不推进、
+                    // InputTimeoutMs 持续返回 0，RunLoopAsync 死循环（CPU 100%）。
+                    // 原 !IsDisplayTimeActive 条件意图：disp=1 时用户按 Enter 不应触发默认值（应等倒计时），
+                    // 但超时路径绕过此约束——isTimeout=true 即代表倒计时已结束。
+                    if (string.IsNullOrEmpty(str) && _state.inputReq!.HasDefValue && (!_console._timer.IsDisplayTimeActive || _state.isTimeout))
                     {
                         inputValue = _state.inputReq!.DefIntValue;
                         str = inputValue.ToString();
