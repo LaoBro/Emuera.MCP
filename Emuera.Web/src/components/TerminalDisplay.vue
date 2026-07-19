@@ -15,8 +15,12 @@ import type { ButtonValue, PrintSegment, DisplayLine } from '../types/protocol';
  * - DOM 流式布局而非绝对定位——`entries[]` 按顺序内联排列，由浏览器盒模型自动算位置。
  *   按钮的 `ButtonRef.col`/`width` 在 CLI 终端是字符列几何（供 SGR mouse hit-test），
  *   Web 端用原生 click 事件做 hit-test，故 col/width 不参与 DOM 定位。
- *   monospace 字体 + `white-space: pre-wrap` 保证 CJK 双宽字符与 C# 计算一致——
+ *   monospace 字体 + `white-space: pre` 保证 CJK 双宽字符与 C# 计算一致——
  *   多按钮行中非按钮 entry 的字符数正好填补按钮间空隙，自然对齐。
+ *   **`pre` 而非 `pre-wrap`**：Emuera 的 `ConsoleDisplayLine` 语义是"一行不拆分"——
+ *   WinForms GDI 下字符画按 FontSize/2 的 ASCII 字符宽度算列数，浏览器 monospace
+ *   每字符宽度约 0.6em，比 GDI 宽——`pre-wrap` 会让字符画被浏览器拆行。改用 `pre`
+ *   保持行完整性，超长行由 `.terminal` 的 `overflow-x: auto` 水平滚动兜底。
  * - segment 颜色（`color` 字段，hex 形如 "#FF0000"）直接映射 CSS `color`。
  *   bold/italic 同理。`fontname` 暂不映射（Emuera 字体名与系统字体名不一致，
  *   issue 03 不做字体替换；issue 08 字体面板会处理）。
@@ -150,16 +154,20 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
      默认值 14px / 1.5 / 100% 仅在 store 未初始化时极短窗口生效。 */
   color: #d4d4d4;
   background-color: #000000;
-  /* pre-wrap：保留 PRINT 输出中的空格 / 缩进，长行自动换行。
+  /* pre：保留 PRINT 输出中的空格 / 缩进，长行不自动换行。
+     Emuera 的 ConsoleDisplayLine 语义是"一行不拆分"——WinForms GDI 下字符画按
+     FontSize/2 的 ASCII 字符宽度算列数，浏览器 monospace 每字符宽度约 0.6em
+     比 GDI 宽，pre-wrap 会让字符画被浏览器拆行。改用 pre 保持行完整性，
+     超长行由下方 overflow-x: auto 水平滚动兜底。
      C# 端的换行已结构化为 DisplayLine——这里不再做语义换行。 */
-  white-space: pre-wrap;
-  word-break: break-word;
-  /* issue 12：水平滚动交由外层 TerminalView.terminal-area 处理——本容器只做垂直滚动。
+  white-space: pre;
+  /* issue 12：水平滚动——视口 < windowWidth 时由外层 TerminalView.terminal-area 处理；
+     字符画行超出 windowWidth 时由本容器 overflow-x: auto 处理（保留行不拆分）。
      box-sizing: border-box 让 padding 不增加 width（固定 windowWidth 包含 padding）。
      flex: 0 0 auto：在 .terminal-area（flex row）中不增长/不收缩，宽度由 inline width 决定。
      垂直方向由父容器 align-items: stretch（默认）撑满。 */
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   flex: 0 0 auto;
   min-height: 0;
   height: 100%;
