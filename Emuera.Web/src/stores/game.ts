@@ -168,6 +168,23 @@ export const useGameStore = defineStore('game', () => {
    */
   const protocolVersion = ref<number | null>(null);
 
+  // ---------- Issue 12：游戏窗口布局元信息 ----------
+  //
+  // 这三个字段从 C# `GET /state` 响应读取——驱动 TerminalDisplay 的固定宽度布局：
+  // - windowWidth：游戏 emuera.config 设定的窗口像素宽度（ConfigCode.WindowX，默认 760）
+  // - fontSize：字体像素大小（ConfigCode.FontSize，默认 18）
+  // - lineHeight：行距像素（ConfigCode.LineHeight，默认 19；绝对像素，非比例）
+  //
+  // null 表示尚未从 server 读取——TerminalDisplay 用默认值 760/18/19 fallback。
+  // App.vue onMounted + loadGame 成功后会调 setGameLayout 更新这些字段。
+  // 新游戏可能有不同 emuera.config——切换游戏后必须重读 GET /state。
+  /** 游戏窗口像素宽度（来自 ConfigCode.WindowX，默认 760）。null 表示尚未读取。 */
+  const windowWidth = ref<number | null>(null);
+  /** 游戏字体像素大小（来自 ConfigCode.FontSize，默认 18）。null 表示尚未读取。 */
+  const fontSize = ref<number | null>(null);
+  /** 游戏行距像素（来自 ConfigCode.LineHeight，默认 19）。null 表示尚未读取。 */
+  const lineHeight = ref<number | null>(null);
+
   // ---------- ADR-0016：TINPUT timer 状态（本地钟表）----------
   //
   // server 不周期 push tick 帧——只在 input/timeout 时发帧。前端收到 WaitInput+TINPUT 帧时
@@ -448,6 +465,21 @@ export const useGameStore = defineStore('game', () => {
         // 成功——更新 gameDir + 持久化
         gameDir.value = trimmed;
         writeGameDirToStorage(trimmed);
+        // Issue 12：重读 GET /state 更新窗口布局元信息——新游戏可能有不同 emuera.config
+        // （WindowX/FontSize/LineHeight）。失败不阻塞切换——保持原 layout 字段。
+        try {
+          const stateResp = await fetch(`${httpBase}/state`);
+          if (stateResp.status === 200) {
+            const stateBody = await stateResp.json();
+            setGameLayout({
+              windowWidth: typeof stateBody?.windowWidth === 'number' ? stateBody.windowWidth : null,
+              fontSize: typeof stateBody?.fontSize === 'number' ? stateBody.fontSize : null,
+              lineHeight: typeof stateBody?.lineHeight === 'number' ? stateBody.lineHeight : null,
+            });
+          }
+        } catch {
+          // 忽略——layout 字段更新失败不影响游戏切换
+        }
         // 步骤 3：connect 新 session（server 已建好新 session 等待 WS 升级）
         await conn.connect(conn.serverUrl);
       } else {
@@ -488,6 +520,22 @@ export const useGameStore = defineStore('game', () => {
     loadGameError.value = null;
   }
 
+  /**
+   * Issue 12：写入窗口布局元信息——App.vue onMounted + loadGame 成功后调用。
+   *
+   * 入参 null / undefined 表示 server 响应缺失该字段——保持原值不动，
+   * 让前端 fallback 到上一已知值或默认 760/18/19。
+   */
+  function setGameLayout(opts: {
+    windowWidth?: number | null;
+    fontSize?: number | null;
+    lineHeight?: number | null;
+  }): void {
+    if (typeof opts.windowWidth === 'number') windowWidth.value = opts.windowWidth;
+    if (typeof opts.fontSize === 'number') fontSize.value = opts.fontSize;
+    if (typeof opts.lineHeight === 'number') lineHeight.value = opts.lineHeight;
+  }
+
   return {
     lastTurnJson,
     turnHistory,
@@ -513,5 +561,10 @@ export const useGameStore = defineStore('game', () => {
     loadGameError,
     loadGame,
     clearLoadGameError,
+    // Issue 12：窗口布局元信息
+    windowWidth,
+    fontSize,
+    lineHeight,
+    setGameLayout,
   };
 });

@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useGameStore } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
 import type { ButtonValue, PrintSegment, DisplayLine } from '../types/protocol';
 
 /**
- * TerminalDisplay.vue — Emuera 终端渲染器（issue 03）。
+ * TerminalDisplay.vue — Emuera 终端渲染器（issue 03 / issue 12 固定宽度布局）。
  *
  * 输入：`game.displayState`（由 `applyDiff` 累积更新的不可变结构化状态）。
  * 输出：可视化终端——按 `lines[].entries[].segments[]` 渲染文本片段，
@@ -22,11 +23,41 @@ import type { ButtonValue, PrintSegment, DisplayLine } from '../types/protocol';
  * - 行对齐 `align`（left/center/right）映射 CSS `text-align`。
  * - 容器背景色 `bgColor` 设置在 `.terminal` 根上。
  *
+ * Issue 12 固定宽度布局：
+ * - `.terminal` 容器宽度 = `game.windowWidth` 像素（默认 760 fallback）
+ * - `font-size` = `game.fontSize` 像素（默认 18）
+ * - `line-height` = `game.lineHeight` 像素（绝对像素，默认 19——非比例，避免按钮行距错位）
+ * - `.term-line` 的 `min-height` 用 CSS 变量 `--term-line-min-height` 与 LineHeight 对齐
+ * - 外层 TerminalView 负责 flex 居中 + 水平滚动；本组件只关心自身固定宽度
+ *
  * 按钮点击：调 `conn.sendInput(String(value))`——C# HandleWsInput 期望 string，
  * integer 按钮的 value 转 string 后发送，C# 端按 inputType 自行解析回 long。
  */
 const game = useGameStore();
 const conn = useConnectionStore();
+
+/**
+ * Issue 12：从 store 派生有效布局值——null 时 fallback 到 Emuera 默认 760/18/19。
+ *
+ * 默认值来源：C# ConfigData.SetDefault() 的 ConfigCode.WindowX/FontSize/LineHeight 默认值。
+ * 多数 Emuera 游戏不修改 emuera.config，默认值是常见情况。
+ */
+const effectiveWindowWidth = computed(() => game.windowWidth ?? 760);
+const effectiveFontSize = computed(() => game.fontSize ?? 18);
+const effectiveLineHeight = computed(() => game.lineHeight ?? 19);
+
+/** .terminal 容器内联 style——动态绑定 width/font-size/line-height + CSS 变量。 */
+const terminalStyle = computed<Record<string, string>>(() => {
+  const style: Record<string, string> = {
+    width: `${effectiveWindowWidth.value}px`,
+    fontSize: `${effectiveFontSize.value}px`,
+    lineHeight: `${effectiveLineHeight.value}px`,
+    // CSS 变量供 .term-line min-height 引用——保持与行距一致，避免行距叠加错位
+    '--term-line-min-height': `${effectiveLineHeight.value}px`,
+  };
+  if (game.displayState.bgColor) style.backgroundColor = game.displayState.bgColor;
+  return style;
+});
 
 /**
  * 把 ButtonValue 转 wire 字符串。
@@ -69,7 +100,7 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
 <template>
   <div
     class="terminal"
-    :style="{ backgroundColor: game.displayState.bgColor || undefined }"
+    :style="terminalStyle"
   >
     <div v-if="game.displayState.lines.length === 0" class="terminal-empty">
       <p v-if="conn.status === 'connected'">已连接，等待游戏输出…</p>
@@ -115,26 +146,31 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
   /* monospace 字体——CJK 字符在浏览器中通常以 2x ASCII 宽度渲染，
      与 C# HeadlessConsole 的 display-width 计算一致，保证多按钮行对齐。 */
   font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.5;
+  /* font-size / line-height / width 由 inline style 动态绑定（issue 12）——
+     默认值 14px / 1.5 / 100% 仅在 store 未初始化时极短窗口生效。 */
   color: #d4d4d4;
   background-color: #000000;
   /* pre-wrap：保留 PRINT 输出中的空格 / 缩进，长行自动换行。
      C# 端的换行已结构化为 DisplayLine——这里不再做语义换行。 */
   white-space: pre-wrap;
   word-break: break-word;
-  overflow: auto;
-  /* flex: 1 + min-height: 0：在 TerminalView 的 flex column 中占据剩余空间，
-     同时允许内部滚动（issue 04 起下方有 InputBar，需要让出空间）。 */
-  flex: 1;
+  /* issue 12：水平滚动交由外层 TerminalView.terminal-area 处理——本容器只做垂直滚动。
+     box-sizing: border-box 让 padding 不增加 width（固定 windowWidth 包含 padding）。
+     flex: 0 0 auto：在 .terminal-area（flex row）中不增长/不收缩，宽度由 inline width 决定。
+     垂直方向由父容器 align-items: stretch（默认）撑满。 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 0 0 auto;
   min-height: 0;
-  width: 100%;
+  height: 100%;
   padding: 8px 12px;
   box-sizing: border-box;
 }
 .term-line {
   display: block;
-  min-height: 1.5em;
+  /* issue 12：min-height 用 CSS 变量，与 line-height 对齐——避免行距叠加错位。
+     变量由 .terminal inline style 注入，未注入时回落 1.5em（理论不应发生）。 */
+  min-height: var(--term-line-min-height, 1.5em);
   /* 行内 inline 元素从左到右流式排列——按钮 entry 与文本 entry 自然交替。 */
 }
 .term-entry {

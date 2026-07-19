@@ -95,6 +95,20 @@ def main():
             check(norm(obj.get("gameDir")) == norm(game_dir),
                   f"gameDir=={game_dir}, got {obj.get('gameDir')!r}")
             check(obj.get("state") == "Idle", f"state==Idle (no session), got {obj.get('state')}")
+            # Issue 12：windowWidth / fontSize / lineHeight 三个布局元信息字段
+            check("windowWidth" in obj and isinstance(obj["windowWidth"], int),
+                  f"state has int windowWidth: {obj.get('windowWidth')!r}")
+            check("fontSize" in obj and isinstance(obj["fontSize"], int),
+                  f"state has int fontSize: {obj.get('fontSize')!r}")
+            check("lineHeight" in obj and isinstance(obj["lineHeight"], int),
+                  f"state has int lineHeight: {obj.get('lineHeight')!r}")
+            # 默认值校验——test_game 无 emuera.config，应为 ConfigData 默认 760/18/19
+            check(obj.get("windowWidth") == 760,
+                  f"windowWidth==760 (default), got {obj.get('windowWidth')}")
+            check(obj.get("fontSize") == 18,
+                  f"fontSize==18 (default), got {obj.get('fontSize')}")
+            check(obj.get("lineHeight") == 19,
+                  f"lineHeight==19 (default), got {obj.get('lineHeight')}")
 
         # --- Test 3: POST /load-game 不存在路径 → 400 DIR_NOT_FOUND ---
         print("\n[3] POST /load-game 不存在路径 → 400 DIR_NOT_FOUND")
@@ -169,6 +183,13 @@ def main():
                   f"isRunning==true, got {obj.get('isRunning')}")
             check(obj.get("state") == "WaitInput",
                   f"state==WaitInput, got {obj.get('state')}")
+            # Issue 12：active session 分支也应携带布局元信息字段
+            check("windowWidth" in obj and isinstance(obj["windowWidth"], int),
+                  f"active state has int windowWidth: {obj.get('windowWidth')!r}")
+            check("fontSize" in obj and isinstance(obj["fontSize"], int),
+                  f"active state has int fontSize: {obj.get('fontSize')!r}")
+            check("lineHeight" in obj and isinstance(obj["lineHeight"], int),
+                  f"active state has int lineHeight: {obj.get('lineHeight')!r}")
 
         # --- Test 9: 路径级错误时旧 session 不丢 + Current 不被污染 ---
         # 此时已有 session（test_game 隐式建的），尝试 load-game 一个 bogus 路径，

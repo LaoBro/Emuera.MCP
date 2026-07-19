@@ -186,18 +186,34 @@ internal sealed class KestrelGameServer : IDisposable
     }
 
     /// <summary>
-    /// GET /state —— 当前会话状态 + gameDir（issue 05）。
+    /// GET /state —— 当前会话状态 + gameDir（issue 05）+ 窗口布局元信息（issue 12）。
     ///
     /// 前端 App.vue 挂载时调用：比对 localStorage 的 gameDir 与 server 当前 gameDir，
     /// 决定是直接 connect（同目录）还是 loadGame（异目录自动切换）。
+    ///
+    /// Issue 12：新增 windowWidth / fontSize / lineHeight 三个字段——从当前 _configData
+    /// 读取（ConfigData 是 static 全局，server 启动时 --ExeDir 已 LoadConfig 完）。
+    /// Idle 分支也带这 3 个字段，避免前端初始 fallback 偏差。/load-game 重建 ConfigData
+    /// 后再次 GET /state 会拿到新游戏的窗口宽度。
     /// </summary>
     private IResult HandleGetStateAsync()
     {
         var session = _session;
         var gameDir = GamePaths.Current.ExeDir;
+        var windowWidth = _configData.GetConfigValue<int>(ConfigCode.WindowX);
+        var fontSize = _configData.GetConfigValue<int>(ConfigCode.FontSize);
+        var lineHeight = _configData.GetConfigValue<int>(ConfigCode.LineHeight);
 
         if (session == null)
-            return Results.Json(new { state = "Idle", isRunning = false, gameDir });
+            return Results.Json(new
+            {
+                state = "Idle",
+                isRunning = false,
+                gameDir,
+                windowWidth,
+                fontSize,
+                lineHeight,
+            });
 
         return Results.Json(new
         {
@@ -206,6 +222,9 @@ internal sealed class KestrelGameServer : IDisposable
             sessionId = session.Id,
             createdAt = session.CreatedAt,
             gameDir,
+            windowWidth,
+            fontSize,
+            lineHeight,
         });
     }
 
