@@ -7,8 +7,8 @@ import { useConnectionStore } from '../connection';
  * useGameStore 窗口布局元信息单测——issue 12。
  *
  * 测试矩阵：
- * - 初始状态：windowWidth/fontSize/lineHeight 均为 null
- * - setGameLayout：写入三个字段（同时 / 单独）
+ * - 初始状态：windowWidth/fontSize/lineHeight/gameColumns 均为 null
+ * - setGameLayout：写入四个字段（同时 / 单独）
  * - setGameLayout：null / undefined 不覆盖已有值
  * - loadGame 成功后：重读 GET /state 并更新 layout 字段
  * - loadGame 网络错误：layout 字段保持原值（不更新）
@@ -19,54 +19,61 @@ describe('useGameStore - Issue 12 窗口布局元信息', () => {
     setActivePinia(createPinia());
   });
 
-  it('初始状态：windowWidth/fontSize/lineHeight 均为 null', () => {
+  it('初始状态：windowWidth/fontSize/lineHeight/gameColumns 均为 null', () => {
     const game = useGameStore();
     expect(game.windowWidth).toBeNull();
     expect(game.fontSize).toBeNull();
     expect(game.lineHeight).toBeNull();
+    expect(game.gameColumns).toBeNull();
   });
 
-  it('setGameLayout：同时写入三个字段', () => {
+  it('setGameLayout：同时写入四个字段', () => {
     const game = useGameStore();
     game.setGameLayout({
       windowWidth: 1000,
       fontSize: 20,
       lineHeight: 22,
+      gameColumns: 124,
     });
     expect(game.windowWidth).toBe(1000);
     expect(game.fontSize).toBe(20);
     expect(game.lineHeight).toBe(22);
+    expect(game.gameColumns).toBe(124);
   });
 
   it('setGameLayout：单独写入一个字段不影响其他字段', () => {
     const game = useGameStore();
-    game.setGameLayout({ windowWidth: 760, fontSize: 18, lineHeight: 19 });
+    game.setGameLayout({ windowWidth: 760, fontSize: 18, lineHeight: 19, gameColumns: 84 });
 
     game.setGameLayout({ windowWidth: 1000 });
     expect(game.windowWidth).toBe(1000);
     expect(game.fontSize).toBe(18);
     expect(game.lineHeight).toBe(19);
+    expect(game.gameColumns).toBe(84);
   });
 
   it('setGameLayout：null / undefined 不覆盖已有值', () => {
     const game = useGameStore();
-    game.setGameLayout({ windowWidth: 1000, fontSize: 20, lineHeight: 22 });
+    game.setGameLayout({ windowWidth: 1000, fontSize: 20, lineHeight: 22, gameColumns: 124 });
 
     // null 不覆盖
     game.setGameLayout({
       windowWidth: null,
       fontSize: null,
       lineHeight: null,
+      gameColumns: null,
     });
     expect(game.windowWidth).toBe(1000);
     expect(game.fontSize).toBe(20);
     expect(game.lineHeight).toBe(22);
+    expect(game.gameColumns).toBe(124);
 
     // undefined 不覆盖
     game.setGameLayout({});
     expect(game.windowWidth).toBe(1000);
     expect(game.fontSize).toBe(20);
     expect(game.lineHeight).toBe(22);
+    expect(game.gameColumns).toBe(124);
   });
 });
 
@@ -132,7 +139,7 @@ describe('useGameStore.loadGame - Issue 12 layout 字段更新', () => {
     vi.spyOn(conn, 'connect').mockResolvedValue(undefined);
 
     // 第一次 fetch: POST /load-game 200
-    // 第二次 fetch: GET /state 200（携带 windowWidth=1000）
+    // 第二次 fetch: GET /state 200（携带 windowWidth=1000 + gameColumns=124）
     mockResponses(
       { status: 200, body: { sessionId: 'abc', state: 'Idle', gameDir: 'D:/game1000' } },
       {
@@ -144,6 +151,7 @@ describe('useGameStore.loadGame - Issue 12 layout 字段更新', () => {
           windowWidth: 1000,
           fontSize: 20,
           lineHeight: 22,
+          gameColumns: 124,
         },
       },
     );
@@ -155,6 +163,7 @@ describe('useGameStore.loadGame - Issue 12 layout 字段更新', () => {
     expect(game.windowWidth).toBe(1000);
     expect(game.fontSize).toBe(20);
     expect(game.lineHeight).toBe(22);
+    expect(game.gameColumns).toBe(124);
   });
 
   it('GET /state 失败：layout 字段保持原值（不阻塞游戏切换）', async () => {
@@ -164,7 +173,7 @@ describe('useGameStore.loadGame - Issue 12 layout 字段更新', () => {
     vi.spyOn(conn, 'connect').mockResolvedValue(undefined);
 
     // 先写入一个已知 layout 值
-    game.setGameLayout({ windowWidth: 760, fontSize: 18, lineHeight: 19 });
+    game.setGameLayout({ windowWidth: 760, fontSize: 18, lineHeight: 19, gameColumns: 84 });
     expect(game.windowWidth).toBe(760);
 
     // /load-game 200，/state 返 500
@@ -179,6 +188,7 @@ describe('useGameStore.loadGame - Issue 12 layout 字段更新', () => {
     expect(game.windowWidth).toBe(760);
     expect(game.fontSize).toBe(18);
     expect(game.lineHeight).toBe(19);
+    expect(game.gameColumns).toBe(84);
     // 游戏切换仍成功
     expect(game.gameDir).toBe('D:/game');
   });
@@ -189,7 +199,7 @@ describe('useGameStore.loadGame - Issue 12 layout 字段更新', () => {
     vi.spyOn(conn, 'disconnect').mockImplementation(() => {});
     vi.spyOn(conn, 'connect').mockResolvedValue(undefined);
 
-    game.setGameLayout({ windowWidth: 800, fontSize: 16, lineHeight: 18 });
+    game.setGameLayout({ windowWidth: 800, fontSize: 16, lineHeight: 18, gameColumns: 112 });
 
     // /load-game 200，/state fetch 抛错
     fetchMock.mockResolvedValueOnce({
@@ -204,6 +214,7 @@ describe('useGameStore.loadGame - Issue 12 layout 字段更新', () => {
     expect(game.windowWidth).toBe(800);
     expect(game.fontSize).toBe(16);
     expect(game.lineHeight).toBe(18);
+    expect(game.gameColumns).toBe(112);
     // 游戏切换仍成功
     expect(game.gameDir).toBe('D:/game');
   });
@@ -214,7 +225,7 @@ describe('useGameStore.loadGame - Issue 12 layout 字段更新', () => {
     vi.spyOn(conn, 'disconnect').mockImplementation(() => {});
     vi.spyOn(conn, 'connect').mockResolvedValue(undefined);
 
-    game.setGameLayout({ windowWidth: 760, fontSize: 18, lineHeight: 19 });
+    game.setGameLayout({ windowWidth: 760, fontSize: 18, lineHeight: 19, gameColumns: 84 });
 
     // /load-game 200，/state 响应缺 layout 字段（理论不会发生，作兜底测试）
     mockResponses(
@@ -228,5 +239,6 @@ describe('useGameStore.loadGame - Issue 12 layout 字段更新', () => {
     expect(game.windowWidth).toBe(760);
     expect(game.fontSize).toBe(18);
     expect(game.lineHeight).toBe(19);
+    expect(game.gameColumns).toBe(84);
   });
 });

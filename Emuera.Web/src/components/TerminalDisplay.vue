@@ -27,11 +27,15 @@ import type { ButtonValue, PrintSegment, DisplayLine } from '../types/protocol';
  * - 行对齐 `align`（left/center/right）映射 CSS `text-align`。
  * - 容器背景色 `bgColor` 设置在 `.terminal` 根上。
  *
- * Issue 12 固定宽度布局：
- * - `.terminal` 容器宽度 = `game.windowWidth` 像素（默认 760 fallback）
+ * Issue 12 固定宽度布局（参考 CLI 模式 TerminalLineFormatter.GetGameColumnWidth）：
+ * - `.terminal` 容器宽度 = `gameColumns × 1ch`（CSS ch 单位 = monospace 字体 ASCII 字符宽度）
+ *   而非 `windowWidth` 像素——浏览器 monospace 字符宽度（≈0.6em）与 GDI（FontSize/2=0.5em）
+ *   不同，按像素布局会让字符画溢出；按字符列数 × 1ch 布局则字体宽度自适应，字符画正好填满。
  * - `font-size` = `game.fontSize` 像素（默认 18）
- * - `line-height` = `game.lineHeight` 像素（绝对像素，默认 19——非比例，避免按钮行距错位）
+ * - `line-height` = `game.lineHeight` 像素（**用绝对像素，不要用 `lineHeight / fontSize` 比例**——Emuera 的 `LineHeight` 是绝对像素行距，WinForms `mainPicBox` 按 `LineHeight` 铺行；用比例会让 inline 元素（按钮等）行距叠加错位。默认 19）
  * - `.term-line` 的 `min-height` 用 CSS 变量 `--term-line-min-height` 与 LineHeight 对齐
+ * - 容器无 padding——与 WinForms mainPicBox / CLI 终端一致，字符画从容器边缘开始渲染；
+ *   外层 TerminalView 的 flex 居中 + 两侧留白提供视觉间距
  * - 外层 TerminalView 负责 flex 居中 + 水平滚动；本组件只关心自身固定宽度
  *
  * 按钮点击：调 `conn.sendInput(String(value))`——C# HandleWsInput 期望 string，
@@ -41,19 +45,25 @@ const game = useGameStore();
 const conn = useConnectionStore();
 
 /**
- * Issue 12：从 store 派生有效布局值——null 时 fallback 到 Emuera 默认 760/18/19。
+ * Issue 12：从 store 派生有效布局值——null 时 fallback 到 Emuera 默认值。
  *
  * 默认值来源：C# ConfigData.SetDefault() 的 ConfigCode.WindowX/FontSize/LineHeight 默认值。
+ * gameColumns 默认值 = (760 - max(2, 18/6=3)) / max(18/2, 1) = 757/9 = 84
+ * （与 CLI GetGameColumnWidth 一致，C# 整数除法）。
  * 多数 Emuera 游戏不修改 emuera.config，默认值是常见情况。
  */
-const effectiveWindowWidth = computed(() => game.windowWidth ?? 760);
 const effectiveFontSize = computed(() => game.fontSize ?? 18);
 const effectiveLineHeight = computed(() => game.lineHeight ?? 19);
+const effectiveGameColumns = computed(() => game.gameColumns ?? 84);
 
-/** .terminal 容器内联 style——动态绑定 width/font-size/line-height + CSS 变量。 */
+/** .terminal 容器内联 style——动态绑定 width（ch 单位）/font-size/line-height + CSS 变量。 */
 const terminalStyle = computed<Record<string, string>>(() => {
   const style: Record<string, string> = {
-    width: `${effectiveWindowWidth.value}px`,
+    // 宽度用 gameColumns × 1ch——CSS ch 单位 = monospace 字体 "0" 字符宽度 = ASCII 字符宽度。
+    // 这样容器宽度随字体大小自适应，字符画（按 gameColumns 列设计）正好填满，
+    // 与 CLI 模式按字符列数布局的行为一致。windowWidth 像素布局会让浏览器 monospace
+    // 字符画溢出（GDI ASCII=FontSize/2=0.5em，浏览器 monospace≈0.6em）。
+    width: `${effectiveGameColumns.value}ch`,
     fontSize: `${effectiveFontSize.value}px`,
     lineHeight: `${effectiveLineHeight.value}px`,
     // CSS 变量供 .term-line min-height 引用——保持与行距一致，避免行距叠加错位
@@ -151,7 +161,7 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
      与 C# HeadlessConsole 的 display-width 计算一致，保证多按钮行对齐。 */
   font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
   /* font-size / line-height / width 由 inline style 动态绑定（issue 12）——
-     默认值 14px / 1.5 / 100% 仅在 store 未初始化时极短窗口生效。 */
+     width 用 gameColumns × 1ch（字符列数），font-size/line-height 用像素。 */
   color: #d4d4d4;
   background-color: #000000;
   /* pre：保留 PRINT 输出中的空格 / 缩进，长行不自动换行。
@@ -161,17 +171,17 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
      超长行由下方 overflow-x: auto 水平滚动兜底。
      C# 端的换行已结构化为 DisplayLine——这里不再做语义换行。 */
   white-space: pre;
-  /* issue 12：水平滚动——视口 < windowWidth 时由外层 TerminalView.terminal-area 处理；
-     字符画行超出 windowWidth 时由本容器 overflow-x: auto 处理（保留行不拆分）。
-     box-sizing: border-box 让 padding 不增加 width（固定 windowWidth 包含 padding）。
+  /* issue 12：水平滚动——视口 < 容器宽度时由外层 TerminalView.terminal-area 处理；
+     字符画行超出容器宽度时由本容器 overflow-x: auto 处理（保留行不拆分）。
      flex: 0 0 auto：在 .terminal-area（flex row）中不增长/不收缩，宽度由 inline width 决定。
-     垂直方向由父容器 align-items: stretch（默认）撑满。 */
+     垂直方向由父容器 align-items: stretch（默认）撑满。
+     无 padding——与 WinForms mainPicBox / CLI 终端一致，字符画从容器边缘开始渲染；
+     外层 TerminalView 的 flex 居中 + 两侧留白提供视觉间距。 */
   overflow-y: auto;
   overflow-x: auto;
   flex: 0 0 auto;
   min-height: 0;
   height: 100%;
-  padding: 8px 12px;
   box-sizing: border-box;
 }
 .term-line {

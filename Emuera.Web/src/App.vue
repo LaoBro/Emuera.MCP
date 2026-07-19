@@ -24,8 +24,8 @@ const conn = useConnectionStore();
  *
  * 失败容错：GET /state 失败（server 未启动）→ 不自动连，让用户用 ConnectionPanel 手动连
  *
- * Issue 12：GET /state 响应携带 windowWidth/fontSize/lineHeight——同步写入 store，
- * 驱动 TerminalDisplay 固定宽度布局。
+ * Issue 12：GET /state 响应携带 windowWidth/fontSize/lineHeight/gameColumns——同步写入 store，
+ * 驱动 TerminalDisplay 固定宽度布局（容器宽度用 gameColumns × 1ch，字体宽度自适应）。
  */
 onMounted(async () => {
   const httpBase = conn.deriveHttpBase(conn.serverUrl);
@@ -35,11 +35,12 @@ onMounted(async () => {
     if (resp.status === 200) {
       const body = await resp.json();
       if (typeof body?.gameDir === 'string') serverGameDir = body.gameDir;
-      // Issue 12：写入窗口布局元信息——server 始终返回这 3 个 int 字段
+      // Issue 12：写入窗口布局元信息——server 始终返回这 4 个 int 字段
       game.setGameLayout({
         windowWidth: typeof body?.windowWidth === 'number' ? body.windowWidth : null,
         fontSize: typeof body?.fontSize === 'number' ? body.fontSize : null,
         lineHeight: typeof body?.lineHeight === 'number' ? body.lineHeight : null,
+        gameColumns: typeof body?.gameColumns === 'number' ? body.gameColumns : null,
       });
     }
   } catch {

@@ -191,9 +191,12 @@ internal sealed class KestrelGameServer : IDisposable
     /// 前端 App.vue 挂载时调用：比对 localStorage 的 gameDir 与 server 当前 gameDir，
     /// 决定是直接 connect（同目录）还是 loadGame（异目录自动切换）。
     ///
-    /// Issue 12：新增 windowWidth / fontSize / lineHeight 三个字段——从当前 _configData
-    /// 读取（ConfigData 是 static 全局，server 启动时 --ExeDir 已 LoadConfig 完）。
-    /// Idle 分支也带这 3 个字段，避免前端初始 fallback 偏差。/load-game 重建 ConfigData
+    /// Issue 12：新增 windowWidth / fontSize / lineHeight / gameColumns 四个字段。
+    /// gameColumns = DrawableWidth / (FontSize/2)，与 CLI 模式
+    /// TerminalLineFormatter.GetGameColumnWidth() 一致——前端用此值以 CSS ch 单位
+    /// 设置容器宽度，让浏览器 monospace 字体宽度自适应（GDI ASCII=FontSize/2≈0.5em，
+    /// 浏览器 monospace≈0.6em，若按 windowWidth 像素布局则字符画溢出容器）。
+    /// Idle 分支也带这些字段，避免前端初始 fallback 偏差。/load-game 重建 ConfigData
     /// 后再次 GET /state 会拿到新游戏的窗口宽度。
     /// </summary>
     private IResult HandleGetStateAsync()
@@ -203,6 +206,12 @@ internal sealed class KestrelGameServer : IDisposable
         var windowWidth = _configData.GetConfigValue<int>(ConfigCode.WindowX);
         var fontSize = _configData.GetConfigValue<int>(ConfigCode.FontSize);
         var lineHeight = _configData.GetConfigValue<int>(ConfigCode.LineHeight);
+        // gameColumns = DrawableWidth / charWidth，与 CLI TerminalLineFormatter.GetGameColumnWidth() 一致。
+        // Headless 模式 TextDrawingMode != WINAPI，故 ShapePositionShift = Max(2, FontSize/6)。
+        int charWidth = Math.Max(fontSize / 2, 1);
+        int shapeShift = Math.Max(2, fontSize / 6);
+        int drawableWidth = windowWidth - shapeShift;
+        int gameColumns = drawableWidth / charWidth;
 
         if (session == null)
             return Results.Json(new
@@ -213,6 +222,7 @@ internal sealed class KestrelGameServer : IDisposable
                 windowWidth,
                 fontSize,
                 lineHeight,
+                gameColumns,
             });
 
         return Results.Json(new
@@ -225,6 +235,7 @@ internal sealed class KestrelGameServer : IDisposable
             windowWidth,
             fontSize,
             lineHeight,
+            gameColumns,
         });
     }
 

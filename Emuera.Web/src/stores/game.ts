@@ -170,12 +170,16 @@ export const useGameStore = defineStore('game', () => {
 
   // ---------- Issue 12：游戏窗口布局元信息 ----------
   //
-  // 这三个字段从 C# `GET /state` 响应读取——驱动 TerminalDisplay 的固定宽度布局：
+  // 这四个字段从 C# `GET /state` 响应读取——驱动 TerminalDisplay 的固定宽度布局：
   // - windowWidth：游戏 emuera.config 设定的窗口像素宽度（ConfigCode.WindowX，默认 760）
   // - fontSize：字体像素大小（ConfigCode.FontSize，默认 18）
   // - lineHeight：行距像素（ConfigCode.LineHeight，默认 19；绝对像素，非比例）
+  // - gameColumns：游戏可绘制字符列数 = DrawableWidth / (FontSize/2)，与 CLI 模式
+  //   TerminalLineFormatter.GetGameColumnWidth() 一致。前端用此值以 CSS ch 单位设置
+  //   容器宽度——浏览器 monospace 字符宽度（≈0.6em）与 GDI（FontSize/2=0.5em）不同，
+  //   按像素宽度布局会让字符画溢出；按字符列数 × 1ch 布局则字体宽度自适应。
   //
-  // null 表示尚未从 server 读取——TerminalDisplay 用默认值 760/18/19 fallback。
+  // null 表示尚未从 server 读取——TerminalDisplay 用默认值 fallback。
   // App.vue onMounted + loadGame 成功后会调 setGameLayout 更新这些字段。
   // 新游戏可能有不同 emuera.config——切换游戏后必须重读 GET /state。
   /** 游戏窗口像素宽度（来自 ConfigCode.WindowX，默认 760）。null 表示尚未读取。 */
@@ -184,6 +188,8 @@ export const useGameStore = defineStore('game', () => {
   const fontSize = ref<number | null>(null);
   /** 游戏行距像素（来自 ConfigCode.LineHeight，默认 19）。null 表示尚未读取。 */
   const lineHeight = ref<number | null>(null);
+  /** 游戏可绘制字符列数（DrawableWidth / (FontSize/2)，默认按 760/18 算 = 84）。null 表示尚未读取。 */
+  const gameColumns = ref<number | null>(null);
 
   // ---------- ADR-0016：TINPUT timer 状态（本地钟表）----------
   //
@@ -475,6 +481,7 @@ export const useGameStore = defineStore('game', () => {
               windowWidth: typeof stateBody?.windowWidth === 'number' ? stateBody.windowWidth : null,
               fontSize: typeof stateBody?.fontSize === 'number' ? stateBody.fontSize : null,
               lineHeight: typeof stateBody?.lineHeight === 'number' ? stateBody.lineHeight : null,
+              gameColumns: typeof stateBody?.gameColumns === 'number' ? stateBody.gameColumns : null,
             });
           }
         } catch {
@@ -524,16 +531,18 @@ export const useGameStore = defineStore('game', () => {
    * Issue 12：写入窗口布局元信息——App.vue onMounted + loadGame 成功后调用。
    *
    * 入参 null / undefined 表示 server 响应缺失该字段——保持原值不动，
-   * 让前端 fallback 到上一已知值或默认 760/18/19。
+   * 让前端 fallback 到上一已知值或默认 760/18/19/94。
    */
   function setGameLayout(opts: {
     windowWidth?: number | null;
     fontSize?: number | null;
     lineHeight?: number | null;
+    gameColumns?: number | null;
   }): void {
     if (typeof opts.windowWidth === 'number') windowWidth.value = opts.windowWidth;
     if (typeof opts.fontSize === 'number') fontSize.value = opts.fontSize;
     if (typeof opts.lineHeight === 'number') lineHeight.value = opts.lineHeight;
+    if (typeof opts.gameColumns === 'number') gameColumns.value = opts.gameColumns;
   }
 
   return {
@@ -565,6 +574,7 @@ export const useGameStore = defineStore('game', () => {
     windowWidth,
     fontSize,
     lineHeight,
+    gameColumns,
     setGameLayout,
   };
 });
