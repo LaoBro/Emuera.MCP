@@ -246,8 +246,8 @@ watch(() => game.displayState.lines.length, scrollToBottom);
   /* 纯文本片段——颜色 / 粗体 / 斜体由 :style 内联应用 */
 }
 .term-btn {
-  /* 按钮视觉：与普通文本一致，仅下划线标识可点击；hover 时高亮背景。
-     WinForms 中按钮无独立边框，只是带下划线文本 + 悬浮高亮。
+  /* 按钮视觉：与普通文本完全一致；hover 时高亮背景。
+     WinForms 中按钮没有下划线/边框，只是悬浮高亮。
      颜色继承父行——不破坏 segment 自定义颜色。 */
   display: inline;
   background: transparent;
@@ -258,7 +258,7 @@ watch(() => game.displayState.lines.length, scrollToBottom);
   margin: 0;
   cursor: pointer;
   font: inherit;
-  text-decoration: underline;
+  text-decoration: none;
   /* 与文本基线对齐，避免按钮盒子顶起行高 */
   vertical-align: baseline;
 }
