@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { useGameStore } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
 import type { ButtonValue, PrintSegment, DisplayLine } from '../types/protocol';
@@ -132,10 +132,32 @@ function segmentStyle(s: PrintSegment): Record<string, string> {
 function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
   return line.align ?? 'left';
 }
+
+/**
+ * Issue 12：终端容器 ref——用于新内容到达时自动滚动到底部。
+ *
+ * 行为：每次 lines 增长（游戏输出新行 / 点击按钮后刷新 turn）都自动滚到最下方。
+ * 这是终端模拟器的常见行为；用户手动滚动查看历史后，新输出仍会拉回底部——
+ * 与 WinForms / CLI 的"始终显示最新输出"一致。
+ */
+const terminalRef = ref<HTMLDivElement | null>(null);
+
+function scrollToBottom(): void {
+  const el = terminalRef.value;
+  if (!el) return;
+  // nextTick：等 Vue 完成 DOM 更新后再滚动，否则 scrollHeight 是旧值。
+  nextTick(() => {
+    el.scrollTop = el.scrollHeight;
+  });
+}
+
+// 监听行数变化——打开游戏、CLEAR、PRINT 新行、点击按钮后新 turn 都会触发。
+watch(() => game.displayState.lines.length, scrollToBottom);
 </script>
 
 <template>
   <div
+    ref="terminalRef"
     class="terminal"
     :style="terminalStyle"
   >
@@ -224,15 +246,16 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
   /* 纯文本片段——颜色 / 粗体 / 斜体由 :style 内联应用 */
 }
 .term-btn {
-  /* 按钮视觉：保持文本流内联，加下划线 + 边框以便辨识。
+  /* 按钮视觉：与普通文本一致，仅下划线标识可点击；hover 时高亮背景。
+     WinForms 中按钮无独立边框，只是带下划线文本 + 悬浮高亮。
      颜色继承父行——不破坏 segment 自定义颜色。 */
   display: inline;
   background: transparent;
   color: inherit;
-  border: 1px solid #5a5a5a;
-  border-radius: 2px;
-  padding: 0 2px;
-  margin: 0 1px;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
   cursor: pointer;
   font: inherit;
   text-decoration: underline;
@@ -241,12 +264,10 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
 }
 .term-btn:hover:not(:disabled) {
   background: #0e639c;
-  border-color: #0e639c;
   color: #fff;
 }
 .term-btn:active:not(:disabled) {
   background: #0a4a78;
-  border-color: #0a4a78;
 }
 .term-btn:disabled {
   cursor: not-allowed;
