@@ -22,9 +22,15 @@ const input = ref<string>(game.gameDir ?? '');
 const pickerMessage = ref<string | null>(null);
 
 const isLoading = computed(() => game.reloadStatus === 'loading');
-const errorText = computed(() =>
-  game.loadGameError ? mapLoadGameErrorCode(game.loadGameError.code) : null,
-);
+const errorText = computed(() => {
+  if (!game.loadGameError) return null;
+  const base = mapLoadGameErrorCode(game.loadGameError.code);
+  // LOAD_FAILED：追加 server 返回的具体 message，便于定位（Preload.Load 异常、未预期 catch 等）
+  if (game.loadGameError.code === 'LOAD_FAILED' && game.loadGameError.message) {
+    return `${base}：${game.loadGameError.message}`;
+  }
+  return base;
+});
 
 async function onPickDirectory(): Promise<void> {
   if (isLoading.value) return;

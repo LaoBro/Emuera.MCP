@@ -358,6 +358,9 @@ internal sealed class KestrelGameServer : IDisposable
             }
             catch (Exception ex)
             {
+                // 输出完整异常到 stderr——前端 LOAD_FAILED 提示让用户查看服务器日志
+                Console.Error.WriteLine($"[load-game] Preload.Load failed for {paths.ExeDir}");
+                Console.Error.WriteLine(ex);
                 return Results.Json(
                     new { error = new { code = "LOAD_FAILED", message = $"Preload.Load failed: {ex.Message}" } },
                     statusCode: 500);
@@ -380,6 +383,8 @@ internal sealed class KestrelGameServer : IDisposable
         catch (Exception ex)
         {
             // 兜底：未预期异常归为 LOAD_FAILED
+            Console.Error.WriteLine("[load-game] unexpected exception");
+            Console.Error.WriteLine(ex);
             return Results.Json(
                 new { error = new { code = "LOAD_FAILED", message = ex.Message } },
                 statusCode: 500);
