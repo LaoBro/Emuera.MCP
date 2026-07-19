@@ -382,8 +382,10 @@ internal sealed class KestrelGameServer : IDisposable
             // 4. GamePaths.Resolve 已在步骤 1 完成——GamePaths.Current 指向新目录
 
             // 5. 重建 ConfigData 并 SetCurrent（HTTP 线程 AsyncLocal——主要供 Preload.Load 间接读）
+            // Issue 12：使用 LoadConfig(paths.ExeDir) 显式读取新游戏目录的 emuera.config，
+            // 避免 ConfigData.configPath 静态绑定到 Program.ExeDir 导致读不到新配置。
             var newConfig = new ConfigData();
-            newConfig.LoadConfig();
+            newConfig.LoadConfig(paths.ExeDir);
             ConfigData.SetCurrent(newConfig);
             _configData = newConfig;
 

@@ -23,7 +23,11 @@ namespace MinorShift.Emuera.Runtime.Config;
 internal sealed class ConfigData
 {
 	#region eee_カレントディレクトリー
-	readonly static string configPath = Program.ExeDir + "emuera.config";
+	// Issue 12：configPath 从 static readonly 改为实例 readonly 字段——
+	// /load-game 切换游戏目录后，新 ConfigData 必须读取新目录的 emuera.config。
+	// 构造时根据当前 GamePaths.Current.ExeDir（以分隔符结尾）确定；
+	// 启动期 / CLI 无 GamePaths 时 fallback 到 Program.ExeDir。
+	readonly string configPath;
 	#endregion
 	readonly static string configdebugPath = Program.DebugDir + "debug.config";
 
@@ -36,7 +40,15 @@ internal sealed class ConfigData
 	public bool NeedReduceArgumentOnLoad { get; private set; }
 	public int Language { get; private set; }
 
-	internal ConfigData() { setDefault(); BuildIndex(); }
+	internal ConfigData()
+	{
+		// Issue 12：构造时绑定当前游戏目录的 emuera.config 路径。
+		// /load-game 会先 GamePaths.Resolve(newDir) 再 new ConfigData()，
+		// 因此此处读取的是新目录；启动期 GamePaths.Current 可能已指向 --ExeDir。
+		configPath = (GamePaths.Current?.ExeDir ?? Program.ExeDir) + "emuera.config";
+		setDefault();
+		BuildIndex();
+	}
 	#region EM_私家版_Emuera多言語化改造
 	//適当に大き目の配列を作っておく。
 	#region EE_configArrayの拡張
@@ -700,22 +712,40 @@ internal sealed class ConfigData
 
 	public bool LoadConfig()
 	{
-		string defaultConfigPath = Program.CsvDir + "_default.config";
-		string fixedConfigPath = Program.CsvDir + "_fixed.config";
+		return LoadConfigCore(configPath, Program.CsvDir);
+	}
+
+	/// <summary>
+	/// Issue 12：显式指定游戏目录加载 config——/load-game 切换目录后使用。
+	/// 避免依赖构造时 GamePaths.Current 的时序，直接读 exeDir 下的 emuera.config
+	/// 及 exeDir/csv 下的 default/fixed config。
+	/// </summary>
+	public bool LoadConfig(string exeDir)
+	{
+		string csvDir = Path.Combine(exeDir, "csv") + Path.DirectorySeparatorChar;
+		string configPathLocal = exeDir + "emuera.config";
+		return LoadConfigCore(configPathLocal, csvDir);
+	}
+
+	private bool LoadConfigCore(string configPathLocal, string csvDir)
+	{
+		string defaultConfigPath = csvDir + "_default.config";
+		string fixedConfigPath = csvDir + "_fixed.config";
 		if (!File.Exists(defaultConfigPath))
-			defaultConfigPath = Program.CsvDir + "default.config";
+			defaultConfigPath = csvDir + "default.config";
 		if (!File.Exists(fixedConfigPath))
-			fixedConfigPath = Program.CsvDir + "fixed.config";
+			fixedConfigPath = csvDir + "fixed.config";
 
 		loadConfig(defaultConfigPath, false);
-		loadConfig(configPath, false);
+		loadConfig(configPathLocal, false);
 		loadConfig(fixedConfigPath, true);
 
 		// 候选 2 / ADR-0009：原 Config.SetConfig(this) 已坍缩——视图（Config）是薄转发层，
 		// 无副本可刷新；clamp/语言/存档目录逻辑下沉为实例方法 ApplyPostLoadEffects。
 		ApplyPostLoadEffects();
 		bool needSave = false;
-		if (!File.Exists(configPath))
+		// Issue 12：使用当前实际读取的 config 文件路径判断是否需要创建默认 config。
+		if (!File.Exists(configPathLocal))
 			needSave = true;
 		if (CheckUpdate())
 		{
