@@ -16,7 +16,16 @@ internal sealed class Session : IDisposable
     public bool IsRunning => _gameTask != null && !_gameTask.IsCompleted;
     public bool HasEnded { get; private set; }
     public HttpSessionIO IO => _io;
-    public string StateString => _console?.State.ToString() ?? "Idle";
+    /// <summary>
+    /// Issue 11 D1：当前显示状态字符串。
+    /// - <c>"Loading"</c>：Session.Start() 已排 GameLoopAsync 到独立 Task，但 runLoop 回调尚未启动
+    ///   （即 <c>console.Initialize()</c>——含 Preload.Load + Process.Initialize——仍在跑）。
+    ///   /load-game 同步返回时 _loading=true，前端据此显示"加载中…"而非"Idle"。
+    /// - <c>_console.State.ToString()</c>：runLoop 启动后 _loading=false，状态由 EmueraConsole 维护
+    ///   （Running / WaitInput / Quit / Error）。
+    /// - <c>"Idle"</c>：理论上不会到达（StateString 仅在 session 已存在时被读），保留作兜底。
+    /// </summary>
+    public string StateString => _loading ? "Loading" : (_console?.State.ToString() ?? "Idle");
     public bool IsFinalTurnDelivered => _finalTurnDelivered;
 
     /// <summary>
@@ -51,6 +60,11 @@ internal sealed class Session : IDisposable
     private bool _finalTurnReady;
     private bool _finalTurnDelivered;
     private bool _disposed;
+    /// <summary>
+    /// Issue 11 D1：加载中标志——Session.Start() 设 true，runLoop 回调首行设 false。
+    /// volatile：HTTP 线程（/load-game / GET /state / GET /snapshot）读、游戏循环 Task 线程写。
+    /// </summary>
+    private volatile bool _loading;
 
     public Session(HttpSessionIO io, ITerminalSetup terminalSetup, ConfigData configData)
     {
@@ -65,6 +79,10 @@ internal sealed class Session : IDisposable
 
     public void Start()
     {
+        // Issue 11 D1：进入 Task.Run 前置 _loading=true——/load-game 同步返回时
+        // GameLoopAsync 可能尚未跑到 console.Initialize()，但 _loading 已可见（volatile）。
+        // runLoop 回调首行（console.Initialize 完成后）置 false。
+        _loading = true;
         _gameTask = Task.Run(GameLoopAsync);
     }
 
@@ -86,6 +104,10 @@ internal sealed class Session : IDisposable
             },
             async p =>
             {
+                // Issue 11 D1：runLoop 被 GameLoopComposer 调用时 console.Initialize() 已完成
+                // （无论成败——ConsoleStateManager.Initialize 失败时置 State=Error 并 return，不抛）。
+                // 故 runLoop 开始即加载结束，立即置 _loading=false 让 StateString 返真实状态。
+                _loading = false;
                 try
                 {
                     await ((AgentJsonlProtocol)p).RunLoopAsync(enableTimeout: true, _cts.Token);

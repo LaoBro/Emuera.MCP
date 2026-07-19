@@ -35,7 +35,7 @@ internal sealed class KestrelGameServer : IDisposable
     private ConfigData _configData;
     private volatile Session? _session;
     /// <summary>
-    /// 异步兼容锁——issue 05 起 /load-game 需在持锁期间 await Preload.Load（读 ERB/CSV 文件可秒级），
+    /// 异步兼容锁——issue 05 起 /load-game 需在持锁期间 await ConfigData.LoadConfig 等同步步骤，
     /// 故从 <c>object</c> + <c>lock</c> 改为 <c>SemaphoreSlim(1,1)</c>。
     /// 串行化 /session、/load-game、DELETE /session 三个会话变更操作；
     /// /input、/snapshot、/ws 仅读 <c>_session</c> volatile 引用，不入锁。
@@ -305,13 +305,16 @@ internal sealed class KestrelGameServer : IDisposable
     /// 3. Preload.Clear()
     /// 4. GamePaths.Resolve(newDir)（步骤 1 已完成——重赋静态 GamePaths.Current）
     /// 5. 重建 ConfigData：new ConfigData().LoadConfig(), ConfigData.SetCurrent()
-    /// 6. Preload.Load(ErbDir/CsvDir) —— 读 ERB/CSV 文件到缓存
+    /// 6. Preload.Load 由新 Session 的 ConsoleStateManager.Initialize 异步执行（issue 11 D2：
+    ///    去除 server 端双重 Preload——保留 ConsoleStateManager 入口供 CLI 共用）
     /// 7. 建新 Session（传入新 _configData）
     /// 8. 返 {sessionId, state, gameDir}
     ///
     /// 错误契约（spec L229）：
     /// - 路径级错误（DIR_NOT_FOUND / MISSING_CSV / MISSING_ERB）→ 400 `{error:{code,message}}`
-    /// - 加载级失败（ERB 损坏、Preload.Load 异常等）→ 500 `{error:{code:"LOAD_FAILED",message:"..."}}`
+    /// - 加载级失败（ConfigData.LoadConfig 等同步步骤异常、未预期异常）→ 500 `{error:{code:"LOAD_FAILED",message:"..."}}`
+    ///   异步阶段（Preload.Load / Process.Initialize）失败由 ConsoleStateManager 置 State=Error，
+    ///   前端经 GET /snapshot 看到"先警告后 state=Error"——issue 11 D4 自然可见，无需同步 500。
     ///
     /// 限制：ConfigData.configPath 是 `static readonly`，首次 ConfigData 构造时绑定 Program.ExeDir。
     /// 重载到含 emuera.config 的新目录时，该 config 文件不会被读取——v1 已知限制，
@@ -381,7 +384,7 @@ internal sealed class KestrelGameServer : IDisposable
 
             // 4. GamePaths.Resolve 已在步骤 1 完成——GamePaths.Current 指向新目录
 
-            // 5. 重建 ConfigData 并 SetCurrent（HTTP 线程 AsyncLocal——主要供 Preload.Load 间接读）
+            // 5. 重建 ConfigData 并 SetCurrent（HTTP 线程 AsyncLocal——主要供新 Session 异步 Preload.Load 间接读）
             // Issue 12：使用 LoadConfig(paths.ExeDir) 显式读取新游戏目录的 emuera.config，
             // 避免 ConfigData.configPath 静态绑定到 Program.ExeDir 导致读不到新配置。
             var newConfig = new ConfigData();
@@ -389,21 +392,10 @@ internal sealed class KestrelGameServer : IDisposable
             ConfigData.SetCurrent(newConfig);
             _configData = newConfig;
 
-            // 6. Preload.Load —— 读 ERB/CSV 文件到缓存。失败返 500 LOAD_FAILED
-            try
-            {
-                await Preload.Load(paths.ErbDir);
-                await Preload.Load(paths.CsvDir);
-            }
-            catch (Exception ex)
-            {
-                // 输出完整异常到 stderr——前端 LOAD_FAILED 提示让用户查看服务器日志
-                Console.Error.WriteLine($"[load-game] Preload.Load failed for {paths.ExeDir}");
-                Console.Error.WriteLine(ex);
-                return Results.Json(
-                    new { error = new { code = "LOAD_FAILED", message = $"Preload.Load failed: {ex.Message}" } },
-                    statusCode: 500);
-            }
+            // 6. Preload.Load 已下沉到 ConsoleStateManager.Initialize（issue 11 D2：去重 server 端双重 Preload，
+            //    保留 CLI/server 共用入口）——见 ConsoleStateManager.cs:58-60。新 Session.Start() 排
+            //    GameLoopAsync 到独立 Task，_loading=true 让 StateString 返 "Loading"（issue 11 D1）。
+            //    异步阶段的文件 I/O 失败由 ConsoleStateManager 置 State=Error，前端经 snapshot 自然可见。
 
             // 7. 建新 Session——GameLoopAsync 内 GameLoopComposer.OpenScope(_configData) 注入新配置
             var io = new HttpSessionIO(new OutputHub());
@@ -411,7 +403,7 @@ internal sealed class KestrelGameServer : IDisposable
             newSession.Start();
             _session = newSession;
 
-            // 8. 返 {sessionId, state, gameDir}
+            // 8. 返 {sessionId, state, gameDir}——state="Loading"（D1 落地后自动生效）
             return Results.Json(new
             {
                 sessionId = newSession.Id,

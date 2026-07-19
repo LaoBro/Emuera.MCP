@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { useConnectionStore, type ConnectionStatus, MAX_RECONNECT_ATTEMPTS } from '../stores/connection';
 import { useGameStore } from '../stores/game';
+import { deriveDisplayStatus } from '../lib/loadingStatus';
 
 const conn = useConnectionStore();
 const game = useGameStore();
@@ -32,20 +33,37 @@ const statusText = computed<Record<ConnectionStatus, string>>(() => ({
   connected: '已连接',
   reconnecting: `重连中…（${Math.min(conn.retryCount, MAX_RECONNECT_ATTEMPTS)}/${MAX_RECONNECT_ATTEMPTS}）`,
 }));
+
+/**
+ * Issue 11 D5：reloadStatus='loading' 时强制覆盖连接状态显示。
+ *
+ * loadGame 切换游戏目录时：disconnect 旧 WS → POST /load-game → connect 新 WS。
+ * 期间 conn.status 短暂为 'disconnected'——若按原逻辑显示"已断开"，会让用户误以为
+ * 连接异常断开。覆盖为"加载中…"让 UI 与切换动作语义一致。
+ *
+ * 同时 status-dot 颜色按"进行中"语义显示黄色（与 connecting/reconnecting 同色），
+ * 而非红色——避免红色"错误"暗示。
+ */
+const displayStatus = computed(() => deriveDisplayStatus(game.reloadStatus, conn.status));
+const displayStatusText = computed(() =>
+  displayStatus.value === 'loading' ? '加载中…' : statusText.value[displayStatus.value],
+);
+const statusDotClass = computed(() => {
+  const s = displayStatus.value;
+  if (s === 'loading' || s === 'connecting' || s === 'reconnecting') return 'yellow';
+  if (s === 'connected') return 'green';
+  return 'red';
+});
 </script>
 
 <template>
   <div class="conn-panel">
     <span
       class="status-dot"
-      :class="{
-        green: conn.status === 'connected',
-        yellow: conn.status === 'connecting' || conn.status === 'reconnecting',
-        red: conn.status === 'disconnected',
-      }"
-      :title="statusText[conn.status]"
+      :class="statusDotClass"
+      :title="displayStatusText"
     />
-    <span class="status-text">{{ statusText[conn.status] }}</span>
+    <span class="status-text">{{ displayStatusText }}</span>
     <input
       v-model="urlInput"
       class="url-input"
