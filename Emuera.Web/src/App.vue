@@ -24,8 +24,10 @@ const conn = useConnectionStore();
  *
  * 失败容错：GET /state 失败（server 未启动）→ 不自动连，让用户用 ConnectionPanel 手动连
  *
- * Issue 12：GET /state 响应携带 windowWidth/fontSize/lineHeight/gameColumns——同步写入 store，
+ * Issue 12：GET /state 响应携带 windowWidth/fontSize/lineHeight/gameColumns/fontName——同步写入 store，
  * 驱动 TerminalDisplay 固定宽度布局（容器宽度用 gameColumns × 1ch，字体宽度自适应）。
+ * fontName 作为 font-family 首选，浏览器找不到时 fallback 到 ui-monospace 链——
+ * ASCII 字符画对字体宽度高度敏感，"ＭＳ ゴシック"（GDI 默认）与 Consolas 等字形差异显著。
  */
 onMounted(async () => {
   const httpBase = conn.deriveHttpBase(conn.serverUrl);
@@ -35,12 +37,13 @@ onMounted(async () => {
     if (resp.status === 200) {
       const body = await resp.json();
       if (typeof body?.gameDir === 'string') serverGameDir = body.gameDir;
-      // Issue 12：写入窗口布局元信息——server 始终返回这 4 个 int 字段
+      // Issue 12：写入窗口布局元信息——server 始终返回这 4 个 int 字段 + 1 个 string 字段
       game.setGameLayout({
         windowWidth: typeof body?.windowWidth === 'number' ? body.windowWidth : null,
         fontSize: typeof body?.fontSize === 'number' ? body.fontSize : null,
         lineHeight: typeof body?.lineHeight === 'number' ? body.lineHeight : null,
         gameColumns: typeof body?.gameColumns === 'number' ? body.gameColumns : null,
+        fontName: typeof body?.fontName === 'string' ? body.fontName : null,
       });
     }
   } catch {

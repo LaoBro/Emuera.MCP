@@ -191,11 +191,15 @@ internal sealed class KestrelGameServer : IDisposable
     /// 前端 App.vue 挂载时调用：比对 localStorage 的 gameDir 与 server 当前 gameDir，
     /// 决定是直接 connect（同目录）还是 loadGame（异目录自动切换）。
     ///
-    /// Issue 12：新增 windowWidth / fontSize / lineHeight / gameColumns 四个字段。
+    /// Issue 12：新增 windowWidth / fontSize / lineHeight / gameColumns / fontName 五个字段。
     /// gameColumns = DrawableWidth / (FontSize/2)，与 CLI 模式
     /// TerminalLineFormatter.GetGameColumnWidth() 一致——前端用此值以 CSS ch 单位
     /// 设置容器宽度，让浏览器 monospace 字体宽度自适应（GDI ASCII=FontSize/2≈0.5em，
     /// 浏览器 monospace≈0.6em，若按 windowWidth 像素布局则字符画溢出容器）。
+    /// fontName 来自 ConfigCode.FontName（默认 "ＭＳ ゴシック"）——前端将其作为 font-family
+    /// 首选，浏览器找不到时再 fallback 到 ui-monospace 链。ASCII 字符画对字体宽度高度敏感，
+    /// "ＭＳ ゴシック"（GDI 18px）与浏览器默认 monospace（如 Consolas）字形差异显著，
+    /// 不读游戏字体名会让字符画视觉走形。
     /// Idle 分支也带这些字段，避免前端初始 fallback 偏差。/load-game 重建 ConfigData
     /// 后再次 GET /state 会拿到新游戏的窗口宽度。
     /// </summary>
@@ -206,6 +210,7 @@ internal sealed class KestrelGameServer : IDisposable
         var windowWidth = _configData.GetConfigValue<int>(ConfigCode.WindowX);
         var fontSize = _configData.GetConfigValue<int>(ConfigCode.FontSize);
         var lineHeight = _configData.GetConfigValue<int>(ConfigCode.LineHeight);
+        var fontName = _configData.GetConfigValue<string>(ConfigCode.FontName);
         // gameColumns = DrawableWidth / charWidth，与 CLI TerminalLineFormatter.GetGameColumnWidth() 一致。
         // Headless 模式 TextDrawingMode != WINAPI，故 ShapePositionShift = Max(2, FontSize/6)。
         int charWidth = Math.Max(fontSize / 2, 1);
@@ -223,6 +228,7 @@ internal sealed class KestrelGameServer : IDisposable
                 fontSize,
                 lineHeight,
                 gameColumns,
+                fontName,
             });
 
         return Results.Json(new
@@ -236,6 +242,7 @@ internal sealed class KestrelGameServer : IDisposable
             fontSize,
             lineHeight,
             gameColumns,
+            fontName,
         });
     }
 

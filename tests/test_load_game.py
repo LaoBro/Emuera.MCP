@@ -95,7 +95,7 @@ def main():
             check(norm(obj.get("gameDir")) == norm(game_dir),
                   f"gameDir=={game_dir}, got {obj.get('gameDir')!r}")
             check(obj.get("state") == "Idle", f"state==Idle (no session), got {obj.get('state')}")
-            # Issue 12：windowWidth / fontSize / lineHeight / gameColumns 四个布局元信息字段
+            # Issue 12：windowWidth / fontSize / lineHeight / gameColumns / fontName 五个布局元信息字段
             check("windowWidth" in obj and isinstance(obj["windowWidth"], int),
                   f"state has int windowWidth: {obj.get('windowWidth')!r}")
             check("fontSize" in obj and isinstance(obj["fontSize"], int),
@@ -104,8 +104,11 @@ def main():
                   f"state has int lineHeight: {obj.get('lineHeight')!r}")
             check("gameColumns" in obj and isinstance(obj["gameColumns"], int),
                   f"state has int gameColumns: {obj.get('gameColumns')!r}")
+            check("fontName" in obj and isinstance(obj["fontName"], str),
+                  f"state has str fontName: {obj.get('fontName')!r}")
             # 默认值校验——test_game 无 emuera.config，应为 ConfigData 默认 760/18/19
             # gameColumns = (760 - max(2, 18/6=3)) / max(18/2, 1) = (760-3)/9 = 757/9 = 84
+            # fontName 默认 "ＭＳ ゴシック"（ConfigData.SetDefault）
             check(obj.get("windowWidth") == 760,
                   f"windowWidth==760 (default), got {obj.get('windowWidth')}")
             check(obj.get("fontSize") == 18,
@@ -114,6 +117,8 @@ def main():
                   f"lineHeight==19 (default), got {obj.get('lineHeight')}")
             check(obj.get("gameColumns") == 84,
                   f"gameColumns==84 (default, (760-3)/9), got {obj.get('gameColumns')}")
+            check(obj.get("fontName") == "ＭＳ ゴシック",
+                  f"fontName=='ＭＳ ゴシック' (default), got {obj.get('fontName')!r}")
 
         # --- Test 3: POST /load-game 不存在路径 → 400 DIR_NOT_FOUND ---
         print("\n[3] POST /load-game 不存在路径 → 400 DIR_NOT_FOUND")
@@ -188,7 +193,7 @@ def main():
                   f"isRunning==true, got {obj.get('isRunning')}")
             check(obj.get("state") == "WaitInput",
                   f"state==WaitInput, got {obj.get('state')}")
-            # Issue 12：active session 分支也应携带布局元信息字段（含 gameColumns）
+            # Issue 12：active session 分支也应携带布局元信息字段（含 gameColumns + fontName）
             check("windowWidth" in obj and isinstance(obj["windowWidth"], int),
                   f"active state has int windowWidth: {obj.get('windowWidth')!r}")
             check("fontSize" in obj and isinstance(obj["fontSize"], int),
@@ -197,6 +202,8 @@ def main():
                   f"active state has int lineHeight: {obj.get('lineHeight')!r}")
             check("gameColumns" in obj and isinstance(obj["gameColumns"], int),
                   f"active state has int gameColumns: {obj.get('gameColumns')!r}")
+            check("fontName" in obj and isinstance(obj["fontName"], str),
+                  f"active state has str fontName: {obj.get('fontName')!r}")
 
         # --- Test 9: 路径级错误时旧 session 不丢 + Current 不被污染 ---
         # 此时已有 session（test_game 隐式建的），尝试 load-game 一个 bogus 路径，

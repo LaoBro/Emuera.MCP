@@ -33,6 +33,10 @@ import type { ButtonValue, PrintSegment, DisplayLine } from '../types/protocol';
  *   不同，按像素布局会让字符画溢出；按字符列数 × 1ch 布局则字体宽度自适应，字符画正好填满。
  * - `font-size` = `game.fontSize` 像素（默认 18）
  * - `line-height` = `game.lineHeight` 像素（**用绝对像素，不要用 `lineHeight / fontSize` 比例**——Emuera 的 `LineHeight` 是绝对像素行距，WinForms `mainPicBox` 按 `LineHeight` 铺行；用比例会让 inline 元素（按钮等）行距叠加错位。默认 19）
+ * - `font-family` 首选 = `game.fontName`（来自 ConfigCode.FontName，默认 "ＭＳ ゴシック"），
+ *   浏览器找不到该字体时 fallback 到 `ui-monospace, 'Cascadia Mono', Consolas, ...` 链。
+ *   ASCII 字符画对字体宽度高度敏感——"ＭＳ ゴシック" 是 GDI 默认等宽日文字体，与 Consolas
+ *   等浏览器默认 monospace 字形差异显著，必须读游戏字体名才能正确还原字符画视觉。
  * - `.term-line` 的 `min-height` 用 CSS 变量 `--term-line-min-height` 与 LineHeight 对齐
  * - 容器无 padding——与 WinForms mainPicBox / CLI 终端一致，字符画从容器边缘开始渲染；
  *   外层 TerminalView 的 flex 居中 + 两侧留白提供视觉间距
@@ -47,16 +51,32 @@ const conn = useConnectionStore();
 /**
  * Issue 12：从 store 派生有效布局值——null 时 fallback 到 Emuera 默认值。
  *
- * 默认值来源：C# ConfigData.SetDefault() 的 ConfigCode.WindowX/FontSize/LineHeight 默认值。
+ * 默认值来源：C# ConfigData.SetDefault() 的 ConfigCode.WindowX/FontSize/LineHeight/FontName 默认值。
  * gameColumns 默认值 = (760 - max(2, 18/6=3)) / max(18/2, 1) = 757/9 = 84
  * （与 CLI GetGameColumnWidth 一致，C# 整数除法）。
+ * fontName 默认值 = "ＭＳ ゴシック"（GDI 默认等宽日文字体）。
  * 多数 Emuera 游戏不修改 emuera.config，默认值是常见情况。
  */
 const effectiveFontSize = computed(() => game.fontSize ?? 18);
 const effectiveLineHeight = computed(() => game.lineHeight ?? 19);
 const effectiveGameColumns = computed(() => game.gameColumns ?? 84);
+const effectiveFontName = computed(() => game.fontName ?? 'ＭＳ ゴシック');
 
-/** .terminal 容器内联 style——动态绑定 width（ch 单位）/font-size/line-height + CSS 变量。 */
+/**
+ * font-family 字符串——游戏字体名在前，浏览器 fallback 字体链在后。
+ *
+ * 字体名含空格 / 日文时必须用引号包裹（CSS font-family 语法），否则解析失败。
+ * 'ＭＳ ゴシック' 是日文系统字体，非日文 Windows 可能没有——浏览器找不到时
+ * 自动 fallback 到 ui-monospace 链（覆盖 Windows/macOS/Linux 主流 monospace 字体）。
+ */
+const MONOSPACE_FALLBACK = "ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace";
+const effectiveFontFamily = computed(() => {
+  const name = effectiveFontName.value;
+  if (!name) return MONOSPACE_FALLBACK;
+  return `'${name.replace(/'/g, "\\'")}', ${MONOSPACE_FALLBACK}`;
+});
+
+/** .terminal 容器内联 style——动态绑定 width（ch 单位）/font-size/line-height/font-family + CSS 变量。 */
 const terminalStyle = computed<Record<string, string>>(() => {
   const style: Record<string, string> = {
     // 宽度用 gameColumns × 1ch——CSS ch 单位 = monospace 字体 "0" 字符宽度 = ASCII 字符宽度。
@@ -66,6 +86,9 @@ const terminalStyle = computed<Record<string, string>>(() => {
     width: `${effectiveGameColumns.value}ch`,
     fontSize: `${effectiveFontSize.value}px`,
     lineHeight: `${effectiveLineHeight.value}px`,
+    // font-family：游戏字体名在前，fallback 链在后——ASCII 字符画对字体宽度敏感，
+    // "ＭＳ ゴシック"（GDI 默认）与 Consolas 等字形差异显著。
+    fontFamily: effectiveFontFamily.value,
     // CSS 变量供 .term-line min-height 引用——保持与行距一致，避免行距叠加错位
     '--term-line-min-height': `${effectiveLineHeight.value}px`,
   };
@@ -158,10 +181,13 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
 <style scoped>
 .terminal {
   /* monospace 字体——CJK 字符在浏览器中通常以 2x ASCII 宽度渲染，
-     与 C# HeadlessConsole 的 display-width 计算一致，保证多按钮行对齐。 */
+     与 C# HeadlessConsole 的 display-width 计算一致，保证多按钮行对齐。
+     font-family 实际值由 inline style 动态绑定（issue 12）——游戏字体名在前，
+     此处 fallback 链在后。inline style 优先级高于此声明。 */
   font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
-  /* font-size / line-height / width 由 inline style 动态绑定（issue 12）——
-     width 用 gameColumns × 1ch（字符列数），font-size/line-height 用像素。 */
+  /* font-size / line-height / width / font-family 由 inline style 动态绑定（issue 12）——
+     width 用 gameColumns × 1ch（字符列数），font-size/line-height 用像素，
+     font-family 首选游戏字体名。 */
   color: #d4d4d4;
   background-color: #000000;
   /* pre：保留 PRINT 输出中的空格 / 缩进，长行不自动换行。

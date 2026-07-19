@@ -170,7 +170,7 @@ export const useGameStore = defineStore('game', () => {
 
   // ---------- Issue 12：游戏窗口布局元信息 ----------
   //
-  // 这四个字段从 C# `GET /state` 响应读取——驱动 TerminalDisplay 的固定宽度布局：
+  // 这五个字段从 C# `GET /state` 响应读取——驱动 TerminalDisplay 的固定宽度布局：
   // - windowWidth：游戏 emuera.config 设定的窗口像素宽度（ConfigCode.WindowX，默认 760）
   // - fontSize：字体像素大小（ConfigCode.FontSize，默认 18）
   // - lineHeight：行距像素（ConfigCode.LineHeight，默认 19；绝对像素，非比例）
@@ -178,6 +178,10 @@ export const useGameStore = defineStore('game', () => {
   //   TerminalLineFormatter.GetGameColumnWidth() 一致。前端用此值以 CSS ch 单位设置
   //   容器宽度——浏览器 monospace 字符宽度（≈0.6em）与 GDI（FontSize/2=0.5em）不同，
   //   按像素宽度布局会让字符画溢出；按字符列数 × 1ch 布局则字体宽度自适应。
+  // - fontName：游戏字体名（ConfigCode.FontName，默认 "ＭＳ ゴシック"）——前端将其作为
+  //   font-family 首选，浏览器找不到时再 fallback 到 ui-monospace 链。ASCII 字符画对字体
+  //   宽度高度敏感，"ＭＳ ゴシック"（GDI 18px）与 Consolas 等浏览器默认 monospace 字形差异
+  //   显著，不读游戏字体名会让字符画视觉走形。
   //
   // null 表示尚未从 server 读取——TerminalDisplay 用默认值 fallback。
   // App.vue onMounted + loadGame 成功后会调 setGameLayout 更新这些字段。
@@ -190,6 +194,8 @@ export const useGameStore = defineStore('game', () => {
   const lineHeight = ref<number | null>(null);
   /** 游戏可绘制字符列数（DrawableWidth / (FontSize/2)，默认按 760/18 算 = 84）。null 表示尚未读取。 */
   const gameColumns = ref<number | null>(null);
+  /** 游戏字体名（来自 ConfigCode.FontName，默认 "ＭＳ ゴシック"）。null 表示尚未读取。 */
+  const fontName = ref<string | null>(null);
 
   // ---------- ADR-0016：TINPUT timer 状态（本地钟表）----------
   //
@@ -482,6 +488,7 @@ export const useGameStore = defineStore('game', () => {
               fontSize: typeof stateBody?.fontSize === 'number' ? stateBody.fontSize : null,
               lineHeight: typeof stateBody?.lineHeight === 'number' ? stateBody.lineHeight : null,
               gameColumns: typeof stateBody?.gameColumns === 'number' ? stateBody.gameColumns : null,
+              fontName: typeof stateBody?.fontName === 'string' ? stateBody.fontName : null,
             });
           }
         } catch {
@@ -531,18 +538,20 @@ export const useGameStore = defineStore('game', () => {
    * Issue 12：写入窗口布局元信息——App.vue onMounted + loadGame 成功后调用。
    *
    * 入参 null / undefined 表示 server 响应缺失该字段——保持原值不动，
-   * 让前端 fallback 到上一已知值或默认 760/18/19/94。
+   * 让前端 fallback 到上一已知值或默认 760/18/19/84/"ＭＳ ゴシック"。
    */
   function setGameLayout(opts: {
     windowWidth?: number | null;
     fontSize?: number | null;
     lineHeight?: number | null;
     gameColumns?: number | null;
+    fontName?: string | null;
   }): void {
     if (typeof opts.windowWidth === 'number') windowWidth.value = opts.windowWidth;
     if (typeof opts.fontSize === 'number') fontSize.value = opts.fontSize;
     if (typeof opts.lineHeight === 'number') lineHeight.value = opts.lineHeight;
     if (typeof opts.gameColumns === 'number') gameColumns.value = opts.gameColumns;
+    if (typeof opts.fontName === 'string') fontName.value = opts.fontName;
   }
 
   return {
@@ -575,6 +584,7 @@ export const useGameStore = defineStore('game', () => {
     fontSize,
     lineHeight,
     gameColumns,
+    fontName,
     setGameLayout,
   };
 });
