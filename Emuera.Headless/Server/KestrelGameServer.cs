@@ -56,6 +56,13 @@ internal sealed class KestrelGameServer : IDisposable
         // P0-2 为 WebSocket 铺路：启用 WS 中间件（仅启用，未实现端点前无副作用）。
         _app.UseWebSockets();
 
+        // issue 10：静态资源服务——server 模式下 Kestrel 直接提供 Vue 构建产物（wwwroot/）。
+        // 顺序必须 UseDefaultFiles → UseStaticFiles：前者把 `/` 重写为 `/index.html`，
+        // 后者从 wwwroot 提供文件。二者必须在 MapRoutes 之前注册，否则默认文件请求不会被拦截。
+        // wwwroot/ 由 csproj BuildVueFrontend pre-build target 从 ../Emuera.Web/dist/ 复制填充。
+        _app.UseDefaultFiles();
+        _app.UseStaticFiles();
+
         MapRoutes();
     }
 

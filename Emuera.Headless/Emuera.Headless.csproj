@@ -47,4 +47,75 @@
     <EmbeddedResource Include="Shared\Properties\lang\emuera-zhs.xml" LinkBase="Properties\lang" />
   </ItemGroup>
 
+  <!-- ===== issue 10：Vue 前端构建 + 静态资源服务 ===== -->
+  <!-- wwwroot/ 文件随 build/publish 复制到输出目录。
+       PublishSingleFile=true（PropertyGroup L13）下 wwwroot 是松散文件目录，不嵌入 exe，
+       必须作为独立文件随 exe 分发。
+       wwwroot/ 由 .gitignore 排除（构建产物不入库），由下面 BuildVueFrontend target 填充。
+       注意：Content glob 在 project load 时评估，首次 build 时 wwwroot/ 尚为空，
+       BuildVueFrontend target 内会直接 Copy 到 $(OutputPath)wwwroot/ 作为兜底。 -->
+  <ItemGroup>
+    <Content Include="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Vue 源码 + 配置文件，作为 BuildVueFrontend target 的 Inputs（用于增量检测）。
+       必须用 ItemGroup 引用 @(VueSrcInputs)，不能直接在 Target Inputs 属性里写 glob——
+       MSBuild 会把未展开的 glob 字面量当作"不存在的文件路径"，导致 Inputs/Outputs 增量失效。 -->
+  <ItemGroup>
+    <VueSrcInputs Include="..\Emuera.Web\src\**\*" />
+    <VueSrcInputs Include="..\Emuera.Web\index.html" />
+    <VueSrcInputs Include="..\Emuera.Web\package.json" />
+    <VueSrcInputs Include="..\Emuera.Web\package-lock.json" />
+    <VueSrcInputs Include="..\Emuera.Web\vite.config.ts" />
+    <VueSrcInputs Include="..\Emuera.Web\tsconfig.json" />
+  </ItemGroup>
+
+  <!-- BuildVueFrontend: 增量跑 npm run build（src 比 dist 新才触发）
+       - SkipVueBuild=true 显式跳过（CI / 纯 C# 改动场景）
+       - DesignTimeBuild=true 跳过（IDE 设计时构建不触发，避免 IntelliSense 卡顿）
+       - Node 不可用 → warning 跳过，不 fail build（Node.js 非项目必需依赖，README/CLAUDE.md 只列 .NET SDK + Python）
+       - 用 MSBuild 原生 <Exec>，避免 Start-Process 重定向管道死锁（CLAUDE.md L33 警告）
+       - Inputs/Outputs 增量：@(VueSrcInputs) 比 dist/index.html 新才触发 npm build（Vite 自身缓存够快） -->
+  <Target Name="BuildVueFrontend"
+          BeforeTargets="Build"
+          Condition="'$(SkipVueBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'"
+          Inputs="@(VueSrcInputs)"
+          Outputs="..\Emuera.Web\dist\index.html">
+
+    <!-- Node 检测：IgnoreExitCode=true + Output ExitCode 让 npm 缺失时不 fail build -->
+    <Exec Command="npm --version" ConsoleToMSBuild="true" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="NpmExitCode" />
+    </Exec>
+
+    <Warning Condition="'$(NpmExitCode)' != '0'"
+             Text="npm not found in PATH; skipping Vue frontend build. Run 'npm install &amp;&amp; npm run build' in Emuera.Web/ manually to populate wwwroot/, or pass /p:SkipVueBuild=true to suppress this warning." />
+
+    <!-- npm run build: Vite 自身有增量缓存，重复调用很快 -->
+    <Exec Condition="'$(NpmExitCode)' == '0'"
+          Command="npm run build"
+          WorkingDirectory="..\Emuera.Web"
+          ConsoleToMSBuild="true" />
+  </Target>
+
+  <!-- CopyVueFrontendToWwwroot: dist/ → wwwroot/（源树 + 输出目录）
+       - 跑在 BuildVueFrontend 之后、Build 之前
+       - SkipUnchangedFiles=true 避免每次 build 全量复制（按文件 mtime 增量）
+       - 同时复制到 $(OutputPath)wwwroot/ 兜底首次 build（Content glob 还未评估到新文件）
+       - 即便 BuildVueFrontend 因 Inputs/Outputs 跳过，本 target 仍会跑——
+         这样手动 npm run build 后下一次 dotnet build 能 pick up 新 dist -->
+  <Target Name="CopyVueFrontendToWwwroot"
+          AfterTargets="BuildVueFrontend"
+          BeforeTargets="Build"
+          Condition="'$(SkipVueBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <VueDistFiles Include="..\Emuera.Web\dist\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(VueDistFiles)"
+          DestinationFolder="wwwroot\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(VueDistFiles)"
+          DestinationFolder="$(OutputPath)wwwroot\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>
