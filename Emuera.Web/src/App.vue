@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, computed } from 'vue';
 import { useUiStore } from './stores/ui';
-import { useGameStore, readGameDirFromStorage } from './stores/game';
-import { useConnectionStore } from './stores/connection';
+import { useGameStore } from './stores/game';
+import { initAppState } from './composables/useAppInit';
 import ConnectionPanel from './components/ConnectionPanel.vue';
 import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
@@ -11,56 +11,26 @@ import TerminalView from './views/TerminalView.vue';
 
 const ui = useUiStore();
 const game = useGameStore();
-const conn = useConnectionStore();
 
 /**
- * Issue 05：App 挂载自动加载逻辑（spec L36）。
- *
- * 流程：
- * 1. GET /state → 拿 server 当前 gameDir
- * 2. 比对 server gameDir vs localStorage `emuera.gameDir`
- *   - 同 / localStorage 无值 → conn.connect()（不重启当前局；server 已有 session 直接重连）
- *   - 异 → game.loadGame(localStorage.emuera.gameDir)（disconnect → /load-game → connect）
- *
- * 失败容错：GET /state 失败（server 未启动）→ 不自动连，让用户用 ConnectionPanel 手动连
- *
- * Issue 12：GET /state 响应携带 windowWidth/fontSize/lineHeight/gameColumns/fontName——同步写入 store，
- * 驱动 TerminalDisplay 固定宽度布局（容器宽度用 gameColumns × 1ch，字体宽度自适应）。
- * fontName 作为 font-family 首选，浏览器找不到时 fallback 到 ui-monospace 链——
- * ASCII 字符画对字体宽度高度敏感，"ＭＳ ゴシック"（GDI 默认）与 Consolas 等字形差异显著。
+ * T-025 D9 rev：App 挂载初始化——逻辑提取到 initAppState() 便于单测。
+ * 见 composables/useAppInit.ts 的详细文档。
  */
-onMounted(async () => {
-  const httpBase = conn.deriveHttpBase(conn.serverUrl);
-  let serverGameDir: string | null = null;
-  try {
-    const resp = await fetch(`${httpBase}/state`);
-    if (resp.status === 200) {
-      const body = await resp.json();
-      if (typeof body?.gameDir === 'string') serverGameDir = body.gameDir;
-      // Issue 12：写入窗口布局元信息——server 始终返回这 4 个 int 字段 + 1 个 string 字段
-      game.setGameLayout({
-        windowWidth: typeof body?.windowWidth === 'number' ? body.windowWidth : null,
-        fontSize: typeof body?.fontSize === 'number' ? body.fontSize : null,
-        lineHeight: typeof body?.lineHeight === 'number' ? body.lineHeight : null,
-        gameColumns: typeof body?.gameColumns === 'number' ? body.gameColumns : null,
-        fontName: typeof body?.fontName === 'string' ? body.fontName : null,
-      });
-    }
-  } catch {
-    // server 未启动——不自动连
-    return;
-  }
+onMounted(() => initAppState());
 
-  const localGameDir = readGameDirFromStorage();
+/**
+ * T-025 D14：「快速重开」按钮可见性——server 状态非 Idle 时显示。
+ *
+ * serverState 由 onMounted GET /state 和 WS 帧 turn.state 维护。
+ * 'Idle' = 空闲（无活跃 session）；'Loading'/'WaitInput'/'Quit'/'Error' = 有活跃 session。
+ */
+const canQuickRestart = computed(() => game.serverState !== 'Idle');
+const isRestarting = computed(() => game.reloadStatus === 'loading');
 
-  if (localGameDir && localGameDir !== serverGameDir) {
-    // localStorage 目录与 server 当前不同——切到 localStorage
-    await game.loadGame(localGameDir);
-  } else {
-    // 同目录 / localStorage 无值——直接 connect
-    await conn.connect();
-  }
-});
+async function onQuickRestart(): Promise<void> {
+  if (isRestarting.value) return;
+  await game.quickRestart();
+}
 </script>
 
 <template>
@@ -70,6 +40,16 @@ onMounted(async () => {
       <!-- Issue 05：游戏选择器，按平台条件渲染 -->
       <GamePickerMobile v-if="ui.platform === 'android'" />
       <GamePicker v-else />
+      <!-- T-025 D14：快速重开按钮——游戏运行/结束时显示，一键重载同目录 -->
+      <button
+        v-if="canQuickRestart"
+        class="quick-restart-btn"
+        :disabled="isRestarting"
+        :title="`重开当前游戏：${game.gameDir ?? ''}`"
+        @click="onQuickRestart"
+      >
+        {{ isRestarting ? '重开中…' : '快速重开' }}
+      </button>
       <nav class="view-switch">
         <button
           :class="{ active: ui.currentView === 'debug' }"
@@ -128,6 +108,23 @@ onMounted(async () => {
   background: #0e639c;
   color: #fff;
   border-color: #0e639c;
+}
+.quick-restart-btn {
+  background: #5a4a1d;
+  color: #dcdcaa;
+  border: 1px solid #6a5a2d;
+  padding: 4px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.quick-restart-btn:hover:not(:disabled) {
+  background: #6a5a2d;
+}
+.quick-restart-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .app-main {
   flex: 1;

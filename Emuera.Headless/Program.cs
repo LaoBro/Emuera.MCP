@@ -49,8 +49,14 @@ static partial class Program
         Lang.LoadLanguageFiles();
         Lang.SetLanguage();
 
-        // issue 05：GamePaths.Validate 改抛异常——CLI 启动路径捕获后退出（保留原行为），
-        // server /load-game 路径捕获后返 400（不杀进程）。
+        // T-025 D1/D2：GamePaths.Validate 失败按模式分流——
+        // - server 模式：降级 warn 继续（空闲启动，浏览器可打开选择器，真正的加载推迟到 /load-game）
+        // - CLI 模式：打印提示 + 等待玩家按回车再退出（不再静默 Environment.Exit，避免双击时窗口一闪即关）
+        //
+        // CLI 等回车在非交互终端的边界（D17）：stdin 重定向到 /dev/null 或文件时 Console.ReadLine
+        // 立即返 null/EOF → 进程退出，等同原 Environment.Exit(1)；CI/CD 不受影响。stdin 完全无句柄
+        // 时 ReadLine 可能抛 InvalidOperationException——catch 兜底等同 EOF 退出。仅 stdin 是管道且
+        // 管道不关闭（如 `echo | exe`）才会挂起，此场景罕见，可接受。
         try
         {
             paths.Validate();
@@ -58,8 +64,25 @@ static partial class Program
         catch (GamePathValidationException ex)
         {
             Console.Error.WriteLine($"[error] {ex.Code}: {ex.Message}");
-            Environment.Exit(1);
-            return;
+            if (options.Server)
+            {
+                // D1：server 模式空闲启动——降级 warn 继续，真正的游戏加载推迟到 /load-game
+                Console.Error.WriteLine("[server] 游戏目录校验失败，进入空闲模式。请在浏览器中选择游戏目录。");
+            }
+            else
+            {
+                // D2/D17：CLI 模式——打印提示后等回车再退出
+                Console.Error.WriteLine("按回车键退出...");
+                try
+                {
+                    Console.ReadLine();
+                }
+                catch (InvalidOperationException)
+                {
+                    // stdin 完全无句柄（CI 中非重定向而是无 stdin）——等同 EOF 退出
+                }
+                return;
+            }
         }
 
         // 字体加载迁移至 runners 内 scope 打开后执行（ADR-0008：Pfc 是实例成员，随 scope 生灭）

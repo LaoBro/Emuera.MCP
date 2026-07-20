@@ -35,11 +35,19 @@ try:
     no_turn_status, _ = server.get_turn(timeout=5)
     check(no_turn_status == 404, f"GET /turn with no session returns 404, got {no_turn_status}")
 
-    create1_status, create1_body = server.create_session()
-    check(create1_status == 201, f"first POST /session returns 201, got {create1_status}")
-    session1 = json.loads(create1_body)["sessionId"]
-    check(json.loads(create1_body).get("state") is not None, "create response includes state")
+    # T-025 D4：空闲态 POST /session → 503 No game loaded
+    # （旧行为：直接创建 session 返 201；T-025 后空闲态守卫先于创建逻辑）
+    idle_create_status, idle_create_body = server.create_session()
+    check(idle_create_status == 503, f"POST /session in idle returns 503 (T-025 D4), got {idle_create_status}")
+    check("No game loaded" in idle_create_body, "idle create response says 'No game loaded'")
 
+    # T-025 D8：POST /load-game 建立会话（不经 POST /session）
+    load_status, load_body = server.load_game(str(TEST_GAME_DIR))
+    check(load_status == 200, f"POST /load-game returns 200, got {load_status}")
+    session1 = json.loads(load_body)["sessionId"]
+    check(json.loads(load_body).get("state") is not None, "load-game response includes state")
+
+    # POST /session 有活跃会话时返回 409（load-game 已建 session）
     create2_status, create2_body = server.create_session()
     check(create2_status == 409, f"second POST /session returns 409 while active, got {create2_status}")
     check("already active" in create2_body.lower(), "second create response explains active session")
@@ -50,7 +58,7 @@ try:
     check(initial_turn.get("state") == "WaitInput", f"initial turn state is WaitInput, got {initial_turn.get('state')}")
     check("text" not in initial_turn, "initial turn has no text field (v2)")
     check("ops" not in initial_turn, "initial turn has no ops field (v5: removed)")
-    check(initial_turn.get("protocolVersion") == 5, f"initial turn protocolVersion == 5, got {initial_turn.get('protocolVersion')}")
+    check(initial_turn.get("protocolVersion") == 6, f"initial turn protocolVersion == 6, got {initial_turn.get('protocolVersion')}")
     check(initial_turn.get("diff") is None, "initial turn diff is null (first turn)")
 
     input_status, input_body = server.post_input("0")
@@ -72,7 +80,7 @@ try:
     snap = json.loads(snap_body)
     check("state" in snap and isinstance(snap["state"], str), "snapshot has state string")
     check("lines" in snap and isinstance(snap["lines"], list), "snapshot has lines[] list")
-    check(snap.get("protocolVersion") == 5, f"snapshot protocolVersion == 5, got {snap.get('protocolVersion')}")
+    check(snap.get("protocolVersion") == 6, f"snapshot protocolVersion == 6, got {snap.get('protocolVersion')}")
     # 验证按钮几何存在（至少一个按钮有 col + width 整数字段）
     has_button_geometry = False
     for line in snap.get("lines", []):
@@ -97,8 +105,11 @@ try:
     check(delete_status == 200, f"DELETE /session returns 200, got {delete_status}")
     check(json.loads(delete_body).get("removed") is True, "delete response marks removed=true")
 
-    create_after_delete_status, _ = server.create_session()
-    check(create_after_delete_status == 201, f"POST /session after DELETE returns 201, got {create_after_delete_status}")
+    # T-025 D4/D10：DELETE /session 后 server 回到空闲态，POST /session → 503
+    # （旧行为：DELETE 后 POST /session 返 201 建新 session；T-025 后空闲态守卫拦截）
+    create_after_delete_status, create_after_delete_body = server.create_session()
+    check(create_after_delete_status == 503, f"POST /session after DELETE returns 503 (T-025 D4), got {create_after_delete_status}")
+    check("No game loaded" in create_after_delete_body, "post-delete create response says 'No game loaded'")
 
 finally:
     if server is not None:
@@ -106,5 +117,3 @@ finally:
 
 print(f"\n=== Server single-session test: {passed} passed, {failed} failed ===")
 sys.exit(1 if failed else 0)
-
-

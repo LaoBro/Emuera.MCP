@@ -95,6 +95,10 @@ class ServerProcess:
     def get_snapshot(self, timeout=35):
         return self.request("GET", "/snapshot", timeout=timeout)
 
+    def load_game(self, game_dir):
+        """T-025：POST /load-game 辅助方法——issue 05 端点。"""
+        return self.request("POST", "/load-game", {"gameDir": game_dir})
+
     def close(self):
         if self.proc.poll() is None:
             try:
@@ -163,7 +167,12 @@ def wait_for_port(port, timeout=30):
     raise TimeoutError(f"Server did not listen on port {port}")
 
 
-def start_server(game_dir, project_dir=None, binary=None, port=None):
+def start_server(game_dir=None, project_dir=None, binary=None, port=None):
+    """启动 Emuera.Headless server。
+
+    T-025：game_dir 改为可选——None 时不传 --ExeDir，server 进入空闲启动模式
+    （Program.Main 跳过 Validate，等待 /load-game 加载游戏）。
+    """
     if project_dir is None:
         project_dir = PROJECT_DIR
     if port is None:
@@ -171,7 +180,9 @@ def start_server(game_dir, project_dir=None, binary=None, port=None):
 
     binary_path, use_dotnet = find_binary(str(project_dir)) if binary is None else (binary, binary.endswith(".dll"))
     cmd = ["dotnet", "exec", binary_path] if use_dotnet else [binary_path]
-    cmd.extend(["--server", "--port", str(port), "--ExeDir", str(game_dir)])
+    cmd.extend(["--server", "--port", str(port)])
+    if game_dir is not None:
+        cmd.extend(["--ExeDir", str(game_dir)])
 
     print(f"[EmueraServer] Starting: {' '.join(cmd)}")
     proc = subprocess.Popen(

@@ -84,7 +84,7 @@ internal sealed class KestrelGameServer : IDisposable
         await _app.WaitForShutdownAsync();
     }
 
-    private async Task<IResult> HandleCreateSessionAsync()
+    internal async Task<IResult> HandleCreateSessionAsync()
     {
         bool conflict;
         string? sessionId = null;
@@ -94,18 +94,23 @@ internal sealed class KestrelGameServer : IDisposable
         await _sessionLock.WaitAsync();
         try
         {
-            if (_session != null && !_session.HasEnded)
+            // T-025 D4/D16：空闲态守卫——_session == null 表示尚未加载游戏（POST /load-game
+            // 成功才会建 session）。返 503 + {"error":"No game loaded"}，早于「已有活跃会话 409」判断。
+            // 与 GET /snapshot 的 503（已加载但 session 未初始化，"Session not yet initialized"）语义区分。
+            if (_session == null)
+            {
+                return Results.Json(new { error = "No game loaded" }, statusCode: 503);
+            }
+
+            if (!_session.HasEnded)
             {
                 conflict = true;
             }
             else
             {
                 conflict = false;
-                if (_session != null)
-                {
-                    _session.Dispose();
-                    _session = null;
-                }
+                _session.Dispose();
+                _session = null;
 
                 var io = new HttpSessionIO(new OutputHub());
                 _session = new Session(io, _terminalSetup, _configData);
@@ -188,8 +193,12 @@ internal sealed class KestrelGameServer : IDisposable
     /// <summary>
     /// GET /state —— 当前会话状态 + gameDir（issue 05）+ 窗口布局元信息（issue 12）。
     ///
-    /// 前端 App.vue 挂载时调用：比对 localStorage 的 gameDir 与 server 当前 gameDir，
-    /// 决定是直接 connect（同目录）还是 loadGame（异目录自动切换）。
+    /// 前端 App.vue 挂载时调用：判断 server 是否空闲（gameDir==null / state=="Idle"），
+    /// 空闲则展示选择器并预填 localStorage 上次目录（T-025 D9 rev，不再自动 loadGame）。
+    ///
+    /// T-025 D5/D15：空闲态（_session==null）gameDir 显式置 null——前端据此可靠判 idle。
+    /// 即使带了 --ExeDir valid_dir，idle 态仍返 gameDir: null（"已加载游戏的目录"与
+    /// GamePaths.Current 内部路径是两个概念）。其余窗口元信息字段照常由默认 ConfigData 提供。
     ///
     /// Issue 12：新增 windowWidth / fontSize / lineHeight / gameColumns / fontName 五个字段。
     /// gameColumns = DrawableWidth / (FontSize/2)，与 CLI 模式
@@ -203,10 +212,9 @@ internal sealed class KestrelGameServer : IDisposable
     /// Idle 分支也带这些字段，避免前端初始 fallback 偏差。/load-game 重建 ConfigData
     /// 后再次 GET /state 会拿到新游戏的窗口宽度。
     /// </summary>
-    private IResult HandleGetStateAsync()
+    internal IResult HandleGetStateAsync()
     {
         var session = _session;
-        var gameDir = GamePaths.Current.ExeDir;
         var windowWidth = _configData.GetConfigValue<int>(ConfigCode.WindowX);
         var fontSize = _configData.GetConfigValue<int>(ConfigCode.FontSize);
         var lineHeight = _configData.GetConfigValue<int>(ConfigCode.LineHeight);
@@ -219,11 +227,12 @@ internal sealed class KestrelGameServer : IDisposable
         int gameColumns = drawableWidth / charWidth;
 
         if (session == null)
+            // T-025 D5：空闲态 gameDir 显式置 null——前端据此可靠判 idle 并展示选择器。
             return Results.Json(new
             {
                 state = "Idle",
                 isRunning = false,
-                gameDir,
+                gameDir = (string?)null,
                 windowWidth,
                 fontSize,
                 lineHeight,
@@ -237,7 +246,7 @@ internal sealed class KestrelGameServer : IDisposable
             isRunning = session.IsRunning,
             sessionId = session.Id,
             createdAt = session.CreatedAt,
-            gameDir,
+            gameDir = GamePaths.Current.ExeDir,
             windowWidth,
             fontSize,
             lineHeight,
@@ -271,7 +280,7 @@ internal sealed class KestrelGameServer : IDisposable
         return Results.Text(json, "application/json", Encoding.UTF8, 200);
     }
 
-    private async Task<IResult> HandleDeleteSessionAsync()
+    internal async Task<IResult> HandleDeleteSessionAsync()
     {
         bool removed;
         await _sessionLock.WaitAsync();
@@ -320,7 +329,7 @@ internal sealed class KestrelGameServer : IDisposable
     /// 重载到含 emuera.config 的新目录时，该 config 文件不会被读取——v1 已知限制，
     /// 测试游戏（test_game）无 emuera.config，不受影响。后续 spec 可让 configPath 改为实例字段。
     /// </summary>
-    private async Task<IResult> HandleLoadGameAsync(HttpContext context)
+    internal async Task<IResult> HandleLoadGameAsync(HttpContext context)
     {
         string? gameDir;
         using (var reader = new StreamReader(context.Request.Body))

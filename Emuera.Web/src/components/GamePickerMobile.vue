@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { useGameStore, mapLoadGameErrorCode } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
+import { useGameDirInput } from '../composables/useGameDirInput';
 
 /**
  * GamePickerMobile（安卓版）——"选择目录"按钮 → POST /native/pick-directory → loadGame(dir)。
@@ -15,10 +16,12 @@ import { useConnectionStore } from '../stores/connection';
  * - supported=true → 用返回的 path 调 loadGame(path)
  * - supported=false → 显示提示"此平台暂不支持原生选择，请手动输入路径"，回退到路径输入框
  * - 用户也可直接在路径输入框输入（fallback 路径）
+ *
+ * T-025 D14：输入框预填 + gameDir 同步由 useGameDirInput composable 统一处理。
  */
 const game = useGameStore();
 const conn = useConnectionStore();
-const input = ref<string>(game.gameDir ?? '');
+const { input } = useGameDirInput();
 const pickerMessage = ref<string | null>(null);
 
 const isLoading = computed(() => game.reloadStatus === 'loading');

@@ -50,6 +50,13 @@ export class LoadGameError extends Error {
 }
 
 /**
+ * T-025 D14：server 语义状态——驱动 UI 元素可见性（如「快速重开」按钮）。
+ * 'Idle' = 空闲（无活跃 session）；其余值 = 有活跃 session。
+ * 与 C# Session.StateString / GET /state state 字段对称。
+ */
+export type ServerState = 'Idle' | 'Loading' | 'WaitInput' | 'Quit' | 'Error';
+
+/**
  * 错误码 → UI 文案映射——纯函数，便于单测。
  *
  * 与 C# `KestrelGameServer.HandleLoadGameAsync` 的 5 个 code 对称：
@@ -102,6 +109,15 @@ function writeGameDirToStorage(dir: string): void {
   }
 }
 
+/** T-025 D14：清空 localStorage gameDir——快速重开失败时调用，回退到空路径选择器。 */
+function clearGameDirFromStorage(): void {
+  try {
+    localStorage.removeItem(GAME_DIR_STORAGE_KEY);
+  } catch {
+    // 静默
+  }
+}
+
 /**
  * useGameStore — 游戏帧数据与显示状态（issue 03 升级 / issue 04 ADR-0016 v6 重构）。
  *
@@ -143,6 +159,19 @@ export const useGameStore = defineStore('game', () => {
   //         加载级错误（500）旧 session 已被 dispose——connect() 时 server 会建新空 session
   /** 当前游戏目录（持久化到 localStorage）。null 表示尚未加载过任何游戏。 */
   const gameDir = ref<string | null>(readGameDirFromStorage());
+  /**
+   * T-025 D14：当前 server 状态字符串——驱动 UI 元素可见性（如「快速重开」按钮）。
+   *
+   * 来源：
+   * - App.vue onMounted 从 GET /state 写入
+   * - applyTurn 从 turn.state 写入（WS 帧推送）
+   * - reset() 时置 'Idle'
+   *
+   * 'Idle' 表示空闲态（无活跃 session），其他值（'Loading'/'WaitInput'/'Quit'/'Error'）表示有活跃 session。
+   * 与 displayState.state 的区别：displayState.state 是 WS 帧的显示状态字段（初始为 ''），
+   * serverState 是服务端语义状态（初始为 'Idle'），用于 UI 判断「是否有活跃游戏」。
+   */
+  const serverState = ref<ServerState>('Idle');
   /** /load-game 进行中标志——UI 禁用切换按钮 + 显示 loading。 */
   const reloadStatus = ref<'idle' | 'loading'>('idle');
   /** 最近一次 loadGame 错误——UI 展示结构化提示。null 表示无错误或已清除。 */
@@ -320,6 +349,11 @@ export const useGameStore = defineStore('game', () => {
     lastError.value = null;
     lastTurn.value = turn;
 
+    // T-025 D14：同步 serverState——WS 帧 state 反映当前 session 状态
+    if (turn.state) {
+      serverState.value = turn.state as ServerState;
+    }
+
     // 首帧（isInitial=true）带 protocolVersion；后续帧该字段为 null，不覆盖已 sticky 的版本。
     if (turn.protocolVersion != null) {
       protocolVersion.value = turn.protocolVersion;
@@ -366,6 +400,8 @@ export const useGameStore = defineStore('game', () => {
     lastSnapshot.value = null;
     displayState.value = { ...EMPTY_DISPLAY_STATE };
     protocolVersion.value = null;
+    // T-025 D14：reset 时 serverState 回 Idle
+    serverState.value = 'Idle';
     tinputStartedAt.value = null;
     tinputTimeLimit.value = null;
     tinputDisplayTime.value = null;
@@ -477,23 +513,9 @@ export const useGameStore = defineStore('game', () => {
         // 成功——更新 gameDir + 持久化
         gameDir.value = trimmed;
         writeGameDirToStorage(trimmed);
-        // Issue 12：重读 GET /state 更新窗口布局元信息——新游戏可能有不同 emuera.config
+        // Issue 12：重读 GET /state 更新窗口布局元信息 + serverState——新游戏可能有不同 emuera.config
         // （WindowX/FontSize/LineHeight）。失败不阻塞切换——保持原 layout 字段。
-        try {
-          const stateResp = await fetch(`${httpBase}/state`);
-          if (stateResp.status === 200) {
-            const stateBody = await stateResp.json();
-            setGameLayout({
-              windowWidth: typeof stateBody?.windowWidth === 'number' ? stateBody.windowWidth : null,
-              fontSize: typeof stateBody?.fontSize === 'number' ? stateBody.fontSize : null,
-              lineHeight: typeof stateBody?.lineHeight === 'number' ? stateBody.lineHeight : null,
-              gameColumns: typeof stateBody?.gameColumns === 'number' ? stateBody.gameColumns : null,
-              fontName: typeof stateBody?.fontName === 'string' ? stateBody.fontName : null,
-            });
-          }
-        } catch {
-          // 忽略——layout 字段更新失败不影响游戏切换
-        }
+        await fetchAndApplyStateLayout(httpBase);
         // 步骤 3：connect 新 session（server 已建好新 session 等待 WS 升级）
         await conn.connect(conn.serverUrl);
       } else {
@@ -532,6 +554,156 @@ export const useGameStore = defineStore('game', () => {
   /** Issue 05：清空 loadGameError——用户关闭错误提示时调用。 */
   function clearLoadGameError(): void {
     loadGameError.value = null;
+  }
+
+  /**
+   * T-025 D14：从 GET /state 响应写入 serverState——App.vue onMounted 调用。
+   * 封装外部修改，避免组件直接写 store ref。
+   */
+  function applyServerState(state: string): void {
+    serverState.value = state as ServerState;
+  }
+
+  /**
+   * T-025 D14：快速重开失败时回退到空路径选择器——清空 localStorage 预填 + gameDir + serverState。
+   * quickRestart 的 4 个失败分支共用，避免重复代码。
+   */
+  function resetToIdlePicker(): void {
+    clearGameDirFromStorage();
+    gameDir.value = null;
+    serverState.value = 'Idle';
+  }
+
+  /**
+   * T-025：GET /state 并写入 serverState + 窗口布局元信息——App.vue onMounted / loadGame / quickRestart 共用。
+   *
+   * 返回 { gameDir, state } 供调用方决策（如 App.vue 判 idle → 展示选择器）。
+   * 失败时（网络错误 / 非 200）返回 { gameDir: null, state: null }，不抛错——
+   * 调用方通过 state === null 区分「无法连接」与「空闲态」（state === 'Idle'）。
+   */
+  async function fetchAndApplyStateLayout(
+    httpBase: string,
+  ): Promise<{ gameDir: string | null; state: string | null }> {
+    try {
+      const resp = await fetch(`${httpBase}/state`);
+      if (resp.status !== 200) return { gameDir: null, state: null };
+      const body = await resp.json();
+      const gameDirVal = typeof body?.gameDir === 'string' ? body.gameDir : null;
+      const stateVal = typeof body?.state === 'string' ? body.state : null;
+      if (stateVal) serverState.value = stateVal as ServerState;
+      setGameLayout({
+        windowWidth: typeof body?.windowWidth === 'number' ? body.windowWidth : null,
+        fontSize: typeof body?.fontSize === 'number' ? body.fontSize : null,
+        lineHeight: typeof body?.lineHeight === 'number' ? body.lineHeight : null,
+        gameColumns: typeof body?.gameColumns === 'number' ? body.gameColumns : null,
+        fontName: typeof body?.fontName === 'string' ? body.fontName : null,
+      });
+      return { gameDir: gameDirVal, state: stateVal };
+    } catch {
+      return { gameDir: null, state: null };
+    }
+  }
+
+  /**
+   * T-025 D14：快速重开——同目录一键重载，绕过选择器。
+   *
+   * 流程：
+   * 1. GET /state → 拿当前 gameDir（权威目标，非 localStorage 回退）
+   * 2. disconnect 旧 WS + reset 显示状态
+   * 3. DELETE /session → 干净替换旧会话
+   * 4. POST /load-game {当前 gameDir} → 重载同一目录
+   * 5. 成功 → connect WS 入新 session
+   * 6. 失败 → 清空 localStorage 预填 + gameDir，回退到空路径选择器，等待玩家手动输入
+   *
+   * 与 loadGame 的区别：
+   * - 目标目录来自 GET /state（当前 session 目录），而非参数传入
+   * - 先 DELETE /session 再 /load-game（loadGame 不 DELETE，依赖 /load-game 内部 dispose）
+   * - 失败时清空 gameDir（loadGame 失败时保留旧 gameDir）
+   *
+   * server 端状态备注：快速重开失败后（DELETE 已执行 + /load-game 校验失败），
+   * server 端 _session==null（已被 DELETE dispose），GET /state 返 {state:"Idle", gameDir:null}——
+   * 前端不感知 Current 残留，看到空选择器。
+   */
+  async function quickRestart(): Promise<void> {
+    if (reloadStatus.value === 'loading') return;
+
+    reloadStatus.value = 'loading';
+    loadGameError.value = null;
+
+    const conn = useConnectionStore();
+    const httpBase = conn.deriveHttpBase(conn.serverUrl);
+
+    // Step 1: GET /state 拿当前 gameDir（权威目标）
+    const stateInfo = await fetchAndApplyStateLayout(httpBase);
+    const currentGameDir = stateInfo.gameDir;
+
+    if (stateInfo.state === null) {
+      // 网络错误——无法获取当前 gameDir，清空并回退到空选择器
+      resetToIdlePicker();
+      loadGameError.value = new LoadGameError('LOAD_FAILED', '无法连接服务器', 0);
+      reloadStatus.value = 'idle';
+      return;
+    }
+
+    if (!currentGameDir) {
+      // 无活跃游戏或 gameDir 为 null——清空并回退到空选择器
+      resetToIdlePicker();
+      reloadStatus.value = 'idle';
+      return;
+    }
+
+    // Step 2: disconnect 旧 WS + reset 显示状态
+    conn.disconnect();
+    reset();
+
+    try {
+      // Step 3: DELETE /session（干净替换旧会话）
+      try {
+        await fetch(`${httpBase}/session`, { method: 'DELETE' });
+      } catch {
+        // DELETE 失败不阻断——/load-game 内部会 dispose 旧 session
+      }
+
+      // Step 4: POST /load-game {currentGameDir}
+      const resp = await fetch(`${httpBase}/load-game`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameDir: currentGameDir }),
+      });
+
+      if (resp.status === 200) {
+        // 成功——更新 gameDir + 持久化
+        gameDir.value = currentGameDir;
+        writeGameDirToStorage(currentGameDir);
+        // Issue 12：重读 GET /state 更新窗口布局元信息 + serverState
+        await fetchAndApplyStateLayout(httpBase);
+        // Step 5: connect 新 session
+        await conn.connect(conn.serverUrl);
+      } else {
+        // 失败——D14：清空预填，回退到空路径选择器
+        let code: LoadGameErrorCode = 'LOAD_FAILED';
+        let message = `HTTP ${resp.status}`;
+        try {
+          const body = await resp.json();
+          if (body?.error?.code) code = body.error.code as LoadGameErrorCode;
+          if (body?.error?.message) message = body.error.message;
+        } catch {
+          // body 非 JSON——用默认 code/message
+        }
+        loadGameError.value = new LoadGameError(code, message, resp.status);
+        resetToIdlePicker();
+      }
+    } catch (e) {
+      // 网络错误——fetch 抛错
+      loadGameError.value = new LoadGameError(
+        'LOAD_FAILED',
+        e instanceof Error ? e.message : String(e),
+        0,
+      );
+      resetToIdlePicker();
+    } finally {
+      reloadStatus.value = 'idle';
+    }
   }
 
   /**
@@ -579,6 +751,11 @@ export const useGameStore = defineStore('game', () => {
     loadGameError,
     loadGame,
     clearLoadGameError,
+    // T-025 D14：快速重开 + server 状态
+    quickRestart,
+    serverState,
+    applyServerState,
+    fetchAndApplyStateLayout,
     // Issue 12：窗口布局元信息
     windowWidth,
     fontSize,

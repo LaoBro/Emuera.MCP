@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { useGameStore, mapLoadGameErrorCode } from '../stores/game';
+import { useGameDirInput } from '../composables/useGameDirInput';
 
 /**
  * GamePicker（桌面版）——路径文本输入框 + "加载"按钮。
@@ -12,9 +13,12 @@ import { useGameStore, mapLoadGameErrorCode } from '../stores/game';
  * - 输入框默认显示当前 gameDir（若已加载）
  * - reloadStatus='loading' 时禁用输入框 + 按钮，显示"加载中…"
  * - loadGameError 存在时显示结构化错误提示，可关闭
+ *
+ * T-025 D14：输入框预填 + gameDir 同步由 useGameDirInput composable 统一处理——
+ * 快速重开失败清空 gameDir 时输入框自动清空。
  */
 const game = useGameStore();
-const input = ref<string>(game.gameDir ?? '');
+const { input } = useGameDirInput();
 
 const isLoading = computed(() => game.reloadStatus === 'loading');
 const errorText = computed(() => {

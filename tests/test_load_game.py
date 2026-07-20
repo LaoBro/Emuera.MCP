@@ -85,15 +85,18 @@ def main():
             check("message" in obj and isinstance(obj["message"], str),
                   f"message is string: {obj.get('message')!r}")
 
-        # --- Test 2: GET /state 无 session 时 gameDir 字段 = --ExeDir ---
-        print("\n[2] GET /state no session → gameDir 字段 = --ExeDir")
+        # --- Test 2: GET /state 无 session 时 gameDir 字段 = null（T-025 D5）---
+        # T-025 D5：空闲态 gameDir 显式置 null（前端据此可靠判 idle 并展示选择器）。
+        # 旧断言 norm(gameDir) == norm(game_dir) 已推翻——即使带了 --ExeDir valid_dir，
+        # idle 态仍返 gameDir: null（"已加载游戏的目录"与 GamePaths.Current 内部路径是两个概念）。
+        print("\n[2] GET /state no session → gameDir == null (T-025 D5)")
         s, body = server.get_state()
         check(s == 200, f"GET /state returns 200, got {s}")
         if s == 200:
             obj = json.loads(body)
             check("gameDir" in obj, f"state has gameDir field")
-            check(norm(obj.get("gameDir")) == norm(game_dir),
-                  f"gameDir=={game_dir}, got {obj.get('gameDir')!r}")
+            check(obj.get("gameDir") is None,
+                  f"gameDir is None (idle state, T-025 D5), got {obj.get('gameDir')!r}")
             check(obj.get("state") == "Idle", f"state==Idle (no session), got {obj.get('state')}")
             # Issue 12：windowWidth / fontSize / lineHeight / gameColumns / fontName 五个布局元信息字段
             check("windowWidth" in obj and isinstance(obj["windowWidth"], int),

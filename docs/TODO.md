@@ -127,19 +127,27 @@
 
 ### T-025：server 模式空闲启动（无预绑游戏目录）
 
-- 状态：未实现（follow-up）
-- 范围：`KestrelGameServer`、`Program.Main`、`GamePaths`、`GamePicker.vue` 首次启动流程
-- 说明：当前 `Emuera.Headless.exe --server` 必须带 `--ExeDir` 通过 `GamePaths.Validate()`（csv/erb 目录检查），否则进程直接退出。这导致用户无法通过"双击 exe → 浏览器 → picker 选目录"的流程首次启动，必须由启动器/CLI 预先填写目录。
-- 设计纪要（详见 [web-frontend 决策树](../.scratch/web-frontend/issues/05-game-picker-desktop-android.md) Q7，结论：v1 不纳入范围）：
-  - 放宽 `Program.Main` 在无 `--ExeDir` 时跳过 `GamePaths.Validate()`（或降级为 warn）
-  - `GamePaths.Current` 允许 null（所有 `Program.ErbDir/CsvDir/...` 读取点加守卫，否则 NRE）
-  - `POST /session` 在无游戏时返 503
-  - 前端 `connect()` 改为先 `GET /state` 判断 server 有无 session，无 session 则直接显示 picker
-  - `GamePaths.Resolve` 与 `Preload.Load` 推迟到 `/load-game` 第一次调用时
+- 状态：已实现（spec: `.scratch/web-frontend/spec-t025-idle-start.md`）
+- 范围：`KestrelGameServer`、`Program.Main`、`GamePaths`、`App.vue`、`GamePicker.vue`、`game.ts`
+- 说明：让 server 支持空闲启动——不带 `--ExeDir`（或默认目录非法）时，server 正常监听、浏览器可打开游戏选择器；真正的游戏加载推迟到玩家在选择器里 `POST /load-game`。CLI 模式目录非法时改为打印提示 + 等回车再退出（不再静默关窗）。
+- 设计决策（推翻旧设计纪要，详见 [spec-t025-idle-start.md](../.scratch/web-frontend/spec-t025-idle-start.md) 决策树 D1–D17）：
+  - `Program.Main` 中 `Validate()` 失败按模式分流：server 模式降级 warn 继续（空闲启动）；CLI 模式打印提示 + `Console.ReadLine()` 等回车再退出（D1/D2/D17）
+  - **不引入** `_gameLoaded` 标志——空闲/已加载判定复用 `KestrelGameServer` 现有 `_session == null` 不变量（D4/D10）
+  - `GamePaths.Current` 保持默认目录、`/load-game` 成功时覆盖（D3/D12，推翻旧「允许 null + 读取点加守卫」）
+  - 空闲态 `GET /state` 的 `gameDir` 显式置 `null`（D5/D15）——前端据此可靠判 idle 并展示选择器
+  - 空闲态 `POST /session` → 503 `{"error":"No game loaded"}`（D4/D16），早于「已有活跃会话 409」判断
+  - 前端 `App.vue` 挂载改为：先 `GET /state`，若 `gameDir == null` / `state == "Idle"` → 展示选择器 + 预填 localStorage 上次目录，**不自动 loadGame**（D9 rev，推翻旧「刷新后自动加载」）
+  - 前端新增「快速重开」按钮（D14）：header 区域，游戏运行/结束（`state` 非 Idle）时显示，一键 `DELETE /session` + `POST /load-game` 同目录；失败回退到空路径选择器（清空预填）
 - 不纳入范围：
+  - 多游戏列表式「游戏选择界面」（样式未定，仅 picker + 预填）
   - C# 端持久化 last-used dir（由前端 localStorage 承担）
-  - exe 自身硬重启记住目录
+  - 安卓 MAUI 原生 SAF 目录选择器（issue 05 stub 保留）
 - 验收：
-  - `Emuera.Headless.exe --server`（无 --ExeDir）正常启动，浏览器可打开 picker
-  - picker 选目录后正常加载游戏
-  - 刷新页面后按现有 Q7-b 逻辑自动加载
+  - `Emuera.Headless.exe --server`（无 --ExeDir）正常启动，`GET /state` 返 `gameDir==null` / `state=="Idle"`，浏览器可打开 picker
+  - 空闲态 `POST /session` → 503 `No game loaded`
+  - picker 选目录后 `POST /load-game` 正常加载游戏，`GET /state` 变有效
+  - `DELETE /session` 后 server 回到空闲态（`gameDir==null`、`POST /session` 再次 503）
+  - 刷新页面：空闲/已结束 → 展示选择器 + 预填上次目录（不自动加载）；游戏运行中 → 重连当前局
+  - 快速重开：同目录一键重载成功；失败回退到空路径选择器
+  - CLI 模式目录非法时打印提示 + 等回车再退出（双击不闪退）
+- 测试：`tests/test_idle_start.py`（35 断言，Python e2e）、`Emuera.Headless.Tests/KestrelGameServerIdleTests.cs`（3 用例，C# 单测）、`src/stores/__tests__/gameQuickRestart.test.ts`（8 用例，前端 Vitest）
