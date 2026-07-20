@@ -61,8 +61,23 @@ export const useConnectionStore = defineStore('connection', () => {
   const status = ref<ConnectionStatus>('disconnected');
   /** 当前 WebSocket 实例（仅供本 store 内部使用，非响应式）。 */
   let ws: WebSocket | null = null;
-  /** 上次连接的 server URL，重连时复用。 */
-  const serverUrl = ref<string>('ws://localhost:5173/ws');
+  /**
+   * 上次连接的 server URL，重连时复用。
+   *
+   * 默认 URL 按运行环境区分：
+   * - **dev**（`import.meta.env.DEV`）：Vite dev server 5173，由 vite.config.ts
+   *   proxy `/ws` 与 HTTP 端点到 C# Kestrel 8080
+   * - **prod**（构建产物）：浏览器当前页面的同源 `ws://host:port/ws`——
+   *   生产模式下 Vue app 由 C# Kestrel wwwroot 服务，访问 `http://localhost:8080`
+   *   时同源 WS 即 `ws://localhost:8080/ws`，无需配置
+   *
+   * `window.location.host` 含端口，故 host:port 一起取——避免硬编码端口
+   * 在用户改了 C# server 端口时需要改前端代码。
+   */
+  const defaultServerUrl = import.meta.env.DEV
+    ? 'ws://localhost:5173/ws'
+    : `${window.location.protocol === 'https:' ? 'wss://' : 'ws://'}${window.location.host}/ws`;
+  const serverUrl = ref<string>(defaultServerUrl);
   /** WS 关闭时收到的 reason/错误信息（用于 UI 诊断）。 */
   const closeReason = ref<string | null>(null);
   /** 当前重连尝试次数（成功 onopen 后清零）。每次 scheduleReconnect 调用 ++。 */
