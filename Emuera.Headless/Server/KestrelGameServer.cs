@@ -50,6 +50,12 @@ internal sealed class KestrelGameServer : IDisposable
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseKestrel();
         builder.WebHost.UseUrls($"http://localhost:{port}");
+        // issue 10：WebRootPath 显式指向 exe 所在目录的 wwwroot/——
+        // WebApplication.CreateBuilder() 默认用 Directory.GetCurrentDirectory()/wwwroot，
+        // 工作目录错位（如从仓库根启动 exe）会导致静态文件 404。
+        // AppContext.BaseDirectory 在 PublishSingleFile=true 下返回 exe 所在目录
+        // （.NET 8+ 单文件部署不再解压到临时目录），保证 wwwroot 跟随 exe 分发。
+        builder.WebHost.UseWebRoot(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
         builder.Logging.ClearProviders();
         _app = builder.Build();
 
