@@ -10,7 +10,7 @@ handleException 处理（Process.cs:345），不会传播到 AgentJsonlProtocol.
 的 fatal turn（diff=null / error=ex.Message）。
 
 The test verifies:
-- Initial turn has protocolVersion == 5 and diff is null (first turn)
+- Initial turn has protocolVersion == 6 and diff is null (first turn)
 - After THROW, the turn has state=Error with error text in diff.lineOps
 - protocolVersion is absent from non-initial turns
 
@@ -71,8 +71,9 @@ ENDIF
         temp_dir, game_dir = copy_test_game_with_erb(erb_script)
         server = start_server(game_dir, binary=args.binary)
 
-        create_status, create_body = server.create_session()
-        check(create_status == 201, f"POST /session returns 201, got {create_status}")
+        # T-025：POST /load-game 建立会话（空闲态 POST /session 返 503）。
+        create_status, create_body = server.load_game(game_dir)
+        check(create_status == 200, f"POST /load-game returns 200, got {create_status}")
 
         initial_status, initial_body = server.get_turn(timeout=15)
         check(initial_status == 200, f"initial GET /turn returns 200, got {initial_status}")
@@ -81,7 +82,7 @@ ENDIF
         check("text" not in initial, "initial turn has no text field (v2)")
         check("buttons" not in initial, "initial turn has no buttons field (v2)")
         check("ops" not in initial, "initial turn has no ops field (v5: removed)")
-        check(initial.get("protocolVersion") == 5, "Initial turn has protocolVersion == 5")
+        check(initial.get("protocolVersion") == 6, "Initial turn has protocolVersion == 6")
         check(initial.get("diff") is None, "initial turn diff is null (first turn)")
         # First-turn content: diff is null → fetch snapshot
         snap_status, snap_body = server.get_snapshot(timeout=10)

@@ -5,7 +5,7 @@ Verifies:
 2. Active session → 200 with DisplaySnapshot JSON structure:
    - lines[] (each with entries[], align, isLineEnd)
    - bgColor (string|null), state (string), inputType (string|null), needValue (bool)
-   - protocolVersion == 5
+   - protocolVersion == 6
 3. Snapshot content matches turn diff content (after applying diff, state matches snapshot).
 4. Button geometry (col/width) present in snapshot entries.
 5. Session ended (Quit) → 200 with state="Quit" (not 404).
@@ -52,8 +52,8 @@ def validate_snapshot_structure(snap, passed, failed, label="snapshot"):
           f"{label} has lines[] list", passed, failed)
     check("state" in snap and isinstance(snap["state"], str),
           f"{label} has state string", passed, failed)
-    check("protocolVersion" in snap and snap["protocolVersion"] == 5,
-          f"{label} protocolVersion == 5", passed, failed)
+    check("protocolVersion" in snap and snap["protocolVersion"] == 6,
+          f"{label} protocolVersion == 6", passed, failed)
     check("needValue" in snap and isinstance(snap["needValue"], bool),
           f"{label} has needValue bool", passed, failed)
 
@@ -109,14 +109,15 @@ def main():
 
         # --- Test 2: GET /snapshot with active session → 200 + full structure ---
         print("\n[2] GET /snapshot with active session → 200 + DisplaySnapshot")
-        s, _ = server.create_session()
-        check(s == 201, f"POST /session returns 201, got {s}", passed, failed)
+        # T-025：POST /load-game 建立会话（空闲态 POST /session 返 503）。
+        s, _ = server.load_game(str(game_dir))
+        check(s == 200, f"POST /load-game returns 200, got {s}", passed, failed)
 
         # 先拿 initial turn，让游戏进入 WaitInput 稳定状态
         s, turn_body = server.get_turn(timeout=20)
         check(s == 200, f"initial GET /turn returns 200, got {s}", passed, failed)
         turn = json.loads(turn_body)
-        check(turn.get("protocolVersion") == 5, "initial turn protocolVersion == 5", passed, failed)
+        check(turn.get("protocolVersion") == 6, "initial turn protocolVersion == 6", passed, failed)
 
         # 现在 GET /snapshot
         status, snap_body = server.get_snapshot(timeout=10)
@@ -187,8 +188,8 @@ def main():
             snap3 = json.loads(snap3_body)
             check(snap3.get("state") in ("Quit", "Error"),
                   f"ended-session snapshot state is Quit/Error, got {snap3.get('state')}", passed, failed)
-            check(snap3.get("protocolVersion") == 5,
-                  "ended-session snapshot protocolVersion == 5", passed, failed)
+            check(snap3.get("protocolVersion") == 6,
+                  "ended-session snapshot protocolVersion == 6", passed, failed)
             validate_snapshot_structure(snap3, passed, failed, "ended-snapshot")
 
         # --- Test 6: After DELETE /session → 404 ---

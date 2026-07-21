@@ -60,9 +60,9 @@ def test_at_quit_survival():
     try:
         server = start_server(str(TEST_GAME_DIR))
 
-        # 1. 创建 session，等游戏进入 WaitInput
-        s, _ = server.create_session()
-        check(s == 201, f"first POST /session returns 201, got {s}")
+        # 1. T-025：load-game 建立会话，等游戏进入 WaitInput
+        s, _ = server.load_game(str(TEST_GAME_DIR))
+        check(s == 200, f"first POST /load-game returns 200, got {s}")
 
         s, body = server.get_turn(timeout=10)
         check(s == 200, f"initial GET /turn returns 200, got {s}")
@@ -81,9 +81,9 @@ def test_at_quit_survival():
         ended = wait_session_ended(server)
         check(ended, "session fully ended after @QUIT (isRunning=false, server alive)")
 
-        # 5. 能重启 session（验证 GlobalStatic.Reset 生效）
-        s, _ = server.create_session()
-        check(s == 201, f"POST /session after @QUIT returns 201 (Reset worked), got {s}")
+        # 5. 能重启 session（验证 GlobalStatic.Reset 生效）——T-025 后用 load_game 重建
+        s, _ = server.load_game(str(TEST_GAME_DIR))
+        check(s == 200, f"POST /load-game after @QUIT returns 200 (Reset worked), got {s}")
 
         # 6. 第二个 session 能正常进入 WaitInput
         s, body = server.get_turn(timeout=10)
@@ -109,9 +109,9 @@ def test_force_quit_survival():
 
         server = start_server(game_dir)
 
-        # 1. 创建 session，等游戏进入 WaitInput
-        s, _ = server.create_session()
-        check(s == 201, f"first POST /session returns 201, got {s}")
+        # 1. T-025：load-game 建立会话，等游戏进入 WaitInput
+        s, _ = server.load_game(game_dir)
+        check(s == 200, f"first POST /load-game returns 200, got {s}")
 
         s, body = server.get_turn(timeout=10)
         check(s == 200, f"initial GET /turn returns 200, got {s}")
@@ -130,9 +130,9 @@ def test_force_quit_survival():
         ended = wait_session_ended(server)
         check(ended, "session fully ended after FORCE_QUIT (isRunning=false, server alive)")
 
-        # 5. 能重启 session（验证 GlobalStatic.Reset 生效）
-        s, _ = server.create_session()
-        check(s == 201, f"POST /session after FORCE_QUIT returns 201 (Reset worked), got {s}")
+        # 5. 能重启 session（验证 GlobalStatic.Reset 生效）——T-025 后用 load_game 重建
+        s, _ = server.load_game(game_dir)
+        check(s == 200, f"POST /load-game after FORCE_QUIT returns 200 (Reset worked), got {s}")
 
         # 6. 第二个 session 能正常进入 WaitInput
         s, body = server.get_turn(timeout=10)

@@ -1,7 +1,7 @@
 """Test: JSONL protocol v5 turn structure (diff model) via server mode.
 
 Verifies:
-1. Initial turn has protocolVersion: 5 and diff: null (first turn, no previous snapshot).
+1. Initial turn has protocolVersion: 6 and diff: null (first turn, no previous snapshot).
 2. v1 fields (text, buttons) are NOT present.
 3. Step turns carry diff.lineOps with append/clear_line_diff/clear_screen ops.
 4. append ops carry newLines[] with entries[].segments[] (per-segment style) + optional button.
@@ -109,10 +109,10 @@ def main():
     try:
         server = start_server(str(game_dir), binary=args.binary)
 
-        # Create session — server uses AgentJsonlProtocol internally.
-        s, body = server.create_session()
-        check(s == 201, f"POST /session returns 201, got {s}", passed, failed)
-        check(json.loads(body).get("state") is not None, "create response includes state", passed, failed)
+        # T-025：POST /load-game 建立会话（空闲态 POST /session 返 503）。
+        s, body = server.load_game(str(game_dir))
+        check(s == 200, f"POST /load-game returns 200, got {s}", passed, failed)
+        check(json.loads(body).get("state") is not None, "load-game response includes state", passed, failed)
 
         # Turn 1: @SYSTEM_TITLE shows initial menu. First turn: diff is null (no previous snapshot).
         s, body = server.get_turn(timeout=15)
@@ -125,7 +125,7 @@ def main():
         check("text" not in turn1, "Turn 1 has no text field (v2)", passed, failed)
         check("buttons" not in turn1, "Turn 1 has no buttons field (v2)", passed, failed)
         check("ops" not in turn1, "Turn 1 has no ops field (v5: removed)", passed, failed)
-        check(turn1.get("protocolVersion") == 5, "Turn 1 has protocolVersion == 5", passed, failed)
+        check(turn1.get("protocolVersion") == 6, "Turn 1 has protocolVersion == 6", passed, failed)
         check(diff1 is None, "Turn 1 diff is null (first turn, no previous snapshot)", passed, failed)
         check_diff(turn1, passed, failed, "Turn 1")
 

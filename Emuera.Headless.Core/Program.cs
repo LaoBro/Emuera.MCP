@@ -53,9 +53,20 @@ static class Program
             GlobalStatic.Pfc.AddFontFile(fontFile);
     }
 
-    // 注意：原 Emuera.Headless.Program 有 static Program() { GamePaths.Resolve(null); } 静态构造。
-    // 拆分后不能保留——HeadlessEntry.Main 不在 Program 类内，首次访问 Program.ExeName 时才触发
-    // 静态构造，此时 GamePaths.Resolve(null) 会覆盖 HeadlessEntry 已设好的 GamePaths.Current，
-    // 导致路径回退到 exe 目录（CLI 崩溃 erb\ 找不到）。HeadlessEntry.Main 会显式调 GamePaths.Resolve，
-    // 不需要兜底。MAUI 入口（MauiProgram.CreateMauiApp）也会显式调 Resolve（issue 07）。
+    // 注意：静态构造函数必须保留，但改为惰性兜底——
+    //
+    // 原实现 `static Program() { GamePaths.Resolve(null); }` 无条件覆盖 Current，在拆分后
+    // 导致 CLI bug：HeadlessEntry.Main L43 调 GamePaths.Resolve(options.ExeDir) 设置 Current 后，
+    // L44 访问 Program.ExeName 触发静态构造，Resolve(null) 把 Current 覆盖回 exe 目录。
+    //
+    // 改为「Current is null 才兜底」后：
+    // - CLI/Server：HeadlessEntry.Main 先 Resolve(exeDir) → Current 非 null → 静态构造跳过
+    // - 单元测试：不调 HeadlessEntry.Main，直接 new ConfigData() → Program.ExeDir → 静态构造
+    //   → Current is null → Resolve(null) 兜底初始化（指向测试 bin 目录）
+    // - MAUI：MauiProgram.CreateMauiApp 先 Resolve(gameDir) → 同 CLI
+    static Program()
+    {
+        if (GamePaths.Current is null)
+            GamePaths.Resolve(null);
+    }
 }

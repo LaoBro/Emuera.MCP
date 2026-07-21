@@ -55,11 +55,11 @@ try:
     temp_dir, game_dir = copy_test_game_with_erb(ERB_TEXT)
     server = start_server(game_dir)
 
-    # Create session — this triggers ERB loading.
+    # T-025：POST /load-game 建立会话并触发 ERB 加载（空闲态 POST /session 返 503）。
     # If the SELECTCASE / CASE handler has the NRE bug, the game won't
     # reach WaitInput (the server may hang, crash, or return error).
-    create_status, create_body = server.create_session()
-    check(create_status == 201, f"POST /session returns 201, got {create_status}")
+    create_status, create_body = server.load_game(game_dir)
+    check(create_status == 200, f"POST /load-game returns 200, got {create_status}")
     session_id = json.loads(create_body)["sessionId"]
 
     # First turn: should show the PRINTL and reach INPUT

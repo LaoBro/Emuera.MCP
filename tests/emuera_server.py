@@ -71,10 +71,12 @@ def find_binary(project_dir=None):
 
 
 class ServerProcess:
-    def __init__(self, proc, port):
+    def __init__(self, proc, port, game_dir=None):
         self.proc = proc
         self.port = port
         self.base_url = f"http://localhost:{port}"
+        # T-025：缓存 game_dir，供 start_session() 自动 load_game 使用
+        self.game_dir = game_dir
 
     def request(self, method, path, body=None, timeout=35):
         data = None if body is None else json.dumps(body).encode("utf-8")
@@ -95,6 +97,13 @@ class ServerProcess:
 
     def create_session(self):
         return self.request("POST", "/session")
+
+    def start_session(self):
+        """T-025：建立会话的推荐方式——空闲态 POST /session 返 503，需走 POST /load-game。
+        使用 start_server 时缓存的 game_dir。返回 (200, body) 成功。"""
+        if self.game_dir is None:
+            raise RuntimeError("start_session 需要 game_dir——start_server(game_dir) 时缓存")
+        return self.load_game(self.game_dir)
 
     def delete_session(self):
         return self.request("DELETE", "/session")
@@ -220,7 +229,7 @@ def start_server(game_dir=None, project_dir=None, binary=None, port=None):
             proc.kill()
         raise
 
-    return ServerProcess(proc, port)
+    return ServerProcess(proc, port, game_dir=str(game_dir) if game_dir is not None else None)
 
 
 def copy_test_game_with_erb(erb_text):

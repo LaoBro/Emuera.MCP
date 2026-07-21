@@ -38,8 +38,9 @@ QUIT
     )
     server = start_server(game_dir)
 
-    create_status, create_body = server.create_session()
-    check(create_status == 201, f"POST /session returns 201, got {create_status}")
+    # T-025：POST /load-game 建立会话（空闲态 POST /session 返 503）。
+    create_status, create_body = server.load_game(game_dir)
+    check(create_status == 200, f"POST /load-game returns 200, got {create_status}")
     session_id = json.loads(create_body)["sessionId"]
 
     initial_status, initial_body = server.get_turn(timeout=10)

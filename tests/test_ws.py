@@ -132,8 +132,8 @@ async def test_gate_no_session(server, passed, failed):
 
 async def test_initial_frame(server, passed, failed):
     print("\n[initial] WS first frame is TurnRecord v5 JSON")
-    s, _ = server.create_session()
-    check(s == 201, f"POST /session returns 201, got {s}", passed, failed)
+    s, _ = server.start_session()
+    check(s == 200, f"POST /load-game returns 200, got {s}", passed, failed)
     ws = await ws_connect(server.base_url)
     try:
         turn = await recv_json(ws)
@@ -152,8 +152,8 @@ async def test_initial_frame(server, passed, failed):
 
 async def test_frame_consistency(server, passed, failed):
     print("\n[consistency] WS first frame == HTTP GET /turn first frame")
-    s, _ = server.create_session()
-    check(s == 201, f"POST /session returns 201, got {s}", passed, failed)
+    s, _ = server.start_session()
+    check(s == 200, f"POST /load-game returns 200, got {s}", passed, failed)
     ws = await ws_connect(server.base_url)
     try:
         _, http_body = server.get_turn(timeout=20)
@@ -169,8 +169,8 @@ async def test_frame_consistency(server, passed, failed):
 
 async def test_input_roundtrip(server, passed, failed):
     print("\n[roundtrip] WS input frame -> next turn (no protocolVersion)")
-    s, _ = server.create_session()
-    check(s == 201, f"POST /session returns 201, got {s}", passed, failed)
+    s, _ = server.start_session()
+    check(s == 200, f"POST /load-game returns 200, got {s}", passed, failed)
     ws = await ws_connect(server.base_url)
     try:
         init = await recv_json(ws)
@@ -188,8 +188,8 @@ async def test_input_roundtrip(server, passed, failed):
 
 async def test_fanout(server, passed, failed):
     print("\n[fanout] 2 WS clients both receive the same next turn after one input")
-    s, _ = server.create_session()
-    check(s == 201, f"POST /session returns 201, got {s}", passed, failed)
+    s, _ = server.start_session()
+    check(s == 200, f"POST /load-game returns 200, got {s}", passed, failed)
     ws1 = await ws_connect(server.base_url)
     ws2 = await ws_connect(server.base_url)
     try:
@@ -211,8 +211,8 @@ async def test_fanout(server, passed, failed):
 
 async def test_http_ws_coexistence(server, passed, failed):
     print("\n[coexist] HTTP long-poll + WS consume same session, consistent streams")
-    s, _ = server.create_session()
-    check(s == 201, f"POST /session returns 201, got {s}", passed, failed)
+    s, _ = server.start_session()
+    check(s == 200, f"POST /load-game returns 200, got {s}", passed, failed)
     ws = await ws_connect(server.base_url)
     try:
         _, http_init = server.get_turn(timeout=20)
@@ -232,8 +232,8 @@ async def test_http_ws_coexistence(server, passed, failed):
 
 async def test_late_join(server, passed, failed):
     print("\n[late-join] WS connecting after first turn receives only later turns")
-    s, _ = server.create_session()
-    check(s == 201, f"POST /session returns 201, got {s}", passed, failed)
+    s, _ = server.start_session()
+    check(s == 200, f"POST /load-game returns 200, got {s}", passed, failed)
     try:
         # Consume the initial turn over HTTP: proves it was already published.
         _, http_init = server.get_turn(timeout=20)
