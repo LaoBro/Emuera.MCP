@@ -8,6 +8,7 @@ Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本�
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) 或更高版本
 - Python 3.10+（用于 MCP 网关和测试）
+- Node.js 18+（用于 Web 前端 Emuera.Web/）
 - Windows（跨平台支持计划中，目前仅完成 Windows）
 
 ## 构建
@@ -43,6 +44,17 @@ dotnet exec Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.dll --ExeDir <游�
 ```
 
 > T-024 后 stdin 管道模式（`--protocol cli`/`--protocol jsonl` 的 stdin pipe 路径）已移除；`--protocol jsonl` 在非 server 模式下会报错。脚本/自动化统一走 `--server`。
+
+### Web 前端
+
+前端为 Vue 3 + TypeScript SPA，开发时由 Vite 代理 HTTP/WS 到 C# Kestrel（:8080）。
+
+```bash
+cd Emuera.Web && npm install     # 安装依赖
+npm run dev                      # Vite dev server → localhost:5173
+npm run build                    # 生产构建 → dist/
+npm test                         # Vitest 单元测试（12 个文件）
+```
 
 ## MCP 集成
 
@@ -176,13 +188,22 @@ python -m emuera_gateway --standalone --server-url http://localhost:8080
 
 ## 测试
 
-Python 测试使用仓库根目录的 `test_game` 作为测试游戏。Windows 环境下使用绝对路径更可靠。
+测试分三层：**C# 单元测试**（xUnit）、**Python 端到端**（CLI/HTTP/WebSocket）、**前端测试**（Vitest）。
 
 ```bash
+# C# 单元测试（xUnit，243 用例）
+dotnet test Emuera.Headless.Tests/Emuera.Headless.Tests.csproj
+
+# 前端测试（Vitest，12 个测试文件）
+cd Emuera.Web && npm test
+
+# Python 端到端（使用 test_game，Windows 下用绝对路径更可靠）
 python tests/test_jsonl.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 python tests/test_server_single_session.py
 python tests/test_tinput_timeout.py
 python tests/test_force_quit_survival.py
+
+# 全部回归测试（先 C# 单测+构建，再全量 Python 套件）
 python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 ```
 
@@ -192,10 +213,12 @@ python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/
 
 ```
 Emuera.Headless/   -- 无头运行器（唯一维护目标，CLI 交互 + HTTP 服务器）
+Emuera.Web/        -- Vue 3 + TypeScript 浏览器前端（Vite + Pinia + Vitest）
 Emuera/            -- WinForms 残留源码（不再维护，仅作只读参考，不可独立构建）
 emuera_gateway/    -- Python MCP 网关
 EmueraPluginExample/ -- 示例 C# 插件（已从根 sln 移除，不可独立构建）
-tests/             -- Python 测试脚本和代理库
+tests/             -- Python 端到端测试脚本
+Emuera.Headless.Tests/ -- C# 单元测试（xUnit）
 test_game/         -- 开发用最小 ERB 测试游戏
 ```
 

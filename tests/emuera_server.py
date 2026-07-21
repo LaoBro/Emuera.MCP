@@ -18,8 +18,10 @@ TEST_GAME_DIR = PROJECT_DIR / "test_game"
 def find_binary(project_dir=None):
     """Auto-detect Emuera binary. Search order:
     1. EMUERA_BINARY environment variable
-    2. Emuera.Headless/bin/Debug/.../Emuera.Headless.exe
-    3. Emuera.Headless/bin/Release/.../Emuera.Headless.exe
+    2. Emuera.Headless.Cli/bin/Debug/.../Emuera.Headless.Cli.exe  (issue 01 拆分后入口)
+    3. Emuera.Headless.Cli/bin/Release/.../Emuera.Headless.Cli.exe
+    4. Emuera.Headless/bin/Debug/.../Emuera.Headless.exe          (兼容旧构建产物)
+    5. Emuera.Headless/bin/Release/.../Emuera.Headless.exe
     Returns (path, use_dotnet) tuple.
     """
     if project_dir is None:
@@ -31,14 +33,26 @@ def find_binary(project_dir=None):
         use_dotnet = env_binary.endswith(".dll")
         return env_binary, use_dotnet
 
-    # 2. Headless Debug
+    # 2-3. issue 01 拆分后的新入口 Emuera.Headless.Cli
+    cli_debug = os.path.join(
+        project_dir, "Emuera.Headless.Cli", "bin", "Debug", "net10.0", "Emuera.Headless.Cli.exe"
+    )
+    if os.path.isfile(cli_debug):
+        return cli_debug, False
+
+    cli_release = os.path.join(
+        project_dir, "Emuera.Headless.Cli", "bin", "Release", "net10.0", "Emuera.Headless.Cli.exe"
+    )
+    if os.path.isfile(cli_release):
+        return cli_release, False
+
+    # 4-5. 兼容旧 Emuera.Headless 构建产物（拆分前的 dev 机器可能残留）
     headless_debug = os.path.join(
         project_dir, "Emuera.Headless", "bin", "Debug", "net10.0", "Emuera.Headless.exe"
     )
     if os.path.isfile(headless_debug):
         return headless_debug, False
 
-    # 3. Headless Release
     headless_release = os.path.join(
         project_dir, "Emuera.Headless", "bin", "Release", "net10.0", "Emuera.Headless.exe"
     )
@@ -48,6 +62,8 @@ def find_binary(project_dir=None):
     raise FileNotFoundError(
         f"Cannot find Emuera binary. Searched:\n"
         f"  - EMUERA_BINARY env var\n"
+        f"  - {cli_debug}\n"
+        f"  - {cli_release}\n"
         f"  - {headless_debug}\n"
         f"  - {headless_release}\n"
         f"Set EMUERA_BINARY or build the project first."

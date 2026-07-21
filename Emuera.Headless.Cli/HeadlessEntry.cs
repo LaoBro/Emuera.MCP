@@ -1,13 +1,9 @@
-using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.Terminal.Platform;
-using MinorShift.Emuera.UI;
 using System;
-using System.Collections.Generic;
-using System.CommandLine;
 using System.Globalization;
 using System.IO;
 using System.Runtime;
@@ -15,10 +11,22 @@ using System.Threading.Tasks;
 
 namespace MinorShift.Emuera;
 
-static partial class Program
+/// <summary>
+/// Cli 入口点。拆分自原 Emuera.Headless.Program.Main（issue 01）。
+/// <para>
+/// 三项目拆分后，Core 是 Library（无 Main），Cli 是 Exe——入口由 Emuera.Headless.Cli.dll 提供。
+/// <c>Program</c> 留 Core 仅含路径转发 + 状态字段（50+ 处 Shared/ 调用零改动）。
+/// </para>
+/// <para>
+/// issue 02 将抽取 <c>EmueraRuntimeInitializer.Initialize(GamePaths paths)</c> 封装下面共享初始化
+/// （encoding/culture/terminalSetup/ConfigData/Config/JSONConfig/Lang/Validate），届时 Main 仅保留
+/// HeadlessOptions.Parse + GamePaths.Resolve + runner 分流。
+/// </para>
+/// </summary>
+internal static class HeadlessEntry
 {
     [STAThread]
-    static async Task Main(string[] args)
+    internal static async Task Main(string[] args)
     {
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
         Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -33,7 +41,7 @@ static partial class Program
         if (options == null) return;
 
         var paths = GamePaths.Resolve(options.ExeDir);
-        ExeName = Path.GetFileNameWithoutExtension(AssemblyData.ExeName);
+        Program.ExeName = Path.GetFileNameWithoutExtension(AssemblyData.ExeName);
 
         ProfileOptimization.SetProfileRoot(options.ExeDir ?? paths.ExeDir);
         ProfileOptimization.StartProfile("profile");
@@ -96,47 +104,11 @@ static partial class Program
         }
     }
 
-    // === 路径属性转发（保持共享文件零改动）===
-    public static string ExeDir => GamePaths.Current.ExeDir;
-    public static string CsvDir => GamePaths.Current.CsvDir;
-    public static string ErbDir => GamePaths.Current.ErbDir;
-    public static string DebugDir => GamePaths.Current.DebugDir;
-    public static string DatDir => GamePaths.Current.DatDir;
-    public static string ContentDir => GamePaths.Current.ContentDir;
-    public static string SoundDir => GamePaths.Current.SoundDir;
-    public static string FontDir => GamePaths.Current.FontDir;
-    public static string ExeName { get; private set; } = "";
-
-    // === 运行时状态 ===
-    public static bool rebootFlag;
-    public static bool AnalysisMode;
-    public static List<string> AnalysisFiles = new();
-    public static bool DebugMode { get; private set; }
-
     private static ITerminalSetup CreateTerminalSetup()
     {
         if (OperatingSystem.IsWindows())
             return new WindowsTerminalSetup();
 
         return new PosixTerminalSetup();
-    }
-
-    /// <summary>
-    /// 加载字体文件到当前 scope 的 GlobalStatic.Pfc。
-    /// 必须在 OpenScope() 之后调用（ADR-0008：Pfc 是实例成员，随 scope 生灭）。
-    /// </summary>
-    internal static void LoadFonts()
-    {
-        var fontDir = GamePaths.Current.FontDir;
-        if (!Directory.Exists(fontDir)) return;
-        foreach (string fontFile in Directory.GetFiles(fontDir, "*.ttf", SearchOption.AllDirectories))
-            GlobalStatic.Pfc.AddFontFile(fontFile);
-        foreach (string fontFile in Directory.GetFiles(fontDir, "*.otf", SearchOption.AllDirectories))
-            GlobalStatic.Pfc.AddFontFile(fontFile);
-    }
-
-    static Program()
-    {
-        GamePaths.Resolve(null);
     }
 }

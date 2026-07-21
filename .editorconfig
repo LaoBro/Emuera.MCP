@@ -1,12 +1,14 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
 # I-12 阶段 1：质量护栏按路径分级
-# - Emuera.Headless/Shared/ 子树是 T-023 物理迁移自 Emuera/ 的历史共享源码
-#   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Headless 构建被历史代码警告淹没
-# - Emuera.Headless/ 自有源码（排除 Shared/）保持默认 AnalysisMode=Minimum 行为，新代码警告仍可见
+# - Emuera.Headless.Core/Shared/ 子树是 T-023 物理迁移自 Emuera/ 的历史共享源码
+#   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Core 构建被历史代码警告淹没
+# - Emuera.Headless.Core/ 自有源码（排除 Shared/）保持默认 AnalysisMode=Minimum 行为，新代码警告仍可见
 # - 阶段 2（T-022）已逐步撤销本文件的抑制，启用 nullable + TreatWarningsAsErrors
 #
 # 注意：.NET 的 .editorconfig 不支持 `dotnet_analyzer_diagnostic.severity = none` 全局语法，
 #       必须逐条列出 dotnet_diagnostic.<CAxxxx>.severity = none。
+# issue 01 拆分：原 Emuera.Headless/ 路径全部改为 Emuera.Headless.Core/（Server/HttpSessionIO 等四文件
+# 移到 Emuera.Headless.Server/，HeadlessRunner/ServerRunner/HeadlessOptions 移到 Emuera.Headless.Cli/）。
 
 root = true
 
@@ -21,16 +23,16 @@ tab_width = 4
 # 此约定跨 Emuera / Emuera.Headless 共享，全局抑制
 dotnet_diagnostic.CS8981.severity = none
 
-# ===== Emuera.Headless/Shared 历史共享源码（抑制已清零） =====
+# ===== Emuera.Headless.Core/Shared 历史共享源码（抑制已清零） =====
 # T-023 物理迁移自 Emuera/。T-022 阶段 4 已将所有历史 CA/CS 抑制清零
 # （含 CA1416 Shared 段 2026-07-08 方案 B 消除），当前 Shared/ 无残留抑制。
 # 清理记录见 docs/2026.7.4.T-022阶段4-Shared历史警告清理/T-022阶段4-Shared历史警告清理.md
-[Emuera.Headless/Shared/**]
+[Emuera.Headless.Core/Shared/**]
 
-# ===== Emuera.Headless 自有源码 =====
+# ===== Emuera.Headless.Core 自有源码 =====
 # T-022 阶段 3：Headless 模式固有警告抑制
-# [Emuera.Headless/**] 覆盖自有源码；[Emuera.Headless/Shared/**] 更具体，优先于本段
-[Emuera.Headless/**]
+# [Emuera.Headless.Core/**] 覆盖自有源码；[Emuera.Headless.Core/Shared/**] 更具体，优先于本段
+[Emuera.Headless.Core/**]
 # CA1416：Headless 自有代码 WindowsTerminalSetup.cs 使用 Console.BufferWidth/Window* 等 Windows 专用 API（自有代码 4 处）
 dotnet_diagnostic.CA1416.severity = none
 # CS0649：反射赋值或占位字段（tooltip_img/rikaichan 等）
@@ -40,24 +42,24 @@ dotnet_diagnostic.CS0067.severity = none
 
 # CA1822：以下 5 个文件含实例方法空实现/ERB 函数 stub，改 static 会破坏调用约定
 # 仅对这 5 个文件抑制，新代码的 CA1822 仍可见
-[Emuera.Headless/UI/Game/EmueraConsole.cs]
+[Emuera.Headless.Core/UI/Game/EmueraConsole.cs]
 dotnet_diagnostic.CA1822.severity = none
 
-[Emuera.Headless/Headless/HeadlessClipboard.cs]
+[Emuera.Headless.Core/Headless/HeadlessClipboard.cs]
 dotnet_diagnostic.CA1822.severity = none
 
-[Emuera.Headless/Headless/HeadlessSound.cs]
+[Emuera.Headless.Core/Headless/HeadlessSound.cs]
 dotnet_diagnostic.CA1822.severity = none
 
-[Emuera.Headless/Terminal/AgentCliVtScreen.cs]
+[Emuera.Headless.Core/Terminal/AgentCliVtScreen.cs]
 dotnet_diagnostic.CA1822.severity = none
 
-[Emuera.Headless/Terminal/TerminalCursor.cs]
+[Emuera.Headless.Core/Terminal/TerminalCursor.cs]
 dotnet_diagnostic.CA1822.severity = none
 
 # CA1859：IProcessState state 属性有意用接口而非具体类型，Phase 3 解耦设计意图
-[Emuera.Headless/Shared/Runtime/Script/Process.SystemProc.cs]
+[Emuera.Headless.Core/Shared/Runtime/Script/Process.SystemProc.cs]
 dotnet_diagnostic.CA1859.severity = none
 
-[Emuera.Headless/Shared/Runtime/Script/Process.ScriptProc.cs]
+[Emuera.Headless.Core/Shared/Runtime/Script/Process.ScriptProc.cs]
 dotnet_diagnostic.CA1859.severity = none

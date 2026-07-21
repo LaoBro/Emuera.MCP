@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>MinorShift.Emuera</RootNamespace>
+    <AssemblyName>Emuera.Headless.Server</AssemblyName>
+    <DefineConstants>HEADLESS</DefineConstants>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>Minimum</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Server 的 internal 类型（KestrelGameServer / HttpSessionIO / OutputHub / Session 等）
+         被 Cli（ServerRunner 直接构造 KestrelGameServer）和 Tests（KestrelGameServerIdleTests
+         直接构造 server handler）访问——必须 InternalsVisibleTo 给两者。-->
+    <InternalsVisibleTo Include="Emuera.Headless.Cli" />
+    <InternalsVisibleTo Include="Emuera.Headless.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Server 引用 Core：经 InternalsVisibleTo 访问 internal 成员
+         （GameLoopComposer.RunAsync / AgentJsonlProtocol / DisplayState / EmueraConsole 等）-->
+    <ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
+  </ItemGroup>
+
+</Project>

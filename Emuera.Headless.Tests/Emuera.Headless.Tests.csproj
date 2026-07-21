@@ -14,8 +14,12 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
 
+  <!-- issue 01：三项目拆分后，Tests 同时引用 Core（GlobalStatic/EmueraConsole/AgentJsonlProtocol 等）
+       和 Server（KestrelGameServer/HttpSessionIO 等，KestrelGameServerIdleTests 直接构造 server handler）。
+       Core 经 InternalsVisibleTo 暴露 internal 成员给 Tests。-->
   <ItemGroup>
-    <ProjectReference Include="..\Emuera.Headless\Emuera.Headless.csproj" />
+    <ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
+    <ProjectReference Include="..\Emuera.Headless.Server\Emuera.Headless.Server.csproj" />
   </ItemGroup>
 
   <ItemGroup>

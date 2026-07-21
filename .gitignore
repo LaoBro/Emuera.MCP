@@ -19,6 +19,15 @@ Emuera.Headless/bin/*
 Emuera.Headless/obj/*
 Emuera.Headless/publish/*
 Emuera.Headless/wwwroot/*
+# issue 01：三项目拆分——新项目的 bin/obj/wwwroot/publish 不入库
+Emuera.Headless.Core/bin/*
+Emuera.Headless.Core/obj/*
+Emuera.Headless.Server/bin/*
+Emuera.Headless.Server/obj/*
+Emuera.Headless.Cli/bin/*
+Emuera.Headless.Cli/obj/*
+Emuera.Headless.Cli/publish/*
+Emuera.Headless.Cli/wwwroot/*
 Emuera.Headless.Tests/bin/*
 Emuera.Headless.Tests/obj/*
 

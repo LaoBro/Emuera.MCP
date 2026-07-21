@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>MinorShift.Emuera</RootNamespace>
+    <AssemblyName>Emuera.Headless.Cli</AssemblyName>
+    <DefineConstants>HEADLESS</DefineConstants>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>Minimum</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Cli 引用 Core + Server：经 InternalsVisibleTo 访问 internal 成员
+         （HeadlessRunner 调 GameLoopComposer.RunAsync / ServerRunner 调 KestrelGameServer 等）-->
+    <ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
+    <ProjectReference Include="..\Emuera.Headless.Server\Emuera.Headless.Server.csproj" />
+  </ItemGroup>
+
+  <!-- ===== issue 10：Vue 前端构建 + 静态资源服务（拆分自原 Emuera.Headless.csproj） ===== -->
+  <!-- wwwroot/ 文件随 build/publish 复制到输出目录。
+       PublishSingleFile=true（PropertyGroup 上方）下 wwwroot 是松散文件目录，不嵌入 exe，
+       必须作为独立文件随 exe 分发。
+       wwwroot/ 由 .gitignore 排除（构建产物不入库），由下面 BuildVueFrontend target 填充。
+       注意：Content glob 在 project load 时评估，首次 build 时 wwwroot/ 尚为空，
+       BuildVueFrontend target 内会直接 Copy 到 $(OutputPath)wwwroot/ 作为兜底。 -->
+  <ItemGroup>
+    <Content Include="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Vue 源码 + 配置文件，作为 BuildVueFrontend target 的 Inputs（用于增量检测）。 -->
+  <ItemGroup>
+    <VueSrcInputs Include="..\Emuera.Web\src\**\*" />
+    <VueSrcInputs Include="..\Emuera.Web\index.html" />
+    <VueSrcInputs Include="..\Emuera.Web\package.json" />
+    <VueSrcInputs Include="..\Emuera.Web\package-lock.json" />
+    <VueSrcInputs Include="..\Emuera.Web\vite.config.ts" />
+    <VueSrcInputs Include="..\Emuera.Web\tsconfig.json" />
+  </ItemGroup>
+
+  <!-- BuildVueFrontend: 增量跑 npm run build（src 比 dist 新才触发） -->
+  <Target Name="BuildVueFrontend"
+          BeforeTargets="Build"
+          Condition="'$(SkipVueBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'"
+          Inputs="@(VueSrcInputs)"
+          Outputs="..\Emuera.Web\dist\index.html">
+
+    <Exec Command="npm --version" ConsoleToMSBuild="true" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="NpmExitCode" />
+    </Exec>
+
+    <Warning Condition="'$(NpmExitCode)' != '0'"
+             Text="npm not found in PATH; skipping Vue frontend build. Run 'npm install &amp;&amp; npm run build' in Emuera.Web/ manually to populate wwwroot/, or pass /p:SkipVueBuild=true to suppress this warning." />
+
+    <Exec Condition="'$(NpmExitCode)' == '0'"
+          Command="npm run build"
+          WorkingDirectory="..\Emuera.Web"
+          ConsoleToMSBuild="true" />
+  </Target>
+
+  <!-- CopyVueFrontendToWwwroot: dist/ → wwwroot/（源树 + 输出目录） -->
+  <Target Name="CopyVueFrontendToWwwroot"
+          AfterTargets="BuildVueFrontend"
+          BeforeTargets="Build"
+          Condition="'$(SkipVueBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <VueDistFiles Include="..\Emuera.Web\dist\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(VueDistFiles)"
+          DestinationFolder="wwwroot\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(VueDistFiles)"
+          DestinationFolder="$(OutputPath)wwwroot\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>
