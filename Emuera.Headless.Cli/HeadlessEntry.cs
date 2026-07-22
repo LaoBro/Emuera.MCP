@@ -13,10 +13,10 @@ namespace MinorShift.Emuera;
 /// </para>
 /// <para>
 /// issue 02 已抽取 <see cref="EmueraRuntimeInitializer.Initialize"/> 封装共享运行时初始化
-/// （encoding/culture/terminalSetup/Program.ExeName/ConfigData/Config/JSONConfig/Lang/Validate），
-/// Main 仅保留 <see cref="HeadlessOptions.Parse"/> + <see cref="GamePaths.Resolve"/> + 校验失败处置
-/// + runner 分流（<see cref="ServerRunner"/> / <see cref="HeadlessRunner"/>）。MAUI 入口（issue 07 落地）
-/// 同调 <see cref="EmueraRuntimeInitializer.Initialize"/>。
+/// （encoding/culture/terminalSetup/Program.ExeName/ConfigData/Config/JSONConfig/Lang），
+/// Main 仅保留 <see cref="HeadlessOptions.Parse"/> + <see cref="GamePaths.Resolve"/> +
+/// <see cref="GamePaths.Validate"/> 校验失败处置 + runner 分流（<see cref="ServerRunner"/> / <see cref="HeadlessRunner"/>）。
+/// MAUI 入口（issue 07 落地）同调 <see cref="EmueraRuntimeInitializer.Initialize"/>。
 /// </para>
 /// </summary>
 internal static class HeadlessEntry
@@ -34,33 +34,33 @@ internal static class HeadlessEntry
 
         var paths = GamePaths.Resolve(options.ExeDir);
 
-        ConfigData configData;
-        ITerminalSetup terminalSetup;
+        // Initialize 完成所有共享 bootstrap（encoding/culture/ConfigData/Lang 等）但不调 paths.Validate——
+        // 这样 Validate 失败时调用方仍持有已加载的 configData + 已启用 ANSI 的 terminalSetup，
+        // Server 空闲模式 fallback 复用这两者，避免 "AsyncLocal 指向已加载 config 而本地变量是空 config"
+        // 的 split-brain 与 ANSI 丢失回归（重构前行为）。
+        var (configData, terminalSetup) = EmueraRuntimeInitializer.Initialize(paths);
+
+        // T-025 D1/D2：GamePaths.Validate 失败按模式分流——
+        // - server 模式：降级 warn 继续（空闲启动，浏览器可打开选择器，真正的加载推迟到 /load-game）
+        // - CLI 模式：打印提示 + 等待玩家按回车再退出（不再静默 Environment.Exit，避免双击时窗口一闪即关）
+        //
+        // CLI 等回车在非交互终端的边界（D17）：stdin 重定向到 /dev/null 或文件时 Console.ReadLine
+        // 立即返 null/EOF → 进程退出，等同原 Environment.Exit(1)；CI/CD 不受影响。stdin 完全无句柄
+        // 时 ReadLine 可能抛 InvalidOperationException——catch 兜底等同 EOF 退出。仅 stdin 是管道且
+        // 管道不关闭（如 `echo | exe`）才会挂起，此场景罕见，可接受。
         try
         {
-            (configData, terminalSetup) = EmueraRuntimeInitializer.Initialize(paths);
+            paths.Validate();
         }
         catch (GamePathValidationException ex)
         {
-            // T-025 D1/D2：GamePaths.Validate 失败按模式分流——
-            // - server 模式：降级 warn 继续（空闲启动，浏览器可打开选择器，真正的加载推迟到 /load-game）
-            // - CLI 模式：打印提示 + 等待玩家按回车再退出（不再静默 Environment.Exit，避免双击时窗口一闪即关）
-            //
-            // CLI 等回车在非交互终端的边界（D17）：stdin 重定向到 /dev/null 或文件时 Console.ReadLine
-            // 立即返 null/EOF → 进程退出，等同原 Environment.Exit(1)；CI/CD 不受影响。stdin 完全无句柄
-            // 时 ReadLine 可能抛 InvalidOperationException——catch 兜底等同 EOF 退出。仅 stdin 是管道且
-            // 管道不关闭（如 `echo | exe`）才会挂起，此场景罕见，可接受。
             Console.Error.WriteLine($"[error] {ex.Code}: {ex.Message}");
             if (options.Server)
             {
-                // D1：server 模式空闲启动——降级 warn 继续，真正的游戏加载推迟到 /load-game
+                // D1：server 模式空闲启动——降级 warn 继续，真正的游戏加载推迟到 /load-game。
+                // 复用 Initialize 返回的 configData + terminalSetup（已加载 config + 已启用 ANSI），
+                // 与重构前行为一致；ConfigData.Current AsyncLocal 也指向同一 configData，无 split-brain。
                 Console.Error.WriteLine("[server] 游戏目录校验失败，进入空闲模式。请在浏览器中选择游戏目录。");
-                // 空闲启动需要 ConfigData + ITerminalSetup——降级构造（不经 Initialize 的共享初始化路径）
-                // 以确保 ServerRunner 能创建 KestrelGameServer。encoding/culture/lang 等不初始化无碍 idle 模式。
-                configData = new ConfigData();
-                terminalSetup = OperatingSystem.IsWindows()
-                    ? (ITerminalSetup)new WindowsTerminalSetup()
-                    : new PosixTerminalSetup();
             }
             else
             {

@@ -24,7 +24,6 @@ namespace MinorShift.Emuera;
 /// <item>ProfileOptimization（启动性能 profile）</item>
 /// <item><see cref="ConfigData"/> / <see cref="Config"/> / <see cref="JSONConfig"/> 配置三件套加载</item>
 /// <item><see cref="Lang"/> 语言文件加载 + 设置</item>
-/// <item><see cref="GamePaths.Validate"/>（失败抛 <see cref="GamePathValidationException"/>，由调用方做模式分流）</item>
 /// </list>
 /// <para>
 /// 设计约束：
@@ -32,18 +31,25 @@ namespace MinorShift.Emuera;
 /// <list type="bullet">
 /// <item>不读 <c>HeadlessOptions</c>——Cli 与 MAUI 的命令行/参数模型不同，共享层不感知</item>
 /// <item>不调 runner——Cli 走 <c>ServerRunner</c>/<c>HeadlessRunner</c>，MAUI 走 <c>BridgeHost</c>，分流属入口职责</item>
-/// <item><see cref="GamePaths.Validate"/> 失败抛异常而非退出进程——Cli 与 MAUI/Server 对校验失败的处置策略不同
-/// （Cli 等回车退出 / Server 空闲启动 / MAUI 弹错误对话框），由调用方捕获处理</item>
+/// <item>不调 <see cref="GamePaths.Validate"/>——Validate 失败的处置策略因入口而异
+/// （Cli 等回车退出 / Server 空闲启动 / MAUI 弹错误对话框），由调用方在捕获 <see cref="GamePathValidationException"/> 后
+/// 自行分流。Initialize 返回的 <see cref="ConfigData"/> / <see cref="ITerminalSetup"/> 在 Validate 失败时仍可用，
+/// 让 Server 空闲模式能复用已加载的 config 与已启用 ANSI 的 terminalSetup（避免重构前回归）。</item>
 /// </list>
 /// </summary>
 internal static class EmueraRuntimeInitializer
 {
     /// <summary>
     /// 执行共享运行时初始化，返回配置好的 <see cref="ConfigData"/> 与 <see cref="ITerminalSetup"/>。
+    /// <para>
+    /// 不调 <see cref="GamePaths.Validate"/>——由调用方在拿到返回值后自行 try/catch Validate，
+    /// 这样 Server 空闲模式（Validate 失败 fallback）能复用本方法返回的已加载 <see cref="ConfigData"/> +
+    /// 已启用 ANSI 的 <see cref="ITerminalSetup"/>，避免 "AsyncLocal 指向已加载 config 而本地变量是空 config"
+    /// 的 split-brain 与 ANSI 丢失回归。
+    /// </para>
     /// </summary>
     /// <param name="paths">已 Resolve 的游戏路径对象（通常由调用方在调本方法前 <c>GamePaths.Resolve(exeDir)</c>）。</param>
     /// <returns>已加载配置的 <see cref="ConfigData"/> 与已启用 ANSI 的 <see cref="ITerminalSetup"/>。</returns>
-    /// <exception cref="GamePathValidationException"><see cref="GamePaths.Validate"/> 失败——由调用方按入口模式处置。</exception>
     internal static (ConfigData ConfigData, ITerminalSetup TerminalSetup) Initialize(GamePaths paths)
     {
         // === encoding ===
@@ -85,9 +91,8 @@ internal static class EmueraRuntimeInitializer
         Lang.LoadLanguageFiles();
         Lang.SetLanguage();
 
-        // === 路径校验（失败抛 GamePathValidationException，调用方处置）===
-        paths.Validate();
-
+        // 路径校验（GamePaths.Validate）由调用方在拿到返回值后自行 try/catch——
+        // 见方法 XML doc 与类级设计约束说明。
         return (configData, terminalSetup);
     }
 
