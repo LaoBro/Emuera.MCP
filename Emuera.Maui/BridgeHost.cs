@@ -361,9 +361,20 @@ internal sealed class BridgeHost : IDisposable
         }
         catch (Exception ex)
         {
-            // 游戏循环整体崩溃（Initialize 失败 / OpenScope 失败 / protocol 未捕获异常等）
             Console.WriteLine($"[bridge] game loop fatal: {ex}");
             AgentLog.Instance.Write($"[bridge] game loop fatal: {ex}");
+            // issue 09 hot-swap reload：Dispose 触发的 OperationCanceledException 是预期行为——
+            // RecreateHost 调 Dispose → CTS.Cancel → ReadLineAsync 抛 OperationCanceledException。
+            // 此时 Vue 已由新 BridgeHost 接管，旧 host 的 error turn 会污染 Vue 状态（覆盖新 host 的首帧），
+            // 故 _disposed=true 时静默吞掉不推 error turn。
+            // 同理覆盖 OnDisappearing（页面销毁）路径——Vue 都不在了，推 error turn 无意义。
+            if (_disposed)
+            {
+                Console.WriteLine("[bridge] game loop exited via Dispose (reload/page close), suppressing error turn");
+                AgentLog.Instance.Write("[bridge] game loop exited via Dispose (reload/page close), suppressing error turn");
+                return;
+            }
+            // 游戏循环整体崩溃（Initialize 失败 / OpenScope 失败 / protocol 未捕获异常等）
             ShowFatalError(ex);
         }
     }
