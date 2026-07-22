@@ -469,10 +469,10 @@ internal sealed class BridgeHost : IDisposable
             {
                 MainThread.BeginInvokeOnMainThread(async () =>
                 {
-                    var mainPage = Application.Current?.MainPage;
+                    var mainPage = Application.Current?.Windows[0].Page;
                     if (mainPage != null)
                     {
-                        await mainPage.DisplayAlert("Error", message, "OK");
+                        await mainPage.DisplayAlertAsync("Error", message, "OK");
                     }
                 });
             }
