@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useGameStore } from './game';
 import type { DisplaySnapshot } from '../types/protocol';
+import { isMauiEnvironment, postInput } from '../lib/mauiBridge';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
@@ -440,10 +441,18 @@ export const useConnectionStore = defineStore('connection', () => {
    *
    * ADR-0016：v6 协议用 turn.timedOut 旗标检测超时，已删除 issue 04 启发式
    * 超时检测——通知由下一帧 turn.timedOut 派生清空，submit 不需要任何额外动作。
+   *
+   * Issue 07 / spec ID7：MAUI 环境分支——不走 WS，用 `postInput` 投递给 C# `IJsBridge.InputReceived`，
+   * `BridgeHost.OnInputFromJs` 识别 `{"type":"input","value":"..."}` 后（T08）入 `MauiBridgeIO.EnqueueInput`。
+   * MAUI 模式下 status 由 useAppInit 标记为 'connected'（无 WS 但语义等价）。
    */
   function sendInput(value: string): void {
-    if (!ws || status.value !== 'connected') return;
     const payload = JSON.stringify({ type: 'input', value });
+    if (isMauiEnvironment()) {
+      postInput(payload);
+      return;
+    }
+    if (!ws || status.value !== 'connected') return;
     ws.send(payload);
   }
 

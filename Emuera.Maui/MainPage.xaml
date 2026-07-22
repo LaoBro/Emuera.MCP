@@ -3,25 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="Emuera.Maui.MainPage">
 
-    <!-- Issue 06 占位：T07 替换为 WebView + BridgeHost 注入。-->
-    <ScrollView>
-        <VerticalStackLayout
-            Padding="30,0"
-            Spacing="25"
-            VerticalOptions="Center">
-
-            <Label
-                Text="Emuera.MAUI"
-                Style="{StaticResource Headline}"
-                SemanticProperties.HeadingLevel="Level1" />
-
-            <Label
-                Text="Issue 06 骨架占位 — IJsBridge 抽象层就位&#10;T07 完成完整 UI 编排"
-                Style="{StaticResource SubHeadline}"
-                SemanticProperties.HeadingLevel="Level2"
-                HorizontalOptions="Center" />
-
-        </VerticalStackLayout>
-    </ScrollView>
+    <!-- Issue 07 / spec ID6：WebView 承载 Vue 前端。
+         URL 在 MainPage.xaml.cs 的 HandlerChanged 事件内按平台设置：
+           Windows: ms-appx-web:///wwwroot/index.html
+           Android: file:///android_asset/wwwroot/index.html
+         HandlerChanged 是拿平台原生视图的最早可靠时机（spec ID8）。
+         WebView 占满整个页面——Vue 自管 header / main 布局。-->
+    <WebView x:Name="MainWebView"
+             HorizontalOptions="Fill"
+             VerticalOptions="Fill" />
 
 </ContentPage>

@@ -34,12 +34,12 @@
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 	</PropertyGroup>
 
-	<!-- Issue 06：本票仅创建项目骨架以承载 IJsBridge 抽象层 + 平台实现。
-	     T07 完整创建 MainPage（WebView）/ BridgeHost / GameResourceExtractor / MauiProgram 编排。-->
+	<!-- Issue 06：本票创建项目骨架承载 IJsBridge 抽象层 + 平台实现。
+     Issue 07：完整 MainPage（WebView）/ BridgeHost / GameResourceExtractor / MauiProgram 编排。-->
 
-	<!-- IJsBridge + 平台实现 + JsBridgeFactory 均为 internal——
-	     Tests 需 InternalsVisibleTo 才能写契约单测（mock IJsBridge / 调 JsBridgeFactory.Create）。
-	     Emuera.Headless.Tests（net10.0，issue 04 MauiBridgeIO 单测）+ Emuera.Maui.Tests（net10.0-windows，issue 06 契约单测）。-->
+	<!-- IJsBridge + 平台实现 + JsBridgeFactory + BridgeHost 均为 internal——
+     Tests 需 InternalsVisibleTo 才能写契约单测（mock IJsBridge / 调 JsBridgeFactory.Create）。
+     Emuera.Headless.Tests（net10.0，issue 04 MauiBridgeIO 单测）+ Emuera.Maui.Tests（net10.0-windows，issue 06 契约单测）。-->
 	<ItemGroup>
 		<InternalsVisibleTo Include="Emuera.Headless.Tests" />
 		<InternalsVisibleTo Include="Emuera.Maui.Tests" />
@@ -62,9 +62,33 @@
 	</ItemGroup>
 
 	<!-- 引用 Emuera.Headless.Core（issue 01 已就位，InternalsVisibleTo("Emuera.Maui") 已配置）。
-	     MAUI 不引 Headless.Server / Cli（避免 AspNetCore 框架在 Android target 不可用）。-->
+     MAUI 不引 Headless.Server / Cli（避免 AspNetCore 框架在 Android target 不可用）。-->
 	<ItemGroup>
 		<ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
 	</ItemGroup>
+
+	<!-- ===== Issue 07 / spec ID6：MauiAsset 打包 =====
+	     1. wwwroot/——Vue 构建产物，由 build/VueBuild.targets 在 build 前从 Emuera.Web/dist-maui/ 复制填充。
+	        不带 LogicalName（那是 EmbeddedResource 的元数据，对 MauiAsset 无效）。
+	     2. ../test_game/——内置游戏资源（spec ID11 Phase 1 硬编码），打 MauiAsset Link=game\...
+	        首启动 GameResourceExtractor.EnsureGameDir() 解压到 FileSystem.AppDataDirectory/emuera/。-->
+	<ItemGroup>
+		<!-- Vue 构建产物（VueBuild.targets 的 CopyVueFrontendToWwwroot target 复制到 wwwroot\） -->
+		<MauiAsset Include="wwwroot\**\*" />
+		<!-- 内置游戏资源（test_game/ → 打包路径 game/...） -->
+		<MauiAsset Include="..\test_game\**\*" Link="game\%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<!-- ===== Issue 07 / spec ID13：Vue 前端构建集成 =====
+	     Import 共享 build/VueBuild.targets，覆盖三个参数避免与 Headless.Cli 争用 Emuera.Web/dist/：
+	       ViteBase=./         ——MAUI WebView 用 file:// / ms-appx-web: 协议，相对 base 必需
+	       VueOutDir=dist-maui ——独立输出目录，避免 Headless.Cli（dist/）与 MAUI 同时构建 race
+	       VueDistDestination=wwwroot\ ——复制目标（与 MauiAsset Include="wwwroot\**\*" 对齐） -->
+	<PropertyGroup>
+		<ViteBase>./</ViteBase>
+		<VueOutDir>dist-maui</VueOutDir>
+		<VueDistDestination>wwwroot\</VueDistDestination>
+	</PropertyGroup>
+	<Import Project="..\build\VueBuild.targets" />
 
 </Project>

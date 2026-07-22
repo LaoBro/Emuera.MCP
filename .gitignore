@@ -36,10 +36,14 @@ Emuera.Maui/bin/*
 Emuera.Maui/obj/*
 Emuera.Maui.Tests/bin/*
 Emuera.Maui.Tests/obj/*
+# issue 07：MAUI wwwroot 由 VueBuild.targets 从 Emuera.Web/dist-maui 复制填充——构建产物不入库
+Emuera.Maui/wwwroot/*
 
 # Emuera.Web（Vue 3 + Vite）—— 源码入库，依赖与构建产物不入库
 Emuera.Web/node_modules/*
 Emuera.Web/dist/*
+# issue 07：MAUI 专用 Vue 构建输出目录（VueBuild.targets VueOutDir=dist-maui）
+Emuera.Web/dist-maui/*
 docs/agents/*
 docs/adr/*
 docs/2026.6.16.mouse-input/spikes/*
