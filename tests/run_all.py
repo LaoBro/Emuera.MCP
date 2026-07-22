@@ -47,17 +47,38 @@ def _child_env(binary_path=None):
     return env
 
 
+def _safe_print_line(line):
+    encoding = sys.stdout.encoding or "utf-8"
+    print(line.encode(encoding, errors="replace").decode(encoding, errors="replace"))
+
+
+def _print_key_lines(stdout):
+    for line in stdout.splitlines():
+        if (
+            line.startswith("===")
+            or line.startswith("  FAIL:")
+            or line.startswith("  WARN:")
+            or line.startswith("[EmueraServer]")
+        ):
+            _safe_print_line(line)
+
+
 def _run_script(name, args, env=None, timeout=None):
     print(f"\n=== {name} ===")
     completed = subprocess.run(
         args,
         cwd=str(ROOT_DIR),
         env=env,
+        capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
         timeout=timeout,
     )
+    _print_key_lines(completed.stdout)
+    if completed.returncode != 0 and completed.stderr.strip():
+        for line in completed.stderr.strip().splitlines():
+            _safe_print_line(f"  [stderr] {line}")
     # Brief pause between test suites on Windows to avoid file-lock races
     # (the .NET single-file host may briefly hold the exe after process exit)
     if sys.platform == "win32":
@@ -80,21 +101,26 @@ def _run_dotnet_test(timeout=None):
     completed = subprocess.run(
         [dotnet, "test", "Emuera.Headless.Tests/Emuera.Headless.Tests.csproj", "--nologo"],
         cwd=str(ROOT_DIR),
+        capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
         timeout=timeout,
     )
+    for line in completed.stdout.splitlines():
+        stripped = line.strip()
+        if any(kw in stripped for kw in ("失败", "通过", "已通过", "error", "Error", "FAILED", "Test Run")):
+            _safe_print_line(line)
+    if completed.returncode != 0 and completed.stderr.strip():
+        for line in completed.stderr.strip().splitlines():
+            _safe_print_line(f"  [stderr] {line}")
     # Brief pause on Windows to release any file lock from the build step.
     if sys.platform == "win32":
         time.sleep(1)
     return completed.returncode == 0, completed.returncode, False
 
 
-def _safe_print(text):
-    encoding = sys.stdout.encoding or "utf-8"
-    for line in text.splitlines():
-        print(line.encode(encoding, errors="replace").decode(encoding, errors="replace"))
+
 
 
 def main():
