@@ -61,7 +61,7 @@ const isMaui = isMauiEnvironment();
  */
 const effectiveFontSize = computed(() => game.fontSize ?? 18);
 const effectiveLineHeight = computed(() => game.lineHeight ?? 19);
-const effectiveGameColumns = computed(() => game.gameColumns ?? 84);
+const effectiveWindowWidth = computed(() => game.windowWidth ?? 760);
 const effectiveFontName = computed(() => game.fontName ?? 'ＭＳ ゴシック');
 
 /**
@@ -81,13 +81,12 @@ const effectiveFontFamily = computed(() => {
 /** .terminal 容器内联 style——动态绑定 width（ch 单位）/font-size/line-height/font-family + CSS 变量。 */
 const terminalStyle = computed<Record<string, string>>(() => {
   const style: Record<string, string> = {
-    // 宽度用 gameColumns × 1ch——CSS ch 单位 = monospace 字体 "0" 字符宽度 = ASCII 字符宽度。
-    // 这样容器宽度随字体大小自适应，字符画（按 gameColumns 列设计）正好填满，
-    // 与 CLI 模式按字符列数布局的行为一致。windowWidth 像素布局会让浏览器 monospace
-    // 字符画溢出（GDI ASCII=FontSize/2=0.5em，浏览器 monospace≈0.6em）。
-    width: `${effectiveGameColumns.value}ch`,
-    fontSize: `${effectiveFontSize.value}px`,
-    lineHeight: `${effectiveLineHeight.value}px`,
+    // 宽度用游戏设计像素宽度——居中字符画在游戏宽度内居中，容器靠左不滚动。
+    // 浏览器 monospace 字符宽度（≈0.6em）与 GDI（FontSize/2=0.5em）不同，
+    // 文本溢出由 overflow-x: auto 处理。
+    width: `${effectiveWindowWidth.value}px`,
+    fontSize: `${effectiveFontSize.value * game.effectiveScale}px`,
+    lineHeight: `${effectiveLineHeight.value * game.effectiveScale}px`,
     // font-family：游戏字体名在前，fallback 链在后——ASCII 字符画对字体宽度敏感，
     // "ＭＳ ゴシック"（GDI 默认）与 Consolas 等字形差异显著。
     fontFamily: effectiveFontFamily.value,

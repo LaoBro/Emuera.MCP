@@ -294,12 +294,48 @@ internal sealed class BridgeHost : IDisposable
     /// Vue 已 ready（首次 ready 信号早已收到），无需再等 ready 信号。
     /// </para>
     /// </summary>
+    /// <summary>
+    /// 推送布局元数据给 Vue——让前端在首帧 turn 到达前就能用正确的游戏设置渲染终端区域。
+    /// <para>
+    /// 与 <c>KestrelGameServer.HandleGetStateAsync</c> 一致的计算逻辑：
+    /// 从 <see cref="ConfigData"/> 读取 WindowX/FontSize/LineHeight/FontName，
+    /// 按无头模式 <c>DrawingParam_ShapePositionShift = Max(2, FontSize/6)</c> 算 <c>gameColumns</c>。
+    /// </para>
+    /// <para>
+    /// 消息格式：<c>{"type":"layout","windowWidth":760,"fontSize":18,"lineHeight":19,"gameColumns":84,"fontName":"ＭＳ ゴシック"}</c>
+    /// </para>
+    /// </summary>
+    private void PushLayoutMessage()
+    {
+        var ww = _configData.GetConfigValue<int>(ConfigCode.WindowX);
+        var fs = _configData.GetConfigValue<int>(ConfigCode.FontSize);
+        var lh = _configData.GetConfigValue<int>(ConfigCode.LineHeight);
+        var fn = _configData.GetConfigValue<string>(ConfigCode.FontName) ?? "";
+
+        int charWidth = Math.Max(fs / 2, 1);
+        int marginOffset = Math.Max(2, fs / 6);
+        int gameColumns = (ww - marginOffset) / charWidth;
+
+        var msg = JsonSerializer.Serialize(new
+        {
+            type = "layout",
+            windowWidth = ww,
+            fontSize = fs,
+            lineHeight = lh,
+            gameColumns,
+            fontName = fn,
+        });
+        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
+    }
+
     internal void Start()
     {
         if (_started)
             return;
         _started = true;
         _readyReceived = true; // 标记 ready 已收到——避免后续 ready 信号重复触发 Start
+        // 在游戏循环启动前推送布局元数据——Vue 在首帧 turn 到达前拿到字体/列宽/字号/行距
+        PushLayoutMessage();
         Console.WriteLine("[bridge] Starting game loop");
         AgentLog.Instance.Write("[bridge] starting game loop");
         _gameTask = Task.Run(GameLoopAsync);

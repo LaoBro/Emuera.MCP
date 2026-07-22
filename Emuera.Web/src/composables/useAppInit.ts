@@ -100,6 +100,18 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
   if (!msg || typeof msg !== 'object') return;
   const m = msg as Record<string, unknown>;
   const type = m.type;
+
+  if (type === 'layout') {
+    game.setGameLayout({
+      windowWidth: typeof m.windowWidth === 'number' ? m.windowWidth : null,
+      fontSize: typeof m.fontSize === 'number' ? m.fontSize : null,
+      lineHeight: typeof m.lineHeight === 'number' ? m.lineHeight : null,
+      gameColumns: typeof m.gameColumns === 'number' ? m.gameColumns : null,
+      fontName: typeof m.fontName === 'string' ? m.fontName : null,
+    });
+    return;
+  }
+
   if (type !== 'folderPicked') {
     console.warn('[useAppInit] handleMauiMessage: unknown message type:', type);
     return;

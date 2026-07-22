@@ -74,6 +74,19 @@ async function onQuickRestart(): Promise<void> {
       >
         {{ isRestarting ? '重开中…' : '快速重开' }}
       </button>
+      <div class="zoom-controls">
+        <button
+          :disabled="game.isMinScale"
+          title="缩小"
+          @click="game.setScale(game.effectiveScale - 0.1)"
+        >−</button>
+        <span class="zoom-label">{{ Math.round(game.effectiveScale * 100) }}%</span>
+        <button
+          :disabled="game.isMaxScale"
+          title="放大"
+          @click="game.setScale(game.effectiveScale + 0.1)"
+        >+</button>
+      </div>
       <nav class="view-switch">
         <button
           :class="{ active: ui.currentView === 'debug' }"
@@ -132,6 +145,37 @@ async function onQuickRestart(): Promise<void> {
   background: #0e639c;
   color: #fff;
   border-color: #0e639c;
+}
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.zoom-controls button {
+  background: #333;
+  color: #ccc;
+  border: 1px solid #444;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.zoom-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.zoom-controls button:hover:not(:disabled) {
+  background: #444;
+}
+.zoom-label {
+  font-size: 12px;
+  color: #aaa;
+  min-width: 36px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .quick-restart-btn {
   background: #5a4a1d;

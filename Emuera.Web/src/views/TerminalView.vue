@@ -82,7 +82,7 @@ const displayStatus = computed(() => deriveDisplayStatus(game.reloadStatus, conn
    background: #1e1e1e 与游戏画面黑底区分——两侧留白区域可见深灰底色。 */
 .terminal-area {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   overflow-x: auto;
   overflow-y: hidden;
   background: #1e1e1e;

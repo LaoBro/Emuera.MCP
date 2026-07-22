@@ -236,6 +236,41 @@ export const useGameStore = defineStore('game', () => {
   /** 游戏字体名（来自 ConfigCode.FontName，默认 "ＭＳ ゴシック"）。null 表示尚未读取。 */
   const fontName = ref<string | null>(null);
 
+  // ---------- 缩放比例 ----------
+  //
+  // 用于 MAUI 移动端/桌面端放大缩小终端画面。范围 0.5–2.0，步长 0.1。
+  // 持久化到 localStorage，刷新后保持。
+  const SCALE_STORAGE_KEY = 'emuera.scale';
+
+  const scale = ref<number>(readScaleFromStorage());
+
+  function readScaleFromStorage(): number {
+    try {
+      const v = localStorage.getItem(SCALE_STORAGE_KEY);
+      if (v !== null) {
+        const n = parseFloat(v);
+        if (!isNaN(n) && n >= 0.5 && n <= 2.0) return n;
+      }
+    } catch {
+      // 静默
+    }
+    return 1.0;
+  }
+
+  function writeScaleToStorage(s: number): void {
+    try { localStorage.setItem(SCALE_STORAGE_KEY, String(s)); } catch { /* 静默 */ }
+  }
+
+  function setScale(s: number): void {
+    const clamped = Math.max(0.5, Math.min(2.0, s));
+    scale.value = clamped;
+    writeScaleToStorage(clamped);
+  }
+
+  const effectiveScale = computed(() => scale.value ?? 1.0);
+  const isMinScale = computed(() => effectiveScale.value <= 0.5);
+  const isMaxScale = computed(() => effectiveScale.value >= 2.0);
+
   // ---------- ADR-0016：TINPUT timer 状态（本地钟表）----------
   //
   // server 不周期 push tick 帧——只在 input/timeout 时发帧。前端收到 WaitInput+TINPUT 帧时
@@ -807,5 +842,11 @@ export const useGameStore = defineStore('game', () => {
     gameColumns,
     fontName,
     setGameLayout,
+    // 缩放比例
+    scale,
+    effectiveScale,
+    isMinScale,
+    isMaxScale,
+    setScale,
   };
 });
