@@ -105,6 +105,7 @@ internal sealed class DisplayState : IDisplayState
 
     private readonly EmueraConsole _console;
     private readonly string _defaultFontName;
+    private readonly bool _fullDiffOnFirstTurn;
     private readonly object _gate = new();
     private DisplaySnapshot? _current;
     private DisplaySnapshot? _previous;
@@ -120,10 +121,16 @@ internal sealed class DisplayState : IDisplayState
         public string? Bg;
     }
 
-    internal DisplayState(EmueraConsole console, string defaultFontName)
+    /// <param name="fullDiffOnFirstTurn">
+    /// MAUI 模式传 true——首帧（_previous==null）返回全量 AppendLinesOp 而非 null。
+    /// MAUI 无 GET /snapshot 端点，首帧 diff 是唯一画面来源；返回 null 会导致游戏开头输出全部丢失。
+    /// HTTP/CLI 模式传 false（默认）——首帧 diff=null，靠 GET /snapshot（HTTP）或全量重绘（CLI）获取画面。
+    /// </param>
+    internal DisplayState(EmueraConsole console, string defaultFontName, bool fullDiffOnFirstTurn = false)
     {
         _console = console;
         _defaultFontName = defaultFontName;
+        _fullDiffOnFirstTurn = fullDiffOnFirstTurn;
     }
 
     bool IDisplayState.TryUpdate() => TryUpdate();
@@ -191,7 +198,17 @@ internal sealed class DisplayState : IDisplayState
             var prev = _previous;
             _previous = current;
 
-            if (prev == null) return null;                    // 首次回合，无 diff
+            if (prev == null)
+            {
+                // 首次回合：HTTP/CLI 返回 null（靠 GET /snapshot 或全量重绘获取画面）；
+                // MAUI 模式（_fullDiffOnFirstTurn=true）无 snapshot 端点，首帧 diff 是唯一画面来源，
+                // 返回全量 AppendLinesOp 让 Vue 端 applyDiff 渲染游戏开头输出。
+                if (_fullDiffOnFirstTurn && current.lines.Count > 0)
+                    return new DisplayDiff(
+                        new List<LineOp> { new AppendLinesOp(current.lines) },
+                        current.bgColor);
+                return null;
+            }
             if (ReferenceEquals(prev, current)) return null;  // no-op：本回合显示未变
 
             // 2. 行级操作：权威清空优先，否则结构分类（兼 race 降级）

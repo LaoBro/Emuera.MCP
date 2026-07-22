@@ -343,7 +343,10 @@ internal sealed class BridgeHost : IDisposable
                     // 避免 BuildPrintOpsForLine 访问 Config.FontName 时 NRE
                     // （HTTP/MAUI 线程上 Config.Current AsyncLocal 不可用，仅游戏循环 task 内设置）。
                     var defaultFontName = _configData.GetConfigValue<string>(ConfigCode.FontName) ?? "";
-                    var displayState = new DisplayState(console, defaultFontName);
+                    // MAUI 模式无 GET /snapshot 端点——首帧 diff 是唯一画面来源，
+                    // fullDiffOnFirstTurn=true 让 ComputeDiff 首帧返回全量 AppendLinesOp 而非 null。
+                    // HTTP 模式靠 GET /snapshot 拿画面，首帧 diff=null 正确（默认 false）。
+                    var displayState = new DisplayState(console, defaultFontName, fullDiffOnFirstTurn: true);
                     return new AgentJsonlProtocol(console, ui, _bridgeIO, displayState);
                 },
                 async p =>

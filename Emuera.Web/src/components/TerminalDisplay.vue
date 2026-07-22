@@ -165,9 +165,12 @@ watch(() => game.displayState.lines.length, scrollToBottom);
   >
     <div v-if="game.displayState.lines.length === 0" class="terminal-empty">
       <template v-if="isMaui">
-        <!-- MAUI 模式：无 HTTP/WS，提示文案按 gameDir 状态分流 -->
+        <!-- MAUI 模式：无 HTTP/WS，提示文案按 gameDir + 游戏状态分流 -->
         <p v-if="!game.gameDir">请先在顶部选择游戏目录</p>
-        <p v-else>游戏已就绪，等待输出或在下方提交输入…</p>
+        <p v-else-if="game.serverState === 'Idle'">
+          已选择目录：{{ game.gameDir }}<br />请点击顶部「快速重开」按钮启动游戏
+        </p>
+        <p v-else>游戏运行中，等待输出或在下方提交输入…</p>
       </template>
       <template v-else>
         <!-- HTTP 模式：按 WS 连接状态分流 -->
