@@ -19,7 +19,7 @@ namespace MinorShift.Emuera.Server;
 /// - <see cref="Complete"/> 在 session 结束时调用，完成所有订阅者 Channel，使 WS 发送循环
 ///   自然结束并下发关闭帧。
 /// </summary>
-internal sealed class OutputHub
+internal sealed class OutputHub : IOutputBroadcaster
 {
     private readonly object _subscribersLock = new();
     private readonly List<(ChannelReader<string> Reader, ChannelWriter<string> Writer)> _subscribers = new();

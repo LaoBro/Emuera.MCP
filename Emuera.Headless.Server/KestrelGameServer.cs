@@ -35,6 +35,13 @@ internal sealed class KestrelGameServer : IDisposable
     private ConfigData _configData;
     private volatile Session? _session;
     /// <summary>
+    /// Issue 03：当前 session 的 <see cref="OutputHub"/> 引用——单 session 模型下
+    /// <see cref="KestrelGameServer"/> 自持，与 <c>_session</c> 同生命周期。
+    /// 仅在 <c>_sessionLock</c> 内赋值/置空；WS 端点读此字段而非 <c>session.IO.Hub</c>
+    /// （后者已删，<see cref="HttpSessionIO"/> 不再持 <see cref="OutputHub"/> 具体引用）。
+    /// </summary>
+    private OutputHub? _sessionHub;
+    /// <summary>
     /// 异步兼容锁——issue 05 起 /load-game 需在持锁期间 await ConfigData.LoadConfig 等同步步骤，
     /// 故从 <c>object</c> + <c>lock</c> 改为 <c>SemaphoreSlim(1,1)</c>。
     /// 串行化 /session、/load-game、DELETE /session 三个会话变更操作；
@@ -131,8 +138,12 @@ internal sealed class KestrelGameServer : IDisposable
                 conflict = false;
                 _session.Dispose();
                 _session = null;
+                _sessionHub = null;
 
-                var io = new HttpSessionIO(new OutputHub());
+                // issue 03：KestrelGameServer 自持 OutputHub 引用，HttpSessionIO 只接 IOutputBroadcaster 抽象。
+                var hub = new OutputHub();
+                var io = new HttpSessionIO(hub);
+                _sessionHub = hub;
                 _session = new Session(io, _terminalSetup, _configData);
                 _session.Start();
                 sessionId = _session.Id;
@@ -310,6 +321,7 @@ internal sealed class KestrelGameServer : IDisposable
             {
                 _session.Dispose();
                 _session = null;
+                _sessionHub = null;
                 removed = true;
             }
             else
@@ -406,6 +418,7 @@ internal sealed class KestrelGameServer : IDisposable
             {
                 _session.Dispose();
                 _session = null;
+                _sessionHub = null;
             }
 
             // 3. Preload.Clear —— 清空旧 ERB/CSV 文件缓存
@@ -427,7 +440,10 @@ internal sealed class KestrelGameServer : IDisposable
             //    异步阶段的文件 I/O 失败由 ConsoleStateManager 置 State=Error，前端经 snapshot 自然可见。
 
             // 7. 建新 Session——GameLoopAsync 内 GameLoopComposer.OpenScope(_configData) 注入新配置
-            var io = new HttpSessionIO(new OutputHub());
+            //    issue 03：KestrelGameServer 自持 OutputHub 引用，HttpSessionIO 只接 IOutputBroadcaster 抽象。
+            var hub = new OutputHub();
+            var io = new HttpSessionIO(hub);
+            _sessionHub = hub;
             var newSession = new Session(io, _terminalSetup, _configData);
             newSession.Start();
             _session = newSession;
@@ -512,7 +528,9 @@ internal sealed class KestrelGameServer : IDisposable
             session = _session;
             if (session is { HasEnded: false })
             {
-                hub = session.IO.Hub;
+                // issue 03：hub 引用源从 session.IO.Hub（已删）改为 KestrelGameServer 自持的 _sessionHub。
+                // _sessionHub 与 _session 在 _sessionLock 内同生命周期赋值/置空，此处持锁读取安全。
+                hub = _sessionHub;
                 reader = hub?.Subscribe();
             }
         }
@@ -627,6 +645,7 @@ internal sealed class KestrelGameServer : IDisposable
         {
             _session?.Dispose();
             _session = null;
+            _sessionHub = null;
         }
         finally
         {

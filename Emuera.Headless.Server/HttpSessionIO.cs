@@ -11,7 +11,7 @@ namespace MinorShift.Emuera.Server;
 /// </summary>
 internal sealed class HttpSessionIO : SessionIO
 {
-    private readonly OutputHub _hub;
+    private readonly IOutputBroadcaster _broadcaster;
     private readonly Channel<string> _input = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
     {
         SingleReader = true,
@@ -25,15 +25,15 @@ internal sealed class HttpSessionIO : SessionIO
     private volatile bool _closed;
 
     /// <summary>
-    /// 注入 <see cref="OutputHub"/> 旁路广播中枢：所有 <see cref="WriteLine"/> 的 turn
-    /// 既写入 HTTP 长轮询消费的 <c>_output</c> Channel，也经 hub 广播给 WS 等观察者。
+    /// 注入 <see cref="IOutputBroadcaster"/> 旁路广播：所有 <see cref="WriteLine"/> 的 turn
+    /// 既写入 HTTP 长轮询消费的 <c>_output</c> Channel，也经 broadcaster 广播给 WS 等观察者。
+    /// 接抽象而非 <see cref="OutputHub"/> 具体类型，使本类可在单测中注入 mock broadcaster
+    /// （<see cref="OutputHub"/> 是 <c>internal sealed</c> 无法继承做 mock）。
     /// </summary>
-    public HttpSessionIO(OutputHub hub)
+    public HttpSessionIO(IOutputBroadcaster broadcaster)
     {
-        _hub = hub ?? throw new ArgumentNullException(nameof(hub));
+        _broadcaster = broadcaster ?? throw new ArgumentNullException(nameof(broadcaster));
     }
-
-    internal OutputHub Hub => _hub;
 
     /// <summary>
     /// 异步读取一行输入。
@@ -57,15 +57,15 @@ internal sealed class HttpSessionIO : SessionIO
         if (_closed)
             return;
         _output.Writer.TryWrite(text);
-        // Hub 旁路：同一份 turn 字符串广播给所有 WS 等观察者，无需任何转换
+        // 旁路广播：同一份 turn 字符串广播给所有 WS 等观察者，无需任何转换
         // （turn 已是合法的 TurnRecord v2 JSON，与 GET /turn 响应体字节一致）。
-        _hub.Publish(text);
+        _broadcaster.Publish(text);
     }
 
     /// <summary>
     /// 关闭 IO。幂等：多次调用安全。
     /// 调用后 ReadLineAsync 返回 null，WriteLine 丢弃数据。
-    /// 同时通知 <see cref="OutputHub"/> 完成所有观察者 Channel，使 WS 连接收到关闭帧。
+    /// 同时通知 <see cref="IOutputBroadcaster"/> 完成所有观察者 Channel，使 WS 连接收到关闭帧。
     /// </summary>
     public override void Close()
     {
@@ -74,7 +74,7 @@ internal sealed class HttpSessionIO : SessionIO
         _closed = true;
         _input.Writer.TryComplete();
         _output.Writer.TryComplete();
-        _hub.Complete();
+        _broadcaster.Complete();
     }
 
     public override bool IsConnected => !_closed;
