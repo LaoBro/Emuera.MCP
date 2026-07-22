@@ -178,6 +178,15 @@ export const useGameStore = defineStore('game', () => {
   /** 最近一次 loadGame 错误——UI 展示结构化提示。null 表示无错误或已清除。 */
   const loadGameError = ref<LoadGameError | null>(null);
   /**
+   * issue 09 文件选择器：MAUI 模式下的错误状态——
+   * 文件选择器失败（C# `PickFolderAsync` 抛异常）或 hot-swap reload 失败（`EmueraRuntimeInitializer.Initialize`
+   * 或 `GamePaths.Validate` 抛异常）时由 `useAppInit` 消息处理器写入。null 表示无错误。
+   *
+   * 与 `loadGameError` 区别：`loadGameError` 是 HTTP 模式 `/load-game` 端点的结构化错误（含 code/httpStatus），
+   * `mauiError` 是 MAUI 模式原生路径的纯文本错误（无 HTTP 语义）。
+   */
+  const mauiError = ref<string | null>(null);
+  /**
    * 最近一次 GET /snapshot 拿到的原始快照（调试展示用）。
    *
    * 与 lastTurn/turnHistory 分离——snapshot 不是 WS 帧，不进入 turnHistory；
@@ -408,6 +417,8 @@ export const useGameStore = defineStore('game', () => {
     tinputDisplayTime.value = null;
     tinputTimeUpMessage.value = null;
     stopTinputTicker();
+    // issue 09：reset 时清空 mauiError——hot-swap reload 前清旧错误
+    mauiError.value = null;
   }
 
   /**
@@ -562,6 +573,27 @@ export const useGameStore = defineStore('game', () => {
   /** Issue 05：清空 loadGameError——用户关闭错误提示时调用。 */
   function clearLoadGameError(): void {
     loadGameError.value = null;
+  }
+
+  /**
+   * issue 09 文件选择器：设置游戏目录（MAUI 模式）——
+   * 用户通过原生 FolderPicker 选中目录后，`useAppInit` 消息处理器调此方法更新 `gameDir` + 持久化。
+   *
+   * 与 HTTP 模式 `loadGame` 的区别：MAUI 模式下 C# 侧直接 hot-swap reload（不经过 HTTP `/load-game`），
+   * Vue 端只需更新 `gameDir` ref + localStorage，不触发 fetch / WS 重连。
+   *
+   * @param dir 用户选中的游戏目录绝对路径。
+   */
+  function setGameDir(dir: string): void {
+    const trimmed = dir.trim();
+    if (!trimmed) return;
+    gameDir.value = trimmed;
+    writeGameDirToStorage(trimmed);
+  }
+
+  /** issue 09：清空 mauiError——用户关闭错误提示时调用。 */
+  function clearMauiError(): void {
+    mauiError.value = null;
   }
 
   /**
@@ -759,6 +791,10 @@ export const useGameStore = defineStore('game', () => {
     loadGameError,
     loadGame,
     clearLoadGameError,
+    // issue 09：MAUI 模式文件选择器状态
+    mauiError,
+    setGameDir,
+    clearMauiError,
     // T-025 D14：快速重开 + server 状态
     quickRestart,
     serverState,

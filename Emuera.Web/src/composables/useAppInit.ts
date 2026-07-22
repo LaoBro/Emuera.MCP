@@ -1,6 +1,12 @@
 import { useGameStore } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
-import { isMauiEnvironment, registerTurnHandler, sendReady } from '../lib/mauiBridge';
+import {
+  isMauiEnvironment,
+  registerTurnHandler,
+  registerMessageHandler,
+  sendReady,
+  loadGameFromPath,
+} from '../lib/mauiBridge';
 
 /**
  * T-025 D9 rev：App 挂载初始化逻辑——从 App.vue onMounted 提取以便单测。
@@ -13,12 +19,14 @@ import { isMauiEnvironment, registerTurnHandler, sendReady } from '../lib/mauiBr
  *    选择器预填靠 game.gameDir（已从 localStorage 初始化），此处只需 return 不 connect。
  * 4. 有活跃 session（游戏运行中/已结束）→ conn.connect() 重连，不放弃当前局
  *
- * MAUI 模式分支（issue 07 / spec ID7）：
- * - `window.location.protocol` 判断为 MAUI（`ms-appx-web:` / `file:`）时：
+ * MAUI 模式分支（issue 07 / spec ID7 + issue 09 文件选择器）：
+ * - `window.location.protocol` 判断为 MAUI（`ms-appx-web:` / `file:` / `https:app.local`）时：
  *   1. 注册 `window.__emueraOnTurn`——C# PostTurn 调此函数，参数为 turn 对象，JSON.stringify 后调 game.applyTurn
- *   2. 标记 conn.status='connected'——让 sendInput / UI 组件认为已连接（MAUI 无 WS 但语义等价）
- *   3. sendReady()——向 C# 投递 `{"type":"ready"}`，C# 侧 BridgeHost.OnInputFromJs 识别后（T08）启动游戏循环
- *   4. return——不走 HTTP/WS 路径
+ *   2. 注册 `window.__emueraOnMessage`——C# PostMessage 调此函数，按 type 分发非 turn 事件
+ *      （issue 09：`folderPicked` → 调 `loadGameFromPath(path)` 触发 hot-swap reload）
+ *   3. 标记 conn.status='connected'——让 sendInput / UI 组件认为已连接（MAUI 无 WS 但语义等价）
+ *   4. sendReady()——向 C# 投递 `{"type":"ready"}`，C# 侧 BridgeHost.OnInputFromJs 识别后（T08）启动游戏循环
+ *   5. return——不走 HTTP/WS 路径
  *
  * 提取原因：onMounted 回调无法直接单测，提取为纯函数后可在 Vitest 中 mock fetch +
  * connection store 验证空闲态/活跃态/未启动/MAUI 四条分支。
@@ -33,11 +41,14 @@ export async function initAppState(): Promise<void> {
     // 1. 注册 C# → JS turn 回调——C# PostTurn 调 window.__emueraOnTurn(turnJson)，
     //    turnJson 是 JS 字面量（JSON ⊂ JS），Vue 端 JSON.stringify 还原为字符串后复用 game.applyTurn
     registerTurnHandler((rawJson) => game.applyTurn(rawJson));
-    // 2. 标记已连接——MAUI 无 WS 但 sendInput / UI 组件按 status='connected' 判定可用
+    // 2. issue 09：注册 C# → JS 非 turn 消息回调——C# PostMessage 调 window.__emueraOnMessage(msg)，
+    //    按 type 分发：folderPicked → loadGameFromPath 触发 hot-swap reload
+    registerMessageHandler((msg) => handleMauiMessage(msg, game));
+    // 3. 标记已连接——MAUI 无 WS 但 sendInput / UI 组件按 status='connected' 判定可用
     conn.status = 'connected';
-    // 3. 发送 ready 信号——C# 侧收到后 T08 启动游戏循环，T07 仅写日志确认
+    // 4. 发送 ready 信号——C# 侧收到后 T08 启动游戏循环，T07 仅写日志确认
     sendReady();
-    // 4. 不走 HTTP/WS 路径
+    // 5. 不走 HTTP/WS 路径
     return;
   }
   // 防御性 window 检查——与 isMauiEnvironment() 同模式，让 node 测试环境（vitest environment='node'）下
@@ -60,4 +71,53 @@ export async function initAppState(): Promise<void> {
 
   // 有活跃 session → 重连
   await conn.connect();
+}
+
+/**
+ * issue 09 文件选择器：处理 C# `PostMessage` 推来的非 turn 消息——
+ * `registerMessageHandler` 注册的回调，按 `type` 字段分发。
+ *
+ * 消息契约（C# `BridgeHost.HandlePickFolder` 推送）：
+ * - `{"type":"folderPicked","path":"..."}`——用户选中目录，调 `loadGameFromPath(path)` 触发 hot-swap reload
+ * - `{"type":"folderPicked","error":"..."}`——文件选择器失败，写 `mauiError` 让 UI 展示
+ *
+ * 收到 `folderPicked` 带 path 时的处理：
+ * 1. `game.setGameDir(path)`——更新 gameDir ref + 持久化到 localStorage
+ * 2. `game.reset()`——清空旧游戏显示状态（displayState / turnHistory / TINPUT timer）
+ * 3. `loadGameFromPath(path)`——投递 `{"type":"loadGame","path":...}` 让 C# hot-swap reload
+ *
+ * C# 侧 reload 失败时（`GamePaths.Validate` 抛 `GamePathValidationException` 或
+ * `EmueraRuntimeInitializer.Initialize` 抛异常）由 `MainPage.OnReloadGame` 调
+ * `_host.ShowError(...)` 推 error turn——Vue 端 `applyTurn` 渲染 error 字段，无需此处处理。
+ *
+ * @param msg C# 推来的消息对象（已解析的 JS 对象）
+ * @param game game store 实例
+ */
+function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>): void {
+  if (!msg || typeof msg !== 'object') return;
+  const m = msg as Record<string, unknown>;
+  const type = m.type;
+  if (type !== 'folderPicked') {
+    console.warn('[useAppInit] handleMauiMessage: unknown message type:', type);
+    return;
+  }
+  // folderPicked 带 error → 文件选择器失败
+  if (typeof m.error === 'string') {
+    console.error('[useAppInit] folderPicked error:', m.error);
+    game.mauiError = `选择目录失败：${m.error}`;
+    return;
+  }
+  // folderPicked 带 path → 触发 hot-swap reload
+  const path = m.path;
+  if (typeof path !== 'string' || !path.trim()) {
+    console.warn('[useAppInit] folderPicked: missing or non-string path');
+    return;
+  }
+  console.log('[useAppInit] folderPicked, triggering reload:', path);
+  // 1. 更新 gameDir + 持久化
+  game.setGameDir(path);
+  // 2. 清空旧游戏显示状态——新游戏首帧到达前不残留旧画面
+  game.reset();
+  // 3. 通知 C# hot-swap reload——后台重新初始化运行时 + 重建 BridgeHost + Start
+  loadGameFromPath(path);
 }

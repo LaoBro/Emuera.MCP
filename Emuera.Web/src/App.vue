@@ -7,6 +7,7 @@ import { isMauiEnvironment } from './lib/mauiBridge';
 import ConnectionPanel from './components/ConnectionPanel.vue';
 import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
+import MauiGamePicker from './components/MauiGamePicker.vue';
 import DebugView from './views/DebugView.vue';
 import TerminalView from './views/TerminalView.vue';
 
@@ -48,6 +49,8 @@ async function onQuickRestart(): Promise<void> {
       <!-- Issue 05：游戏选择器，按平台条件渲染（MAUI 模式下隐藏——spec ID11） -->
       <GamePickerMobile v-if="!isMaui && ui.platform === 'android'" />
       <GamePicker v-else-if="!isMaui" />
+      <!-- issue 09：MAUI 模式下用原生文件夹选择器替代文本输入 + 加载按钮 -->
+      <MauiGamePicker v-if="isMaui" />
       <!-- T-025 D14：快速重开按钮——游戏运行/结束时显示，一键重载同目录（MAUI 模式下隐藏） -->
       <button
         v-if="canQuickRestart"

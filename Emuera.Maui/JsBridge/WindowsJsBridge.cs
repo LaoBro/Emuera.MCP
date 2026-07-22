@@ -6,6 +6,7 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
+using WinRT.Interop;
 
 namespace Emuera.Maui.JsBridge;
 
@@ -19,9 +20,16 @@ namespace Emuera.Maui.JsBridge;
 /// 协议不可用，改用 <c>https://app.local/</c> 映射到 wwwroot 文件夹），订阅 <see cref="CoreWebView2.WebMessageReceived"/>。
 /// </para>
 /// <para>
-/// <see cref="PostTurn"/>：调 <see cref="CoreWebView2.ExecuteScriptAsync"/> 执行
-/// <c>window.__emueraOnTurn(turnJson)</c>——turnJson 作为 JS 字面量直接嵌入（JSON ⊂ JS 字面量）。
+/// <see cref="PostTurn"/> / <see cref="PostMessage"/>：调 <see cref="CoreWebView2.ExecuteScriptAsync"/> 执行
+/// <c>window.__emueraOnTurn(turnJson)</c> / <c>window.__emueraOnMessage(msgJson)</c>——
+/// JSON 作为 JS 字面量直接嵌入（JSON ⊂ JS 字面量）。
 /// 异步 fire-and-forget，异常捕获写日志（不阻塞游戏循环线程）。
+/// </para>
+/// <para>
+/// <see cref="PickFolderAsync"/>：调 WinRT <c>Windows.Storage.Pickers.FolderPicker</c>——
+/// .NET 10 MAUI 的 <c>Microsoft.Maui.Storage</c> 没有 <c>FolderPicker</c> 类型，故直接用 WinRT API。
+/// unpackaged 模式必须调 <c>InitializeWithWindow.Initialize(picker, hwnd)</c> 关联窗口句柄，
+/// HWND 从 <c>Application.Current.Windows[0]</c> 的 WinUI 平台视图取。
 /// </para>
 /// <para>
 /// Vue 端（Windows）： <c>window.chrome.webview.postMessage(json)</c> → 触发 <see cref="CoreWebView2.WebMessageReceived"/>。
@@ -107,6 +115,68 @@ internal sealed class WindowsJsBridge : IJsBridge
 		{
 			// 不向游戏循环抛——PostTurn 失败不该 crash 整个游戏。Vue 端会因未收到 turn 而超时。
 			System.Diagnostics.Debug.WriteLine($"WindowsJsBridge.PostTurn failed: {ex.Message}");
+		}
+	}
+
+	/// <inheritdoc />
+	public async void PostMessage(string messageJson)
+	{
+		if (_core is null)
+			return;
+		var script = JsBridgeHelper.FormatPostMessageScript(messageJson);
+		try
+		{
+			// 与 PostTurn 同样——ExecuteScriptAsync 在 UI 线程执行，调用方已 Dispatcher.Dispatch。
+			// __emueraOnMessage 在 Vue 端由 registerMessageHandler 注册，未注册时返 undefined，无副作用。
+			await _core.ExecuteScriptAsync(script);
+		}
+		catch (Exception ex)
+		{
+			// 不向调用方抛——PostMessage 失败仅写日志，让游戏循环继续运行。
+			Console.WriteLine($"WindowsJsBridge.PostMessage failed: {ex.Message}");
+		}
+	}
+
+	/// <inheritdoc />
+	public async Task<string?> PickFolderAsync()
+	{
+		try
+		{
+			// .NET 10 MAUI (10.0.20) 的 Microsoft.Maui.Storage 命名空间没有 FolderPicker 类型
+			// （FilePicker 存在但 FolderPicker 不存在）——直接用 WinRT Windows.Storage.Pickers.FolderPicker。
+			//
+			// unpackaged 模式下必须调 InitializeWithWindow.Initialize(picker, hwnd) 关联窗口句柄，
+			// 否则 PickSingleFolderAsync 抛 "Invalid window handle" 异常。
+			// HWND 从 MAUI Application.Current.Windows[0] 的 WinUI 平台视图取。
+
+			var mauiWindow = Application.Current?.Windows?.FirstOrDefault();
+			if (mauiWindow?.Handler?.PlatformView is not Microsoft.UI.Xaml.Window winUiWindow)
+			{
+				Console.WriteLine("WindowsJsBridge.PickFolderAsync: no MAUI Window or WinUI PlatformView");
+				return null;
+			}
+			var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(winUiWindow);
+
+			var picker = new Windows.Storage.Pickers.FolderPicker();
+			// FileTypeFilter 必须非空——FolderPicker 要求至少一个扩展名，用 "*" 匹配所有。
+			picker.FileTypeFilter.Add("*");
+
+			// unpackaged 模式必须调此方法关联窗口，否则 WinRT picker 无法显示。
+			WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+			var folder = await picker.PickSingleFolderAsync();
+			if (folder is null)
+			{
+				// 用户取消
+				return null;
+			}
+			Console.WriteLine($"WindowsJsBridge.PickFolderAsync: picked {folder.Path}");
+			return folder.Path;
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"WindowsJsBridge.PickFolderAsync failed: {ex}");
+			return null;
 		}
 	}
 

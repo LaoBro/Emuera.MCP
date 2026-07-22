@@ -12,7 +12,7 @@ using MinorShift.Emuera.Terminal.Platform;
 namespace Emuera.Maui;
 
 /// <summary>
-/// MAUI 桥接编排器——issue 07 / 08 / spec ID8 / ID9 / ID10。
+/// MAUI 桥接编排器——issue 07 / 08 / 09 / spec ID8 / ID9 / ID10。
 /// <para>
 /// 持有 <see cref="MauiBridgeIO"/> + <see cref="IJsBridge"/>，在游戏循环线程与 UI 线程之间转发 turn / input。
 /// 构造时创建 <see cref="MauiBridgeIO"/>（<c>_onTurn</c> 回调内 <c>Dispatcher.Dispatch</c> 切 UI 线程投递给 WebView），
@@ -28,9 +28,19 @@ namespace Emuera.Maui;
 /// <see cref="ShowFatalError"/> 推 error turn 给 Vue（Vue 渲染 error 字段），fallback 用 <c>DisplayAlert</c>。
 /// 单 step 脚本异常（ERB THROW / 除零等）由 <c>AgentJsonlProtocol.StepAsync</c> 内 catch 处理，不传播到 <see cref="ShowFatalError"/>。
 /// </para>
+/// <para>
+/// <b>文件选择器（issue 09）</b>：Vue 端 <c>pickGameFolder()</c> 投递 <c>{"type":"pickFolder"}</c> →
+/// <see cref="HandlePickFolder"/> 调 <see cref="IJsBridge.PickFolderAsync"/> 弹原生选择器 →
+/// 经 <see cref="IJsBridge.PostMessage"/> 推 <c>{"type":"folderPicked","path":...}</c> 回 Vue →
+/// Vue 端 <c>loadGameFromPath(path)</c> 投递 <c>{"type":"loadGame","path":...}</c> →
+/// <see cref="HandleLoadGame"/> 调 <c>_onReloadGame(path)</c> 让 <c>MainPage</c> 重建 BridgeHost。
+/// </para>
 /// <remarks>
-/// 生命周期：在 <c>MainPage</c> 构造时 new（不启动游戏循环），在 <c>MainPage.OnDisappearing</c> 时 <see cref="Dispose"/>。
-/// <see cref="ConfigData"/> / <see cref="ITerminalSetup"/> 单例由 <c>MauiProgram</c> DI 注入，<c>MainPage</c> 重建时不重新初始化运行时。
+/// 生命周期：在 <c>MainPage</c> 构造时 new（不启动游戏循环），在 <c>MainPage.OnDisappearing</c> 或
+/// <c>MainPage.RecreateHost</c>（issue 09 hot-swap reload）时 <see cref="Dispose"/>。
+/// <see cref="ConfigData"/> / <see cref="ITerminalSetup"/> 单例由 <c>MauiProgram</c> DI 注入，
+/// <c>MainPage</c> 重建时不重新初始化运行时；issue 09 hot-swap 时 <c>MainPage</c> 重新调
+/// <c>EmueraRuntimeInitializer.Initialize</c> 替换字段后重建 BridgeHost。
 /// </remarks>
 internal sealed class BridgeHost : IDisposable
 {
@@ -39,6 +49,7 @@ internal sealed class BridgeHost : IDisposable
     private readonly ITerminalSetup _terminalSetup;
     private readonly IJsBridge _jsBridge;
     private readonly MauiBridgeIO _bridgeIO;
+    private readonly Action<string>? _onReloadGame;
     private readonly CancellationTokenSource _cts = new();
     private Task? _gameTask;
     private bool _disposed;
@@ -58,17 +69,29 @@ internal sealed class BridgeHost : IDisposable
     /// 在 <c>Emuera.Headless.Core</c> 内为 <c>internal</c>，C# 规则要求方法可访问性不得高于参数类型
     /// （与 <see cref="MainPage"/> ctor 一致）。
     /// </para>
+    /// <para>
+    /// <b>issue 09 reload 回调</b>：<paramref name="onReloadGame"/> 由 <see cref="MainPage"/> 提供——
+    /// <see cref="HandleLoadGame"/> 收到 <c>{"type":"loadGame","path":...}</c> 时调此回调，
+    /// 让 MainPage 重新初始化运行时 + 重建 BridgeHost（hot-swap reload）。
+    /// </para>
     /// </summary>
     /// <param name="dispatcher">MAUI <see cref="IDispatcher"/>——用于把游戏循环线程的 turn 回调切到 UI 线程调 <see cref="IJsBridge.PostTurn"/>。</param>
     /// <param name="configData">已加载的 <see cref="ConfigData"/> 单例（<c>MauiProgram</c> 初始化时加载）。</param>
     /// <param name="terminalSetup">已启用 ANSI 的 <see cref="ITerminalSetup"/> 单例。</param>
     /// <param name="jsBridge">平台 <see cref="IJsBridge"/> 实现（Windows / Android）。</param>
-    internal BridgeHost(IDispatcher dispatcher, ConfigData configData, ITerminalSetup terminalSetup, IJsBridge jsBridge)
+    /// <param name="onReloadGame">issue 09 hot-swap reload 回调——传游戏目录绝对路径让 MainPage 重建 BridgeHost。</param>
+    internal BridgeHost(
+        IDispatcher dispatcher,
+        ConfigData configData,
+        ITerminalSetup terminalSetup,
+        IJsBridge jsBridge,
+        Action<string>? onReloadGame = null)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _configData = configData ?? throw new ArgumentNullException(nameof(configData));
         _terminalSetup = terminalSetup ?? throw new ArgumentNullException(nameof(terminalSetup));
         _jsBridge = jsBridge ?? throw new ArgumentNullException(nameof(jsBridge));
+        _onReloadGame = onReloadGame;
 
         // MauiBridgeIO 的 _onTurn 回调在游戏循环线程执行——Dispatcher.Dispatch 切 UI 线程投递给 WebView。
         _bridgeIO = new MauiBridgeIO(OnTurnFromGame);
@@ -91,9 +114,11 @@ internal sealed class BridgeHost : IDisposable
     /// <summary>
     /// JS → C# 消息处理——<see cref="IJsBridge.InputReceived"/> 触发。
     /// <para>
-    /// 识别两类消息：
+    /// 识别四类消息：
     /// <list type="bullet">
     ///   <item><c>{"type":"ready"}</c>——首帧 ready 信号，调 <see cref="Start"/> 启动游戏循环（仅一次，幂等）</item>
+    ///   <item><c>{"type":"pickFolder"}</c>——issue 09 文件选择器，调 <see cref="HandlePickFolder"/> 弹原生选择器</item>
+    ///   <item><c>{"type":"loadGame","path":...}</c>——issue 09 hot-swap reload，调 <see cref="HandleLoadGame"/> 通知 MainPage 重建</item>
     ///   <item>其他（如 <c>{"type":"input","value":"..."}</c>）——原样入 <see cref="MauiBridgeIO.EnqueueInput"/>，
     ///       由 <c>AgentJsonlProtocol.RunLoopAsync</c> 反序列化消费</item>
     /// </list>
@@ -125,6 +150,16 @@ internal sealed class BridgeHost : IDisposable
                 if (type == "ready")
                 {
                     HandleReady();
+                    return;
+                }
+                if (type == "pickFolder")
+                {
+                    HandlePickFolder();
+                    return;
+                }
+                if (type == "loadGame")
+                {
+                    HandleLoadGame(doc.RootElement);
                     return;
                 }
                 // 其他 typed 消息（input 等）原样入队——AgentJsonlProtocol.RunLoopAsync 内
@@ -161,6 +196,90 @@ internal sealed class BridgeHost : IDisposable
     }
 
     /// <summary>
+    /// 弹出原生文件夹选择器（issue 09）——UI 线程调用，结果异步推回 Vue。
+    /// <para>
+    /// 调 <see cref="IJsBridge.PickFolderAsync"/>（MAUI <c>FolderPicker.PickAsync</c>）弹原生选择器，
+    /// 用户选中后经 <see cref="IJsBridge.PostMessage"/> 投递 <c>{"type":"folderPicked","path":...}</c> 回 Vue。
+    /// 用户取消（path 为 null）静默 no-op，不发 folderPicked 消息——Vue 端 picking 状态由点击立即重置。
+    /// </para>
+    /// <para>
+    /// <b>async void</b>：UI 事件回调常见模式——异常在 try/catch 内吞掉，不让 async void 异常逃逸到 SynchronizationContext。
+    /// </para>
+    /// </summary>
+    private async void HandlePickFolder()
+    {
+        Console.WriteLine("[bridge] HandlePickFolder: opening native folder picker");
+        AgentLog.Instance.Write("[bridge] HandlePickFolder: opening native folder picker");
+        try
+        {
+            var path = await _jsBridge.PickFolderAsync();
+            if (string.IsNullOrEmpty(path))
+            {
+                // 用户取消——不推 folderPicked，Vue 端 picking 状态由点击立即重置
+                Console.WriteLine("[bridge] HandlePickFolder: user cancelled or path empty");
+                return;
+            }
+            Console.WriteLine($"[bridge] HandlePickFolder: picked path={path}");
+            var msgJson = JsonSerializer.Serialize(new { type = "folderPicked", path });
+            _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[bridge] HandlePickFolder failed: {ex}");
+            AgentLog.Instance.Write($"[bridge] HandlePickFolder failed: {ex}");
+            // 推 error 事件给 Vue 让 UI 解除 picking 状态 + 显示错误
+            var errJson = JsonSerializer.Serialize(new { type = "folderPicked", error = ex.Message });
+            _dispatcher.Dispatch(() => _jsBridge.PostMessage(errJson));
+        }
+    }
+
+    /// <summary>
+    /// 处理 Vue 端 loadGame 消息（issue 09 hot-swap reload）——调 <c>_onReloadGame</c> 回调让 MainPage 重建。
+    /// <para>
+    /// Vue 端 <c>loadGameFromPath(path)</c> 投递 <c>{"type":"loadGame","path":...}</c>，
+    /// 此方法解析 path 字段后调 <see cref="Action{T}"/> 回调。
+    /// MainPage 收到回调后：后台线程跑 <c>EmueraRuntimeInitializer.Initialize</c> → UI 线程 Dispose 旧 BridgeHost +
+    /// new 新 BridgeHost + <see cref="Start"/>（Vue 已 ready，无需再等 ready 信号）。
+    /// </para>
+    /// <para>
+    /// <b>无回调时静默 no-op</b>：旧 BridgeHost（issue 08 版本）构造未传 <c>_onReloadGame</c>，
+    /// 收到 loadGame 消息仅写日志，不抛错——保证向后兼容。
+    /// </para>
+    /// </summary>
+    private void HandleLoadGame(JsonElement root)
+    {
+        if (!root.TryGetProperty("path", out var pathEl) || pathEl.ValueKind != JsonValueKind.String)
+        {
+            Console.WriteLine("[bridge] HandleLoadGame: missing or non-string 'path' field");
+            AgentLog.Instance.Write("[bridge] HandleLoadGame: missing or non-string 'path' field");
+            return;
+        }
+        var path = pathEl.GetString();
+        if (string.IsNullOrEmpty(path))
+        {
+            Console.WriteLine("[bridge] HandleLoadGame: empty path");
+            return;
+        }
+        Console.WriteLine($"[bridge] HandleLoadGame: path={path}");
+        AgentLog.Instance.Write($"[bridge] HandleLoadGame: path={path}");
+        if (_onReloadGame is null)
+        {
+            Console.WriteLine("[bridge] HandleLoadGame: no _onReloadGame callback (old BridgeHost without issue 09 support)");
+            return;
+        }
+        try
+        {
+            _onReloadGame.Invoke(path);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[bridge] HandleLoadGame: _onReloadGame threw: {ex}");
+            AgentLog.Instance.Write($"[bridge] HandleLoadGame: _onReloadGame threw: {ex}");
+            ShowError("重新加载游戏失败: " + ex.Message);
+        }
+    }
+
+    /// <summary>
     /// 启动游戏循环——<see cref="Task.Run"/> 后台执行 <see cref="GameLoopComposer.RunAsync"/>。
     /// <para>
     /// 仅首次调用启动游戏循环；重复调用（多次 ready 信号等）幂等忽略。
@@ -170,12 +289,17 @@ internal sealed class BridgeHost : IDisposable
     /// 异常处理在 <see cref="GameLoopAsync"/> 内：<see cref="GameExitException"/> 静默（ERB QUIT 正常退出），
     /// 其他异常调 <see cref="ShowFatalError"/> 推 error turn 给 Vue。
     /// </para>
+    /// <para>
+    /// <b>issue 09 hot-swap reload</b>：MainPage 重建 BridgeHost 后直接调 <see cref="Start"/>——
+    /// Vue 已 ready（首次 ready 信号早已收到），无需再等 ready 信号。
+    /// </para>
     /// </summary>
     internal void Start()
     {
         if (_started)
             return;
         _started = true;
+        _readyReceived = true; // 标记 ready 已收到——避免后续 ready 信号重复触发 Start
         Console.WriteLine("[bridge] Starting game loop");
         AgentLog.Instance.Write("[bridge] starting game loop");
         _gameTask = Task.Run(GameLoopAsync);
@@ -259,6 +383,19 @@ internal sealed class BridgeHost : IDisposable
     /// </summary>
     private void ShowFatalError(Exception ex)
     {
+        ShowError(ex.Message);
+    }
+
+    /// <summary>
+    /// 推 error turn 给 Vue（issue 09 公开版本——可被外部 reload 路径调用）。
+    /// <para>
+    /// 与 <see cref="ShowFatalError"/> 共用渲染链路——构造 <c>TurnRecord(state:"Error", error: message)</c> JSON
+    /// 调 <see cref="IJsBridge.PostTurn"/> 推给 Vue。失败 fallback <c>DisplayAlert</c>。
+    /// </para>
+    /// </summary>
+    /// <param name="message">错误消息字符串（Vue error turn 的 error 字段）。</param>
+    internal void ShowError(string message)
+    {
         try
         {
             var errorTurn = JsonSerializer.Serialize(new TurnRecord(
@@ -266,7 +403,7 @@ internal sealed class BridgeHost : IDisposable
                 inputType: null,
                 needValue: false,
                 diff: null,
-                error: ex.Message
+                error: message
             ), AgentJsonlProtocol.TurnJsonOptions);
             // _jsBridge.PostTurn 内部 fire-and-forget（async void），异常被自身 catch 不抛——
             // 但 try/catch 兜底防御：PostTurn 之外的序列化失败也走 DisplayAlert fallback。
@@ -286,7 +423,7 @@ internal sealed class BridgeHost : IDisposable
                     var mainPage = Application.Current?.MainPage;
                     if (mainPage != null)
                     {
-                        await mainPage.DisplayAlert("Fatal Error", ex.Message, "OK");
+                        await mainPage.DisplayAlert("Error", message, "OK");
                     }
                 });
             }
@@ -318,6 +455,7 @@ internal sealed class BridgeHost : IDisposable
     /// </para>
     /// <para>
     /// 幂等：多次调用安全（<c>_disposed</c> 守卫）。
+    /// issue 09 hot-swap reload 也调此方法 Dispose 旧 BridgeHost——主线程调用，不阻塞。
     /// </para>
     /// </summary>
     public void Dispose()

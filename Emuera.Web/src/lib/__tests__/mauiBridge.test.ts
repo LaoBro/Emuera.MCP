@@ -3,17 +3,23 @@ import {
   isMauiEnvironment,
   postInput,
   registerTurnHandler,
+  registerMessageHandler,
   sendReady,
+  pickGameFolder,
+  loadGameFromPath,
 } from '../mauiBridge';
 
 /**
- * mauiBridge 单测——issue 07 / spec ID7。
+ * mauiBridge 单测——issue 07 / spec ID7 + issue 09 文件选择器。
  *
  * 覆盖：
  * - isMauiEnvironment：协议检测（ms-appx-web: / file: / http: / https: / SSR）
  * - postInput：feature detection（chrome.webview / emueraBridge / 两者都不存在）
  * - registerTurnHandler：window.__emueraOnTurn 注册 + 调用契约
+ * - registerMessageHandler：window.__emueraOnMessage 注册 + 调用契约（issue 09）
  * - sendReady：发送 {"type":"ready"} 消息
+ * - pickGameFolder：发送 {"type":"pickFolder"} 消息（issue 09）
+ * - loadGameFromPath：发送 {"type":"loadGame","path":...} 消息（issue 09）
  *
  * 测试环境：Vitest node 环境（无 window），用 vi.stubGlobal 模拟 window。
  * mauiBridge.ts 内部用 `typeof window === 'undefined'` 防 SSR——stub 前调 isMauiEnvironment 应返 false。
@@ -26,6 +32,7 @@ function makeMockWindow(protocol: string = 'http:', hostname: string = 'localhos
     chrome: undefined,
     emueraBridge: undefined,
     __emueraOnTurn: undefined,
+    __emueraOnMessage: undefined,
   };
 }
 
@@ -198,6 +205,112 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
 
     it('无桥接对象时静默 no-op（不抛错）', () => {
       expect(() => sendReady()).not.toThrow();
+    });
+  });
+
+  // ===== registerMessageHandler (issue 09) =====
+
+  describe('registerMessageHandler', () => {
+    it('注册 window.__emueraOnMessage 函数', () => {
+      registerMessageHandler(() => {});
+
+      expect(typeof mockWindow.__emueraOnMessage).toBe('function');
+    });
+
+    it('C# 传消息对象 → handler 收到原对象（非 turn 通道不 JSON.stringify）', () => {
+      const handler = vi.fn();
+      registerMessageHandler(handler);
+
+      const msg = { type: 'folderPicked', path: 'D:\\games\\mygame' };
+      mockWindow.__emueraOnMessage(msg);
+
+      expect(handler).toHaveBeenCalledOnce();
+      expect(handler).toHaveBeenCalledWith(msg);
+    });
+
+    it('覆盖前次注册（多次调用幂等）', () => {
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+      registerMessageHandler(handler1);
+      registerMessageHandler(handler2);
+
+      mockWindow.__emueraOnMessage({ type: 'folderPicked', path: '/x' });
+
+      expect(handler1).not.toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalledOnce();
+    });
+
+    it('与 registerTurnHandler 互不干扰——__emueraOnTurn / __emueraOnMessage 独立', () => {
+      const turnHandler = vi.fn();
+      const msgHandler = vi.fn();
+      registerTurnHandler(turnHandler);
+      registerMessageHandler(msgHandler);
+
+      mockWindow.__emueraOnTurn({ state: 'WaitInput' });
+      mockWindow.__emueraOnMessage({ type: 'folderPicked', path: '/y' });
+
+      expect(turnHandler).toHaveBeenCalledOnce();
+      expect(msgHandler).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ===== pickGameFolder (issue 09) =====
+
+  describe('pickGameFolder', () => {
+    it('调 postInput 投递 {"type":"pickFolder"} 消息（Windows chrome.webview）', () => {
+      const postMessage = vi.fn();
+      mockWindow.chrome = { webview: { postMessage } };
+
+      pickGameFolder();
+
+      expect(postMessage).toHaveBeenCalledOnce();
+      const sent = postMessage.mock.calls[0][0];
+      expect(JSON.parse(sent)).toEqual({ type: 'pickFolder' });
+    });
+
+    it('调 postInput 投递 {"type":"pickFolder"} 消息（Android emueraBridge）', () => {
+      const postMessage = vi.fn();
+      mockWindow.emueraBridge = { postMessage };
+
+      pickGameFolder();
+
+      expect(postMessage).toHaveBeenCalledOnce();
+      const sent = postMessage.mock.calls[0][0];
+      expect(JSON.parse(sent)).toEqual({ type: 'pickFolder' });
+    });
+
+    it('无桥接对象时静默 no-op（不抛错）', () => {
+      expect(() => pickGameFolder()).not.toThrow();
+    });
+  });
+
+  // ===== loadGameFromPath (issue 09) =====
+
+  describe('loadGameFromPath', () => {
+    it('调 postInput 投递 {"type":"loadGame","path":...} 消息（Windows chrome.webview）', () => {
+      const postMessage = vi.fn();
+      mockWindow.chrome = { webview: { postMessage } };
+
+      loadGameFromPath('D:\\games\\mygame');
+
+      expect(postMessage).toHaveBeenCalledOnce();
+      const sent = postMessage.mock.calls[0][0];
+      expect(JSON.parse(sent)).toEqual({ type: 'loadGame', path: 'D:\\games\\mygame' });
+    });
+
+    it('调 postInput 投递 {"type":"loadGame","path":...} 消息（Android emueraBridge）', () => {
+      const postMessage = vi.fn();
+      mockWindow.emueraBridge = { postMessage };
+
+      loadGameFromPath('/sdcard/games/mygame');
+
+      expect(postMessage).toHaveBeenCalledOnce();
+      const sent = postMessage.mock.calls[0][0];
+      expect(JSON.parse(sent)).toEqual({ type: 'loadGame', path: '/sdcard/games/mygame' });
+    });
+
+    it('无桥接对象时静默 no-op（不抛错）', () => {
+      expect(() => loadGameFromPath('/any/path')).not.toThrow();
     });
   });
 });

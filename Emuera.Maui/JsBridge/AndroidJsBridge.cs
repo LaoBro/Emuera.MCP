@@ -76,6 +76,38 @@ internal sealed class AndroidJsBridge : IJsBridge
 		}
 	}
 
+	/// <inheritdoc />
+	public void PostMessage(string messageJson)
+	{
+		if (_androidWebView is null)
+			return;
+		var script = JsBridgeHelper.FormatPostMessageScript(messageJson);
+		try
+		{
+			// 与 PostTurn 同样——EvaluateJavaScript 在 UI 线程异步执行。
+			// __emueraOnMessage 在 Vue 端由 registerMessageHandler 注册，未注册时返 undefined，无副作用。
+			_androidWebView.EvaluateJavaScript(script, null);
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"AndroidJsBridge.PostMessage failed: {ex.Message}");
+		}
+	}
+
+	/// <inheritdoc />
+	public Task<string?> PickFolderAsync()
+	{
+		// .NET 10 MAUI (10.0.20) 的 Microsoft.Maui.Storage 没有 FolderPicker 类型。
+		// Phase 1 仅 Windows 桌面支持完整文件选择器流程（WinRT Windows.Storage.Pickers.FolderPicker）。
+		// Android 走 Storage Access Framework（Intent.ACTION_OPEN_DOCUMENT_TREE）返回 content:// URI，
+		// ERB 文件读取需要直接文件路径——需后续 Phase 2 实现（copy 到 app data 或用 ContentResolver）。
+		//
+		// 当前返回 null——BridgeHost.HandlePickFolder 收到 null 后不推 folderPicked，
+		// Vue 端无响应（原生 picker 未打开）。Phase 2 实现 Android SAF 后替换此方法。
+		System.Diagnostics.Debug.WriteLine("AndroidJsBridge.PickFolderAsync: not yet implemented (Phase 2)");
+		return Task.FromResult<string?>(null);
+	}
+
 	/// <summary>
 	/// JS → C# 桥接对象——通过 <c>AddJavascriptInterface</c> 注册为 <c>window.emueraBridge</c>。
 	/// Vue 端调 <c>window.emueraBridge.postMessage(json)</c> 触发 <see cref="PostMessage"/>，

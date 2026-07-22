@@ -8,15 +8,20 @@ namespace Emuera.Maui.JsBridge;
 /// 屏蔽 Windows CoreWebView2 与 Android Webkit WebView 的平台差异，让 <c>BridgeHost</c> 不平台分叉。
 /// </summary>
 /// <remarks>
-/// 三个成员：
+/// 五个成员：
 /// <list type="bullet">
 ///   <item><see cref="PostTurn"/>：C# → JS，调 <c>window.__emueraOnTurn(turnJson)</c>。turnJson 是合法 JSON 字符串，
 ///       作为 JS 字面量传函数参数（无需再 JSON.stringify）。</item>
+///   <item><see cref="PostMessage"/>：C# → JS，调 <c>window.__emueraOnMessage(msgJson)</c>——
+///       非 turn 消息（如 <c>folderPicked</c> 事件）经此通道，与 turn 分流避免污染 applyTurn 协议消费链路。
+///       issue 09 文件选择器引入。</item>
 ///   <item><see cref="InputReceived"/>：JS → C#，Vue 端 <c>postMessage(json)</c> 触发，C# 侧 <c>MauiBridgeIO.EnqueueInput</c>。</item>
 ///   <item><see cref="Attach"/>：挂载到 MAUI <see cref="WebView"/>，订阅平台原生消息事件。
 ///       在 <c>WebView.HandlerChanged</c> 事件内调（拿平台原生视图的最早可靠时机）。
 ///       返回 <see cref="Task"/> 让调用方 await 平台初始化完成后再设 URL——
 ///       Windows <c>SetVirtualHostNameToFolderMapping</c> 必须在导航开始前完成（issue 07）。</item>
+///   <item><see cref="PickFolderAsync"/>：弹出原生文件夹选择器，返回所选路径（用户取消返 null）。
+///       issue 09 文件选择器——Vue 端 <c>pickGameFolder()</c> → C# <c>BridgeHost.HandlePickFolder</c> → 此方法。</item>
 /// </list>
 /// iOS / MacCatalyst 不在 Phase 1 范围（spec Out of Scope）。
 /// </remarks>
@@ -28,6 +33,21 @@ internal interface IJsBridge
 	/// </summary>
 	/// <param name="turnJson">合法 JSON 字符串（来自 <c>TurnRecord</c> 序列化）。作为 JS 字面量传入函数参数。</param>
 	void PostTurn(string turnJson);
+
+	/// <summary>
+	/// C# → JS：向 WebView 投递一个非 turn 消息（如 <c>{"type":"folderPicked","path":...}</c>）。
+	/// </summary>
+	/// <remarks>
+	/// issue 09 文件选择器引入——turn 与非 turn 消息分流：
+	/// <list type="bullet">
+	///   <item>turn（每帧渲染）：经 <see cref="PostTurn"/> → Vue <c>applyTurn</c> 协议消费链路</item>
+	///   <item>非 turn 事件（如 folderPicked）：经 <see cref="PostMessage"/> → Vue <c>registerMessageHandler</c> 分发</item>
+	/// </list>
+	/// 内部调 <c>EvaluateJavaScriptAsync($"window.__emueraOnMessage({msgJson})")</c>，
+	/// 与 <see cref="PostTurn"/> 同样把 JSON 作为 JS 字面量直接嵌入。
+	/// </remarks>
+	/// <param name="messageJson">合法 JSON 字符串。作为 JS 字面量传入函数参数。</param>
+	void PostMessage(string messageJson);
 
 	/// <summary>
 	/// JS → C#：Vue 端 <c>postMessage(json)</c> 触发。订阅者（<c>BridgeHost</c>）将消息入 <c>MauiBridgeIO</c>。
@@ -43,4 +63,27 @@ internal interface IJsBridge
 	/// 调用方应 await 此 Task 后再设 <c>WebView.Source</c>——
 	/// Windows 平台 <c>SetVirtualHostNameToFolderMapping</c> 必须在导航开始前完成。</returns>
 	Task Attach(WebView webView);
+
+	/// <summary>
+	/// 弹出原生文件夹选择器——issue 09 文件选择器。
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// 平台实现：
+	/// <list type="bullet">
+	///   <item>Windows：WinRT <c>Windows.Storage.Pickers.FolderPicker</c>——
+	///     .NET 10 MAUI (10.0.20) 的 <c>Microsoft.Maui.Storage</c> 没有 <c>FolderPicker</c> 类型
+	///     （<c>FilePicker</c> 存在但 <c>FolderPicker</c> 不存在），故直接用 WinRT API。
+	///     unpackaged 模式必须调 <c>InitializeWithWindow.Initialize(picker, hwnd)</c> 关联窗口句柄。</item>
+	///   <item>Android：Phase 2 实现——Storage Access Framework（<c>Intent.ACTION_OPEN_DOCUMENT_TREE</c>）
+	///     返回 <c>content://</c> URI，需 ContentResolver 转 file path。当前返回 null（未实现）。</item>
+	/// </list>
+	/// </para>
+	/// <para>
+	/// 必须在 UI 线程调用——WinRT picker 依赖窗口句柄，BridgeHost.HandlePickFolder 在 OnInputFromJs 内
+	/// （UI 线程）调此方法。
+	/// </para>
+	/// </remarks>
+	/// <returns>用户选中的目录绝对路径；用户取消或失败返回 <c>null</c>。</returns>
+	Task<string?> PickFolderAsync();
 }

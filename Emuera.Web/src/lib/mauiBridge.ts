@@ -16,6 +16,10 @@
  *    Android: `window.emueraBridge.postMessage(json)`（AddJavascriptInterface 注册的桥接对象）
  * 3. 启动后 `postMessage(JSON.stringify({type:'ready'}))`——
  *    C# 侧 `BridgeHost.OnInputFromJs` 收到后写日志（T07），T08 接入游戏循环后启动 `GameLoopComposer.RunAsync`。
+ * 4. issue 09 文件选择器：`pickGameFolder()` 请求 C# 弹原生 FolderPicker →
+ *    C# 经 `PostMessage` 推 `{"type":"folderPicked","path":...}` →
+ *    `registerMessageHandler` 注册的 handler 收到后调 `loadGameFromPath(path)` →
+ *    C# `HandleLoadGame` 触发 hot-swap reload（后台重新初始化运行时 + 重建 BridgeHost）。
  */
 
 /**
@@ -99,4 +103,52 @@ export function registerTurnHandler(handler: (turnJson: string) => void): void {
  */
 export function sendReady(): void {
   postInput(JSON.stringify({ type: 'ready' }));
+}
+
+/**
+ * issue 09 文件选择器——请求 C# 弹出原生文件夹选择器。
+ *
+ * Vue 端调用后，C# `BridgeHost.HandlePickFolder` 调 `IJsBridge.PickFolderAsync`
+ * （MAUI `FolderPicker.PickAsync`：Windows 用 Win32 dialog，Android 用 Storage Access Framework）。
+ * 用户选中后，C# 经 `PostMessage` 推 `{"type":"folderPicked","path":...}` 回 Vue，
+ * 由 `registerMessageHandler` 注册的 handler 接收。
+ *
+ * 用户取消时 C# 不推消息——Vue 端无需处理取消（原生 picker 模态结束后自然回到 UI）。
+ */
+export function pickGameFolder(): void {
+  postInput(JSON.stringify({ type: 'pickFolder' }));
+}
+
+/**
+ * issue 09 文件选择器——注册 C# → JS 的非 turn 消息回调。
+ *
+ * C# 侧 `IJsBridge.PostMessage(msgJson)` 执行 `window.__emueraOnMessage(msgJson)`，
+ * `msgJson` 作为 JS 字面量直接嵌入（JSON ⊂ JS 字面量）。
+ * Vue 端 handler 收到的是已解析的 JS 对象——按 `type` 字段分发：
+ * - `{"type":"folderPicked","path":...}`——文件选择器成功，调 `loadGameFromPath(path)` 触发 hot-swap reload
+ * - `{"type":"folderPicked","error":...}`——文件选择器失败，展示错误
+ *
+ * 与 `registerTurnHandler` 分流——turn 经 `__emueraOnTurn` 推 `applyTurn` 协议消费链路，
+ * 非 turn 事件经 `__emueraOnMessage` 推此 handler，避免污染 turn 协议。
+ *
+ * @param handler 收到消息对象时的回调。
+ */
+export function registerMessageHandler(handler: (msg: unknown) => void): void {
+  (window as any).__emueraOnMessage = (msg: unknown) => {
+    handler(msg);
+  };
+}
+
+/**
+ * issue 09 文件选择器——请求 C# hot-swap reload 到指定游戏目录。
+ *
+ * Vue 端在 `folderPicked` 收到 path 后调此方法，C# `BridgeHost.HandleLoadGame` 收到后
+ * 调 `_onReloadGame(path)` 回调，`MainPage.OnReloadGame` 在后台线程重新初始化运行时
+ * （`EmueraRuntimeInitializer.Initialize` + `GamePaths.Validate`），成功后 UI 线程
+ * `RecreateHost` + `Start`——Vue 已 ready，无需再等 ready 信号，新游戏循环首帧自然推来。
+ *
+ * @param path 用户选中的游戏目录绝对路径。
+ */
+export function loadGameFromPath(path: string): void {
+  postInput(JSON.stringify({ type: 'loadGame', path }));
 }
