@@ -33,7 +33,8 @@ internal static class GameLoopComposer
 
             console.SetAgentBridge(protocol);
 
-            Program.LoadFonts();
+            // issue 02：原 Program.LoadFonts() 调用已删除——HeadlessFontCollection.AddFontFile 是空实现 no-op，
+            // 删除零行为变化，同时切断 Core→Cli 非法引用（Program 瘦身后不再含 LoadFonts）。
             await console.Initialize();
             await runLoop(protocol);
         }

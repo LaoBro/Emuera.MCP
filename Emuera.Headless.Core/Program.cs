@@ -1,6 +1,4 @@
-using MinorShift.Emuera.Runtime.Utils;
 using System.Collections.Generic;
-using System.IO;
 
 namespace MinorShift.Emuera;
 
@@ -9,8 +7,10 @@ namespace MinorShift.Emuera;
 /// 50+ 处 Shared/ 源码调用 <c>Program.xxx</c> 转发到 <see cref="GamePaths.Current"/>——为保持零改动，
 /// 此类必须留在 Core 且名字不变（Phase 2 重命名为 <c>EmueraContext</c>）。
 /// <para>
-/// <c>Main</c> 已移到 <c>Emuera.Headless.Cli/HeadlessEntry.cs</c>（Cli 项目为 Exe 入口）。
-/// <c>LoadFonts</c> 暂留 Core——由 GameLoopComposer.RunAsync 调用（issue 02 将删除）。
+/// issue 02 已删除 <c>Main</c>（issue 01 移至 <c>Emuera.Headless.Cli/HeadlessEntry.cs</c>）+
+/// <c>[STAThread]</c>（随 Main 迁移）+ <c>LoadFonts</c> 方法（<see cref="HeadlessFontCollection.AddFontFile"/>
+/// 是空实现 no-op，GameLoopComposer.RunAsync 内的调用一并移除，零行为变化）。运行时初始化由
+/// <see cref="EmueraRuntimeInitializer.Initialize"/> 封装，Cli 与 MAUI 共用。
 /// </para>
 /// </summary>
 static class Program
@@ -25,7 +25,8 @@ static class Program
     public static string SoundDir => GamePaths.Current.SoundDir;
     public static string FontDir => GamePaths.Current.FontDir;
     /// <summary>
-    /// ExeName 的 setter 改 internal（原 private）——拆分后由 Cli 的 <c>HeadlessEntry.Main</c> 设置。
+    /// ExeName 的 setter 改 internal（原 private）——拆分后由 Cli 的 <c>HeadlessEntry.Main</c>
+    /// （经 <see cref="EmueraRuntimeInitializer.Initialize"/>）设置。
     /// </summary>
     public static string ExeName { get; internal set; } = "";
 
@@ -34,24 +35,6 @@ static class Program
     public static bool AnalysisMode;
     public static List<string> AnalysisFiles = new();
     public static bool DebugMode { get; private set; }
-
-    /// <summary>
-    /// 加载字体文件到当前 scope 的 GlobalStatic.Pfc。
-    /// 必须在 OpenScope() 之后调用（ADR-0008：Pfc 是实例成员，随 scope 生灭）。
-    /// <para>
-    /// issue 02 将删除此方法——<see cref="HeadlessFontCollection.AddFontFile"/> 是空实现 no-op，
-    /// 删除后 GameLoopComposer.RunAsync 内的调用一并移除，零行为变化。
-    /// </para>
-    /// </summary>
-    internal static void LoadFonts()
-    {
-        var fontDir = GamePaths.Current.FontDir;
-        if (!Directory.Exists(fontDir)) return;
-        foreach (string fontFile in Directory.GetFiles(fontDir, "*.ttf", SearchOption.AllDirectories))
-            GlobalStatic.Pfc.AddFontFile(fontFile);
-        foreach (string fontFile in Directory.GetFiles(fontDir, "*.otf", SearchOption.AllDirectories))
-            GlobalStatic.Pfc.AddFontFile(fontFile);
-    }
 
     // 注意：静态构造函数必须保留，但改为惰性兜底——
     //
