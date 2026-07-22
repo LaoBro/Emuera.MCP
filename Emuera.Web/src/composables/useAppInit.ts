@@ -29,6 +29,7 @@ export async function initAppState(): Promise<void> {
 
   // Issue 07 / spec ID7：MAUI 环境分支——不走 HTTP/WS，用 JS interop 桥接
   if (isMauiEnvironment()) {
+    console.log('[useAppInit] MAUI environment detected, initializing bridge');
     // 1. 注册 C# → JS turn 回调——C# PostTurn 调 window.__emueraOnTurn(turnJson)，
     //    turnJson 是 JS 字面量（JSON ⊂ JS），Vue 端 JSON.stringify 还原为字符串后复用 game.applyTurn
     registerTurnHandler((rawJson) => game.applyTurn(rawJson));
@@ -38,6 +39,11 @@ export async function initAppState(): Promise<void> {
     sendReady();
     // 4. 不走 HTTP/WS 路径
     return;
+  }
+  // 防御性 window 检查——与 isMauiEnvironment() 同模式，让 node 测试环境（vitest environment='node'）下
+  // 不抛 ReferenceError。生产浏览器环境 window 总存在，无行为变化。
+  if (typeof window !== 'undefined') {
+    console.log('[useAppInit] HTTP environment, protocol=', window.location.protocol, 'hostname=', window.location.hostname);
   }
 
   const httpBase = conn.deriveHttpBase(conn.serverUrl);

@@ -1,5 +1,7 @@
 using System;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using Emuera.Maui.JsBridge;
 using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
@@ -10,15 +12,21 @@ using MinorShift.Emuera.Terminal.Platform;
 namespace Emuera.Maui;
 
 /// <summary>
-/// MAUI 桥接编排器——issue 07 / spec ID8。
+/// MAUI 桥接编排器——issue 07 / 08 / spec ID8 / ID9 / ID10。
 /// <para>
 /// 持有 <see cref="MauiBridgeIO"/> + <see cref="IJsBridge"/>，在游戏循环线程与 UI 线程之间转发 turn / input。
 /// 构造时创建 <see cref="MauiBridgeIO"/>（<c>_onTurn</c> 回调内 <c>Dispatcher.Dispatch</c> 切 UI 线程投递给 WebView），
 /// 订阅 <see cref="IJsBridge.InputReceived"/> 接收 Vue 端 postMessage。
 /// </para>
 /// <para>
-/// <b>issue 07 范围</b>：仅识别 Vue <c>{"type":"ready"}</c> 信号并写日志。
-/// 游戏循环启动、input 消息入队、致命错误处理、Dispose fire-and-forget 均由 issue 08 完成。
+/// <b>启动时序（spec ID7）</b>：构造不启动游戏循环。Vue 启动后 <c>postMessage({"type":"ready"})</c>，
+/// <see cref="OnInputFromJs"/> 识别 ready 后调 <see cref="Start"/>，<see cref="Task.Run"/> 启动
+/// <see cref="GameLoopComposer.RunAsync"/>。Vue ready 是游戏循环启动的前置条件，第一帧 turn 自然推给已 ready 的 Vue。
+/// </para>
+/// <para>
+/// <b>致命错误处理（spec ID10）</b>：<see cref="GameLoopComposer.RunAsync"/> 抛非 <see cref="GameExitException"/> 异常时
+/// <see cref="ShowFatalError"/> 推 error turn 给 Vue（Vue 渲染 error 字段），fallback 用 <c>DisplayAlert</c>。
+/// 单 step 脚本异常（ERB THROW / 除零等）由 <c>AgentJsonlProtocol.StepAsync</c> 内 catch 处理，不传播到 <see cref="ShowFatalError"/>。
 /// </para>
 /// <remarks>
 /// 生命周期：在 <c>MainPage</c> 构造时 new（不启动游戏循环），在 <c>MainPage.OnDisappearing</c> 时 <see cref="Dispose"/>。
@@ -31,7 +39,10 @@ internal sealed class BridgeHost : IDisposable
     private readonly ITerminalSetup _terminalSetup;
     private readonly IJsBridge _jsBridge;
     private readonly MauiBridgeIO _bridgeIO;
+    private readonly CancellationTokenSource _cts = new();
+    private Task? _gameTask;
     private bool _disposed;
+    private bool _started;
     private bool _readyReceived;
 
     /// <summary>
@@ -60,7 +71,6 @@ internal sealed class BridgeHost : IDisposable
         _jsBridge = jsBridge ?? throw new ArgumentNullException(nameof(jsBridge));
 
         // MauiBridgeIO 的 _onTurn 回调在游戏循环线程执行——Dispatcher.Dispatch 切 UI 线程投递给 WebView。
-        // issue 08 接入游戏循环后此回调被触发；issue 07 仅注册不触发。
         _bridgeIO = new MauiBridgeIO(OnTurnFromGame);
         _jsBridge.InputReceived += OnInputFromJs;
     }
@@ -81,45 +91,233 @@ internal sealed class BridgeHost : IDisposable
     /// <summary>
     /// JS → C# 消息处理——<see cref="IJsBridge.InputReceived"/> 触发。
     /// <para>
-    /// <b>issue 07 范围</b>：仅识别 <c>{"type":"ready"}</c> 消息并写日志。
-    /// 其他消息（input / anyEvent）由 issue 08 接入游戏循环后处理（<c>_bridgeIO.EnqueueInput</c>）。
+    /// 识别两类消息：
+    /// <list type="bullet">
+    ///   <item><c>{"type":"ready"}</c>——首帧 ready 信号，调 <see cref="Start"/> 启动游戏循环（仅一次，幂等）</item>
+    ///   <item>其他（如 <c>{"type":"input","value":"..."}</c>）——原样入 <see cref="MauiBridgeIO.EnqueueInput"/>，
+    ///       由 <c>AgentJsonlProtocol.RunLoopAsync</c> 反序列化消费</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// 非 JSON 消息静默吞掉（仅写日志）——Vue 端 <c>postInput</c> 总发合法 JSON，
+    /// 到此分支说明桥接层异常，但不阻塞游戏循环。
     /// </para>
     /// </summary>
     private void OnInputFromJs(string message)
     {
+        // 三通道日志：Console（dotnet run 终端）+ AgentLog（持久化文件）+ Debug.WriteLine（VS 调试器）
+        Console.WriteLine($"[bridge] OnInputFromJs: {message}");
+        if (_disposed)
+        {
+            // Dispose 后到达的消息丢弃——游戏循环已取消 / IO 已关闭
+            AgentLog.Instance.Write($"[bridge] input after dispose dropped: {message}");
+            return;
+        }
+
         try
         {
             using var doc = JsonDocument.Parse(message);
             if (doc.RootElement.ValueKind == JsonValueKind.Object
                 && doc.RootElement.TryGetProperty("type", out var typeEl)
-                && typeEl.ValueKind == JsonValueKind.String
-                && typeEl.GetString() == "ready")
+                && typeEl.ValueKind == JsonValueKind.String)
             {
-                if (!_readyReceived)
+                var type = typeEl.GetString();
+                if (type == "ready")
                 {
-                    _readyReceived = true;
-                    // 双通道日志：AgentLog 持久化文件（issue 07 验收项"C# 日志确认收到 ready 信号"），
-                    // Debug.WriteLine 即时输出 Visual Studio 调试器 Output 窗口便于开发期调试。
-                    AgentLog.Instance.Write("[bridge] Vue ready signal received");
-                    System.Diagnostics.Debug.WriteLine("[bridge] Vue ready signal received");
-                    // issue 08：此处调 Start() 启动 GameLoopComposer.RunAsync（Task.Run）
+                    HandleReady();
+                    return;
                 }
-                return;
+                // 其他 typed 消息（input 等）原样入队——AgentJsonlProtocol.RunLoopAsync 内
+                // JsonSerializer.Deserialize<JsonlCommand> 校验 type=="input" 后取 value。
+                // 不在此处解 value 字段，避免与 protocol 层重复解析 / 不一致。
             }
         }
         catch (JsonException ex)
         {
-            AgentLog.Instance.Write($"[bridge] non-JSON input received (ignored in T07): {ex.Message}");
+            Console.WriteLine($"[bridge] non-JSON input received (ignored): {ex.Message}");
+            AgentLog.Instance.Write($"[bridge] non-JSON input received (ignored): {ex.Message}");
+            return;
         }
 
-        // issue 07：非 ready 消息暂不处理——issue 08 接入 _bridgeIO.EnqueueInput 后由游戏循环消费
-        AgentLog.Instance.Write($"[bridge] input received (deferred to T08): {message}");
+        // input / 其他 typed 消息：原样入队给 protocol 层消费
+        _bridgeIO.EnqueueInput(message);
     }
 
     /// <summary>
-    /// 释放桥接资源——issue 07 仅关闭 IO + 取消事件订阅。
+    /// 处理 Vue ready 信号——首帧时调 <see cref="Start"/>，重复 ready 幂等忽略。
+    /// </summary>
+    private void HandleReady()
+    {
+        if (_readyReceived)
+        {
+            Console.WriteLine("[bridge] duplicate ready signal ignored");
+            return;
+        }
+        _readyReceived = true;
+        Console.WriteLine("[bridge] Vue ready signal received");
+        AgentLog.Instance.Write("[bridge] Vue ready signal received");
+        System.Diagnostics.Debug.WriteLine("[bridge] Vue ready signal received");
+        Start();
+    }
+
+    /// <summary>
+    /// 启动游戏循环——<see cref="Task.Run"/> 后台执行 <see cref="GameLoopComposer.RunAsync"/>。
     /// <para>
-    /// issue 08 将扩展为 fire-and-forget 取消 CTS + 等待游戏循环 Task（spec ID9）。
+    /// 仅首次调用启动游戏循环；重复调用（多次 ready 信号等）幂等忽略。
+    /// <see cref="CancellationTokenSource"/> 控制取消——<see cref="Dispose"/> 调 <see cref="CancellationTokenSource.Cancel"/>。
+    /// </para>
+    /// <para>
+    /// 异常处理在 <see cref="GameLoopAsync"/> 内：<see cref="GameExitException"/> 静默（ERB QUIT 正常退出），
+    /// 其他异常调 <see cref="ShowFatalError"/> 推 error turn 给 Vue。
+    /// </para>
+    /// </summary>
+    internal void Start()
+    {
+        if (_started)
+            return;
+        _started = true;
+        Console.WriteLine("[bridge] Starting game loop");
+        AgentLog.Instance.Write("[bridge] starting game loop");
+        _gameTask = Task.Run(GameLoopAsync);
+    }
+
+    /// <summary>
+    /// 游戏循环主体——封装 <see cref="GameLoopComposer.RunAsync"/> 的异常边界。
+    /// <para>
+    /// <b>buildProtocol lambda（spec ID12）</b>：构造 <c>AgentJsonlProtocol</c> 时传 <c>DisplayState(console, defaultFontName)</c>，
+    /// <c>defaultFontName</c> 从 <c>ConfigData.GetConfigValue&lt;string&gt;(ConfigCode.FontName) ?? ""</c> 读
+    /// （与 <c>Session.cs:100</c> HTTP 模式一致，修正原 spec 空字符串 bug）。
+    /// </para>
+    /// <para>
+    /// <b>runLoop lambda</b>：调 <c>((AgentJsonlProtocol)p).RunLoopAsync(enableTimeout: true, _cts.Token)</c>。
+    /// <c>enableTimeout: true</c> 启用 TINPUT 超时分支（spec ID14：Windows 桌面窗口最小化不影响进程调度，
+    /// 超时正常触发；Android 后台 Doze 冻结进程，超时延迟到回前台）。
+    /// </para>
+    /// <para>
+    /// <b>异常分支</b>：
+    /// <list type="bullet">
+    ///   <item><see cref="GameExitException"/>——ERB QUIT/EXIT 正常退出，静默</item>
+    ///   <item>其他 <see cref="Exception"/>——游戏循环整体崩溃，调 <see cref="ShowFatalError"/></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// 单 step 脚本异常（ERB THROW / 除零等）由 <c>AgentJsonlProtocol.StepAsync</c> 内 catch 处理，
+    /// <c>RunLoopAsync</c> 写 error turn 后 <c>Stop()</c> 让循环下一轮退出——不抛到此 catch。
+    /// 此 catch 是 <c>console.Initialize()</c> / <c>GlobalStatic.OpenScope</c> 等同步路径的兜底。
+    /// </para>
+    /// </summary>
+    private async Task GameLoopAsync()
+    {
+        try
+        {
+            await GameLoopComposer.RunAsync(
+                _configData,
+                _terminalSetup,
+                (console, ui, ts) =>
+                {
+                    // 与 Session.cs:100 HTTP 模式一致——从 ConfigData 读默认字体名传给 DisplayState，
+                    // 避免 BuildPrintOpsForLine 访问 Config.FontName 时 NRE
+                    // （HTTP/MAUI 线程上 Config.Current AsyncLocal 不可用，仅游戏循环 task 内设置）。
+                    var defaultFontName = _configData.GetConfigValue<string>(ConfigCode.FontName) ?? "";
+                    var displayState = new DisplayState(console, defaultFontName);
+                    return new AgentJsonlProtocol(console, ui, _bridgeIO, displayState);
+                },
+                async p =>
+                {
+                    await ((AgentJsonlProtocol)p).RunLoopAsync(enableTimeout: true, _cts.Token);
+                });
+            Console.WriteLine("[bridge] game loop completed normally");
+            AgentLog.Instance.Write("[bridge] game loop completed normally");
+        }
+        catch (GameExitException)
+        {
+            // ERB QUIT/EXIT：脚本请求正常退出，静默
+            Console.WriteLine("[bridge] game loop exited via QUIT/EXIT");
+            AgentLog.Instance.Write("[bridge] game loop exited via QUIT/EXIT");
+        }
+        catch (Exception ex)
+        {
+            // 游戏循环整体崩溃（Initialize 失败 / OpenScope 失败 / protocol 未捕获异常等）
+            Console.WriteLine($"[bridge] game loop fatal: {ex}");
+            AgentLog.Instance.Write($"[bridge] game loop fatal: {ex}");
+            ShowFatalError(ex);
+        }
+    }
+
+    /// <summary>
+    /// 推致命错误 turn 给 Vue——spec ID10。
+    /// <para>
+    /// 构造 <c>TurnRecord(state:"Error", error: ex.Message)</c> JSON 调 <see cref="IJsBridge.PostTurn"/> 推给 Vue，
+    /// Vue 端 <c>applyTurn</c> 渲染 error 字段。error turn 格式与 <c>AgentJsonlProtocol.StepAsync</c> 的脚本异常
+    /// error turn 一致——前端代码零改动复用渲染逻辑。
+    /// </para>
+    /// <para>
+    /// <b>fallback</b>：<see cref="IJsBridge.PostTurn"/> 失败（WebView 未 Attach / EvaluateJavaScriptAsync 抛异常）
+    /// 时调 <c>MainThread.BeginInvokeOnMainThread</c> + <c>Application.Current.MainPage.DisplayAlert</c>
+    /// 兜底展示错误。ID7 延迟启动保证 Vue ready 后才 <see cref="Start"/>，崩溃时 Vue 已在跑能接收 error turn。
+    /// </para>
+    /// </summary>
+    private void ShowFatalError(Exception ex)
+    {
+        try
+        {
+            var errorTurn = JsonSerializer.Serialize(new TurnRecord(
+                state: "Error",
+                inputType: null,
+                needValue: false,
+                diff: null,
+                error: ex.Message
+            ), AgentJsonlProtocol.TurnJsonOptions);
+            // _jsBridge.PostTurn 内部 fire-and-forget（async void），异常被自身 catch 不抛——
+            // 但 try/catch 兜底防御：PostTurn 之外的序列化失败也走 DisplayAlert fallback。
+            _dispatcher.Dispatch(() => _jsBridge.PostTurn(errorTurn));
+            Console.WriteLine($"[bridge] error turn pushed to Vue: {errorTurn}");
+            AgentLog.Instance.Write($"[bridge] error turn pushed to Vue");
+        }
+        catch (Exception postEx)
+        {
+            // PostTurn 失败——fallback DisplayAlert
+            Console.WriteLine($"[bridge] PostTurn failed, fallback to DisplayAlert: {postEx}");
+            AgentLog.Instance.Write($"[bridge] PostTurn failed, fallback to DisplayAlert: {postEx}");
+            try
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    var mainPage = Application.Current?.MainPage;
+                    if (mainPage != null)
+                    {
+                        await mainPage.DisplayAlert("Fatal Error", ex.Message, "OK");
+                    }
+                });
+            }
+            catch (Exception alertEx)
+            {
+                // DisplayAlert 也失败——只剩日志
+                Console.WriteLine($"[bridge] DisplayAlert fallback failed: {alertEx}");
+                AgentLog.Instance.Write($"[bridge] DisplayAlert fallback failed: {alertEx}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 释放桥接资源——fire-and-forget，不阻塞 UI 线程（spec ID9）。
+    /// <para>
+    /// <b>关键约束</b>：UI 线程不阻塞——不调 <see cref="Task.Wait"/> / <c>GetAwaiter().GetResult()</c>。
+    /// 正常关闭路径（用户点关闭，游戏循环在 <c>ReadLineAsync</c> await）游戏循环毫秒级退出，
+    /// <c>using (var scope = GlobalStatic.OpenScope(...))</c> 的 finally 跑 scope Dispose，I-11 退出存活覆盖。
+    /// 异常路径（卡在同步 ERB）进程强杀，scope Dispose 不跑——I-11 不覆盖异常退出，可接受。
+    /// </para>
+    /// <para>
+    /// <b>步骤</b>：
+    /// <list type="number">
+    ///   <item><see cref="CancellationTokenSource.Cancel"/>——通知 <c>RunLoopAsync</c> 退出
+    ///     （<c>externalCt.IsCancellationRequested</c> 跳出循环）</item>
+    ///   <item><see cref="MauiBridgeIO.Close"/>——关 Channel，<c>ReadLineAsync</c> 返回 null 让循环退出</item>
+    ///   <item><see cref="Task.ContinueWith"/>——诊断日志，<see cref="TaskScheduler.Default"/> 在线程池跑</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// 幂等：多次调用安全（<c>_disposed</c> 守卫）。
     /// </para>
     /// </summary>
     public void Dispose()
@@ -128,6 +326,45 @@ internal sealed class BridgeHost : IDisposable
             return;
         _disposed = true;
         _jsBridge.InputReceived -= OnInputFromJs;
+
+        // 1. 取消 CTS——RunLoopAsync 内 externalCt.IsCancellationRequested 跳出循环
+        try
+        {
+            _cts.Cancel();
+        }
+        catch (Exception ex)
+        {
+            // CTS 已 Dispose / 其他异常——日志吞掉，不阻断 Close
+            AgentLog.Instance.Write($"[bridge] Dispose CTS.Cancel failed: {ex.Message}");
+        }
+
+        // 2. 关闭 IO——Channel.Reader.ReadAsync 返回 null 让 ReadLineAsync 退出
         _bridgeIO.Close();
+
+        // 3. fire-and-forget 诊断日志——不阻塞 UI 线程
+        // spec ID9：不调 GetAwaiter().GetResult() 阻塞 UI。
+        var task = _gameTask;
+        if (task != null)
+        {
+            _ = task.ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                {
+                    AgentLog.Instance.Write($"[bridge] game task faulted on dispose: {t.Exception}");
+                    Console.WriteLine($"[bridge] game task faulted on dispose: {t.Exception}");
+                }
+                else if (t.IsCanceled)
+                {
+                    AgentLog.Instance.Write("[bridge] game task canceled on dispose");
+                }
+                else
+                {
+                    AgentLog.Instance.Write("[bridge] game task completed on dispose");
+                }
+            }, TaskScheduler.Default);
+        }
+
+        // CTS 不在 Dispose 中释放——_gameTask 后台观察者可能在 ContinueWith 内访问 _cts，
+        // 让 GC 自然回收（BridgeHost 是 MainPage 级单例，不频繁分配，无泄漏风险）。
     }
 }

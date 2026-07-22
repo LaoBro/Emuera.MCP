@@ -14,7 +14,10 @@ namespace MinorShift.Emuera.GameView
 {
     internal class AgentJsonlProtocol : AgentProtocolBase
     {
-        private static readonly JsonSerializerOptions TurnJsonOptions = new()
+        // Issue 08：internal（原 private）—— BridgeHost.ShowFatalError 序列化 error turn 时复用，
+        // 保证与 AgentJsonlProtocol.StepAsync 的 error turn 完全一致（同 converters + ignore condition）。
+        // MAUI 项目经 InternalsVisibleTo("Emuera.Maui") 可访问。
+        internal static readonly JsonSerializerOptions TurnJsonOptions = new()
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             Converters = { new TurnOpConverter(), new LineOpConverter() },
