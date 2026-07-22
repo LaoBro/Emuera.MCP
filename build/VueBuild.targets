@@ -1,0 +1,74 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- ===== 共享 Vue 前端构建 + 复制 target（issue 05 / spec ID13） =====
+       从原 Emuera.Headless.csproj 内联 target 抽出，供 Cli（默认值）和 MAUI
+       （覆盖 ViteBase=./ VueOutDir=dist-maui）共同 Import。
+
+       参数化属性（导入方可在 Import 前覆盖）：
+         $(VueDistDestination)  复制目标目录，默认 wwwroot\
+         $(ViteBase)            Vite base 路径，默认 /
+         $(VueOutDir)            Vite 输出目录（相对 $(VueSrcDir)），默认 dist
+         $(VueSrcDir)            Vue 源码目录，默认 ..\Emuera.Web
+  -->
+  <PropertyGroup>
+    <VueDistDestination Condition="'$(VueDistDestination)' == ''">wwwroot\</VueDistDestination>
+    <ViteBase Condition="'$(ViteBase)' == ''">/</ViteBase>
+    <VueOutDir Condition="'$(VueOutDir)' == ''">dist</VueOutDir>
+    <VueSrcDir Condition="'$(VueSrcDir)' == ''">..\Emuera.Web</VueSrcDir>
+  </PropertyGroup>
+
+  <!-- Vue 源码 + 配置文件，作为 BuildVueFrontend target 的 Inputs（用于增量检测） -->
+  <ItemGroup>
+    <VueSrcInputs Include="$(VueSrcDir)\src\**\*" />
+    <VueSrcInputs Include="$(VueSrcDir)\index.html" />
+    <VueSrcInputs Include="$(VueSrcDir)\package.json" />
+    <VueSrcInputs Include="$(VueSrcDir)\package-lock.json" />
+    <VueSrcInputs Include="$(VueSrcDir)\vite.config.ts" />
+    <VueSrcInputs Include="$(VueSrcDir)\tsconfig.json" />
+  </ItemGroup>
+
+  <!-- BuildVueFrontend: 增量跑 npm run build（src 比 dist 新才触发）
+       传 base / outDir 命令行参数（vite 优先用 CLI flag），同时设 VITE_BASE
+       环境变量作双保险，让 vite.config.ts 的 process.env.VITE_BASE 生效 -->
+  <Target Name="BuildVueFrontend"
+          BeforeTargets="Build"
+          Condition="'$(SkipVueBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'"
+          Inputs="@(VueSrcInputs)"
+          Outputs="$(VueSrcDir)\$(VueOutDir)\index.html">
+
+    <Exec Command="npm --version" ConsoleToMSBuild="true" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="NpmExitCode" />
+    </Exec>
+
+    <Warning Condition="'$(NpmExitCode)' != '0'"
+             Text="npm not found in PATH; skipping Vue frontend build. Run 'npm install &amp;&amp; npm run build' in $(VueSrcDir) manually to populate $(VueDistDestination), or pass /p:SkipVueBuild=true to suppress this warning." />
+
+    <Exec Condition="'$(NpmExitCode)' == '0'"
+          Command="npm run build -- --base=$(ViteBase) --outDir=$(VueOutDir)"
+          WorkingDirectory="$(VueSrcDir)"
+          EnvironmentVariables="VITE_BASE=$(ViteBase)"
+          ConsoleToMSBuild="true" />
+
+  </Target>
+
+  <!-- CopyVueFrontendToWwwroot: $(VueOutDir)/ → $(VueDistDestination) （源树 + 输出目录）
+       源用 $(VueSrcDir)\$(VueOutDir)\**\*，目标用 $(VueDistDestination)%(RecursiveDir)
+       两份 Copy 是 Cli 必需的兜底：
+         - 源树 $(VueDistDestination)：供下一次 build 的 Content glob 评估拾取
+         - 输出目录 $(OutputPath)$(VueDistDestination)：让运行中的 exe 找到 wwwroot/ -->
+  <Target Name="CopyVueFrontendToWwwroot"
+          AfterTargets="BuildVueFrontend"
+          BeforeTargets="Build"
+          Condition="'$(SkipVueBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <VueDistFiles Include="$(VueSrcDir)\$(VueOutDir)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(VueDistFiles)"
+          DestinationFolder="$(VueDistDestination)%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(VueDistFiles)"
+          DestinationFolder="$(OutputPath)$(VueDistDestination)%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

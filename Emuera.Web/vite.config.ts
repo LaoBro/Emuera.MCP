@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+/// <reference types="node" />
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
@@ -7,8 +8,13 @@ import vue from '@vitejs/plugin-vue';
 //
 // Vitest 配置合并到同一文件（spec.md：「vitest.config.ts（可合并到 vite.config.ts）」）。
 // test.environment='node' 因被测对象是协议层纯函数，无 DOM 依赖。
+//
+// base 路径：默认 '/'（Headless 同源服务），MAUI 场景由 build/VueBuild.targets 经
+// VITE_BASE 环境变量（值 './'）+ vite build --base=./ 命令行参数双保险传入。
+// 这里读 process.env.VITE_BASE 作 fallback，让 vite.config.ts 自身可独立 npm run build。
 export default defineConfig({
   plugins: [vue()],
+  base: process.env.VITE_BASE ?? '/',
   server: {
     port: 5173,
     proxy: {
