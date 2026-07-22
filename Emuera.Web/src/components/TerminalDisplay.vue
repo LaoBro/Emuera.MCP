@@ -2,6 +2,7 @@
 import { computed, ref, watch, nextTick } from 'vue';
 import { useGameStore } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
+import { isMauiEnvironment } from '../lib/mauiBridge';
 import type { ButtonValue, PrintSegment, DisplayLine } from '../types/protocol';
 
 /**
@@ -47,6 +48,7 @@ import type { ButtonValue, PrintSegment, DisplayLine } from '../types/protocol';
  */
 const game = useGameStore();
 const conn = useConnectionStore();
+const isMaui = isMauiEnvironment();
 
 /**
  * Issue 12：从 store 派生有效布局值——null 时 fallback 到 Emuera 默认值。
@@ -162,8 +164,16 @@ watch(() => game.displayState.lines.length, scrollToBottom);
     :style="terminalStyle"
   >
     <div v-if="game.displayState.lines.length === 0" class="terminal-empty">
-      <p v-if="conn.status === 'connected'">已连接，等待游戏输出…</p>
-      <p v-else>未连接服务器。请在顶部连接栏输入 WS URL 并点击「连接」。</p>
+      <template v-if="isMaui">
+        <!-- MAUI 模式：无 HTTP/WS，提示文案按 gameDir 状态分流 -->
+        <p v-if="!game.gameDir">请先在顶部选择游戏目录</p>
+        <p v-else>游戏已就绪，等待输出或在下方提交输入…</p>
+      </template>
+      <template v-else>
+        <!-- HTTP 模式：按 WS 连接状态分流 -->
+        <p v-if="conn.status === 'connected'">已连接，等待游戏输出…</p>
+        <p v-else>未连接服务器。请在顶部连接栏输入 WS URL 并点击「连接」。</p>
+      </template>
       <p v-if="game.lastError" class="terminal-error">解析错误：{{ game.lastError }}</p>
     </div>
     <div

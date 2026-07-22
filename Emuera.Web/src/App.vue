@@ -3,7 +3,7 @@ import { onMounted, computed } from 'vue';
 import { useUiStore } from './stores/ui';
 import { useGameStore } from './stores/game';
 import { initAppState } from './composables/useAppInit';
-import { isMauiEnvironment } from './lib/mauiBridge';
+import { isMauiEnvironment, loadGameFromPath } from './lib/mauiBridge';
 import ConnectionPanel from './components/ConnectionPanel.vue';
 import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
@@ -21,23 +21,36 @@ const game = useGameStore();
 onMounted(() => initAppState());
 
 /**
- * Issue 07 / spec ID11：MAUI 模式下隐藏连接面板和游戏目录选择器——
- * 游戏目录由 C# 启动时 GameResourceExtractor.EnsureGameDir 解压就绪，
- * 不需用户手动输入，也无 HTTP server 可连接。保留 view-switch（terminal/debug 仍可用）。
+ * Issue 07 / spec ID11：MAUI 模式下隐藏 HTTP 模式的连接面板和游戏目录选择器——
+ * 改用 MauiGamePicker（原生文件夹选择器按钮）。
  */
 const isMaui = isMauiEnvironment();
 
 /**
- * T-025 D14：「快速重开」按钮可见性——server 状态非 Idle 时显示。
- *
- * serverState 由 onMounted GET /state 和 WS 帧 turn.state 维护。
- * 'Idle' = 空闲（无活跃 session）；'Loading'/'WaitInput'/'Quit'/'Error' = 有活跃 session。
+ * 「快速重开」按钮可见性——按模式分流：
+ * - HTTP 模式：serverState 非 Idle 时显示（有活跃 session 才能重开）
+ * - MAUI 模式：gameDir 非空时显示（已选过目录才能重开同目录）
  */
-const canQuickRestart = computed(() => !isMaui && game.serverState !== 'Idle');
+const canQuickRestart = computed(() =>
+  isMaui ? !!game.gameDir : game.serverState !== 'Idle',
+);
 const isRestarting = computed(() => game.reloadStatus === 'loading');
 
+/**
+ * 快速重开 click——按模式分流：
+ * - HTTP 模式：调 game.quickRestart()（disconnect → DELETE /session → POST /load-game → connect）
+ * - MAUI 模式：调 loadGameFromPath(game.gameDir) 投递 {"type":"loadGame","path":...}
+ *   让 C# OnReloadGame 重建 BridgeHost + Start
+ */
 async function onQuickRestart(): Promise<void> {
   if (isRestarting.value) return;
+  if (isMaui) {
+    if (!game.gameDir) return;
+    // 清空旧显示状态——新游戏首帧到达前不残留旧画面
+    game.reset();
+    loadGameFromPath(game.gameDir);
+    return;
+  }
   await game.quickRestart();
 }
 </script>

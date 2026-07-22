@@ -2,9 +2,11 @@
 import { ref } from 'vue';
 import { useConnectionStore } from '../stores/connection';
 import { useGameStore } from '../stores/game';
+import { isMauiEnvironment } from '../lib/mauiBridge';
 
 const conn = useConnectionStore();
 const game = useGameStore();
+const isMaui = isMauiEnvironment();
 const inputValue = ref<string>('');
 
 function onSend(): void {
@@ -18,7 +20,9 @@ function onSend(): void {
 <template>
   <section class="debug-view">
     <div class="left-pane">
-      <div class="snapshot-section">
+      <!-- MAUI 模式无 HTTP/WS，无 snapshot 概念——隐藏 snapshot 区，仅保留最新帧区。
+           HTTP 模式 snapshot 由 WS onopen 后 GET /snapshot 拉取，晚加入者画面恢复用。 -->
+      <div v-if="!isMaui" class="snapshot-section">
         <h3>最近 Snapshot（GET /snapshot）</h3>
         <pre v-if="game.lastSnapshot" class="raw-json snapshot-json">{{
           JSON.stringify(game.lastSnapshot, null, 2)

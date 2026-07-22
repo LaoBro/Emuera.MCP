@@ -4,7 +4,6 @@ import {
   isMauiEnvironment,
   registerTurnHandler,
   registerMessageHandler,
-  sendReady,
   loadGameFromPath,
 } from '../lib/mauiBridge';
 
@@ -19,13 +18,16 @@ import {
  *    选择器预填靠 game.gameDir（已从 localStorage 初始化），此处只需 return 不 connect。
  * 4. 有活跃 session（游戏运行中/已结束）→ conn.connect() 重连，不放弃当前局
  *
- * MAUI 模式分支（issue 07 / spec ID7 + issue 09 文件选择器）：
+ * MAUI 模式分支（issue 07 / spec ID7 + issue 09 文件选择器 + 用户反馈修复）：
  * - `window.location.protocol` 判断为 MAUI（`ms-appx-web:` / `file:` / `https:app.local`）时：
  *   1. 注册 `window.__emueraOnTurn`——C# PostTurn 调此函数，参数为 turn 对象，JSON.stringify 后调 game.applyTurn
  *   2. 注册 `window.__emueraOnMessage`——C# PostMessage 调此函数，按 type 分发非 turn 事件
  *      （issue 09：`folderPicked` → 调 `loadGameFromPath(path)` 触发 hot-swap reload）
  *   3. 标记 conn.status='connected'——让 sendInput / UI 组件认为已连接（MAUI 无 WS 但语义等价）
- *   4. sendReady()——向 C# 投递 `{"type":"ready"}`，C# 侧 BridgeHost.OnInputFromJs 识别后（T08）启动游戏循环
+ *   4. **不**发 `sendReady()`——用户反馈：启动时不应自动加载游戏（即便内置 test_game 也不行）。
+ *      首次启动仅注册回调 + 设 connected 状态，等用户主动点选目录后通过 `loadGameFromPath`
+ *      触发 C# `OnReloadGame` → `RecreateHost` + `Start`（Start 内部设 `_readyReceived=true` 跳过 ready 检查）。
+ *      MainPage 构造时创建的占位 BridgeHost 永远等不到 ready 信号，不会启动游戏循环。
  *   5. return——不走 HTTP/WS 路径
  *
  * 提取原因：onMounted 回调无法直接单测，提取为纯函数后可在 Vitest 中 mock fetch +
@@ -46,8 +48,9 @@ export async function initAppState(): Promise<void> {
     registerMessageHandler((msg) => handleMauiMessage(msg, game));
     // 3. 标记已连接——MAUI 无 WS 但 sendInput / UI 组件按 status='connected' 判定可用
     conn.status = 'connected';
-    // 4. 发送 ready 信号——C# 侧收到后 T08 启动游戏循环，T07 仅写日志确认
-    sendReady();
+    // 4. 用户反馈修复：不发 sendReady()——首次启动不自动加载游戏，等用户主动选目录。
+    //    占位 BridgeHost 永远等不到 ready 信号，游戏循环不启动。
+    //    用户选目录后 loadGameFromPath → C# OnReloadGame → Start（跳过 ready 检查）
     // 5. 不走 HTTP/WS 路径
     return;
   }
