@@ -1,5 +1,6 @@
 #if ANDROID
 using System;
+using System.Threading.Tasks;
 using Android.Webkit;
 using Java.Interop;
 using Microsoft.Maui.Controls;
@@ -39,20 +40,22 @@ internal sealed class AndroidJsBridge : IJsBridge
 	public event Action<string>? InputReceived;
 
 	/// <inheritdoc />
-	public void Attach(WebView webView)
+	public Task Attach(WebView webView)
 	{
 		if (_attached)
-			return;
+			return Task.CompletedTask;
 		if (webView?.Handler is not WebViewHandler handler)
-			return;
+			return Task.CompletedTask;
 		if (handler.PlatformView is not AWebView platformView)
-			return;
+			return Task.CompletedTask;
 
 		_androidWebView = platformView;
 		_bridge = new Bridge(this);
 		// 注册名 "emueraBridge" 与 Vue 端 (window as any).emueraBridge.postMessage 对齐（spec ID5）。
 		platformView.AddJavascriptInterface(_bridge, "emueraBridge");
 		_attached = true;
+		// Android WebView 无需异步初始化（AddJavascriptInterface 同步生效），直接返回 CompletedTask。
+		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc />

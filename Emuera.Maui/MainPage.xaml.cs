@@ -20,7 +20,9 @@ namespace Emuera.Maui;
 /// <para>
 /// URL 平台分叉（spec ID6）：
 /// <list type="bullet">
-///   <item>Windows: <c>ms-appx-web:///wwwroot/index.html</c>（WinUI WebView2 + MSIX 包内文件）</item>
+///   <item>Windows: <c>https://app.local/index.html</c>（unpackaged 模式下用 WebView2 虚拟主机映射，
+///     <see cref="WindowsJsBridge.Attach"/> 内调 <c>SetVirtualHostNameToFolderMapping</c> 把
+///     <c>app.local</c> 映射到输出目录 wwwroot/）</item>
 ///   <item>Android: <c>file:///android_asset/wwwroot/index.html</c>（Android WebView + APK assets/）</item>
 /// </list>
 /// </para>
@@ -32,6 +34,7 @@ public partial class MainPage : ContentPage
 {
     private readonly BridgeHost _host;
     private readonly IJsBridge _jsBridge;
+    private bool _urlSet;
 
     /// <summary>
     /// DI 注入构造——<see cref="MauiProgram"/> 注册的 <see cref="ConfigData"/> + <see cref="ITerminalSetup"/> 单例经 MAUI DI 容器注入。
@@ -53,15 +56,17 @@ public partial class MainPage : ContentPage
         MainWebView.HandlerChanged += OnWebViewHandlerChanged;
     }
 
-    private void OnWebViewHandlerChanged(object? sender, EventArgs e)
+    private async void OnWebViewHandlerChanged(object? sender, EventArgs e)
     {
-        // Attach 幂等（WindowsJsBridge / AndroidJsBridge 内部 _attached flag 防重复）
-        _jsBridge.Attach(MainWebView);
+        // Attach 幂等（WindowsJsBridge / AndroidJsBridge 内部 _attached flag 防重复）。
+        // Attach 内部会配置虚拟主机映射（Windows）——必须 await 完成后再设 URL，
+        // 否则首帧导航到 https://app.local/ 时映射未就绪导致空白。
+        await _jsBridge.Attach(MainWebView);
 
-        // 设 URL——平台分叉（spec ID6）
-        // 仅在 Handler 首次就绪时设一次，避免 HandlerChanged 多次触发重复加载
-        if (MainWebView.Source is not UrlWebViewSource)
+        // 设 URL——仅首次就绪时设一次，避免 HandlerChanged 多次触发重复加载。
+        if (!_urlSet)
         {
+            _urlSet = true;
             var url = ResolveWebViewUrl();
             MainWebView.Source = new UrlWebViewSource { Url = url };
         }
@@ -69,11 +74,16 @@ public partial class MainPage : ContentPage
 
     /// <summary>
     /// 按平台返回 WebView 加载 URL（spec ID6）。
+    /// <para>
+    /// Windows unpackaged 模式下用 <c>https://app.local/index.html</c>——
+    /// <see cref="WindowsJsBridge.Attach"/> 内 <c>SetVirtualHostNameToFolderMapping</c>
+    /// 把 <c>app.local</c> 映射到输出目录 <c>wwwroot/</c>。
+    /// </para>
     /// </summary>
     private static string ResolveWebViewUrl()
     {
 #if WINDOWS
-        return "ms-appx-web:///wwwroot/index.html";
+        return $"https://{WindowsJsBridge.VirtualHostName}/index.html";
 #elif ANDROID
         return "file:///android_asset/wwwroot/index.html";
 #else

@@ -1,6 +1,7 @@
 #if WINDOWS
 using System;
 using System.Reflection;
+using System.Threading.Tasks;
 using Emuera.Maui.JsBridge;
 using Microsoft.Maui.Controls;
 using Xunit;
@@ -8,7 +9,7 @@ using Xunit;
 namespace Emuera.Maui.Tests;
 
 /// <summary>
-/// IJsBridge 接口契约单测——issue 06 / spec ID5。
+/// IJsBridge 接口契约单测——issue 06 / spec ID5（issue 07 修订：Attach 返回 Task）。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -79,28 +80,31 @@ public class JsBridgeContractTests
 
 	/// <summary>
 	/// 用例 5：IJsBridge 接口契约形状——三个成员就位：
-	/// PostTurn(string) 方法、InputReceived 事件（Action&lt;string&gt;）、Attach(WebView) 方法。
+	/// PostTurn(string) 方法、InputReceived 事件（Action&lt;string&gt;）、Attach(WebView) 返回 Task 方法。
 	/// </summary>
 	/// <remarks>
 	/// 反射验证防止意外重命名/签名变更破坏 BridgeHost 调用方。
+	/// issue 07 修订：Attach 返回类型从 void 改为 Task（Windows SetVirtualHostNameToFolderMapping
+	/// 必须 await EnsureCoreWebView2Async 完成后再调，否则首帧导航失败）。
 	/// </remarks>
 	[Fact]
 	public void IJsBridge_interface_has_required_contract_members()
 	{
 		var type = typeof(IJsBridge);
 
-		// PostTurn(string) 实例方法
+		// PostTurn(string) 实例方法，返回 void
 		var postTurn = type.GetMethod("PostTurn", BindingFlags.Instance | BindingFlags.Public);
 		Assert.NotNull(postTurn);
 		Assert.Single(postTurn!.GetParameters());
 		Assert.Equal(typeof(string), postTurn.GetParameters()[0].ParameterType);
 		Assert.Equal(typeof(void), postTurn.ReturnType);
 
-		// Attach(WebView) 实例方法
+		// Attach(WebView) 实例方法，返回 Task（issue 07 修订）
 		var attach = type.GetMethod("Attach", BindingFlags.Instance | BindingFlags.Public);
 		Assert.NotNull(attach);
 		Assert.Single(attach!.GetParameters());
 		Assert.Equal(typeof(WebView), attach.GetParameters()[0].ParameterType);
+		Assert.Equal(typeof(Task), attach.ReturnType);
 
 		// InputReceived 事件 —— event Action<string>?
 		var inputReceived = type.GetEvent("InputReceived", BindingFlags.Instance | BindingFlags.Public);
@@ -138,6 +142,22 @@ public class JsBridgeContractTests
 
 		// 订阅/取消订阅完成，不抛异常即通过。
 		Assert.True(true);
+	}
+
+	/// <summary>
+	/// 用例 8：WindowsJsBridge.VirtualHostName 常量——issue 07 unpackaged 模式虚拟主机名。
+	/// </summary>
+	/// <remarks>
+	/// 反射验证常量存在且值正确——MainPage.ResolveWebViewUrl 和 Vue isMauiEnvironment 均依赖此值。
+	/// </remarks>
+	[Fact]
+	public void WindowsJsBridge_has_VirtualHostName_constant()
+	{
+		var field = typeof(WindowsJsBridge).GetField(
+			"VirtualHostName",
+			BindingFlags.NonPublic | BindingFlags.Static);
+		Assert.NotNull(field);
+		Assert.Equal("app.local", field!.GetValue(null));
 	}
 }
 #endif

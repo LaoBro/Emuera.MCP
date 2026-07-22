@@ -264,6 +264,28 @@ describe('useGameStore.loadGame', () => {
     expect(game.reloadStatus).toBe('idle');
   });
 
+  it('MAUI 环境 → 不调 fetch / 不调 connect + 直接设 gameDir（spec ID11）', async () => {
+    // 模拟 MAUI unpackaged 模式（Windows 虚拟主机映射）
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+    });
+    const game = useGameStore();
+    const conn = useConnectionStore();
+    const disconnectSpy = vi.spyOn(conn, 'disconnect').mockImplementation(() => {});
+    const connectSpy = vi.spyOn(conn, 'connect').mockResolvedValue(undefined);
+
+    await game.loadGame('D:/any/game');
+
+    // MAUI 模式下不应走 HTTP /load-game / disconnect / connect
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(disconnectSpy).not.toHaveBeenCalled();
+    expect(connectSpy).not.toHaveBeenCalled();
+    expect(game.loadGameError).toBeNull();
+    expect(game.reloadStatus).toBe('idle');
+    // 仅更新 gameDir（让 UI 不再显示选择器预填默认值）
+    expect(game.gameDir).toBe('D:/any/game');
+  });
+
   it('dir 自动 trim——前后空格被去除', async () => {
     const game = useGameStore();
     const conn = useConnectionStore();

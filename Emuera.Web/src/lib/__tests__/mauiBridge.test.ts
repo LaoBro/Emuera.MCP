@@ -19,10 +19,10 @@ import {
  * mauiBridge.ts 内部用 `typeof window === 'undefined'` 防 SSR——stub 前调 isMauiEnvironment 应返 false。
  */
 
-/** 模拟 window 对象——location.protocol 可按用例覆盖，chrome/emueraBridge 按需挂。 */
-function makeMockWindow(protocol: string = 'http:'): any {
+/** 模拟 window 对象——location.protocol/hostname 可按用例覆盖，chrome/emueraBridge 按需挂。 */
+function makeMockWindow(protocol: string = 'http:', hostname: string = 'localhost'): any {
   return {
-    location: { protocol },
+    location: { protocol, hostname },
     chrome: undefined,
     emueraBridge: undefined,
     __emueraOnTurn: undefined,
@@ -42,32 +42,42 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
     vi.restoreAllMocks();
   });
 
-  /** 切换 location.protocol——重新 stub 整个 window 让 mauiBridge.ts 读到新值。 */
-  function setProtocol(protocol: string): void {
-    mockWindow = makeMockWindow(protocol);
+  /** 切换 location.protocol/hostname——重新 stub 整个 window 让 mauiBridge.ts 读到新值。 */
+  function setLocation(protocol: string, hostname: string = 'localhost'): void {
+    mockWindow = makeMockWindow(protocol, hostname);
     vi.stubGlobal('window', mockWindow);
   }
 
   // ===== isMauiEnvironment =====
 
   describe('isMauiEnvironment', () => {
-    it('ms-appx-web: 协议 → true（Windows MAUI）', () => {
-      setProtocol('ms-appx-web:');
+    it('ms-appx-web: 协议 → true（Windows MAUI packaged）', () => {
+      setLocation('ms-appx-web:');
       expect(isMauiEnvironment()).toBe(true);
     });
 
     it('file: 协议 → true（Android MAUI）', () => {
-      setProtocol('file:');
+      setLocation('file:');
       expect(isMauiEnvironment()).toBe(true);
     });
 
-    it('http: 协议 → false（HTTP 模式）', () => {
-      setProtocol('http:');
+    it('https: + hostname=app.local → true（Windows MAUI unpackaged 虚拟主机映射）', () => {
+      setLocation('https:', 'app.local');
+      expect(isMauiEnvironment()).toBe(true);
+    });
+
+    it('https: + hostname=localhost → false（HTTPS 浏览器模式）', () => {
+      setLocation('https:', 'localhost');
       expect(isMauiEnvironment()).toBe(false);
     });
 
-    it('https: 协议 → false（HTTPS 模式）', () => {
-      setProtocol('https:');
+    it('http: 协议 → false（HTTP 模式）', () => {
+      setLocation('http:');
+      expect(isMauiEnvironment()).toBe(false);
+    });
+
+    it('https: 协议但非 app.local 主机 → false（HTTPS 普通站点）', () => {
+      setLocation('https:', 'example.com');
       expect(isMauiEnvironment()).toBe(false);
     });
 

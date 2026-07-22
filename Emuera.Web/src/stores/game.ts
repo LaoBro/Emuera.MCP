@@ -6,6 +6,7 @@ import { applySnapshot } from '../lib/snapshotReducer';
 import { EMPTY_DISPLAY_STATE } from '../types/protocol';
 import type { DisplayState, DisplaySnapshot, TurnRecord } from '../types/protocol';
 import { useConnectionStore } from './connection';
+import { isMauiEnvironment } from '../lib/mauiBridge';
 
 /**
  * Issue 05：游戏目录持久化 key（localStorage）。
@@ -485,6 +486,13 @@ export const useGameStore = defineStore('game', () => {
     if (reloadStatus.value === 'loading') return;
     if (!dir || !dir.trim()) {
       loadGameError.value = new LoadGameError('MISSING_GAME_DIR', 'gameDir 为空', 400);
+      return;
+    }
+    // Issue 07 / spec ID11：MAUI 模式下游戏目录由 C# 启动时 GameResourceExtractor.EnsureGameDir 解压就绪，
+    // 不走 HTTP /load-game——MAUI 进程内无 HTTP 服务器，fetch 会失败。
+    // 用户在 MAUI 模式下不应看到 GamePicker（App.vue 应隐藏），此处 guard 作兜底防御。
+    if (isMauiEnvironment()) {
+      gameDir.value = dir.trim();
       return;
     }
     const trimmed = dir.trim();

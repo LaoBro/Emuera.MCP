@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -30,10 +31,27 @@ namespace Emuera.Maui;
 /// 用 <c>Task.Run(...).GetAwaiter().GetResult()</c> 同步等待——MAUI 启动期同步等 IO 可接受
 /// （解压仅在首启动发生，二次启动 marker 文件存在直接返回）。
 /// </remarks>
+/// <para>
+/// <b>调试 Console</b>：MAUI Windows app 是 WinUI 进程（OutputType=WinExe），默认无 console 窗口——
+/// <c>Console.WriteLine</c> 输出丢失。DEBUG 构建下用 <see cref="AllocConsole"/> 创建 console 窗口，
+/// 让 <c>BridgeHost</c> / <c>WindowsJsBridge</c> 的 <c>Console.WriteLine</c> 诊断日志可见。
+/// Release 构建不创建 console（避免终端用户看到调试输出）。
+/// </para>
 public static class MauiProgram
 {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllocConsole();
+
     public static MauiApp CreateMauiApp()
     {
+        // DEBUG 构建下创建 console 窗口——WinUI app 默认无 console，Console.WriteLine 输出会丢失。
+        // dotnet run -c Debug 时此 console 是诊断日志唯一可见通道（VS 调试器 Output 窗口仅 VS 内可见）。
+#if DEBUG
+        AllocConsole();
+        Console.WriteLine("[maui] MauiProgram.CreateMauiApp starting (DEBUG console allocated)");
+#endif
+
         var builder = MauiApp.CreateBuilder();
         builder.UseMauiApp<App>();
 
@@ -41,22 +59,35 @@ public static class MauiProgram
         builder.Logging.AddDebug();
 #endif
 
-        // === spec ID8 启动编排 ===
-        // 同步等待 EnsureGameDirAsync——见类 remarks。
-        var gameDir = Task.Run(GameResourceExtractor.EnsureGameDirAsync).GetAwaiter().GetResult();
-        var paths = GamePaths.Resolve(gameDir);
-        var (configData, terminalSetup) = EmueraRuntimeInitializer.Initialize(paths);
+        try
+        {
+            // === spec ID8 启动编排 ===
+            // 同步等待 EnsureGameDirAsync——见类 remarks。
+            Console.WriteLine("[maui] EnsureGameDirAsync starting");
+            var gameDir = Task.Run(GameResourceExtractor.EnsureGameDirAsync).GetAwaiter().GetResult();
+            Console.WriteLine($"[maui] EnsureGameDirAsync completed: gameDir={gameDir}");
+            var paths = GamePaths.Resolve(gameDir);
+            Console.WriteLine($"[maui] GamePaths.Resolve completed: ExeDir={paths.ExeDir}");
+            var (configData, terminalSetup) = EmueraRuntimeInitializer.Initialize(paths);
+            Console.WriteLine("[maui] EmueraRuntimeInitializer.Initialize completed");
 
-        // DI 注册单例——MainPage 经 DI 注入，重建时不重新初始化运行时
-        builder.Services.AddSingleton(configData);
-        builder.Services.AddSingleton(terminalSetup);
-        // MainPage ctor 是 internal（参数类型 ConfigData/ITerminalSetup 在 Core 内 internal）——
-        // 用 factory delegate 显式构造，绕过 ActivatorUtilities 仅扫 public ctor 的限制。
-        builder.Services.AddTransient<MainPage>(sp =>
-            new MainPage(
-                sp.GetRequiredService<ConfigData>(),
-                sp.GetRequiredService<ITerminalSetup>()));
+            // DI 注册单例——MainPage 经 DI 注入，重建时不重新初始化运行时
+            builder.Services.AddSingleton(configData);
+            builder.Services.AddSingleton(terminalSetup);
+            // MainPage ctor 是 internal（参数类型 ConfigData/ITerminalSetup 在 Core 内 internal）——
+            // 用 factory delegate 显式构造，绕过 ActivatorUtilities 仅扫 public ctor 的限制。
+            builder.Services.AddTransient<MainPage>(sp =>
+                new MainPage(
+                    sp.GetRequiredService<ConfigData>(),
+                    sp.GetRequiredService<ITerminalSetup>()));
 
-        return builder.Build();
+            Console.WriteLine("[maui] MauiProgram.CreateMauiApp completed, returning built app");
+            return builder.Build();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[maui] FATAL: CreateMauiApp failed: {ex}");
+            throw;
+        }
     }
 }

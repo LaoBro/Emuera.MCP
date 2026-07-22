@@ -1,5 +1,6 @@
 #if WINDOWS
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
@@ -14,7 +15,8 @@ namespace Emuera.Maui.JsBridge;
 /// <remarks>
 /// <para>
 /// <see cref="Attach"/>：从 MAUI <see cref="WebView"/> 取 WinUI <see cref="WebView2"/> 平台视图，
-/// 等待 <c>EnsureCoreWebView2Async</c> 完成，订阅 <see cref="CoreWebView2.WebMessageReceived"/>。
+/// 等待 <c>EnsureCoreWebView2Async</c> 完成，配置虚拟主机映射（unpackaged 模式下 <c>ms-appx-web:</c>
+/// 协议不可用，改用 <c>https://app.local/</c> 映射到 wwwroot 文件夹），订阅 <see cref="CoreWebView2.WebMessageReceived"/>。
 /// </para>
 /// <para>
 /// <see cref="PostTurn"/>：调 <see cref="CoreWebView2.ExecuteScriptAsync"/> 执行
@@ -27,6 +29,14 @@ namespace Emuera.Maui.JsBridge;
 /// </remarks>
 internal sealed class WindowsJsBridge : IJsBridge
 {
+	/// <summary>虚拟主机名——unpackaged 模式下用 <c>https://app.local/</c> 映射到 wwwroot 文件夹。</summary>
+	/// <remarks>
+	/// Packaged（MSIX）模式下可用 <c>ms-appx-web:///</c> 直接访问包内文件；
+	/// unpackaged 模式下该协议不可用，改用 WebView2 的 SetVirtualHostNameToFolderMapping
+	/// 把 <c>app.local</c> 映射到输出目录的 wwwroot/ 文件夹，Vue 用 <c>https://app.local/index.html</c> 加载。
+	/// </remarks>
+	internal const string VirtualHostName = "app.local";
+
 	private CoreWebView2? _core;
 	private bool _attached;
 
@@ -34,7 +44,7 @@ internal sealed class WindowsJsBridge : IJsBridge
 	public event Action<string>? InputReceived;
 
 	/// <inheritdoc />
-	public async void Attach(WebView webView)
+	public async Task Attach(WebView webView)
 	{
 		if (_attached)
 			return;
@@ -45,20 +55,39 @@ internal sealed class WindowsJsBridge : IJsBridge
 
 		try
 		{
+			Console.WriteLine($"WindowsJsBridge.Attach starting, PlatformView ready");
 			// EnsureCoreWebView2Async 在 CoreWebView2 已就绪时立即完成；首次调用会等待初始化。
-			// 使用 await 避免 WebMessageReceived 订阅早于 CoreWebView2 就绪导致漏事件。
+			// 必须 await 完成后再调 SetVirtualHostNameToFolderMapping——否则映射未就绪时
+			// 调用方（MainPage）设 Source 触发首次导航，https://app.local/ 请求会失败。
 			await platformView.EnsureCoreWebView2Async();
 			_core = platformView.CoreWebView2;
 			if (_core is null)
+			{
+				Console.WriteLine("WindowsJsBridge.attach: CoreWebView2 null after EnsureCoreWebView2Async");
 				return;
+			}
+
+			// unpackaged 模式下 ms-appx-web: 协议不可用——用 SetVirtualHostNameToFolderMapping
+			// 把 https://app.local/ 映射到输出目录的 wwwroot/ 文件夹。
+			// VueBuild.targets 的 CopyVueFrontendToWwwroot target 把 Vue 构建产物复制到此目录。
+			// folderPath 用 AppContext.BaseDirectory（exe 所在目录）+ wwwroot 拼接。
+			var wwwrootFolder = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+			Console.WriteLine($"WindowsJsBridge.attach: wwwrootFolder={wwwrootFolder}, exists={Directory.Exists(wwwrootFolder)}");
+			if (Directory.Exists(wwwrootFolder))
+			{
+				_core.SetVirtualHostNameToFolderMapping(
+					VirtualHostName,
+					wwwrootFolder,
+					CoreWebView2HostResourceAccessKind.Allow);
+			}
 
 			_core.WebMessageReceived += OnWebMessageReceived;
 			_attached = true;
+			Console.WriteLine("WindowsJsBridge.attach completed, WebMessageReceived subscribed");
 		}
 		catch (Exception ex)
 		{
-			// 与 PostTurn 一致——Attach 失败不该 crash（async void 异常会逃逸到 SynchronizationContext）。
-			System.Diagnostics.Debug.WriteLine($"WindowsJsBridge.Attach failed: {ex.Message}");
+			Console.WriteLine($"WindowsJsBridge.attach failed: {ex}");
 		}
 	}
 
@@ -86,6 +115,7 @@ internal sealed class WindowsJsBridge : IJsBridge
 		try
 		{
 			var message = e.TryGetWebMessageAsString();
+			Console.WriteLine($"WindowsJsBridge.OnWebMessageReceived: message={message}");
 			if (!string.IsNullOrEmpty(message))
 			{
 				InputReceived?.Invoke(message);
@@ -93,7 +123,7 @@ internal sealed class WindowsJsBridge : IJsBridge
 		}
 		catch (Exception ex)
 		{
-			System.Diagnostics.Debug.WriteLine($"WindowsJsBridge.OnWebMessageReceived failed: {ex.Message}");
+			Console.WriteLine($"WindowsJsBridge.OnWebMessageReceived failed: {ex.Message}");
 		}
 	}
 }

@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
 
 namespace Emuera.Maui.JsBridge;
@@ -13,7 +14,9 @@ namespace Emuera.Maui.JsBridge;
 ///       作为 JS 字面量传函数参数（无需再 JSON.stringify）。</item>
 ///   <item><see cref="InputReceived"/>：JS → C#，Vue 端 <c>postMessage(json)</c> 触发，C# 侧 <c>MauiBridgeIO.EnqueueInput</c>。</item>
 ///   <item><see cref="Attach"/>：挂载到 MAUI <see cref="WebView"/>，订阅平台原生消息事件。
-///       在 <c>WebView.HandlerChanged</c> 事件内调（拿平台原生视图的最早可靠时机）。</item>
+///       在 <c>WebView.HandlerChanged</c> 事件内调（拿平台原生视图的最早可靠时机）。
+///       返回 <see cref="Task"/> 让调用方 await 平台初始化完成后再设 URL——
+///       Windows <c>SetVirtualHostNameToFolderMapping</c> 必须在导航开始前完成（issue 07）。</item>
 /// </list>
 /// iOS / MacCatalyst 不在 Phase 1 范围（spec Out of Scope）。
 /// </remarks>
@@ -36,5 +39,8 @@ internal interface IJsBridge
 	/// Android <c>AddJavascriptInterface</c>）。在 <c>WebView.HandlerChanged</c> 事件内调。
 	/// </summary>
 	/// <param name="webView">MAUI 跨平台 <see cref="WebView"/>，实现内部取平台原生视图。</param>
-	void Attach(WebView webView);
+	/// <returns>Task 在平台原生视图初始化完成、桥接事件订阅就绪后完成。
+	/// 调用方应 await 此 Task 后再设 <c>WebView.Source</c>——
+	/// Windows 平台 <c>SetVirtualHostNameToFolderMapping</c> 必须在导航开始前完成。</returns>
+	Task Attach(WebView webView);
 }

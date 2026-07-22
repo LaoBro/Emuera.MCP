@@ -1,9 +1,11 @@
 /**
  * MAUI WebView 桥接工具——issue 07 / spec ID7。
  *
- * Vue 端按 `window.location.protocol` 判断 MAUI 环境（不注入 `__MAUI__` flag，消除注入 race）：
- * - `ms-appx-web:` / `file:` → MAUI（Windows / Android）
- * - `http:` / `https:` → HTTP（开发/生产浏览器模式）
+ * Vue 端按 `window.location` 判断 MAUI 环境（不注入 `__MAUI__` flag，消除注入 race）：
+ * - `ms-appx-web:` 协议 → Windows MAUI packaged（MSIX 包内）
+ * - `file:` 协议 → Android MAUI（`file:///android_asset/`）
+ * - `https:` 协议 + host `app.local` → Windows MAUI unpackaged（WebView2 虚拟主机映射）
+ * - 其他 `http:` / `https:` → HTTP 模式（开发/生产浏览器模式）
  *
  * MAUI 模式下：
  * 1. 注册 `window.__emueraOnTurn = (turn) => applyTurn(JSON.stringify(turn))`——
@@ -17,19 +19,29 @@
  */
 
 /**
+ * Windows MAUI unpackaged 模式下的虚拟主机名（与 WindowsJsBridge.VirtualHostName 对齐）。
+ * WebView2 的 SetVirtualHostNameToFolderMapping 把此主机映射到输出目录 wwwroot/。
+ */
+const MAUI_WINDOWS_VIRTUAL_HOST = 'app.local';
+
+/**
  * 判断当前是否运行在 MAUI WebView 内（spec ID7）。
  *
- * 检查 `window.location.protocol`：
- * - `ms-appx-web:` → Windows MAUI（WinUI WebView2 + MSIX 包）
- * - `file:` → Android MAUI（Android WebView + `file:///android_asset/`）
- * - 其他（`http:` / `https:`）→ HTTP 模式（浏览器 / Vite dev server）
+ * 检查 `window.location`：
+ * - `protocol === 'ms-appx-web:'` → Windows MAUI packaged（MSIX 包内）
+ * - `protocol === 'file:'` → Android MAUI（`file:///android_asset/`）
+ * - `protocol === 'https:' && hostname === 'app.local'` → Windows MAUI unpackaged（虚拟主机映射）
+ * - 其他（`http:` / `https:` 非 app.local）→ HTTP 模式（浏览器 / Vite dev server）
  *
  * SSR / 非 browser 环境返 false（`window` 未定义）。
  */
 export function isMauiEnvironment(): boolean {
   if (typeof window === 'undefined') return false;
-  const proto = window.location.protocol;
-  return proto === 'ms-appx-web:' || proto === 'file:';
+  const { protocol, hostname } = window.location;
+  if (protocol === 'ms-appx-web:' || protocol === 'file:') return true;
+  // Windows unpackaged 模式：WebView2 虚拟主机映射 https://app.local/
+  if (protocol === 'https:' && hostname === MAUI_WINDOWS_VIRTUAL_HOST) return true;
+  return false;
 }
 
 /**
@@ -48,10 +60,14 @@ export function postInput(json: string): void {
   const w = window as any;
   if (w.chrome?.webview) {
     w.chrome.webview.postMessage(json);
+    console.log('[mauiBridge] postInput via chrome.webview:', json);
   } else if (w.emueraBridge) {
     w.emueraBridge.postMessage(json);
+    console.log('[mauiBridge] postInput via emueraBridge:', json);
+  } else {
+    // 两者都不存在时静默 no-op——MAUI 桥接未 Attach 时 Vue 可能已加载（race），不抛错让 Vue 继续渲染
+    console.warn('[mauiBridge] postInput no bridge available (chrome.webview / emueraBridge both missing)');
   }
-  // 两者都不存在时静默 no-op——MAUI 桥接未 Attach 时 Vue 可能已加载（race），不抛错让 Vue 继续渲染
 }
 
 /**

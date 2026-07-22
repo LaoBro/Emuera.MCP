@@ -3,6 +3,7 @@ import { onMounted, computed } from 'vue';
 import { useUiStore } from './stores/ui';
 import { useGameStore } from './stores/game';
 import { initAppState } from './composables/useAppInit';
+import { isMauiEnvironment } from './lib/mauiBridge';
 import ConnectionPanel from './components/ConnectionPanel.vue';
 import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
@@ -19,12 +20,19 @@ const game = useGameStore();
 onMounted(() => initAppState());
 
 /**
+ * Issue 07 / spec ID11：MAUI 模式下隐藏连接面板和游戏目录选择器——
+ * 游戏目录由 C# 启动时 GameResourceExtractor.EnsureGameDir 解压就绪，
+ * 不需用户手动输入，也无 HTTP server 可连接。保留 view-switch（terminal/debug 仍可用）。
+ */
+const isMaui = isMauiEnvironment();
+
+/**
  * T-025 D14：「快速重开」按钮可见性——server 状态非 Idle 时显示。
  *
  * serverState 由 onMounted GET /state 和 WS 帧 turn.state 维护。
  * 'Idle' = 空闲（无活跃 session）；'Loading'/'WaitInput'/'Quit'/'Error' = 有活跃 session。
  */
-const canQuickRestart = computed(() => game.serverState !== 'Idle');
+const canQuickRestart = computed(() => !isMaui && game.serverState !== 'Idle');
 const isRestarting = computed(() => game.reloadStatus === 'loading');
 
 async function onQuickRestart(): Promise<void> {
@@ -36,11 +44,11 @@ async function onQuickRestart(): Promise<void> {
 <template>
   <div class="app-root">
     <header class="app-header">
-      <ConnectionPanel />
-      <!-- Issue 05：游戏选择器，按平台条件渲染 -->
-      <GamePickerMobile v-if="ui.platform === 'android'" />
-      <GamePicker v-else />
-      <!-- T-025 D14：快速重开按钮——游戏运行/结束时显示，一键重载同目录 -->
+      <ConnectionPanel v-if="!isMaui" />
+      <!-- Issue 05：游戏选择器，按平台条件渲染（MAUI 模式下隐藏——spec ID11） -->
+      <GamePickerMobile v-if="!isMaui && ui.platform === 'android'" />
+      <GamePicker v-else-if="!isMaui" />
+      <!-- T-025 D14：快速重开按钮——游戏运行/结束时显示，一键重载同目录（MAUI 模式下隐藏） -->
       <button
         v-if="canQuickRestart"
         class="quick-restart-btn"
