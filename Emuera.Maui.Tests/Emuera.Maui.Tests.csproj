@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- MAUI 单测目标 Windows TFM（issue 06 / spec ID5 IJsBridge 契约单测）。
+         Emuera.Headless.Tests 目标 net10.0 无法引用 Emuera.Maui（仅平台 TFM），
+         故独立项目承载 MAUI 专用契约测试。Android 单测需设备/模拟器，Phase 1 不纳入。-->
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">net10.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('windows'))"></TargetFrameworks>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseMaui>true</UseMaui>
+    <!-- 测试项目不需直接引用 Microsoft.Maui.Controls 包（经 Emuera.Maui 传递依赖获得）。
+         跳过 MAUI SDK 的隐式包引用校验（MA002 警告）。-->
+    <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Emuera.Maui\Emuera.Maui.csproj" />
+  </ItemGroup>
+
+</Project>

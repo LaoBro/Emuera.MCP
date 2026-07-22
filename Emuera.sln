@@ -11,6 +11,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Emuera.Headless.Cli", "Emue
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Emuera.Headless.Tests", "Emuera.Headless.Tests\Emuera.Headless.Tests.csproj", "{42356D48-2176-4C3A-B65A-60DB3DD97077}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Emuera.Maui", "Emuera.Maui\Emuera.Maui.csproj", "{E4F5A6B7-C8D9-0123-4567-890123456789}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Emuera.Maui.Tests", "Emuera.Maui.Tests\Emuera.Maui.Tests.csproj", "{F5A6B7C8-D9E0-1234-5678-901234567890}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +37,14 @@ Global
 		{42356D48-2176-4C3A-B65A-60DB3DD97077}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{42356D48-2176-4C3A-B65A-60DB3DD97077}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{42356D48-2176-4C3A-B65A-60DB3DD97077}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E4F5A6B7-C8D9-0123-4567-890123456789}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E4F5A6B7-C8D9-0123-4567-890123456789}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E4F5A6B7-C8D9-0123-4567-890123456789}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E4F5A6B7-C8D9-0123-4567-890123456789}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5A6B7C8-D9E0-1234-5678-901234567890}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5A6B7C8-D9E0-1234-5678-901234567890}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5A6B7C8-D9E0-1234-5678-901234567890}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5A6B7C8-D9E0-1234-5678-901234567890}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

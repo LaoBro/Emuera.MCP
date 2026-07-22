@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<!-- Phase 1 仅 Windows + Android（spec ID5 / Out of Scope：iOS/MacCatalyst 不在范围）。
+		     标准 MAUI app 多目标结构：net10.0-android + net10.0-windows10.0.19041.0。
+		     Issue 06 checklist 写"net10.0-maui"为简称——MAUI app TFM 实际拆为平台 TFM，
+		     `dotnet build -f net10.0-windows10.0.19041.0` 即 Windows target 验证。-->
+		<TargetFrameworks>net10.0-android</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+		<OutputType>Exe</OutputType>
+		<RootNamespace>Emuera.Maui</RootNamespace>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<!-- Headless 主项目用 TreatWarningsAsErrors=true 收紧；MAUI 项目模板默认不收紧，
+		     Phase 1 保持宽松以避免 MAUI 自身生成代码的警告阻塞构建。Phase 2 评估收紧。-->
+		<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+		<MauiXamlInflator>SourceGen</MauiXamlInflator>
+
+		<ApplicationTitle>Emuera</ApplicationTitle>
+		<ApplicationId>com.emuera.maui</ApplicationId>
+		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<ApplicationVersion>1</ApplicationVersion>
+
+		<!-- Windows 桌面 unpackaged 模式（开发期直接 dotnet run 启动，不需要 MSIX 打包）。
+		     Phase 2 评估 MSIX 打包发布。-->
+		<WindowsPackageType>None</WindowsPackageType>
+
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+	</PropertyGroup>
+
+	<!-- Issue 06：本票仅创建项目骨架以承载 IJsBridge 抽象层 + 平台实现。
+	     T07 完整创建 MainPage（WebView）/ BridgeHost / GameResourceExtractor / MauiProgram 编排。-->
+
+	<!-- IJsBridge + 平台实现 + JsBridgeFactory 均为 internal——
+	     Tests 需 InternalsVisibleTo 才能写契约单测（mock IJsBridge / 调 JsBridgeFactory.Create）。
+	     Emuera.Headless.Tests（net10.0，issue 04 MauiBridgeIO 单测）+ Emuera.Maui.Tests（net10.0-windows，issue 06 契约单测）。-->
+	<ItemGroup>
+		<InternalsVisibleTo Include="Emuera.Headless.Tests" />
+		<InternalsVisibleTo Include="Emuera.Maui.Tests" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- App Icon（最小占位，T07 / Phase 2 替换为正式图标）-->
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" />
+		<!-- Splash Screen（同上）-->
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#1E1E1E" BaseSize="128,128" />
+		<!-- Custom Fonts（暂用系统默认，T07 注入游戏字体）-->
+		<MauiFont Include="Resources\Fonts\*" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+		<!-- MauiProgram.cs 的 builder.Logging.AddDebug() 依赖此包（DEBUG 配置）。
+		     与 .NET MAUI 模板默认配置对齐。-->
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+	</ItemGroup>
+
+	<!-- 引用 Emuera.Headless.Core（issue 01 已就位，InternalsVisibleTo("Emuera.Maui") 已配置）。
+	     MAUI 不引 Headless.Server / Cli（避免 AspNetCore 框架在 Android target 不可用）。-->
+	<ItemGroup>
+		<ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
+	</ItemGroup>
+
+</Project>
