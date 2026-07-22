@@ -169,6 +169,7 @@ watch(() => game.displayState.lines.length, scrollToBottom);
         <p v-else-if="game.serverState === 'Idle'">
           已选择目录：{{ game.gameDir }}<br />请点击顶部「快速重开」按钮启动游戏
         </p>
+        <p v-else-if="game.serverState === 'Loading'">游戏加载中，请稍候…</p>
         <p v-else>游戏运行中，等待输出或在下方提交输入…</p>
       </template>
       <template v-else>

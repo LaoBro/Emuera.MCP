@@ -302,7 +302,7 @@ internal sealed class BridgeHost : IDisposable
     /// 按无头模式 <c>DrawingParam_ShapePositionShift = Max(2, FontSize/6)</c> 算 <c>gameColumns</c>。
     /// </para>
     /// <para>
-    /// 消息格式：<c>{"type":"layout","windowWidth":760,"fontSize":18,"lineHeight":19,"gameColumns":84,"fontName":"ＭＳ ゴシック"}</c>
+    /// 消息格式：<c>{"type":"layout","state":"Loading","gameDir":"D:/game","windowWidth":760,"fontSize":18,"lineHeight":19,"gameColumns":84,"fontName":"ＭＳ ゴシック"}</c>
     /// </para>
     /// </summary>
     private void PushLayoutMessage()
@@ -319,6 +319,8 @@ internal sealed class BridgeHost : IDisposable
         var msg = JsonSerializer.Serialize(new
         {
             type = "layout",
+            state = "Loading",
+            gameDir = GamePaths.Current?.ExeDir,
             windowWidth = ww,
             fontSize = fs,
             lineHeight = lh,

@@ -109,6 +109,10 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
       gameColumns: typeof m.gameColumns === 'number' ? m.gameColumns : null,
       fontName: typeof m.fontName === 'string' ? m.fontName : null,
     });
+    // layout 消息携带 state——同步 serverState，避免首帧到达前误显"请点击快速重开"
+    if (typeof m.state === 'string' && m.state !== 'Idle') {
+      game.applyServerState(m.state);
+    }
     return;
   }
 
