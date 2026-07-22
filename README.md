@@ -2,7 +2,12 @@
 
 Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本语言，并通过 MCP 协议支持 AI 代理控制。
 
-本项目以 **Emuera.Headless** 无头运行器为唯一维护目标，支持 **CLI 交互模式**与 **HTTP 服务器模式**两种协议入口。`Emuera/` 目录保留 WinForms 专用源码（仅 Windows）作只读参考，**不再维护，不可独立构建**。
+本项目以 **Emuera.Headless** 无头运行器为唯一维护目标。已拆分为三个项目：
+- `Emuera.Headless.Cli` — CLI 交互模式 & HTTP 服务器模式入口（Exe）
+- `Emuera.Headless.Core` — 无头核心库（Library，无 AspNetCore 依赖）
+- `Emuera.Headless.Server` — HTTP 服务器组件（Library，引 AspNetCore）
+
+另有 **MAUI 桌面/移动应用**（`Emuera.Maui`）用于原生窗口体验。`Emuera/` 目录保留 WinForms 专用源码作只读参考，**不再维护，不可独立构建**。
 
 ## 环境要求
 
@@ -13,37 +18,64 @@ Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本�
 
 ## 构建
 
-构建无头运行器：
+### CLI & Server 模式（共享 `Emuera.Headless.Cli`）
 
 ```bash
-dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug
+dotnet build Emuera.Headless.Cli/Emuera.Headless.Cli.csproj -c Debug
 ```
 
-构建 WinForms 应用：**不可用**。`Emuera/Emuera.csproj` 已在 T-023 中删除，`Emuera/` 仅保留 WinForms 专用源码（MainWindow/Forms/Sound.WMP/Libs 等）作只读参考。如需参考 WinForms 行为，直接查阅 `Emuera/UI/Game/WinFormsConsole.cs`、`Emuera/UI/Framework/Forms/` 等残留文件。
-
-发布无头运行器：
+发布单文件：
 
 ```bash
-dotnet publish Emuera.Headless/Emuera.Headless.csproj -c Release --no-self-contained -o Emuera.Headless/bin/Release/Publish
+dotnet publish Emuera.Headless.Cli/Emuera.Headless.Cli.csproj -c Release --no-self-contained -o publish/cli
 ```
 
-> **注意：** I-12 阶段 1 已落地按路径分级的质量护栏（见仓库根 [`.editorconfig`](.editorconfig)）：`Emuera.Headless/Shared/` 下的历史共享源码警告已全局抑制，不会出现在构建输出中；`Emuera.Headless/**`（排除 `Shared/`）下的自有源码警告保持可见。构建输出只关注 **error** 即可，但修改 Headless 自有源码时应顺手修复新引入的 CA/CS 警告。阶段 2（T-022）将逐步清零并启用 `TreatWarningsAsErrors`。
+### MAUI Windows 桌面应用
+
+```bash
+dotnet build Emuera.Maui/Emuera.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
+```
+
+MAUI 不支持 `PublishSingleFile`。发布需框架依赖或独立部署：
+
+```bash
+dotnet publish Emuera.Maui/Emuera.Maui.csproj -f net10.0-windows10.0.19041.0 -c Release
+dotnet publish Emuera.Maui/Emuera.Maui.csproj -f net10.0-windows10.0.19041.0 -c Release --self-contained -r win-x64
+```
+
+### Android APK
+
+```bash
+dotnet publish Emuera.Maui/Emuera.Maui.csproj -f net10.0-android -c Release
+```
+
+需要 Android SDK + JDK 17+（`JAVA_HOME`）环境。
+
+> **注意：** I-12 阶段 1 已启用按路径分级的质量护栏。`Emuera.Headless.Core/Shared/`（迁移自 `Emuera/`）下的历史警告已全局抑制。修改自有源码时应关注新引入的 CA/CS 警告。`Emuera.Headless.Cli` 和 `Emuera.Headless.Server` 启用 `TreatWarningsAsErrors`。
 
 ## 运行
 
-以 CLI 模式运行（终端交互，需真实 TTY）：
+### CLI 交互模式（需真实 TTY）
 
 ```bash
-dotnet exec Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.dll --ExeDir <游戏目录> --protocol cli
+dotnet exec Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.dll --ExeDir <游戏目录> --protocol cli
 ```
 
-运行 HTTP 服务器（脚本/自动化与 MCP 网关使用此模式）：
+### HTTP 服务器模式（浏览器访问 http://localhost:8080）
 
 ```bash
-dotnet exec Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.dll --ExeDir <游戏目录> --server --port 8080
+dotnet exec Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.dll --ExeDir <游戏目录> --server --port 8080
 ```
 
-> T-024 后 stdin 管道模式（`--protocol cli`/`--protocol jsonl` 的 stdin pipe 路径）已移除；`--protocol jsonl` 在非 server 模式下会报错。脚本/自动化统一走 `--server`。
+> `--protocol jsonl` 在非 server 模式下会报错；脚本/自动化统一走 `--server`。
+
+### MAUI Windows 桌面应用
+
+```bash
+dotnet run --project Emuera.Maui/Emuera.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
+```
+
+启动后自动解压内置 `test_game/` 到 AppData，WebView 加载 Vue 前端界面。
 
 ### Web 前端
 
@@ -108,7 +140,7 @@ Claude Code <-- MCP over stdio --> emuera_gateway <-- HTTP --> Emuera.Headless (
 
 ```json
 {
-  "binaryPath": "Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe",
+  "binaryPath": "Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe",
   "gameDir": "test_game"
 }
 ```
@@ -120,7 +152,7 @@ Claude Code <-- MCP over stdio --> emuera_gateway <-- HTTP --> Emuera.Headless (
 嵌入模式（默认）——由 Python 启动和停止 C# 服务器：
 
 ```bash
-python -m emuera_gateway --emuera-path Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+python -m emuera_gateway --emuera-path Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
 ```
 
 独立模式——连接已运行的 C# 服务器：
@@ -191,20 +223,20 @@ python -m emuera_gateway --standalone --server-url http://localhost:8080
 测试分三层：**C# 单元测试**（xUnit）、**Python 端到端**（CLI/HTTP/WebSocket）、**前端测试**（Vitest）。
 
 ```bash
-# C# 单元测试（xUnit，243 用例）
+# C# 单元测试（xUnit，304 用例）
 dotnet test Emuera.Headless.Tests/Emuera.Headless.Tests.csproj
 
-# 前端测试（Vitest，12 个测试文件）
+# MAUI 单元测试（11 用例）
+dotnet test Emuera.Maui.Tests/Emuera.Maui.Tests.csproj
+
+# 前端测试（Vitest，13 个测试文件，224 用例）
 cd Emuera.Web && npm test
 
-# Python 端到端（使用 test_game，Windows 下用绝对路径更可靠）
-python tests/test_jsonl.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
-python tests/test_server_single_session.py
-python tests/test_tinput_timeout.py
-python tests/test_force_quit_survival.py
+# Python 端到端（使用 test_game）
+python tests/test_jsonl.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
 
-# 全部回归测试（先 C# 单测+构建，再全量 Python 套件）
-python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+# 全部回归测试（先 C# 单测+构建，再全量 Python 套件，14 套件）
+python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
 ```
 
 `tests/README.md` 是测试的权威文档。
@@ -212,14 +244,18 @@ python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/
 ## 项目结构
 
 ```
-Emuera.Headless/   -- 无头运行器（唯一维护目标，CLI 交互 + HTTP 服务器）
-Emuera.Web/        -- Vue 3 + TypeScript 浏览器前端（Vite + Pinia + Vitest）
-Emuera/            -- WinForms 残留源码（不再维护，仅作只读参考，不可独立构建）
-emuera_gateway/    -- Python MCP 网关
-EmueraPluginExample/ -- 示例 C# 插件（已从根 sln 移除，不可独立构建）
-tests/             -- Python 端到端测试脚本
-Emuera.Headless.Tests/ -- C# 单元测试（xUnit）
-test_game/         -- 开发用最小 ERB 测试游戏
+Emuera.Headless.Cli/    -- CLI 交互 & HTTP 服务器入口（Exe，唯一可运行的 Headless 入口）
+Emuera.Headless.Core/   -- 无头核心库（Library，无 AspNetCore 依赖，MAUI 可直接引用）
+Emuera.Headless.Server/ -- HTTP 服务器组件（Library，引 AspNetCore）
+Emuera.Maui/            -- MAUI 桌面/移动应用（Windows + Android，原生 WebView 壳）
+Emuera.Web/             -- Vue 3 + TypeScript 浏览器前端（Vite + Pinia + Vitest）
+Emuera.Headless.Tests/  -- C# 单元测试（xUnit，304 用例）
+Emuera.Maui.Tests/      -- MAUI 单元测试（xUnit，15 用例）
+Emuera/                 -- WinForms 残留源码（不再维护，仅作只读参考，不可独立构建）
+emuera_gateway/         -- Python MCP 网关
+tests/                  -- Python 端到端测试脚本
+build/                  -- MSBuild targets（VueBuild.targets 共享）
+test_game/              -- 开发用最小 ERB 测试游戏
 ```
 
 ## 许可证
