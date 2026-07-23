@@ -13,7 +13,7 @@ import { parseTurnRecord, ParseTurnRecordError } from '../parseTurnRecord';
  */
 describe('parseTurnRecord', () => {
   it('解析最简 TurnRecord（仅必填字段 state + needValue）', () => {
-    const json = JSON.stringify({ state: 'WaitInput', needValue: false });
+    const json = JSON.stringify({ state: 'WaitInput', needValue: false, generation: 0 });
     const turn = parseTurnRecord(json);
     expect(turn.state).toBe('WaitInput');
     expect(turn.needValue).toBe(false);
@@ -29,6 +29,7 @@ describe('parseTurnRecord', () => {
       inputType: 'IntValue',
       needValue: true,
       protocolVersion: 6,
+      generation: 0,
       diff: {
         lineOps: [
           { type: 'append', newLines: [{ entries: [{ segments: [{ text: 'Hello' }] }], isLineEnd: true }] },
@@ -71,6 +72,7 @@ describe('parseTurnRecord', () => {
     const json = JSON.stringify({
       state: 'Error',
       needValue: false,
+      generation: 0,
       error: 'EraBrowser load failed',
     });
     const turn = parseTurnRecord(json);
@@ -82,6 +84,7 @@ describe('parseTurnRecord', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       diff: {
         lineOps: [
           {
@@ -91,11 +94,11 @@ describe('parseTurnRecord', () => {
                 entries: [
                   {
                     segments: [{ text: '[OK]' }],
-                    button: { value: 1, isInteger: true, col: 0, width: 4 },
+                    button: { value: 1, isInteger: true, col: 0, width: 4, generation: 0 },
                   },
                   {
                     segments: [{ text: '[Cancel]' }],
-                    button: { value: 'cancel', isInteger: false, col: 4, width: 8 },
+                    button: { value: 'cancel', isInteger: false, col: 4, width: 8, generation: 0 },
                   },
                 ],
                 isLineEnd: true,
@@ -126,6 +129,7 @@ describe('parseTurnRecord', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       diff: {
         lineOps: [
           {
@@ -175,6 +179,7 @@ describe('parseTurnRecord', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       diff: {
         lineOps: [{ type: 'unknown_op', foo: 'bar' }],
       },
@@ -186,6 +191,7 @@ describe('parseTurnRecord', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       diff: { lineOps: 'not_an_array' },
     });
     expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
@@ -195,6 +201,7 @@ describe('parseTurnRecord', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       diff: {
         lineOps: [
           {
@@ -230,6 +237,7 @@ describe('parseTurnRecord - ADR-0016 timer fields', () => {
       inputType: 'IntValue',
       needValue: true,
       protocolVersion: 6,
+      generation: 0,
       timeLimit: 5000,
       displayTime: true,
       timeUpMessage: '时间到！',
@@ -248,6 +256,7 @@ describe('parseTurnRecord - ADR-0016 timer fields', () => {
       state: 'WaitInput',
       inputType: 'IntValue',
       needValue: true,
+      generation: 0,
       timedOut: true,
       timeUpMessage: 'Time up, continue with default',
       diff: null,
@@ -263,6 +272,7 @@ describe('parseTurnRecord - ADR-0016 timer fields', () => {
       state: 'WaitInput',
       inputType: 'AnyKey',
       needValue: false,
+      generation: 0,
       diff: null,
     });
     const turn = parseTurnRecord(json);
@@ -277,6 +287,7 @@ describe('parseTurnRecord - ADR-0016 timer fields', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
     });
     const turn = parseTurnRecord(json);
     expect(turn.timedOut).toBe(false);
@@ -286,6 +297,7 @@ describe('parseTurnRecord - ADR-0016 timer fields', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       timeLimit: '5000',
     });
     expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
@@ -295,6 +307,7 @@ describe('parseTurnRecord - ADR-0016 timer fields', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       displayTime: 'yes',
     });
     expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
@@ -304,6 +317,7 @@ describe('parseTurnRecord - ADR-0016 timer fields', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       timedOut: 1,
     });
     expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);

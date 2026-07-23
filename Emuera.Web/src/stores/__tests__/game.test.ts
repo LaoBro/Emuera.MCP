@@ -48,6 +48,7 @@ function appendFrameJson(
     state,
     inputType,
     needValue,
+    generation: 0,
     protocolVersion,
     diff: {
       lineOps: [{ type: 'append', newLines: texts.map((t) => diffLine(t)) }],
@@ -61,6 +62,7 @@ function clearLineFrameJson(clearCount: number): string {
   return JSON.stringify({
     state: 'WaitInput',
     needValue: false,
+    generation: 0,
     diff: {
       lineOps: [{ type: 'clear_line_diff', clearCount }],
       bgColor: null,
@@ -73,6 +75,7 @@ function clearScreenFrameJson(newBg?: string): string {
   return JSON.stringify({
     state: 'WaitInput',
     needValue: false,
+    generation: 0,
     diff: {
       lineOps: [{ type: 'clear_screen' }],
       bgColor: newBg ?? null,
@@ -86,6 +89,7 @@ function stateOnlyFrameJson(state: string, inputType?: string, needValue?: boole
     state,
     inputType: inputType ?? null,
     needValue: needValue ?? false,
+    generation: 0,
     diff: null,
   });
 }
@@ -110,6 +114,7 @@ function tinputFrameJson(opts: {
     state: opts.state ?? 'WaitInput',
     inputType: opts.inputType ?? null,
     needValue: opts.needValue ?? false,
+    generation: 0,
     timedOut: opts.timedOut ?? false,
     diff: null,
   };
@@ -230,7 +235,7 @@ describe('useGameStore.applyTurn', () => {
     game.applyTurn(appendFrameJson(['orig']));
 
     // 缺 needValue
-    game.applyTurn(JSON.stringify({ state: 'WaitInput' }));
+    game.applyTurn(JSON.stringify({ state: 'WaitInput', generation: 0 }));
 
     expect(game.lastError).not.toBeNull();
     expect(game.lastError).toContain('needValue');
@@ -292,6 +297,7 @@ describe('useGameStore.applyTurn', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       diff: {
         lineOps: [
           {
@@ -301,11 +307,11 @@ describe('useGameStore.applyTurn', () => {
                 entries: [
                   {
                     segments: [seg('[0]')],
-                    button: { value: 0, isInteger: true, col: 0, width: 3 },
+                    button: { value: 0, isInteger: true, col: 0, width: 3, generation: 0 },
                   },
                   {
                     segments: [seg('[Cancel]')],
-                    button: { value: 'cancel', isInteger: false, col: 3, width: 8 },
+                    button: { value: 'cancel', isInteger: false, col: 3, width: 8, generation: 0 },
                   },
                 ],
                 isLineEnd: true,
@@ -330,6 +336,7 @@ describe('useGameStore.applyTurn', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       diff: {
         lineOps: [
           {
@@ -337,9 +344,9 @@ describe('useGameStore.applyTurn', () => {
             newLines: [
               {
                 entries: [
-                  { segments: [seg('[Yes]')], button: { value: 1, isInteger: true, col: 0, width: 5 } },
+                  { segments: [seg('[Yes]')], button: { value: 1, isInteger: true, col: 0, width: 5, generation: 0 } },
                   { segments: [seg(' or ')] },
-                  { segments: [seg('[No]')], button: { value: 2, isInteger: true, col: 9, width: 4 } },
+                  { segments: [seg('[No]')], button: { value: 2, isInteger: true, col: 9, width: 4, generation: 0 } },
                 ],
                 isLineEnd: true,
               },
@@ -364,6 +371,7 @@ describe('useGameStore.applyTurn', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       diff: {
         lineOps: [
           {
@@ -590,6 +598,7 @@ describe('useGameStore - ADR-0016 TINPUT timer 状态', () => {
       inputType: 'IntValue',
       needValue: true,
       protocolVersion: 6,
+      generation: 0,
       timeLimit: 3000,
       displayTime: true,
       timeUpMessage: '快选择！',
@@ -617,6 +626,7 @@ describe('useGameStore - ADR-0016 TINPUT timer 状态', () => {
       inputType: null,
       needValue: false,
       protocolVersion: 6,
+      generation: 0,
       // 不带 timer 字段
     };
     game.setSnapshot(snap);
@@ -638,6 +648,7 @@ describe('useGameStore - ADR-0016 TINPUT timer 状态', () => {
       inputType: 'IntValue',
       needValue: true,
       protocolVersion: 6,
+      generation: 0,
     };
     game.setSnapshot(snap);
 
@@ -656,6 +667,7 @@ describe('useGameStore - ADR-0016 TINPUT timer 状态', () => {
       inputType: null,
       needValue: false,
       protocolVersion: 6,
+      generation: 0,
     };
     game.setSnapshot(snap);
     expect(game.lastSnapshot).not.toBeNull();

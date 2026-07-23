@@ -37,9 +37,10 @@ export interface PrintSegment {
 /**
  * 按钮几何引用（C# `ButtonRef`）。
  *
- * - `value` / `isInteger` 永远存在（C# record 必填参数）
+ * - `value` / `isInteger` / `generation` 永远存在（C# record 必填参数）
  * - `col` / `width` 是可空 int（C# 默认值 `null`）—— 快照中始终填充（BuildPrintOpsForLine
  *   计算得出），增量 PrintOp 中也填充；这里保留 optional 是为了和 C# 类型对称。
+ * - `generation`：按钮所属回合的 generation 号，前端用于按钮过期检测（v7）。
  *
  * 几何语义（ADR-0013 决策二）：`col` 是行内起始列（0-based），`width` 是按钮显示宽度
  * （按字符 display-width 计算，含全角字符占 2 列）。
@@ -47,6 +48,7 @@ export interface PrintSegment {
 export interface ButtonRef {
   value: ButtonValue;
   isInteger: boolean;
+  generation: number;
   col?: number | null;
   width?: number | null;
 }
@@ -85,7 +87,8 @@ export interface DisplayLine {
  * - `state`：游戏状态字符串（C# `ConsoleState.ToString()`，如 "WaitInput"/"Quit"/"Error"）
  * - `inputType`：当前输入请求类型（C# `InputType.ToString()`，如 "IntValue"/"StrValue"/"AnyKey"/"EnterKey"）
  * - `needValue`：是否需要值输入（inputType=IntValue/StrValue 时 true）
- * - `protocolVersion`：协议版本号（与 `TurnRecord.protocolVersion` 一致，v6 当前）
+ * - `protocolVersion`：协议版本号（与 `TurnRecord.protocolVersion` 一致，v7 当前）
+ * - `generation`：快照时的 generation 号（v7），前端用于按钮过期检测
  * - `timeLimit`：ADR-0016——TINPUT 总时长（毫秒），null/省略 = 非 TINPUT 期间
  * - `displayTime`：ADR-0016——是否向玩家显示倒计时（ERB 可设 false）
  * - `timeUpMessage`：ADR-0016——ERB 超时提示文案
@@ -100,6 +103,7 @@ export interface DisplaySnapshot {
   inputType?: string | null;
   needValue: boolean;
   protocolVersion: number;
+  generation: number;
   timeLimit?: number | null;
   displayTime?: boolean | null;
   timeUpMessage?: string | null;
@@ -169,7 +173,8 @@ export type TurnOp =
  * - `needValue`：是否需要值输入
  * - `diff`：行级差异（null 表示本回合显示未变——例如纯状态切换）
  * - `error`：错误信息（state=Error 时填充）
- * - `protocolVersion`：协议版本（v6 当前；首次帧必带，后续帧可省略）
+ * - `protocolVersion`：协议版本（v7 当前；首次帧必带，后续帧可省略）
+ * - `generation`：本回合 generation 号（v7），前端用于按钮过期检测；v7 每帧必带
  * - `timeLimit`：ADR-0016——TINPUT 总时长（毫秒），null/省略 = 非 TINPUT 期间
  * - `displayTime`：ADR-0016——是否向玩家显示倒计时（ERB 可设 false）
  * - `timeUpMessage`：ADR-0016——ERB 超时提示文案
@@ -190,14 +195,16 @@ export interface TurnRecord {
   timeUpMessage?: string | null;
   /** ADR-0016：非 nullable bool，C# 每帧都发（默认 false） */
   timedOut: boolean;
+  /** v7：本回合 generation 号，前端按钮过期检测。v7 每帧必带。 */
+  generation: number;
 }
 
 /**
- * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 6` 对称，ADR-0016 bump v5→v6）。
+ * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 7` 对称，v6→v7 加 generation）。
  *
  * 用于前端校验：WS 帧 protocolVersion 与本常量不匹配时给出降级提示。
  */
-export const CURRENT_PROTOCOL_VERSION = 6;
+export const CURRENT_PROTOCOL_VERSION = 7;
 
 // ---------- DisplayState：前端内部可变状态 ----------
 //

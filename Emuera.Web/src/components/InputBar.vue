@@ -32,9 +32,9 @@ const inputValue = ref<string>('');
 /** 输入框 DOM 引用——用于 auto-focus。 */
 const inputEl = ref<HTMLInputElement | null>(null);
 
-/** 当前是否处于可输入状态——同时检查游戏状态 + 连接状态。 */
+/** 当前是否处于可输入状态——检查游戏状态 + 连接状态 + inputInFlight。 */
 const canSubmit = computed<boolean>(
-  () => conn.status === 'connected' && game.displayState.state === 'WaitInput',
+  () => conn.status === 'connected' && game.displayState.state === 'WaitInput' && !game.inputInFlight,
 );
 
 /** 当前是否需要值输入——IntValue/StrValue/AnyValue 三类有输入框。 */

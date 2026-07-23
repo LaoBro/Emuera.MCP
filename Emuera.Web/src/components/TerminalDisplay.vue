@@ -3,7 +3,7 @@ import { computed, ref, watch, nextTick } from 'vue';
 import { useGameStore } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
 import { isMauiEnvironment } from '../lib/mauiBridge';
-import type { ButtonValue, PrintSegment, DisplayLine } from '../types/protocol';
+import type { ButtonValue, PrintSegment, DisplayLine, DisplayEntry } from '../types/protocol';
 
 /**
  * TerminalDisplay.vue — Emuera 终端渲染器（issue 03 / issue 12 固定宽度布局）。
@@ -108,9 +108,26 @@ function valueToWire(v: ButtonValue): string {
   return typeof v === 'number' ? String(v) : v;
 }
 
-function onButtonClick(v: ButtonValue): void {
+/**
+ * 按钮点击处理器——三重守卫防失效点击。
+ *
+ * 守卫：
+ * 1. state !== 'WaitInput' → 非等待态按钮不可点击
+ * 2. button.generation !== game.currentTurnGeneration → 旧回合按钮不可点击
+ * 3. game.inputInFlight → 同一回合内防重复点击（乐观锁）
+ *
+ * 通过守卫后置 inputInFlight + 发送输入。服务端响应新 turn 时
+ * applyTurn 会清锁 + 更新 generation。
+ */
+function onButtonClick(entry: DisplayEntry): void {
+  const button = entry.button;
+  if (!button) return;
   if (conn.status !== 'connected') return;
-  conn.sendInput(valueToWire(v));
+  if (game.displayState.state !== 'WaitInput') return;         // 守卫 1
+  if (button.generation !== game.currentTurnGeneration) return; // 守卫 2
+  if (game.inputInFlight) return;                                // 守卫 3
+  game.setInputInFlight();
+  conn.sendInput(valueToWire(button.value));
 }
 
 /**
@@ -190,8 +207,8 @@ watch(() => game.displayState.lines.length, scrollToBottom);
           v-if="entry.button"
           class="term-btn"
           :title="`点击提交: ${valueToWire(entry.button.value)}`"
-          :disabled="conn.status !== 'connected'"
-          @click="onButtonClick(entry.button.value)"
+          :disabled="conn.status !== 'connected' || game.displayState.state !== 'WaitInput'"
+          @click="onButtonClick(entry)"
         >
           <span
             v-for="(seg, segIdx) in entry.segments"
@@ -283,8 +300,7 @@ watch(() => game.displayState.lines.length, scrollToBottom);
   background: #0a4a78;
 }
 .term-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+  cursor: default;
 }
 .terminal-empty {
   color: #888;

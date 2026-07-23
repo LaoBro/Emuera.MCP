@@ -143,6 +143,7 @@ function snapshotJson(lines: unknown[] = [], opts: { state?: string; needValue?:
     state: opts.state ?? 'WaitInput',
     inputType: null,
     needValue: opts.needValue ?? false,
+    generation: 0,
     protocolVersion: opts.protocolVersion ?? 6,
   });
 }
@@ -467,6 +468,7 @@ describe('useConnectionStore.connect — onopen 立即拉 snapshot', () => {
     const turnJson = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       protocolVersion: 6,
       diff: {
         lineOps: [
@@ -515,6 +517,7 @@ describe('useConnectionStore.connect — onopen 立即拉 snapshot', () => {
     const deltaJson = JSON.stringify({
       state: 'WaitInput',
       needValue: false,
+      generation: 0,
       protocolVersion: 6,
       diff: {
         lineOps: [
@@ -626,6 +629,7 @@ describe('useConnectionStore.connect — onopen 立即拉 snapshot', () => {
       state: 'WaitInput',
       inputType: 'IntValue',
       needValue: true,
+      generation: 0,
       protocolVersion: 6,
       // 注意：没有 diff 字段
     });

@@ -35,8 +35,8 @@ function entry(text: string, button?: ButtonRef | null): DisplayEntry {
   return button === undefined ? { segments: [seg(text)] } : { segments: [seg(text)], button };
 }
 
-function button(value: number | string, isInteger: boolean, col: number, width: number): ButtonRef {
-  return { value, isInteger, col, width };
+function button(value: number | string, isInteger: boolean, col: number, width: number, generation: number): ButtonRef {
+  return { value, isInteger, generation, col, width };
 }
 
 function snapshot(partial: Partial<DisplaySnapshot> & Pick<DisplaySnapshot, 'state' | 'needValue'>): DisplaySnapshot {
@@ -46,7 +46,8 @@ function snapshot(partial: Partial<DisplaySnapshot> & Pick<DisplaySnapshot, 'sta
     state: partial.state,
     inputType: partial.inputType ?? null,
     needValue: partial.needValue,
-    protocolVersion: partial.protocolVersion ?? 6,
+    protocolVersion: partial.protocolVersion ?? 7,
+    generation: partial.generation ?? 0,
   };
 }
 
@@ -65,7 +66,7 @@ function makeState(partial: Partial<DisplayState> = {}): DisplayState {
 describe('applyOps: print + newline', () => {
   it('T_ops_print 对称：PrintOp 追加 entry，NewLineOp 终止行', () => {
     const ops: TurnOp[] = [
-      { type: 'print', segments: [seg('Hello')], button: button(42, true, 0, 5) },
+      { type: 'print', segments: [seg('Hello')], button: button(42, true, 0, 5, 0) },
       { type: 'newline', align: null },
     ];
     const newState = applyOps(EMPTY_DISPLAY_STATE, ops);
@@ -226,7 +227,7 @@ describe('applyOps: 几何透传', () => {
       {
         type: 'print',
         segments: [seg('btn')],
-        button: button('click', false, 5, 4),
+        button: button('click', false, 5, 4, 0),
       },
       { type: 'newline', align: null },
     ];
@@ -263,7 +264,7 @@ describe('applyOps: roundtrip', () => {
       {
         type: 'print',
         segments: [seg('[Next]')],
-        button: button(2, true, 0, 6),
+        button: button(2, true, 0, 6, 0),
       },
       { type: 'newline', align: null },
     ];
@@ -476,10 +477,10 @@ describe('applyDiff', () => {
 
 // ---------- 辅助 ----------
 
-function lineFromButton(text: string, value: number, col = 0, width?: number): DisplayLine {
+function lineFromButton(text: string, value: number, col = 0, width?: number, generation = 0): DisplayLine {
   const w = width ?? text.length;
   return {
-    entries: [entry(text, button(value, true, col, w))],
+    entries: [entry(text, button(value, true, col, w, generation))],
     isLineEnd: true,
   };
 }

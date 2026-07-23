@@ -207,6 +207,51 @@ export const useGameStore = defineStore('game', () => {
    */
   const protocolVersion = ref<number | null>(null);
 
+  // ---------- 按钮 generation 失效 + 三重守卫（v6→v7）----------
+  //
+  // - currentTurnGeneration：当前回合的 generation 号，由 applyTurn/setSnapshot 更新。
+  //   前端对比按钮的 generation 是否匹配此值——不匹配说明按钮属于旧回合，禁用。
+  // - inputInFlight：同一回合内防重复点击的乐观锁。点击按钮时立即置 true，
+  //   下一帧 turn 到达（applyTurn）或快照重建（setSnapshot）时清 false。
+  // - inputInFlightTimerId：30s 安全超时——服务端崩溃时前端不会永久锁死。
+  /** 当前回合 generation 号。初始 0，与 C# LastButtonGeneration 初始值对称。 */
+  const currentTurnGeneration = ref<number>(0);
+  /** 输入乐观锁——同一回合内防重复点击。true 时阻止所有按钮/InputBar 提交。 */
+  const inputInFlight = ref<boolean>(false);
+  /** 安全超时定时器——服务端崩溃兜底，30s 后自动解锁。 */
+  let inputInFlightTimerId: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * 置输入乐观锁 + 30s 安全超时。
+   * 幂等：多次调用重置超时（双击时第二击刷新 30s 窗口）。
+   */
+  function setInputInFlight(): void {
+    inputInFlight.value = true;
+    if (inputInFlightTimerId !== null) clearTimeout(inputInFlightTimerId);
+    inputInFlightTimerId = setTimeout(() => {
+      inputInFlight.value = false;
+      inputInFlightTimerId = null;
+    }, 30000);
+  }
+
+  /** 清输入乐观锁 + 清安全超时。applyTurn / setSnapshot / reset 共用。 */
+  function clearInputInFlight(): void {
+    inputInFlight.value = false;
+    if (inputInFlightTimerId !== null) {
+      clearTimeout(inputInFlightTimerId);
+      inputInFlightTimerId = null;
+    }
+  }
+
+  /**
+   * 设置当前 generation + 清 inputInFlight。
+   * applyTurn / setSnapshot / reset 共用的两步操作，消除重复代码。
+   */
+  function acceptGeneration(n: number): void {
+    currentTurnGeneration.value = n;
+    clearInputInFlight();
+  }
+
   // ---------- Issue 12：游戏窗口布局元信息 ----------
   //
   // 这五个字段从 C# `GET /state` 响应读取——驱动 TerminalDisplay 的固定宽度布局：
@@ -388,6 +433,8 @@ export const useGameStore = defineStore('game', () => {
       lastError.value = e instanceof ParseTurnRecordError
         ? `协议解析失败：${e.message}`
         : `解析失败：${e instanceof Error ? e.message : String(e)}`;
+      // 解析失败仍清 inputInFlight——避免锁永久卡住直到 30s 安全超时
+      clearInputInFlight();
       return;
     }
 
@@ -403,6 +450,9 @@ export const useGameStore = defineStore('game', () => {
     if (turn.protocolVersion != null) {
       protocolVersion.value = turn.protocolVersion;
     }
+
+    // v7：更新 currentTurnGeneration + 清 inputInFlight（新回合到来，解锁）
+    acceptGeneration(turn.generation);
 
     // 应用 diff（若存在）。applyDiff 不修改入参——返回新对象。
     const afterDiff = turn.diff
@@ -452,6 +502,8 @@ export const useGameStore = defineStore('game', () => {
     tinputDisplayTime.value = null;
     tinputTimeUpMessage.value = null;
     stopTinputTicker();
+    // v7：重置 generation + 清 inputInFlight
+    acceptGeneration(0);
     // issue 09：reset 时清空 mauiError——hot-swap reload 前清旧错误
     mauiError.value = null;
   }
@@ -481,6 +533,8 @@ export const useGameStore = defineStore('game', () => {
     if (typeof snapshot.protocolVersion === 'number') {
       protocolVersion.value = snapshot.protocolVersion;
     }
+    // v7：更新 currentTurnGeneration + 清 inputInFlight（快照重建，解锁）
+    acceptGeneration(snapshot.generation);
     // ADR-0016：晚加入者也可能撞上 TINPUT 期间——snapshot 携带 timer 字段时
     // 启动本地钟表。snapshot.state===WaitInput 校验避免 Quit/Error 状态误启。
     if (
@@ -809,6 +863,10 @@ export const useGameStore = defineStore('game', () => {
     lastSnapshot,
     displayState,
     protocolVersion,
+    // v7：按钮 generation 失效 + 三重守卫
+    currentTurnGeneration,
+    inputInFlight,
+    setInputInFlight,
     // ADR-0016：暴露 TINPUT timer 状态供 UI / 测试访问
     timeoutNotice,
     tinputStartedAt,

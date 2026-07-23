@@ -27,8 +27,8 @@ function entry(text: string, button?: ButtonRef | null): DisplayEntry {
   return button === undefined ? { segments: [seg(text)] } : { segments: [seg(text)], button };
 }
 
-function button(value: number | string, isInteger: boolean, col: number, width: number): ButtonRef {
-  return { value, isInteger, col, width };
+function button(value: number | string, isInteger: boolean, col: number, width: number, generation: number): ButtonRef {
+  return { value, isInteger, generation, col, width };
 }
 
 function line(entries: DisplayEntry[], align?: DisplayLine['align'], isLineEnd = true): DisplayLine {
@@ -42,7 +42,8 @@ function snapshot(partial: Partial<DisplaySnapshot> & Pick<DisplaySnapshot, 'sta
     state: partial.state,
     inputType: partial.inputType ?? null,
     needValue: partial.needValue,
-    protocolVersion: partial.protocolVersion ?? 6,
+    protocolVersion: partial.protocolVersion ?? 7,
+    generation: partial.generation ?? 0,
   };
 }
 
@@ -76,7 +77,7 @@ describe('applySnapshot', () => {
   });
 
   it('有按钮：ButtonRef 几何 col/width 透传', () => {
-    const btn = button(1, true, 0, 4);
+    const btn = button(1, true, 0, 4, 0);
     const snap = snapshot({
       state: 'WaitInput',
       needValue: false,
@@ -87,6 +88,7 @@ describe('applySnapshot', () => {
     expect(got).not.toBeNull();
     expect(got!.value).toBe(1);
     expect(got!.isInteger).toBe(true);
+    expect(got!.generation).toBe(0);
     expect(got!.col).toBe(0);
     expect(got!.width).toBe(4);
   });
@@ -122,11 +124,11 @@ describe('applySnapshot', () => {
       needValue: false,
       bgColor: '#0A141E',
       lines: [
-        line([entry('[OK]', button(1, true, 0, 4))], 'left', true),
+        line([entry('[OK]', button(1, true, 0, 4, 0))], 'left', true),
         line([
-          entry('[Yes]', button(10, true, 0, 5)),
+          entry('[Yes]', button(10, true, 0, 5, 0)),
           entry(' or ', null),
-          entry('[No]', button(20, true, 9, 4)),
+          entry('[No]', button(20, true, 9, 4, 0)),
         ]),
       ],
     });
@@ -192,10 +194,10 @@ describe('applySnapshot', () => {
       state: 'WaitInput',
       needValue: false,
       lines: [line([
-        entry('[0]', button(0, true, 0, 3)),
-        entry('[1]', button(1, true, 3, 3)),
-        entry('[2]', button(2, true, 6, 3)),
-        entry('[Cancel]', button(3, true, 9, 8)),
+        entry('[0]', button(0, true, 0, 3, 0)),
+        entry('[1]', button(1, true, 3, 3, 0)),
+        entry('[2]', button(2, true, 6, 3, 0)),
+        entry('[Cancel]', button(3, true, 9, 8, 0)),
       ])],
     });
 

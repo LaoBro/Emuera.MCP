@@ -52,6 +52,8 @@ export function parseTurnRecord(rawJson: string): TurnRecord {
   // 当 JSON 中省略该字段时（理论不会发生——C# WhenWritingNull 不抑制非 nullable bool），
   // 视为 false，与 C# 默认值对称。
   const timedOut = readBoolWithDefault(root.timedOut, 'timedOut', false);
+  // v7：generation 为必填 int，缺失时抛错——不接受降级
+  const generation = readIntRequired(root.generation, 'generation');
   const diff = root.diff === undefined || root.diff === null ? null : parseDiff(root.diff);
 
   return {
@@ -65,6 +67,7 @@ export function parseTurnRecord(rawJson: string): TurnRecord {
     displayTime,
     timeUpMessage,
     timedOut,
+    generation,
   };
 }
 
@@ -170,7 +173,7 @@ function parsePrintSegment(raw: unknown, path: string): PrintSegment {
 }
 
 /**
- * 解析 `ButtonRef`。`value` 必填（number|string）；`isInteger` 必填 bool；
+ * 解析 `ButtonRef`。`value` 必填（number|string）；`isInteger`/`generation` 必填；
  * `col`/`width` 可空 int。
  */
 function parseButtonRef(raw: unknown, path: string): ButtonRef {
@@ -187,6 +190,7 @@ function parseButtonRef(raw: unknown, path: string): ButtonRef {
   return {
     value: obj.value,
     isInteger: obj.isInteger,
+    generation: readIntRequired(obj.generation, `${path}.generation`),
     col: readIntOrNull(obj.col, `${path}.col`),
     width: readIntOrNull(obj.width, `${path}.width`),
   };

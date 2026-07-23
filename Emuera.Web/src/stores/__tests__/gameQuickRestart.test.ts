@@ -222,6 +222,7 @@ describe('useGameStore.quickRestart', () => {
       JSON.stringify({
         state: 'WaitInput',
         needValue: false,
+        generation: 0,
         diff: null,
       }),
     );
@@ -239,6 +240,7 @@ describe('useGameStore.quickRestart', () => {
       JSON.stringify({
         state: 'Loading',
         needValue: false,
+        generation: 0,
         diff: null,
       }),
     );
@@ -248,6 +250,7 @@ describe('useGameStore.quickRestart', () => {
       JSON.stringify({
         state: 'WaitInput',
         needValue: false,
+        generation: 0,
         diff: null,
       }),
     );

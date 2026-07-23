@@ -190,6 +190,9 @@ export const useConnectionStore = defineStore('connection', () => {
           if (typeof obj.needValue !== 'boolean') {
             throw new Error('snapshot.needValue 缺失或非 boolean');
           }
+          if (typeof obj.generation !== 'number') {
+            throw new Error('snapshot.generation 缺失或非 number');
+          }
           return obj as DisplaySnapshot;
         } catch (e) {
           throw new Error(`GET /snapshot 解析失败：${e instanceof Error ? e.message : String(e)}`);
