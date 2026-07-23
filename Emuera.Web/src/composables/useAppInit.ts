@@ -119,6 +119,11 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
     return;
   }
 
+  if (type === 'config') {
+    if (typeof m.maxLog === 'number') game.maxLog = m.maxLog;
+    return;
+  }
+
   if (type !== 'folderPicked') {
     console.warn('[useAppInit] handleMauiMessage: unknown message type:', type);
     return;

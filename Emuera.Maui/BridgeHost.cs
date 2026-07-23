@@ -330,6 +330,23 @@ internal sealed class BridgeHost : IDisposable
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
     }
 
+    /// <summary>
+    /// 推送 emuera.config 值给 Vue——让设置页显示当前配置。
+    /// <para>
+    /// 消息格式：<c>{"type":"config","maxLog":5000}</c>
+    /// </para>
+    /// </summary>
+    private void PushConfigMessage()
+    {
+        var maxLog = _configData.GetConfigValue<int>(ConfigCode.MaxLog);
+        var msg = JsonSerializer.Serialize(new
+        {
+            type = "config",
+            maxLog,
+        });
+        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
+    }
+
     internal void Start()
     {
         if (_started)
@@ -338,6 +355,7 @@ internal sealed class BridgeHost : IDisposable
         _readyReceived = true; // 标记 ready 已收到——避免后续 ready 信号重复触发 Start
         // 在游戏循环启动前推送布局元数据——Vue 在首帧 turn 到达前拿到字体/列宽/字号/行距
         PushLayoutMessage();
+        PushConfigMessage();
         Console.WriteLine("[bridge] Starting game loop");
         AgentLog.Instance.Write("[bridge] starting game loop");
         _gameTask = Task.Run(GameLoopAsync);
