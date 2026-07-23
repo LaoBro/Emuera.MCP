@@ -24,6 +24,7 @@ internal record DisplaySnapshot(
     string? inputType,
     bool needValue,
     int protocolVersion,
+    long generation,
     long? timeLimit = null,
     bool? displayTime = null,
     string? timeUpMessage = null
@@ -351,7 +352,7 @@ internal sealed class DisplayState : IDisplayState
             }
         }
         return BuildSnapshot(linesCopy, _console.bgColor,
-            _console.State, _console.CurrentRequest, _defaultFontName);
+            _console.State, _console.CurrentRequest, _defaultFontName, _console.LastButtonGeneration);
     }
 
     /// <summary>
@@ -375,7 +376,8 @@ internal sealed class DisplayState : IDisplayState
         EmuColor bgColor,
         ConsoleState state,
         InputRequest? currentRequest,
-        string defaultFontName)
+        string defaultFontName,
+        long generation = 0)
     {
         var lines = new List<DisplayLine>(displayLineList.Count);
         foreach (var line in displayLineList)
@@ -406,6 +408,7 @@ internal sealed class DisplayState : IDisplayState
             inputType: currentRequest?.InputType.ToString(),
             needValue: currentRequest?.NeedValue ?? false,
             protocolVersion: TurnRecord.CurrentProtocolVersion,
+            generation: generation,
             // ADR-0016：TINPUT timer 元数据——仅在 TINPUT 期间（Timelimit > 0）填充。
             // 非 TINPUT 期间 / 无 currentRequest → 三字段均为 null（WhenWritingNull 时不写入 JSON）。
             // displayTime 取 InputRequest.DisplayTime——尊重 ERB 脚本"别给玩家看"的意图。

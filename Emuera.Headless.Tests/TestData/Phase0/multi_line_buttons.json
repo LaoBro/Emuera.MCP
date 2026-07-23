@@ -11,6 +11,7 @@
           "button": {
             "value": 1,
             "isInteger": true,
+            "generation": 0,
             "col": 0,
             "width": 4
           }
@@ -30,6 +31,7 @@
           "button": {
             "value": 2,
             "isInteger": true,
+            "generation": 0,
             "col": 0,
             "width": 8
           }
@@ -43,6 +45,7 @@
           "button": {
             "value": 3,
             "isInteger": true,
+            "generation": 0,
             "col": 8,
             "width": 6
           }
@@ -60,5 +63,6 @@
   "bgColor": "#000000",
   "state": "WaitInput",
   "needValue": false,
-  "protocolVersion": 6
+  "protocolVersion": 7,
+  "generation": 0
 }

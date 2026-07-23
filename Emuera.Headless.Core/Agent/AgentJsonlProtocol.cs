@@ -262,7 +262,8 @@ namespace MinorShift.Emuera.GameView
                 timeLimit: timeLimit,
                 displayTime: displayTime,
                 timeUpMessage: timeUpMessage,
-                timedOut: timedOut
+                timedOut: timedOut,
+                generation: console.LastButtonGeneration
             ), TurnJsonOptions);
         }
 

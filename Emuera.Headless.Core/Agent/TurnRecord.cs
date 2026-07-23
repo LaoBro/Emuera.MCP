@@ -15,7 +15,8 @@ internal record TurnRecord(
     long? timeLimit = null,
     bool? displayTime = null,
     string? timeUpMessage = null,
-    bool timedOut = false
+    bool timedOut = false,
+    long generation = 0
 )
 {
     /// <summary>
@@ -29,7 +30,7 @@ internal record TurnRecord(
     /// ADR-0016（v6）：新增 4 个 TINPUT timer 字段——timeLimit / displayTime / timeUpMessage
     /// （nullable + WhenWritingNull，非 TINPUT 时不出现）+ timedOut（非 nullable bool，默认 false）。
     /// </summary>
-    internal const int CurrentProtocolVersion = 6;
+    internal const int CurrentProtocolVersion = 7;
 }
 
 /// <summary>
@@ -88,7 +89,7 @@ internal record PrintSegment(
     string? fontname
 );
 
-internal record ButtonRef(object value, bool isInteger, int? col = null, int? width = null);
+internal record ButtonRef(object value, bool isInteger, long generation, int? col = null, int? width = null);
 
 internal sealed class TurnOpConverter : JsonConverter<TurnOp>
 {

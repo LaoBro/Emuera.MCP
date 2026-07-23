@@ -25,7 +25,7 @@ public class TerminalRendererClearDetectionTests
     }
 
     private static DisplaySnapshot Snapshot(params DisplayLine[] lines) =>
-        new(new List<DisplayLine>(lines), null, "WaitInput", null, false, 5);
+        new(new List<DisplayLine>(lines), null, "WaitInput", null, false, 5, 0);
 
     // ---------- 子句 1：行数减少 → ClearLine ----------
 

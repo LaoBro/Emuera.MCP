@@ -626,6 +626,7 @@ internal sealed class ConsolePrintManager
                 button = new ButtonRef(
                     value: btn.IsInteger ? (object)btn.Input : (object)btn.Inputs,
                     isInteger: btn.IsInteger,
+                    generation: btn.Generation,
                     col: column,
                     width: segmentWidth
                 );

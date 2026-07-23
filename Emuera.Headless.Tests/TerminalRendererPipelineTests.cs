@@ -50,7 +50,7 @@ public class TerminalRendererPipelineTests
     }
 
     private static DisplaySnapshot Snapshot(params DisplayLine[] lines) =>
-        new(new List<DisplayLine>(lines), null, "WaitInput", null, false, 5);
+        new(new List<DisplayLine>(lines), null, "WaitInput", null, false, 5, 0);
 
     private static string CaptureOutput(Action action, BufferedVtScreen screen)
     {

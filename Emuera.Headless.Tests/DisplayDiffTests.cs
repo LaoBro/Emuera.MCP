@@ -288,7 +288,7 @@ public class DisplayDiffTests : IDisposable
         _console.DisplayLineList.Add(line);
         AddPendingOp(new PrintOp(
             new List<PrintSegment> { new("[OK]", null, null, null, null) },
-            button: new ButtonRef(1, true, 0, 4)));
+            button: TestSnapshots.Button(1, true, 0, 0, 4)));
 
         var diff = BuildDiff();
 

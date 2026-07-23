@@ -3,5 +3,6 @@
   "bgColor": "#000000",
   "state": "WaitInput",
   "needValue": false,
-  "protocolVersion": 6
+  "protocolVersion": 7,
+  "generation": 0
 }

@@ -222,7 +222,7 @@ public class ButtonRegionTrackerTests
     {
         // 单行单按钮：col=2, width=4 → Region(Row=0, Left=2, Right=5, Value=1L, IsInteger=true)
         var snapshot = MakeSnapshot(
-            new DisplayLine(new List<DisplayEntry> { MakeEntry(button: new ButtonRef(1L, true, 2, 4)) }, null, true));
+            new DisplayLine(new List<DisplayEntry> { MakeEntry(button: TestSnapshots.Button(1L, true, 0, 2, 4)) }, null, true));
 
         var tracker = new ButtonRegionTracker();
         tracker.UpdateFromSnapshot(snapshot, scrollOffset: 0, viewportHeight: 1);
@@ -241,7 +241,7 @@ public class ButtonRegionTrackerTests
     {
         // 字符串按钮：value="ok", IsInteger=false
         var snapshot = MakeSnapshot(
-            new DisplayLine(new List<DisplayEntry> { MakeEntry(button: new ButtonRef("ok", false, 0, 4)) }, null, true));
+            new DisplayLine(new List<DisplayEntry> { MakeEntry(button: TestSnapshots.Button("ok", false, 0, 0, 4)) }, null, true));
 
         var tracker = new ButtonRegionTracker();
         tracker.UpdateFromSnapshot(snapshot, scrollOffset: 0, viewportHeight: 1);
@@ -361,10 +361,10 @@ public class ButtonRegionTrackerTests
     // ---------- 测试夹具 ----------
 
     private static DisplaySnapshot MakeSnapshot(params DisplayLine[] lines)
-        => new(new List<DisplayLine>(lines), null, "WaitInput", null, false, 3);
+        => new(new List<DisplayLine>(lines), null, "WaitInput", null, false, 3, 0);
 
     private static DisplayLine MakeLineWithButton(int col, int width, long value)
-        => new(new List<DisplayEntry> { MakeEntry(button: new ButtonRef(value, true, col, width)) }, null, true);
+        => new(new List<DisplayEntry> { MakeEntry(button: TestSnapshots.Button(value, true, 0, col, width)) }, null, true);
 
     private static DisplayEntry MakeEntry(ButtonRef? button)
         => new(new List<PrintSegment>(), button);

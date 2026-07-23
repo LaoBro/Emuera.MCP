@@ -98,7 +98,7 @@ public class TestAdapterTests
         var adapter = new TestAdapter();
 
         var segments = new List<PrintSegment> { new("Hello", null, null, null, null) };
-        var button = new ButtonRef(value: 42L, isInteger: true, col: 0, width: 5);
+        var button = new ButtonRef(value: 42L, isInteger: true, generation: 0, col: 0, width: 5);
         var ops = new List<TurnOp>
         {
             new PrintOp(segments, button),
@@ -211,7 +211,7 @@ public class TestAdapterTests
 
         // 显式构造 col=5, width=4 的按钮（非 0 起点——验证几何透传，不重算）
         var segments = new List<PrintSegment> { new("btn", null, null, null, null) };
-        var button = new ButtonRef(value: "click", isInteger: false, col: 5, width: 4);
+        var button = new ButtonRef(value: "click", isInteger: false, generation: 0, col: 5, width: 4);
 
         adapter.ApplyOps(new List<TurnOp>
         {
@@ -250,7 +250,7 @@ public class TestAdapterTests
 
         // 增量 ops：清屏 + 新按钮 + 换背景
         var newSegments = new List<PrintSegment> { new("[Next]", null, null, null, null) };
-        var newButton = new ButtonRef(value: 2L, isInteger: true, col: 0, width: 6);
+        var newButton = new ButtonRef(value: 2L, isInteger: true, generation: 0, col: 0, width: 6);
         adapter.ApplyOps(new List<TurnOp>
         {
             new ClearOp(),
