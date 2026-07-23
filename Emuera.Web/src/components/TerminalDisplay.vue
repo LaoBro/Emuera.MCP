@@ -134,6 +134,23 @@ function onButtonClick(entry: DisplayEntry): void {
 }
 
 /**
+ * 终端背景点击处理器——非按钮区域点击 = 推进游戏。
+ *
+ * 仅 EnterKey/AnyKey 模式生效（匹配 CLI DispatchMouseMiss）。
+ * 按钮区域由 button @click 处理，此处用 closest('.term-btn') 跳过。
+ */
+function onTerminalClick(e: MouseEvent): void {
+  const target = e.target as HTMLElement | null;
+  if (target && target.closest('.term-btn')) return;
+  if (game.displayState.state !== 'WaitInput') return;
+  if (game.displayState.inputType !== 'EnterKey' && game.displayState.inputType !== 'AnyKey') return;
+  if (conn.status !== 'connected') return;
+  if (game.inputInFlight) return;
+  game.setInputInFlight();
+  conn.sendInput('');
+}
+
+/**
  * 构造单个 segment 的内联 style 对象。
  * 返回 Partial<CSSStyleDeclaration> 风格的对象——Vue :style 接受驼峰键。
  *
@@ -181,6 +198,7 @@ watch(() => game.displayState.lines.length, scrollToBottom);
     ref="terminalRef"
     class="terminal"
     :style="terminalStyle"
+    @click="onTerminalClick"
   >
     <div class="terminal-content" :style="contentStyle">
     <div v-if="game.displayState.lines.length === 0" class="terminal-empty">

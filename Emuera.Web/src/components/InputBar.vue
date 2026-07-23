@@ -287,26 +287,10 @@ const tinputCountdownText = computed<string | null>(() => {
 
       <div v-else-if="game.displayState.inputType === 'AnyKey'" class="anykey-prompt">
         <span>按任意键继续</span>
-        <button
-          class="submit-btn anykey-btn"
-          :disabled="!canSubmit"
-          @click="submit"
-        >
-          继续
-        </button>
-        <span class="input-hint">任意键 / 点击</span>
       </div>
 
       <div v-else-if="game.displayState.inputType === 'EnterKey'" class="enterkey-prompt">
         <span>按回车继续</span>
-        <button
-          class="submit-btn enterkey-btn"
-          :disabled="!canSubmit"
-          @click="submit"
-        >
-          继续
-        </button>
-        <span class="input-hint">Enter</span>
       </div>
 
       <div v-else class="unknown-input-type">
@@ -436,17 +420,9 @@ const tinputCountdownText = computed<string | null>(() => {
   cursor: not-allowed;
 }
 
-/* AnyKey / EnterKey 提示行 */
 .anykey-prompt,
 .enterkey-prompt {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   color: #dcdcaa;
-}
-.anykey-btn,
-.enterkey-btn {
-  /* 复用 submit-btn 样式，但可点性更明显 */
 }
 
 .submit-btn {
