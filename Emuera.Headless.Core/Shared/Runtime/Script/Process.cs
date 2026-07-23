@@ -501,21 +501,17 @@ internal sealed partial class Process(EmueraConsole view)
 
 	public static string getRawTextFormFilewithLine(ScriptPosition? position)
 	{
+		// 决策二：错误路径改用 Preload 缓存，消除 File.ReadLines + DetectEncoding 的重复 I/O。
+		// 同时修复原 .csv 分支误传 Program.ErbDir 给 DetectEncoding 的复制粘贴 bug。
 		string extents = position!.Value.Filename[^4..].ToLower();
-		if (extents == ".erb")
-		{
-			return File.Exists(Program.ErbDir + position!.Value.Filename)
-				? position!.Value.LineNo > 0 ? File.ReadLines(Program.ErbDir + position!.Value.Filename, EncodingHandler.DetectEncoding(Program.ErbDir + position!.Value.Filename)).Skip(position!.Value.LineNo - 1).First() : ""
-				: "";
-		}
-		else if (extents == ".csv")
-		{
-			return File.Exists(Program.CsvDir + position!.Value.Filename)
-				? position!.Value.LineNo > 0 ? File.ReadLines(Program.CsvDir + position!.Value.Filename, EncodingHandler.DetectEncoding(Program.ErbDir + position!.Value.Filename)).Skip(position!.Value.LineNo - 1).First() : ""
-				: "";
-		}
-		else
+		if (extents != ".erb" && extents != ".csv")
 			return "";
+		string fullPath = (extents == ".csv" ? Program.CsvDir : Program.ErbDir) + position!.Value.Filename;
+		string[]? lines = Preload.TryGetFileLines(fullPath);
+		int lineNo = position!.Value.LineNo;
+		return lines != null && lineNo > 0 && lineNo <= lines.Length
+			? lines[lineNo - 1]
+			: "";
 	}
 
 	internal void deletePrevState()

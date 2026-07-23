@@ -120,7 +120,13 @@ internal partial class ParserMediator
 		if (isBackComp && !Config.WarnBackCompatibility)
 			return;
 		if (console != null && !console.RunERBFromMemory)
-			warningList.Add(new ParserWarning(str, line.Position, level, stack));
+		{
+			// 决策七：补锁 — 与 Warn(string, ScriptPosition?, ...) 重载一致，为决策六并行化铺路。
+			lock (warningListLock)
+			{
+				warningList.Add(new ParserWarning(str, line.Position, level, stack));
+			}
+		}
 		//				console.PrintWarning(str, line.Position, level);
 	}
 

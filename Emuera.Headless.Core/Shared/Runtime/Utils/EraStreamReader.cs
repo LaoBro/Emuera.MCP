@@ -41,7 +41,8 @@ internal sealed partial class EraStreamReader : IDisposable
 		nextNo = 0;
 		try
 		{
-			_fileLines = File.ReadAllLines(filepath, EncodingHandler.DetectEncoding(path));
+			// 决策零：合并编码检测与内容读取为单次 I/O（原 DetectEncoding + File.ReadAllLines 两遍）
+			_fileLines = EncodingHandler.ReadAllLinesWithDetection(filepath);
 		}
 		catch
 		{
@@ -99,18 +100,22 @@ internal sealed partial class EraStreamReader : IDisposable
 
 			//Ordinal消して大丈夫なのかわからないのでコメントアウト
 			//if (useRename && (line.IndexOf("[[", StringComparison.Ordinal) >= 0) && (line.IndexOf("]]", StringComparison.Ordinal) >= 0))
-			if (useRename)
+			// 决策一：恢复 early-out — .NET 5+ string.Contains(string) 默认 Ordinal，与原意一致。
+			//   不含 [[ 或 ]] 的行完全跳过 Regex.Match 调用链（零风险：等价于"匹配不到任何内容"分支）。
+			// 决策一-a：多 [[...]] 标记行改用 StringBuilder，避免每次 Replace 重新分配整行。
+			if (useRename && line.Contains("[[") && line.Contains("]]"))
 			{
 				var match = regexRenameIdentifer().Match(line);
-				while (match.Success)
+				if (match.Success)
 				{
-					//この段階でマッチしないパターンもある
-					if (ParserMediator.RenameDic.TryGetValue(match.Value, out var targetStr))
+					var sb = new StringBuilder(line);
+					do
 					{
-						line = line.Replace(match.Value, targetStr);
-					}
-
-					match = match.NextMatch();
+						//この段階でマッチしないパターンもある
+						if (ParserMediator.RenameDic.TryGetValue(match.Value, out var targetStr))
+							sb.Replace(match.Value, targetStr);
+					} while ((match = match.NextMatch()).Success);
+					line = sb.ToString();
 				}
 			}
 			st = new CharStream(line);
@@ -142,18 +147,21 @@ internal sealed partial class EraStreamReader : IDisposable
 			}
 
 			//if (useRename && (line.IndexOf("[[", StringComparison.Ordinal) >= 0) && (line.IndexOf("]]", StringComparison.Ordinal) >= 0))
-			if (useRename)
+			// 决策一：续行路径同样恢复 early-out，与主循环对称。
+			// 决策一-a：多标记行改用 StringBuilder。
+			if (useRename && line.Contains("[[") && line.Contains("]]"))
 			{
 				//この段階でマッチしないパターンもある
 				var match = regexRenameIdentifer().Match(line);
-				while (match.Success)
+				if (match.Success)
 				{
-					if (ParserMediator.RenameDic.TryGetValue(match.Value, out var targetStr))
+					var sb = new StringBuilder(line);
+					do
 					{
-						line = line.Replace(match.Value, targetStr);
-					}
-
-					match = match.NextMatch();
+						if (ParserMediator.RenameDic.TryGetValue(match.Value, out var targetStr))
+							sb.Replace(match.Value, targetStr);
+					} while ((match = match.NextMatch()).Success);
+					line = sb.ToString();
 				}
 			}
 			var test = line.AsSpan().TrimStart();

@@ -12,6 +12,7 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Sub;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
@@ -41,6 +42,12 @@ internal sealed class ErbLoader
 	readonly EmueraConsole output;
 	readonly HashSet<string> ignoredFNFWarningFiles = new(StringComparer.OrdinalIgnoreCase);
 	int ignoredFNFWarningCount;
+
+	// 决策三-a：nestCheck 栈/列表复用 — 1000 函数避免 3000+ 次堆分配。
+	// loadErb/ParseScript 为单线程调用，字段在 nestCheck 入口 Clear() 即可安全复用。
+	private readonly Stack<InstructionLine> _nestStackReuse = new();
+	private readonly Stack<InstructionLine> _selectcaseStackReuse = new();
+	private readonly List<InstructionLine> _tempLineListReuse = new();
 
 	int enabledLineCount;
 	LabelDictionary labelDic = null!;
@@ -120,7 +127,12 @@ internal sealed class ErbLoader
 			if (displayReport)
 				output.PrintSystemLine(trsl.CheckingSyntax.Text);
 
+			// 决策四：ParseScript 阶段计时（Stopwatch 精度，displayReport 时可见）
+			var parseSw = Stopwatch.StartNew();
 			await Task.Run(() => ParseScript());
+			parseSw.Stop();
+			if (displayReport)
+				output.PrintSystemLine(string.Format(trsl.ElapsedTime.Text, parseSw.ElapsedMilliseconds));
 
 			ParserMediator.FlushWarningList();
 
@@ -182,7 +194,12 @@ internal sealed class ErbLoader
 		ParserMediator.FlushWarningList();
 		labelDic.Initialized = true;
 
+		// 决策四：ParseScript 阶段计时（AnalysisMode 时可见）
+		var parseSw = Stopwatch.StartNew();
 		await Task.Run(() => ParseScript());
+		parseSw.Stop();
+		if (env.AnalysisMode)
+			output.PrintSystemLine(string.Format(trsl.ElapsedTime.Text, parseSw.ElapsedMilliseconds));
 
 		ParserMediator.FlushWarningList();
 		setScanLine(null!);
@@ -780,8 +797,13 @@ internal sealed class ErbLoader
 					ignoredFNCWarningCount++;
 				else
 					ParserMediator.Warn(string.Format(trerror.FuncNeverCalled.Text, label.LabelName), label, 1, false, false);
+				// 决策七：AnalysisMode 已在上方 L775 调用过 ParseFunctionWithCatch，
+				// nestCheck/setJumpTo 不幂等会重复发射警告。此处跳过避免重复解析。
 				if (!ignoreUncalledFunction)
-					ParseFunctionWithCatch(label);
+				{
+					if (!env.AnalysisMode)
+						ParseFunctionWithCatch(label);
+				}
 				else
 				{
 					if (!(label.NextLine is NullLine) && !(label.NextLine is FunctionLabelLine))
@@ -961,10 +983,14 @@ internal sealed class ErbLoader
 		//2周目/3周
 		//IF-ELSEIF-ENDIF、REPEAT-RENDの対応チェックなど
 		//PRINTDATA系もここでチェック
+		// 决策三-a：复用 ErbLoader 实例字段，避免每函数分配 3 个容器（1000 函数 = 3000+ 次分配）
 		LogicalLine nextLine = label;
-		List<InstructionLine> tempLineList = [];
-		Stack<InstructionLine> nestStack = new();
-		Stack<InstructionLine> SelectcaseStack = new();
+		var tempLineList = _tempLineListReuse;
+		var nestStack = _nestStackReuse;
+		var SelectcaseStack = _selectcaseStackReuse;
+		tempLineList.Clear();
+		nestStack.Clear();
+		SelectcaseStack.Clear();
 		InstructionLine pairLine = null!;
 		while (true)
 		{
@@ -1115,17 +1141,15 @@ internal sealed class ErbLoader
 					break;
 				case FunctionCode.BREAK:
 				case FunctionCode.CONTINUE:
-					InstructionLine[] array = [.. nestStack];
-					for (int i = 0; i < array.Length; i++)
+					// 决策三-b：直接遍历 Stack（LIFO，从栈顶到栈底，与 [.. nestStack] 顺序一致），消除 InstructionLine[] 分配
+					pairLine = null!;
+					foreach (var iLine in nestStack)
 					{
-						if (array[i].FunctionCode == FunctionCode.REPEAT
-							|| array[i].FunctionCode == FunctionCode.FOR
-							|| array[i].FunctionCode == FunctionCode.WHILE
-							|| array[i].FunctionCode == FunctionCode.DO)
-						{
-							pairLine = array[i];
-							break;
-						}
+						if (iLine.FunctionCode == FunctionCode.REPEAT
+							|| iLine.FunctionCode == FunctionCode.FOR
+							|| iLine.FunctionCode == FunctionCode.WHILE
+							|| iLine.FunctionCode == FunctionCode.DO)
+						{ pairLine = iLine; break; }
 					}
 					if (pairLine == null)
 					{

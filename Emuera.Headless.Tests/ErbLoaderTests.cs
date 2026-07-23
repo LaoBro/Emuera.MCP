@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Loader;
@@ -92,5 +93,43 @@ public class ErbLoaderTests
 		Assert.True(labelDic.Count >= 2);
 		Assert.Contains(spy, l => l is FunctionLabelLine fl && fl.LabelName == "FUNC_A");
 		Assert.Contains(spy, l => l is FunctionLabelLine fl && fl.LabelName == "FUNC_B");
+	}
+
+	/// <summary>
+	/// 决策七测试：AnalysisMode 下对同一未调用函数标签不应重复调用 ParseFunctionWithCatch。
+	/// spec Testing Decisions L378：AnalysisMode 下断言 warningList 无重复条目。
+	/// spec Success Criteria L411：Assert.True(dupCount == 0)。
+	/// 未调用函数（Depth == -1）含 BREAK（循环外非法）触发 nestCheck 警告，
+	/// 修复前 AnalysisMode 会调用两次 ParseFunctionWithCatch → 警告重复；修复后仅一次。
+	/// </summary>
+	[Fact]
+	public async Task AnalysisMode_no_duplicate_warnings_for_uncalled_function()
+	{
+		using var h = new LoaderTestHarness();
+		await h.InitializeAsync();
+		// UNCALLED_FUNC 从未被 CALL → Depth == -1；BREAK 在循环外 → nestCheck 发射 InvalidLoopInstruction 警告
+		h.WriteErb("ANALYSIS_TEST.ERB", "@UNCALLED_FUNC\nBREAK\nRETURN\n");
+		await h.PreloadAsync();
+
+		// 自定义 AnalysisMode = true 的 LoaderEnv
+		var analysisEnv = new LoaderEnv(h.CsvDir, h.ErbDir, analysisMode: true,
+			analysisFiles: new List<string>(), debugMode: false);
+		var spy = new List<LogicalLine?>();
+		var loader = new ErbLoader(h.Console, h.Exm, h.IdDic, analysisEnv, line => spy.Add(line));
+		var labelDic = new LabelDictionary();
+
+		var initialLineCount = h.Console.DisplayLineCount;
+		await loader.LoadErbDir(h.ErbDir, displayReport: false, labelDic);
+
+		// 统计 InvalidLoopInstruction 警告本身 — PrintWarning 会回显源行（即 "BREAK" 字面量），
+		// 故不能简单 Contains("BREAK")。改用警告签名 "REPEAT, FOR, WHILE, DOの中以外で" 定位真正的警告行。
+		// spec L411 要求 dupCount == 0（零重复 = 恰好 1 次警告，而非 0 次空转）。
+		// 修复前：2 次（L775 + L804 各调用一次 ParseFunctionWithCatch → nestCheck 发射两次警告）
+		// 修复后：1 次（仅 L775 调用，L804 被 !env.AnalysisMode 守卫跳过）
+		var breakWarningCount = h.Console.DisplayLineList
+			.Skip(initialLineCount)
+			.Count(l => l?.ToString()?.Contains("REPEAT, FOR, WHILE, DOの中以外で") == true);
+
+		Assert.Equal(1, breakWarningCount);
 	}
 }
