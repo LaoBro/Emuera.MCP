@@ -75,4 +75,12 @@ describe('useUiStore platform', () => {
     ui.switchView('terminal');
     expect(ui.currentView).toBe('terminal');
   });
+
+  it('switchView 切换到 settings', () => {
+    const ui = useUiStore();
+    ui.switchView('settings');
+    expect(ui.currentView).toBe('settings');
+    ui.switchView('terminal');
+    expect(ui.currentView).toBe('terminal');
+  });
 });

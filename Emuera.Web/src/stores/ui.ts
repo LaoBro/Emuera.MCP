@@ -8,7 +8,7 @@ import { ref } from 'vue';
  * Issue 05 起增加 platform 字段，区分 web / android，决定 GamePicker 渲染哪个组件。
  */
 
-export type UiView = 'terminal' | 'debug';
+export type UiView = 'terminal' | 'debug' | 'settings';
 /**
  * 运行平台——issue 05 起 GamePicker 按平台渲染不同组件：
  * - 'web'：桌面浏览器，用路径文本输入框（浏览器安全限制不暴露真实 FS 路径）

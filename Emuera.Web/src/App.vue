@@ -9,6 +9,7 @@ import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
 import MauiGamePicker from './components/MauiGamePicker.vue';
 import DebugView from './views/DebugView.vue';
+import SettingsView from './views/SettingsView.vue';
 import TerminalView from './views/TerminalView.vue';
 
 const ui = useUiStore();
@@ -95,6 +96,12 @@ async function onQuickRestart(): Promise<void> {
           Debug
         </button>
         <button
+          :class="{ active: ui.currentView === 'settings' }"
+          @click="ui.switchView('settings')"
+        >
+          Settings
+        </button>
+        <button
           :class="{ active: ui.currentView === 'terminal' }"
           @click="ui.switchView('terminal')"
         >
@@ -104,6 +111,7 @@ async function onQuickRestart(): Promise<void> {
     </header>
     <main class="app-main">
       <DebugView v-if="ui.currentView === 'debug'" />
+      <SettingsView v-else-if="ui.currentView === 'settings'" />
       <TerminalView v-else />
     </main>
   </div>
