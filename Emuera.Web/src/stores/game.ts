@@ -280,6 +280,8 @@ export const useGameStore = defineStore('game', () => {
   const gameColumns = ref<number | null>(null);
   /** 游戏字体名（来自 ConfigCode.FontName，默认 "ＭＳ ゴシック"）。null 表示尚未读取。 */
   const fontName = ref<string | null>(null);
+  /** 履歴ログの行数（来自 ConfigCode.MaxLog，默认 5000）。null 表示尚未读取。 */
+  const maxLog = ref<number | null>(null);
 
   // ---------- 缩放比例 ----------
   //
@@ -624,6 +626,8 @@ export const useGameStore = defineStore('game', () => {
         // Issue 12：重读 GET /state 更新窗口布局元信息 + serverState——新游戏可能有不同 emuera.config
         // （WindowX/FontSize/LineHeight）。失败不阻塞切换——保持原 layout 字段。
         await fetchAndApplyStateLayout(httpBase);
+        // 读取 emuera.config 值（MaxLog 等）。失败不阻塞。
+        await fetchConfig(httpBase);
         // 步骤 3：connect 新 session（server 已建好新 session 等待 WS 升级）
         await conn.connect(conn.serverUrl);
       } else {
@@ -855,6 +859,17 @@ export const useGameStore = defineStore('game', () => {
     if (typeof opts.fontName === 'string') fontName.value = opts.fontName;
   }
 
+  async function fetchConfig(httpBase: string): Promise<void> {
+    try {
+      const resp = await fetch(`${httpBase}/config`);
+      if (resp.status !== 200) return;
+      const body = await resp.json();
+      if (typeof body?.maxLog === 'number') maxLog.value = body.maxLog;
+    } catch {
+      // 网络错误——保持 fallback 值
+    }
+  }
+
   return {
     lastTurnJson,
     turnHistory,
@@ -899,6 +914,8 @@ export const useGameStore = defineStore('game', () => {
     lineHeight,
     gameColumns,
     fontName,
+    maxLog,
+    fetchConfig,
     setGameLayout,
     // 缩放比例
     scale,

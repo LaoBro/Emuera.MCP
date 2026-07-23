@@ -8,31 +8,16 @@ const game = useGameStore();
   <section class="settings-view">
     <div class="settings-content">
       <div class="section">
-        <h3>显示设置</h3>
+        <h3>基本配置（emuera.config）</h3>
         <div class="setting-row">
-          <span class="setting-label">历史记录行数</span>
-          <span class="setting-value">5000</span>
-          <span class="setting-hint">来自游戏配置（emuera.config MaxLog）</span>
-        </div>
-        <div class="setting-row">
-          <span class="setting-label">缩放比例</span>
-          <div class="setting-controls">
-            <button
-              :disabled="game.isMinScale"
-              @click="game.setScale(game.effectiveScale - 0.1)"
-            >−</button>
-            <span class="setting-value">{{ Math.round(game.effectiveScale * 100) }}%</span>
-            <button
-              :disabled="game.isMaxScale"
-              @click="game.setScale(game.effectiveScale + 0.1)"
-            >+</button>
-          </div>
+          <span class="setting-label">履歴ログの行数</span>
+          <span class="setting-value">{{ game.maxLog ?? '—' }}</span>
         </div>
       </div>
       <div class="section">
-        <h3>游戏配置（储存后修改 emuera.config）</h3>
+        <h3>その他</h3>
         <p class="placeholder-text">
-          配置项编辑将在后续版本实现。
+          この他の設定項目は順次追加予定。
         </p>
       </div>
     </div>
@@ -90,35 +75,7 @@ h3 {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   min-width: 48px;
-  text-align: center;
-}
-.setting-hint {
-  color: #888;
-  font-size: 12px;
-  margin-left: auto;
-}
-.setting-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.setting-controls button {
-  background: #333;
-  color: #ccc;
-  border: 1px solid #444;
-  padding: 2px 10px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 14px;
-  font-family: inherit;
-  line-height: 1.4;
-}
-.setting-controls button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.setting-controls button:hover:not(:disabled) {
-  background: #444;
+  text-align: left;
 }
 .placeholder-text {
   color: #888;

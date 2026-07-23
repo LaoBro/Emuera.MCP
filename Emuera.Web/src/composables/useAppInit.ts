@@ -66,6 +66,9 @@ export async function initAppState(): Promise<void> {
   const { gameDir: serverGameDir, state: serverState } =
     await game.fetchAndApplyStateLayout(httpBase);
 
+  // 读取 emuera.config 值（MaxLog 等）。失败不阻塞——保持 fallback。
+  await game.fetchConfig(httpBase);
+
   // server 未启动——不自动连
   if (serverState === null) return;
 

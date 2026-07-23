@@ -59,6 +59,15 @@ describe('initAppState (T-025 D9 rev)', () => {
     } as Response);
   }
 
+  /** 模拟 GET /config 响应。fetchConfig 内部 fetch /config。 */
+  function mockConfigResponse(status: number, body: unknown): void {
+    fetchMock.mockResolvedValueOnce({
+      status,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    } as Response);
+  }
+
   it('空闲态（gameDir==null + state=="Idle"）→ 不调 connect，展示选择器', async () => {
     // localStorage 有上次目录——选择器应预填，但不自动 loadGame
     // 必须在 useGameStore() 之前设置（store 初始化时读 localStorage）
@@ -72,6 +81,7 @@ describe('initAppState (T-025 D9 rev)', () => {
     expect(game.gameDir).toBe('D:/old/game');
 
     mockStateResponse(200, { state: 'Idle', gameDir: null });
+    mockConfigResponse(200, { maxLog: 5000 });
 
     await initAppState();
 
@@ -97,11 +107,13 @@ describe('initAppState (T-025 D9 rev)', () => {
       gameColumns: 84,
       fontName: 'ＭＳ ゴシック',
     });
+    mockConfigResponse(200, { maxLog: 5000 });
 
     await initAppState();
 
     expect(connectSpy).toHaveBeenCalledOnce();
     expect(game.serverState).toBe('WaitInput');
+    expect(game.maxLog).toBe(5000);
   });
 
   it('server 未启动（fetch 抛错）→ 不调 connect', async () => {
@@ -132,14 +144,16 @@ describe('initAppState (T-025 D9 rev)', () => {
     expect(game.gameDir).toBe('D:/old/game');
 
     mockStateResponse(200, { state: 'Idle', gameDir: null });
+    mockConfigResponse(200, { maxLog: 5000 });
 
     await initAppState();
 
-    // 不调 connect，不调 loadGame（fetch 只被调一次 = GET /state，无 POST /load-game）
+    // 不调 connect，不调 loadGame（fetch 调两次 = GET /state + GET /config，无 POST /load-game）
     expect(connectSpy).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     // gameDir 保留——选择器预填
     expect(game.gameDir).toBe('D:/old/game');
+    expect(game.maxLog).toBe(5000);
   });
 
   it('GET /state 非 200 → 不调 connect（state==null 视为无法连接）', async () => {
@@ -167,6 +181,7 @@ describe('initAppState (T-025 D9 rev)', () => {
       gameColumns: 99,
       fontName: 'CustomFont',
     });
+    mockConfigResponse(200, { maxLog: 5000 });
 
     await initAppState();
 
@@ -175,5 +190,6 @@ describe('initAppState (T-025 D9 rev)', () => {
     expect(game.lineHeight).toBe(22);
     expect(game.gameColumns).toBe(99);
     expect(game.fontName).toBe('CustomFont');
+    expect(game.maxLog).toBe(5000);
   });
 });

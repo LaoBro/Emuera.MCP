@@ -92,6 +92,7 @@ internal sealed class KestrelGameServer : IDisposable
         _app.MapGet("/turn", (Delegate)HandleGetTurnAsync);
         _app.MapPost("/input", (Delegate)HandlePostInputAsync);
         _app.MapGet("/state", (Delegate)HandleGetStateAsync);
+        _app.MapGet("/config", (Delegate)HandleGetConfigAsync);
         _app.MapGet("/snapshot", (Delegate)HandleGetSnapshotAsync);
         _app.MapDelete("/session", (Delegate)HandleDeleteSessionAsync);
         _app.MapGet("/ws", (Delegate)HandleWebSocketAsync);
@@ -284,6 +285,12 @@ internal sealed class KestrelGameServer : IDisposable
             gameColumns,
             fontName,
         });
+    }
+
+    internal IResult HandleGetConfigAsync()
+    {
+        var maxLog = _configData.GetConfigValue<int>(ConfigCode.MaxLog);
+        return Results.Json(new { maxLog });
     }
 
     /// <summary>
