@@ -28,10 +28,10 @@ import type { ButtonValue, PrintSegment, DisplayLine, DisplayEntry } from '../ty
  * - 行对齐 `align`（left/center/right）映射 CSS `text-align`。
  * - 容器背景色 `bgColor` 设置在 `.terminal` 根上。
  *
- * Issue 12 固定宽度布局（参考 CLI 模式 TerminalLineFormatter.GetGameColumnWidth）：
- * - `.terminal` 容器宽度 = `gameColumns × 1ch`（CSS ch 单位 = monospace 字体 ASCII 字符宽度）
- *   而非 `windowWidth` 像素——浏览器 monospace 字符宽度（≈0.6em）与 GDI（FontSize/2=0.5em）
- *   不同，按像素布局会让字符画溢出；按字符列数 × 1ch 布局则字体宽度自适应，字符画正好填满。
+ * 布局策略：`.terminal` 容器填满父宽度（`flex: 1`），内容由 `.terminal-content`
+ * （`max-width: windowWidth px; margin: 0 auto`）约束在游戏设计宽度内。
+ * 这解决了固定宽度布局导致的一半黑一半灰/滚动条不在窗口边缘的问题，
+ * 同时保持居中行在游戏宽度内居中（不受窗口实际宽度影响）。
  * - `font-size` = `game.fontSize` 像素（默认 18）
  * - `line-height` = `game.lineHeight` 像素（**用绝对像素，不要用 `lineHeight / fontSize` 比例**——Emuera 的 `LineHeight` 是绝对像素行距，WinForms `mainPicBox` 按 `LineHeight` 铺行；用比例会让 inline 元素（按钮等）行距叠加错位。默认 19）
  * - `font-family` 首选 = `game.fontName`（来自 ConfigCode.FontName，默认 "ＭＳ ゴシック"），
@@ -39,9 +39,7 @@ import type { ButtonValue, PrintSegment, DisplayLine, DisplayEntry } from '../ty
  *   ASCII 字符画对字体宽度高度敏感——"ＭＳ ゴシック" 是 GDI 默认等宽日文字体，与 Consolas
  *   等浏览器默认 monospace 字形差异显著，必须读游戏字体名才能正确还原字符画视觉。
  * - `.term-line` 的 `min-height` 用 CSS 变量 `--term-line-min-height` 与 LineHeight 对齐
- * - 容器无 padding——与 WinForms mainPicBox / CLI 终端一致，字符画从容器边缘开始渲染；
- *   外层 TerminalView 的 flex 居中 + 两侧留白提供视觉间距
- * - 外层 TerminalView 负责 flex 居中 + 水平滚动；本组件只关心自身固定宽度
+ * - 容器无 padding——与 WinForms mainPicBox / CLI 终端一致，字符画从容器边缘开始渲染
  *
  * 按钮点击：调 `conn.sendInput(String(value))`——C# HandleWsInput 期望 string，
  * integer 按钮的 value 转 string 后发送，C# 端按 inputType 自行解析回 long。
@@ -84,7 +82,6 @@ const terminalStyle = computed<Record<string, string>>(() => {
     // 宽度用游戏设计像素宽度——居中字符画在游戏宽度内居中，容器靠左不滚动。
     // 浏览器 monospace 字符宽度（≈0.6em）与 GDI（FontSize/2=0.5em）不同，
     // 文本溢出由 overflow-x: auto 处理。
-    width: `${effectiveWindowWidth.value}px`,
     fontSize: `${effectiveFontSize.value * game.effectiveScale}px`,
     lineHeight: `${effectiveLineHeight.value * game.effectiveScale}px`,
     // font-family：游戏字体名在前，fallback 链在后——ASCII 字符画对字体宽度敏感，
@@ -96,6 +93,12 @@ const terminalStyle = computed<Record<string, string>>(() => {
   if (game.displayState.bgColor) style.backgroundColor = game.displayState.bgColor;
   return style;
 });
+
+/** .terminal-content 容器内联 style——约束内容宽度为游戏设计宽度，水平居中。 */
+const contentStyle = computed<Record<string, string>>(() => ({
+  maxWidth: `${effectiveWindowWidth.value}px`,
+  margin: '0',
+}));
 
 /**
  * 把 ButtonValue 转 wire 字符串。
@@ -179,6 +182,7 @@ watch(() => game.displayState.lines.length, scrollToBottom);
     class="terminal"
     :style="terminalStyle"
   >
+    <div class="terminal-content" :style="contentStyle">
     <div v-if="game.displayState.lines.length === 0" class="terminal-empty">
       <template v-if="isMaui">
         <!-- MAUI 模式：无 HTTP/WS，提示文案按 gameDir + 游戏状态分流 -->
@@ -227,6 +231,7 @@ watch(() => game.displayState.lines.length, scrollToBottom);
         </span>
       </template>
     </div>
+    </div>
   </div>
 </template>
 
@@ -237,9 +242,8 @@ watch(() => game.displayState.lines.length, scrollToBottom);
      font-family 实际值由 inline style 动态绑定（issue 12）——游戏字体名在前，
      此处 fallback 链在后。inline style 优先级高于此声明。 */
   font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
-  /* font-size / line-height / width / font-family 由 inline style 动态绑定（issue 12）——
-     width 用 gameColumns × 1ch（字符列数），font-size/line-height 用像素，
-     font-family 首选游戏字体名。 */
+  /* font-size / line-height / font-family 由 inline style 动态绑定——
+     font-size/line-height 用像素，font-family 首选游戏字体名。 */
   color: #d4d4d4;
   background-color: #000000;
   /* pre：保留 PRINT 输出中的空格 / 缩进，长行不自动换行。
@@ -249,18 +253,19 @@ watch(() => game.displayState.lines.length, scrollToBottom);
      超长行由下方 overflow-x: auto 水平滚动兜底。
      C# 端的换行已结构化为 DisplayLine——这里不再做语义换行。 */
   white-space: pre;
-  /* issue 12：水平滚动——视口 < 容器宽度时由外层 TerminalView.terminal-area 处理；
-     字符画行超出容器宽度时由本容器 overflow-x: auto 处理（保留行不拆分）。
-     flex: 0 0 auto：在 .terminal-area（flex row）中不增长/不收缩，宽度由 inline width 决定。
+  /* .terminal 填满父容器宽度（flex: 1），内容宽度由 .terminal-content 约束。
+     超长行由 overflow-x: auto 水平滚动兜底（保留行不拆分）。
      垂直方向由父容器 align-items: stretch（默认）撑满。
-     无 padding——与 WinForms mainPicBox / CLI 终端一致，字符画从容器边缘开始渲染；
-     外层 TerminalView 的 flex 居中 + 两侧留白提供视觉间距。 */
+     无 padding——与 WinForms mainPicBox / CLI 终端一致，字符画从容器边缘开始渲染。 */
   overflow-y: auto;
   overflow-x: auto;
-  flex: 0 0 auto;
+  flex: 1;
   min-height: 0;
-  height: 100%;
+  width: 100%;
   box-sizing: border-box;
+}
+.terminal-content {
+  /* 约束内容宽度为游戏设计宽度，水平居中；maxWidth/margin 由 inline style 动态绑定 */
 }
 .term-line {
   display: block;
