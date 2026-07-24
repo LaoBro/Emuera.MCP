@@ -7,6 +7,10 @@ using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
+#if ANDROID
+using Android.Webkit;
+using Microsoft.Maui.Handlers;
+#endif
 
 namespace Emuera.Maui;
 
@@ -82,6 +86,12 @@ public static class MauiProgram
                     sp.GetRequiredService<ITerminalSetup>()));
 
             Console.WriteLine("[maui] MauiProgram.CreateMauiApp completed, returning built app");
+
+#if ANDROID
+            // Android WebView 配置：JavaScript + DOM Storage + 文件访问 + console 日志捕获
+            ConfigureAndroidWebView();
+#endif
+
             return builder.Build();
         }
         catch (Exception ex)
@@ -90,4 +100,41 @@ public static class MauiProgram
             throw;
         }
     }
+
+#if ANDROID
+    /// <summary>
+    /// Android WebView handler 自定义配置——启用 JavaScript / DOM Storage / 文件访问，
+    /// 并挂载 LoggingWebChromeClient 将 console.log/warn/error 输出到 adb logcat。
+    /// </summary>
+    private static void ConfigureAndroidWebView()
+    {
+        WebViewHandler.Mapper.AppendToMapping("emueraWebView", (handler, view) =>
+        {
+            if (handler.PlatformView is Android.Webkit.WebView wv)
+            {
+                wv.Settings.JavaScriptEnabled = true;
+                wv.Settings.DomStorageEnabled = true;
+                wv.Settings.AllowFileAccess = true;
+                wv.SetWebChromeClient(new LoggingWebChromeClient());
+            }
+        });
+    }
+
+    /// <summary>
+    /// 自定义 WebChromeClient——将 WebView 控制台日志转发到 System.Diagnostics.Debug，
+    /// 通过 adb logcat 可见（过滤 tag="EmueraWV"）。
+    /// </summary>
+    private sealed class LoggingWebChromeClient : WebChromeClient
+    {
+        public override bool OnConsoleMessage(ConsoleMessage? consoleMessage)
+        {
+            if (consoleMessage != null)
+            {
+                var msg = $"[WV] {consoleMessage.Message()} (line {consoleMessage.LineNumber()}, {consoleMessage.SourceId()})";
+                System.Diagnostics.Debug.WriteLine(msg, "EmueraWV");
+            }
+            return base.OnConsoleMessage(consoleMessage);
+        }
+    }
+#endif
 }
