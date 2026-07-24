@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, shallowRef, computed } from 'vue';
 import { parseTurnRecord, ParseTurnRecordError } from '../lib/parseTurnRecord';
 import { applyDiff } from '../lib/opsApplier';
 import { applySnapshot } from '../lib/snapshotReducer';
@@ -196,7 +196,7 @@ export const useGameStore = defineStore('game', () => {
    */
   const lastSnapshot = ref<DisplaySnapshot | null>(null);
   /** 当前显示状态——纯函数 applyDiff 累积应用 WS 帧 diff 后的不可变结果。 */
-  const displayState = ref<DisplayState>({ ...EMPTY_DISPLAY_STATE });
+  const displayState = shallowRef<DisplayState>({ ...EMPTY_DISPLAY_STATE });
   /**
    * 当前协议版本（sticky）。
    *
