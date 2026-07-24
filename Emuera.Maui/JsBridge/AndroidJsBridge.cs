@@ -40,7 +40,7 @@ internal sealed class AndroidJsBridge : IJsBridge
 	public event Action<string>? InputReceived;
 
 	/// <inheritdoc />
-	public Task Attach(WebView webView)
+	public Task Attach(Microsoft.Maui.Controls.WebView webView)
 	{
 		if (_attached)
 			return Task.CompletedTask;
@@ -68,7 +68,7 @@ internal sealed class AndroidJsBridge : IJsBridge
 		{
 			// EvaluateJavaScript 在 UI 线程异步执行；调用方（BridgeHost）已 Dispatcher.Dispatch 切到 UI 线程。
 			// 第二参数 IValueCallback 接收 JS 返回值，本场景不消费，传 null。
-			_androidWebView.EvaluateJavaScript(script, null);
+			_androidWebView.EvaluateJavascript(script, null);
 		}
 		catch (Exception ex)
 		{
@@ -86,7 +86,7 @@ internal sealed class AndroidJsBridge : IJsBridge
 		{
 			// 与 PostTurn 同样——EvaluateJavaScript 在 UI 线程异步执行。
 			// __emueraOnMessage 在 Vue 端由 registerMessageHandler 注册，未注册时返 undefined，无副作用。
-			_androidWebView.EvaluateJavaScript(script, null);
+			_androidWebView.EvaluateJavascript(script, null);
 		}
 		catch (Exception ex)
 		{
