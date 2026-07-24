@@ -393,7 +393,7 @@ export const useGameStore = defineStore('game', () => {
     if (tinputIntervalId !== null) return;
     tinputIntervalId = setInterval(() => {
       tinputTick.value++;
-    }, 100);
+    }, 500);
   }
 
   /** 停止 setInterval。幂等：若未运行则无操作。 */
