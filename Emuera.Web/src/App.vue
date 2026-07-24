@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, defineAsyncComponent } from 'vue';
 import { useUiStore } from './stores/ui';
 import { useGameStore } from './stores/game';
 import { initAppState } from './composables/useAppInit';
@@ -8,9 +8,10 @@ import ConnectionPanel from './components/ConnectionPanel.vue';
 import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
 import MauiGamePicker from './components/MauiGamePicker.vue';
-import DebugView from './views/DebugView.vue';
-import SettingsView from './views/SettingsView.vue';
 import TerminalView from './views/TerminalView.vue';
+
+const DebugView = defineAsyncComponent(() => import('./views/DebugView.vue'));
+const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'));
 
 const ui = useUiStore();
 const game = useGameStore();
