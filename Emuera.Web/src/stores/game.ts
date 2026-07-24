@@ -7,6 +7,7 @@ import { EMPTY_DISPLAY_STATE } from '../types/protocol';
 import type { DisplayState, DisplaySnapshot, TurnRecord } from '../types/protocol';
 import { useConnectionStore } from './connection';
 import { isMauiEnvironment } from '../lib/mauiBridge';
+import { TURN_HISTORY_MAX } from '../config/constants';
 
 /**
  * Issue 05：游戏目录持久化 key（localStorage）。
@@ -464,6 +465,10 @@ export const useGameStore = defineStore('game', () => {
   function applyTurn(rawJson: string): void {
     lastTurnJson.value = rawJson;
     turnHistory.value.push(rawJson);
+    // 上限保护：超出时丢弃最旧帧（FIFO）
+    if (turnHistory.value.length > TURN_HISTORY_MAX) {
+      turnHistory.value.splice(0, turnHistory.value.length - TURN_HISTORY_MAX);
+    }
 
     let turn: TurnRecord;
     try {
