@@ -112,13 +112,16 @@ internal sealed class DisplayState : IDisplayState
     private DisplaySnapshot? _previous;
 
     /// <summary>
-    /// plan C：本回合从 _pendingOps 分类出的权威清空信号。
+    /// plan C + shift_head 扩展：本回合从 _pendingOps 分类出的权威清空信号。
     /// ClearAll 主导（CLEAR），ClearLineCount 为累加的清行数，Bg 为最后一次 SetBgOp 颜色（可空）。
+    /// ShiftHeadCount 为累加的头部截断行数（MaxLog 滚动）——由 ShiftHeadTurnOp 累加，
+    /// ComputeDiff 在 lineOps 前置 ShiftHeadLineOp(ShiftHeadCount)。
     /// </summary>
     private sealed record TurnClearSignal
     {
         public bool ClearAll;
         public int ClearLineCount;
+        public int ShiftHeadCount;
         public string? Bg;
     }
 
@@ -213,32 +216,68 @@ internal sealed class DisplayState : IDisplayState
             if (ReferenceEquals(prev, current)) return null;  // no-op：本回合显示未变
 
             // 2. 行级操作：权威清空优先，否则结构分类（兼 race 降级）
+            //    shift_head 调整"effective prev"——prev 等价于去掉头部 ShiftHeadCount 行后的列表。
+            //    后续 ClearLineCount / StructuralDiff 都基于 effectivePrev 计算，避免头部删除
+            //    被 StructuralDiff 误判为 ClearScreenOp + Append 全量重印。
             List<LineOp> lineOps;
             if (signal.ClearAll)
             {
+                // ClearOp 主导——全清已覆盖头部，shift_head 互斥不产出
                 lineOps = new List<LineOp> { new ClearScreenOp() };
                 if (current.lines.Count > 0)
                     lineOps.Add(new AppendLinesOp(current.lines));
             }
-            else if (signal.ClearLineCount > 0)
-            {
-                int keep = prev.lines.Count - signal.ClearLineCount;
-                // race 降级（Q11）：部分清空信号被帧级 TryUpdate 抢先 drain，导致 clearCount
-                // 与真实快照行数冲突（keep<0 代表清行数超过上一帧总行；current 行数不足前缀
-                // 代表清行后又重印的行少于应保留的前缀）。两种情况都回退结构分类，避免
-                // GetRange 越界或将真实 CLEAR 误报为单行清空。
-                if (keep < 0 || current.lines.Count < keep)
-                    lineOps = StructuralDiff(prev, current);
-                else
-                {
-                    lineOps = new List<LineOp> { new ClearLineDiffOp(signal.ClearLineCount) };
-                    var appended = current.lines.GetRange(keep, current.lines.Count - keep);
-                    if (appended.Count > 0) lineOps.Add(new AppendLinesOp(appended));
-                }
-            }
             else
             {
-                lineOps = StructuralDiff(prev, current);
+                // shift_head 调整 effectivePrev：去掉头部 ShiftHeadCount 行。
+                // 后续 ClearLineCount / StructuralDiff 基于 effectivePrev 计算，
+                // 让头部删除独立表达为 ShiftHeadLineOp，不污染尾部 diff。
+                int skipHead = Math.Min(signal.ShiftHeadCount, prev.lines.Count);
+                var effectivePrevLines = skipHead > 0
+                    ? prev.lines.GetRange(skipHead, prev.lines.Count - skipHead)
+                    : prev.lines;
+
+                List<LineOp> tailOps;
+                bool prependShiftHead = skipHead > 0;
+                if (signal.ClearLineCount > 0)
+                {
+                    int keep = effectivePrevLines.Count - signal.ClearLineCount;
+                    // race 降级（Q11）：部分清空信号被帧级 TryUpdate 抢先 drain，导致 clearCount
+                    // 与真实快照行数冲突（keep<0 代表清行数超过上一帧总行；current 行数不足前缀
+                    // 代表清行后又重印的行少于应保留的前缀）。两种情况都回退结构分类，避免
+                    // GetRange 越界或将真实 CLEAR 误报为单行清空。
+                    if (keep < 0 || current.lines.Count < keep)
+                    {
+                        tailOps = StructuralDiff(prev, current);
+                        prependShiftHead = false; // race 降级路径不前置 shift_head
+                    }
+                    else
+                    {
+                        tailOps = new List<LineOp> { new ClearLineDiffOp(signal.ClearLineCount) };
+                        var appended = current.lines.GetRange(keep, current.lines.Count - keep);
+                        if (appended.Count > 0) tailOps.Add(new AppendLinesOp(appended));
+                    }
+                }
+                else
+                {
+                    // 无权威 ClearLineCount —— 用 effectivePrev 走结构分类，
+                    // 避免头部删除被 StructuralDiff 误判为 ClearScreenOp + Append 全量重印。
+                    var effectivePrev = new DisplaySnapshot(
+                        effectivePrevLines, prev.bgColor, prev.state, prev.inputType,
+                        prev.needValue, prev.protocolVersion, prev.generation,
+                        prev.timeLimit, prev.displayTime, prev.timeUpMessage);
+                    tailOps = StructuralDiff(effectivePrev, current);
+                }
+
+                if (prependShiftHead)
+                {
+                    lineOps = new List<LineOp> { new ShiftHeadLineOp(skipHead) };
+                    lineOps.AddRange(tailOps);
+                }
+                else
+                {
+                    lineOps = tailOps;
+                }
             }
 
             // 3. 背景色：权威 SetBgOp 优先，否则从快照比较推断
@@ -248,8 +287,9 @@ internal sealed class DisplayState : IDisplayState
     }
 
     /// <summary>
-    /// plan C：drain _pendingOps 并分类出本回合的清空信号。ClearOp 主导（→ClearAll，吞掉 CLEARLINE）；
-    /// 多个 ClearLineOp 的 n 累加；SetBgOp 取最后一次（bg 由 DisplayDiff.bgColor 携带，不计入 lineOps）。
+    /// plan C + shift_head：drain _pendingOps 并分类出本回合的清空信号。ClearOp 主导（→ClearAll，吞掉 CLEARLINE）；
+    /// 多个 ClearLineOp 的 n 累加；SetBgOp 取最后一次（bg 由 DisplayDiff.bgColor 携带，不计入 lineOps）；
+    /// ShiftHeadTurnOp 的 count 累加为 ShiftHeadCount（MaxLog 头部截断，独立于尾部清空）。
     /// PrintOp/NewLineOp 不影响清空判定，忽略。
     /// </summary>
     private TurnClearSignal DrainAndClassifyClears()
@@ -262,6 +302,7 @@ internal sealed class DisplayState : IDisplayState
                 case ClearOp: signal.ClearAll = true; break;
                 case ClearLineOp clo: signal.ClearLineCount += clo.n; break;
                 case SetBgOp sbo: signal.Bg = sbo.color; break;
+                case ShiftHeadTurnOp sho: signal.ShiftHeadCount += sho.count; break;
             }
         }
         return signal;
@@ -269,9 +310,13 @@ internal sealed class DisplayState : IDisplayState
 
     /// <summary>
     /// 比对两个快照的 lines 产出 LineOp 序列（plan C v5 + race 降级）。
-    /// Emuera 显示模型是追加式的——头部行永不变，差异只在尾部。
+    /// Emuera 显示模型以追加为主——头部行仅在 MaxLog 截断时变化（由 ShiftHeadTurnOp 主动捕获，
+    /// 不走此 fallback）；差异通常只在尾部。
     /// 公共前缀 k 之后的差异用 ClearLineDiffOp(clearCount=prev.Count-k)+Append 表达；
     /// k==0 且 prev 非空 → ClearScreenOp + Append（全清后重印，等价于旧 ReplaceAll）。
+    /// race 降级路径：_pendingOps 被帧级 TryUpdate 抢先 drain 时，ShiftHeadTurnOp 不可见，
+    /// 头部截断会令 CommonPrefix 检测到 k=0 → 退化为 ClearScreenOp + Append 全量重印。
+    /// 这是罕见并发场景，正确性不破坏（前端 applyDiff 正确处理 clear_screen + append），仅性能受损。
     /// </summary>
     private static List<LineOp> StructuralDiff(DisplaySnapshot prev, DisplaySnapshot curr)
     {

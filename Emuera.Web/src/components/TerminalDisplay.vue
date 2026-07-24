@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useGameStore } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
+import { useUiStore } from '../stores/ui';
+import { useVirtualScroll } from '../composables/useVirtualScroll';
 import { isMauiEnvironment } from '../lib/mauiBridge';
 import type { ButtonValue, PrintSegment, DisplayLine, DisplayEntry } from '../types/protocol';
 
 /**
- * TerminalDisplay.vue — Emuera 终端渲染器（issue 03 / issue 12 固定宽度布局）。
+ * TerminalDisplay.vue — Emuera 终端渲染器（issue 03 / issue 12 固定宽度布局 /
+ * 虚拟滚动与 shift_head 协议扩展）。
  *
  * 输入：`game.displayState`（由 `applyDiff` 累积更新的不可变结构化状态）。
  * 输出：可视化终端——按 `lines[].entries[].segments[]` 渲染文本片段，
@@ -28,6 +31,19 @@ import type { ButtonValue, PrintSegment, DisplayLine, DisplayEntry } from '../ty
  * - 行对齐 `align`（left/center/right）映射 CSS `text-align`。
  * - 容器背景色 `bgColor` 设置在 `.terminal` 根上。
  *
+ * 虚拟滚动（spec.md「虚拟滚动与shift_head协议」）：
+ * - 仅渲染视口内 + overscan 缓冲的行（~40 行），DOM 节点从 ~50000 降到 ~400。
+ * - `useVirtualScroll` composable 维护 startIndex/endIndex/totalHeight/offsetY/isStickyToBottom。
+ * - spacer div 撑总高度（itemCount * rowHeight），可见行用 translateY(offsetY) 定位。
+ * - `isStickyToBottom` 同时控制"新行自动跟随"与"点击推进守卫"——用户向上滚过后
+ *   点击非按钮区域不再推进游戏，让用户安心翻看历史。
+ *
+ * shift_head 协议：
+ * - game store 检测到 diff.lineOps 含 shift_head 时写入 lastShiftHeadCount + 自增 shiftHeadTick。
+ * - 本组件 watch(shiftHeadTick)：若 isStickyToBottom=false，调 adjustScrollTop(-count * rowHeight)
+ *   保持视觉位置（原来第 N 行仍在新位置的同一像素处）。
+ * - clear_screen（全清）行为：重置 isStickyToBottom=true + scrollToBottom——全清视为新画面。
+ *
  * 布局策略：`.terminal` 容器填满父宽度（`flex: 1`），内容由 `.terminal-content`
  * （`max-width: windowWidth px; margin: 0 auto`）约束在游戏设计宽度内。
  * 这解决了固定宽度布局导致的一半黑一半灰/滚动条不在窗口边缘的问题，
@@ -46,6 +62,7 @@ import type { ButtonValue, PrintSegment, DisplayLine, DisplayEntry } from '../ty
  */
 const game = useGameStore();
 const conn = useConnectionStore();
+const ui = useUiStore();
 const isMaui = isMauiEnvironment();
 
 /**
@@ -76,6 +93,9 @@ const effectiveFontFamily = computed(() => {
   return `'${name.replace(/'/g, "\\'")}', ${MONOSPACE_FALLBACK}`;
 });
 
+/** 虚拟滚动的有效行高——含 scale。useVirtualScroll 据此算 startIndex/totalHeight/offsetY。 */
+const effectiveRowHeight = computed(() => effectiveLineHeight.value * game.effectiveScale);
+
 /** .terminal 容器内联 style——动态绑定 width（ch 单位）/font-size/line-height/font-family + CSS 变量。 */
 const terminalStyle = computed<Record<string, string>>(() => {
   const style: Record<string, string> = {
@@ -101,6 +121,42 @@ const contentStyle = computed<Record<string, string>>(() => ({
 }));
 
 /**
+ * Issue 12：终端容器 ref——虚拟滚动视口元素。
+ *
+ * 虚拟滚动改造前用于 scroll 事件监听 + scrollToBottom；改造后传给 useVirtualScroll
+ * 由其管理 scroll listener + isStickyToBottom + startIndex/endIndex 计算。
+ */
+const terminalRef = ref<HTMLDivElement | null>(null);
+
+/**
+ * 虚拟滚动实例——传入 itemCount（lines.length）、rowHeight、viewportRef。
+ *
+ * onStickyChange 回调同步到 ui store，供 InputBar 实现 AnyKey 全局 click 守卫。
+ * 用户向上滚过后 isStickyToBottom=false，InputBar.onGlobalClick 拒绝推进游戏。
+ */
+const vs = useVirtualScroll({
+  itemCount: computed(() => game.displayState.lines.length),
+  rowHeight: effectiveRowHeight,
+  viewportRef: terminalRef,
+  onStickyChange: (v) => ui.setStickyToBottom(v),
+});
+
+/**
+ * 虚拟滚动可见行的切片——`game.displayState.lines.slice(startIndex, endIndex)`。
+ *
+ * v-for 渲染此切片而非全量 lines；每行 :key 用绝对索引 `startIndex + i`
+ * （与原 lineIdx 语义一致——索引在两次全清之间稳定映射到"位置"，spec.md决策二）。
+ */
+const visibleLines = computed(() => {
+  const start = vs.startIndex.value;
+  const end = vs.endIndex.value;
+  return game.displayState.lines.slice(start, end).map((line, i) => ({
+    line,
+    absIdx: start + i,
+  }));
+});
+
+/**
  * 把 ButtonValue 转 wire 字符串。
  * - number → String(num)（如 1 → "1"）
  * - string → 原值（如 "cancel" → "cancel"）
@@ -121,6 +177,9 @@ function valueToWire(v: ButtonValue): string {
  *
  * 通过守卫后置 inputInFlight + 发送输入。服务端响应新 turn 时
  * applyTurn 会清锁 + 更新 generation。
+ *
+ * 按钮点击不受 isStickyToBottom 守卫影响——按钮走自身 @click，受 generation/inputInFlight
+ * 三重守卫保护。即使翻看历史时残留按钮仍可点（spec.md 用户故事 9）。
  */
 function onButtonClick(entry: DisplayEntry): void {
   const button = entry.button;
@@ -138,10 +197,15 @@ function onButtonClick(entry: DisplayEntry): void {
  *
  * 仅 EnterKey/AnyKey 模式生效（匹配 CLI DispatchMouseMiss）。
  * 按钮区域由 button @click 处理，此处用 closest('.term-btn') 跳过。
+ *
+ * 虚拟滚动 + sticky 守卫（spec.md决策三）：isStickyToBottom=false 时拒绝推进——
+ * 用户翻看历史时点击应视为"继续翻/选中"而非"推进游戏"。滚回底部 = "我看完了，可以继续"。
  */
 function onTerminalClick(e: MouseEvent): void {
   const target = e.target as HTMLElement | null;
   if (target && target.closest('.term-btn')) return;
+  // sticky 守卫——翻看历史时不推进游戏
+  if (!vs.isStickyToBottom.value) return;
   if (game.displayState.state !== 'WaitInput') return;
   if (game.displayState.inputType !== 'EnterKey' && game.displayState.inputType !== 'AnyKey') return;
   if (conn.status !== 'connected') return;
@@ -171,26 +235,33 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
   return line.align ?? 'left';
 }
 
-/**
- * Issue 12：终端容器 ref——用于新内容到达时自动滚动到底部。
- *
- * 行为：每次 lines 增长（游戏输出新行 / 点击按钮后刷新 turn）都自动滚到最下方。
- * 这是终端模拟器的常见行为；用户手动滚动查看历史后，新输出仍会拉回底部——
- * 与 WinForms / CLI 的"始终显示最新输出"一致。
- */
-const terminalRef = ref<HTMLDivElement | null>(null);
+// ---------- shift_head 视觉位置补偿 ----------
+//
+// game store 检测到 diff.lineOps 含 shift_head 时自增 shiftHeadTick + 写入 lastShiftHeadCount。
+// 本 watch 据此调 adjustScrollTop(-count * rowHeight) 保持视口内显示的行内容不变
+// （仅 isStickyToBottom=false 时有意义——用户在底部时新内容自然到达，无需调整）。
+watch(() => game.shiftHeadTick, () => {
+  if (game.lastShiftHeadCount <= 0) return;
+  if (vs.isStickyToBottom.value) return; // 用户在底部——无需补偿
+  vs.adjustScrollTop(-game.lastShiftHeadCount * effectiveRowHeight.value);
+});
 
-function scrollToBottom(): void {
-  const el = terminalRef.value;
-  if (!el) return;
-  // nextTick：等 Vue 完成 DOM 更新后再滚动，否则 scrollHeight 是旧值。
-  nextTick(() => {
-    el.scrollTop = el.scrollHeight;
-  });
-}
-
-// 监听行数变化——打开游戏、CLEAR、PRINT 新行、点击按钮后新 turn 都会触发。
-watch(() => game.displayState.lines.length, scrollToBottom);
+// ---------- clear_screen 强制回到底部 ----------
+//
+// 全清视为新画面，强制 isStickyToBottom=true + scrollToBottom——
+// 覆盖 race 降级产生的 ClearScreenOp + Append（spec.md决策五）。
+//
+// 检测策略：watch game.clearScreenTick——game store 在 applyDiff 前扫描 lineOps
+// 检测到 clear_screen op 时自增此 tick。不能直接 watch(lines.length)，因为
+// applyDiff 单 tick 内顺序应用 clear_screen + append，Vue 响应式只观察最终 length
+// （= append 后行数），length 突变到 0 的中间态不可见。
+watch(() => game.clearScreenTick, () => {
+  if (!vs.isStickyToBottom.value) {
+    vs.isStickyToBottom.value = true;
+    ui.setStickyToBottom(true);
+  }
+  vs.scrollToBottom();
+});
 </script>
 
 <template>
@@ -218,36 +289,48 @@ watch(() => game.displayState.lines.length, scrollToBottom);
       </template>
       <p v-if="game.lastError" class="terminal-error">解析错误：{{ game.lastError }}</p>
     </div>
+    <!-- 虚拟滚动：spacer 撑总高度，可见行用 translateY(offsetY) 定位 -->
     <div
-      v-for="(line, lineIdx) in game.displayState.lines"
-      :key="lineIdx"
-      class="term-line"
-      :style="{ textAlign: lineAlign(line) }"
+      v-else
+      class="term-virtual-spacer"
+      :style="{ height: `${vs.totalHeight.value}px` }"
     >
-      <template v-for="(entry, entryIdx) in line.entries" :key="entryIdx">
-        <button
-          v-if="entry.button"
-          class="term-btn"
-          :title="`点击提交: ${valueToWire(entry.button.value)}`"
-          :disabled="conn.status !== 'connected' || game.displayState.state !== 'WaitInput'"
-          @click="onButtonClick(entry)"
+      <div
+        class="term-virtual-window"
+        :style="{ transform: `translateY(${vs.offsetY.value}px)` }"
+      >
+        <div
+          v-for="item in visibleLines"
+          :key="item.absIdx"
+          class="term-line"
+          :style="{ textAlign: lineAlign(item.line) }"
         >
-          <span
-            v-for="(seg, segIdx) in entry.segments"
-            :key="segIdx"
-            class="term-seg"
-            :style="segmentStyle(seg)"
-          >{{ seg.text }}</span>
-        </button>
-        <span v-else class="term-entry">
-          <span
-            v-for="(seg, segIdx) in entry.segments"
-            :key="segIdx"
-            class="term-seg"
-            :style="segmentStyle(seg)"
-          >{{ seg.text }}</span>
-        </span>
-      </template>
+          <template v-for="(entry, entryIdx) in item.line.entries" :key="entryIdx">
+            <button
+              v-if="entry.button"
+              class="term-btn"
+              :title="`点击提交: ${valueToWire(entry.button.value)}`"
+              :disabled="conn.status !== 'connected' || game.displayState.state !== 'WaitInput'"
+              @click="onButtonClick(entry)"
+            >
+              <span
+                v-for="(seg, segIdx) in entry.segments"
+                :key="segIdx"
+                class="term-seg"
+                :style="segmentStyle(seg)"
+              >{{ seg.text }}</span>
+            </button>
+            <span v-else class="term-entry">
+              <span
+                v-for="(seg, segIdx) in entry.segments"
+                :key="segIdx"
+                class="term-seg"
+                :style="segmentStyle(seg)"
+              >{{ seg.text }}</span>
+            </span>
+          </template>
+        </div>
+      </div>
     </div>
     </div>
   </div>
@@ -284,6 +367,18 @@ watch(() => game.displayState.lines.length, scrollToBottom);
 }
 .terminal-content {
   /* 约束内容宽度为游戏设计宽度，水平居中；maxWidth/margin 由 inline style 动态绑定 */
+}
+/* 虚拟滚动 spacer——撑总高度（itemCount * rowHeight），position:relative 让子元素 absolute 定位 */
+.term-virtual-spacer {
+  position: relative;
+  width: 100%;
+}
+/* 虚拟滚动可见行窗口——translateY(offsetY) 定位，absolute 占满 spacer 宽度 */
+.term-virtual-window {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
 }
 .term-line {
   display: block;

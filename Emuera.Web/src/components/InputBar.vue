@@ -2,9 +2,11 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useGameStore } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
+import { useUiStore } from '../stores/ui';
 
 /**
- * InputBar.vue — 输入栏 + 游戏状态显示 + TINPUT 倒计时（issue 04 / ADR-0016）。
+ * InputBar.vue — 输入栏 + 游戏状态显示 + TINPUT 倒计时（issue 04 / ADR-0016 /
+ * 虚拟滚动 + sticky 守卫扩展）。
  *
  * 职责：
  * 1. 根据 `snapshot.inputType` 分支渲染 5 种输入 UI：
@@ -23,9 +25,13 @@ import { useConnectionStore } from '../stores/connection';
  * 4. ADR-0016：TINPUT 实时倒计时——`game.showTinputCountdown` 为 true 时显示
  *    `<progress>` 进度条 + 剩余秒数，由 game store 的本地钟表驱动（setInterval 100ms）
  * 5. 输入框聚焦：`WaitInput` 状态时自动聚焦输入框
+ * 6. 虚拟滚动 sticky 守卫——AnyKey 模式下 `isStickyToBottom=false` 时拒绝全局 click 推进，
+ *    让触屏用户向上滑动翻看历史时不会误触发"点击推进游戏"（spec.md决策三）。
+ *    按钮自身 @click 不受影响（按钮区域由 `closest('button')` 跳过）。
  */
 const game = useGameStore();
 const conn = useConnectionStore();
+const ui = useUiStore();
 
 /** 输入框当前值——`v-model` 绑定。每次 turn 切换后清空。 */
 const inputValue = ref<string>('');
@@ -149,9 +155,16 @@ function onGlobalKeydown(e: KeyboardEvent): void {
 }
 
 /** 全局 click 处理——仅 AnyKey 模式下，点击页面任意位置触发提交。
- *  注意：当用户点击按钮 / 链接等可交互元素时不应被劫持——交由具体元素 stopPropagation。 */
+ *  注意：当用户点击按钮 / 链接等可交互元素时不应被劫持——交由具体元素 stopPropagation。
+ *
+ *  虚拟滚动 sticky 守卫（spec.md决策三）：`isStickyToBottom=false` 时拒绝推进——
+ *  用户翻看历史时（向上滚过），触屏滑动可能误触发 click 事件，此时不应推进游戏。
+ *  滚回底部后 `isStickyToBottom=true`，click 推进恢复。
+ *  按钮区域由 `closest('button')` 跳过——按钮走自身 @click，受 generation/inputInFlight 守卫。 */
 function onGlobalClick(e: MouseEvent): void {
   if (!isAnyKeyMode()) return;
+  // sticky 守卫——翻看历史时不推进游戏
+  if (!ui.isStickyToBottom) return;
   // 让点击 Terminal 中的按钮（如有）自然走 button.onclick——不在这里 submit
   // 简单策略：若点击 target 是 <button> 元素，跳过（让按钮自身处理）
   const target = e.target as HTMLElement | null;

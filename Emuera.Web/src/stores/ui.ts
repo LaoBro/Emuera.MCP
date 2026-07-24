@@ -50,9 +50,30 @@ export const useUiStore = defineStore('ui', () => {
   // 平台在 app 生命周期内不会变化（不会从浏览器变成 MAUI），故 ref 不需要 setter。
   const platform = ref<Platform>(detectPlatform());
 
+  /**
+   * 虚拟滚动 Stick to bottom 标志——同时控制自动跟随与点击推进守卫。
+   *
+   * 初始 true（未滚动过视为在底部）；用户向上滚过后变 false，新输出不再自动拉回；
+   * 滚回底部后变 true，自动跟随恢复。同一标志还用作 AnyKey/EnterKey 模式的"点击推进"
+   * 守卫——`isStickyToBottom=false` 时 `onTerminalClick`/`onGlobalClick` 拒绝推进，
+   * 让用户安心翻看历史。
+   *
+   * 跨组件共享：`useVirtualScroll` composable 内部维护同一含义的 ref，
+   * 通过 `onStickyChange` 回调同步到此 store；`InputBar` 读此 store 实现全局 click 守卫。
+   */
+  const isStickyToBottom = ref<boolean>(true);
+
   function switchView(view: UiView): void {
     currentView.value = view;
   }
 
-  return { currentView, platform, switchView };
+  /**
+   * 设置 isStickyToBottom——由 `useVirtualScroll` 的 onStickyChange 回调写入，
+   * 或由 `clear_screen` 等需要强制回到底部的事件主动置 true。
+   */
+  function setStickyToBottom(v: boolean): void {
+    isStickyToBottom.value = v;
+  }
+
+  return { currentView, platform, switchView, isStickyToBottom, setStickyToBottom };
 });

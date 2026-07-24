@@ -165,6 +165,9 @@ internal sealed class ConsolePrintManager
                 ConsoleEscapedParts.RemoveAt(_state.displayLineList[0].LineNo);
             _state.displayLineList.RemoveAt(0);
             _state.deletedLines++;
+            // shift_head 协议：MaxLog 头部截断主动 enqueue ShiftHeadTurnOp，
+            // 让 DisplayState.ComputeDiff 产出 ShiftHeadLineOp(1) 而非 ClearScreenOp + 全量重印。
+            _state._pendingOps.Enqueue(new ShiftHeadTurnOp(1));
         }
     }
 
@@ -211,7 +214,12 @@ internal sealed class ConsolePrintManager
             _state.lineNo += int.MaxValue;
         _state.lastDrawnLineNo = -1;
         if (_state.displayLineList.Count == Config.MaxLog)
+        {
             _state.displayLineList.RemoveAt(0);
+            // shift_head 协议：CLEARLINE 后恰好达到 MaxLog 时触发的头部截断——
+            // 同样 enqueue ShiftHeadTurnOp，否则该路径仍会触发全量重印 diff。
+            _state._pendingOps.Enqueue(new ShiftHeadTurnOp(1));
+        }
         _state.deletedLines -= num;
 
     }

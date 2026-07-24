@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using MinorShift.Emuera;
@@ -386,5 +386,164 @@ public class DisplayDiffTests : IDisposable
         public bool TrySetConsoleSize(int cols, int rows) => false;
         public string? DetectFont() => null;
         public bool TryPrepareVtInput() => false;
+    }
+
+    // ---------- shift_head：MaxLog 头部截断 ----------
+
+    /// <summary>
+    /// shift_head 协议测试——验证 ComputeDiff 在 MaxLog 头部截断场景下产出
+    /// ShiftHeadLineOp 而非 ClearScreenOp + AppendLinesOp 全量重印。
+    /// 与前端 opsApplier.test.ts 的 shift_head 系列对称。
+    /// </summary>
+    public class ShiftHeadTests : DisplayDiffTests
+    {
+        [Fact]
+        public void ShiftHead_alone_produces_shift_head_line_op()
+        {
+            // 上一帧：3 行
+            PrintLine("line1");
+            PrintLine("line2");
+            PrintLine("line3");
+            BuildDiff();
+
+            // 本回合：头部删除 1 行（模拟 MaxLog 滚动）
+            _console.DisplayLineList.RemoveAt(0);
+            AddPendingOp(new ShiftHeadTurnOp(1));
+
+            var diff = BuildDiff();
+
+            Assert.NotNull(diff);
+            var op = Assert.Single(diff!.lineOps);
+            var shiftHead = Assert.IsType<ShiftHeadLineOp>(op);
+            Assert.Equal(1, shiftHead.count);
+            Assert.Null(diff.bgColor);
+        }
+
+        [Fact]
+        public void ShiftHead_with_append_produces_shift_head_then_append()
+        {
+            // 上一帧：3 行
+            PrintLine("line1");
+            PrintLine("line2");
+            PrintLine("line3");
+            BuildDiff();
+
+            // 本回合：头部删 1 行 + 尾部追加 1 行（典型 MaxLog 滚动 + 新行）
+            _console.DisplayLineList.RemoveAt(0);
+            PrintLine("line4");
+            AddPendingOp(new ShiftHeadTurnOp(1));
+
+            var diff = BuildDiff();
+
+            Assert.NotNull(diff);
+            Assert.Equal(2, diff!.lineOps.Count);
+            var shiftHead = Assert.IsType<ShiftHeadLineOp>(diff.lineOps[0]);
+            Assert.Equal(1, shiftHead.count);
+            var append = Assert.IsType<AppendLinesOp>(diff.lineOps[1]);
+            var appendedLine = Assert.Single(append.newLines);
+            Assert.Equal("line4", appendedLine.entries[0].segments[0].text);
+        }
+
+        [Fact]
+        public void Multiple_shift_head_ops_accumulate_count()
+        {
+            // 上一帧：4 行
+            PrintLine("a");
+            PrintLine("b");
+            PrintLine("c");
+            PrintLine("d");
+            BuildDiff();
+
+            // 本回合：头部删 2 行（多次 RemoveAt(0) 模拟连续 MaxLog 截断）
+            _console.DisplayLineList.RemoveAt(0);
+            _console.DisplayLineList.RemoveAt(0);
+            AddPendingOp(new ShiftHeadTurnOp(1));
+            AddPendingOp(new ShiftHeadTurnOp(1));
+
+            var diff = BuildDiff();
+
+            Assert.NotNull(diff);
+            var op = Assert.Single(diff!.lineOps);
+            var shiftHead = Assert.IsType<ShiftHeadLineOp>(op);
+            Assert.Equal(2, shiftHead.count);
+        }
+
+        [Fact]
+        public void ShiftHead_with_clear_line_diff_produces_both_ops()
+        {
+            // 上一帧：4 行
+            PrintLine("line1");
+            PrintLine("line2");
+            PrintLine("line3");
+            PrintLine("line4");
+            BuildDiff();
+
+            // 本回合：头部删 1 行 + 尾部 CLEARLINE 1 行
+            _console.DisplayLineList.RemoveAt(0);           // 头部删 line1
+            _console.DisplayLineList.RemoveAt(_console.DisplayLineList.Count - 1); // 尾部删 line4
+            AddPendingOp(new ShiftHeadTurnOp(1));
+            AddPendingOp(new ClearLineOp(1));
+
+            var diff = BuildDiff();
+
+            Assert.NotNull(diff);
+            Assert.Equal(2, diff!.lineOps.Count);
+            var shiftHead = Assert.IsType<ShiftHeadLineOp>(diff.lineOps[0]);
+            Assert.Equal(1, shiftHead.count);
+            var clearLine = Assert.IsType<ClearLineDiffOp>(diff.lineOps[1]);
+            Assert.Equal(1, clearLine.clearCount);
+        }
+
+        [Fact]
+        public void ShiftHead_does_not_produce_clear_screen_op()
+        {
+            // 关键回归：无 ShiftHeadTurnOp 时，头部删除会被 StructuralDiff 误判为 ClearScreenOp。
+            // 有 ShiftHeadTurnOp 后，应产出 ShiftHeadLineOp 而非 ClearScreenOp + Append 全量重印。
+            PrintLine("line1");
+            PrintLine("line2");
+            PrintLine("line3");
+            BuildDiff();
+
+            _console.DisplayLineList.RemoveAt(0);
+            AddPendingOp(new ShiftHeadTurnOp(1));
+
+            var diff = BuildDiff();
+
+            Assert.NotNull(diff);
+            // 不应包含 ClearScreenOp（关键断言——证明避免全量重印）
+            Assert.DoesNotContain(diff!.lineOps, op => op is ClearScreenOp);
+            // 不应包含 AppendLinesOp（无新行追加）
+            Assert.DoesNotContain(diff.lineOps, op => op is AppendLinesOp);
+            // 应包含 ShiftHeadLineOp
+            Assert.Contains(diff.lineOps, op => op is ShiftHeadLineOp);
+        }
+
+        [Fact]
+        public void ShiftHead_with_clear_op_skips_shift_head_clear_all_dominates()
+        {
+            // ClearOp 主导——ClearAll 分支已覆盖全清，无需 shift_head（互斥）。
+            // 即使 enqueue 了 ShiftHeadTurnOp，ClearAll 仍优先，lineOps 不含 ShiftHeadLineOp。
+            PrintLine("line1");
+            PrintLine("line2");
+            BuildDiff();
+
+            _console.DisplayLineList.Clear();
+            _console.DisplayLineList.Add(Line("fresh"));
+            AddPendingOp(new ClearOp());
+            AddPendingOp(new ShiftHeadTurnOp(1));
+            AddPendingOp(new PrintOp(
+                new List<PrintSegment> { new("fresh", null, null, null, null) },
+                button: null));
+
+            var diff = BuildDiff();
+
+            Assert.NotNull(diff);
+            Assert.Equal(2, diff!.lineOps.Count);
+            Assert.IsType<ClearScreenOp>(diff.lineOps[0]);
+            var append = Assert.IsType<AppendLinesOp>(diff.lineOps[1]);
+            Assert.Single(append.newLines);
+            // ClearAll 主导——shift_head 被吞掉，不产出 ShiftHeadLineOp
+            Assert.DoesNotContain(diff.lineOps, op => op is ShiftHeadLineOp);
+        }
     }
 }

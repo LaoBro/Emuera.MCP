@@ -108,6 +108,8 @@ function parseLineOp(raw: unknown, index: number): LineOp {
       return { type: 'clear_line_diff', clearCount: readIntRequired(obj.clearCount, `lineOps[${index}].clearCount`) };
     case 'clear_screen':
       return { type: 'clear_screen' };
+    case 'shift_head':
+      return { type: 'shift_head', count: readIntRequired(obj.count, `lineOps[${index}].count`) };
     default:
       throw new ParseTurnRecordError(`lineOps[${index}] 未知 type="${String(type)}"`);
   }

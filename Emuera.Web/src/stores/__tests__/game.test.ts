@@ -201,6 +201,53 @@ describe('useGameStore.applyTurn', () => {
     expect(game.displayState.bgColor).toBe('#FFFFFF');
   });
 
+  it('clear_screen 帧：clearScreenTick 自增（TerminalDisplay watch 此 tick 触发回底部）', () => {
+    const game = useGameStore();
+    expect(game.clearScreenTick).toBe(0);
+
+    game.applyTurn(clearScreenFrameJson());
+    expect(game.clearScreenTick).toBe(1);
+
+    game.applyTurn(clearScreenFrameJson());
+    expect(game.clearScreenTick).toBe(2);
+  });
+
+  it('clear_screen + append 同帧：clearScreenTick 仍自增（race 降级场景）', () => {
+    // spec.md「### 视觉处理」要求 clear_screen（含 race 降级产生的 ClearScreenOp + Append）
+    // 重置 isStickyToBottom=true + scrollToBottom。applyDiff 单 tick 内顺序应用 clear_screen + append，
+    // watch(lines.length) 检测不到全清——必须用 clearScreenTick。
+    const game = useGameStore();
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          { type: 'clear_screen' },
+          { type: 'append', newLines: [diffLine('after-clear')] },
+        ],
+        bgColor: null,
+      },
+    });
+    game.applyTurn(json);
+
+    // lines 已追加新行（clear_screen + append 同帧后 length=1），但 clearScreenTick 仍自增
+    expect(game.displayState.lines).toHaveLength(1);
+    expect(game.displayState.lines[0].entries[0].segments[0].text).toBe('after-clear');
+    expect(game.clearScreenTick).toBe(1);
+  });
+
+  it('非 clear_screen 帧：clearScreenTick 不变', () => {
+    const game = useGameStore();
+    expect(game.clearScreenTick).toBe(0);
+
+    game.applyTurn(appendFrameJson(['A']));
+    expect(game.clearScreenTick).toBe(0);
+
+    game.applyTurn(clearLineFrameJson(1));
+    expect(game.clearScreenTick).toBe(0);
+  });
+
   it('diff=null 帧：仅更新 state/inputType/needValue，lines 不变', () => {
     const game = useGameStore();
     game.applyTurn(appendFrameJson(['keep'], { state: 'Running', inputType: null, needValue: false }));

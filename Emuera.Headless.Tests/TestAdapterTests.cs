@@ -512,4 +512,88 @@ public class TestAdapterTests
         Assert.Null(adapter.DisplayTime);
         Assert.Null(adapter.TimeUpMessage);
     }
+
+    // ---------- shift_head：TestAdapter 消费方对称测试 ----------
+    //
+    // 与前端 opsApplier.test.ts 的 shift_head 系列对称——验证 C# 端 TestAdapter.ApplyDiff
+    // 能正确消费 ShiftHeadLineOp（与前端 applyDiff 行为一致）。
+
+    [Fact]
+    public void T_diff_shift_head_removes_first_n_lines()
+    {
+        var adapter = new TestAdapter();
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("a"), MakeDiffLine("b"), MakeDiffLine("c") }) },
+            null));
+        Assert.Equal(3, adapter.Lines.Count);
+
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new ShiftHeadLineOp(1) },
+            null));
+
+        Assert.Equal(2, adapter.Lines.Count);
+        // 头部删除——剩下 b, c
+        Assert.Equal("b", adapter.Lines[0].Entries[0].Segments[0].text);
+        Assert.Equal("c", adapter.Lines[1].Entries[0].Segments[0].text);
+    }
+
+    [Fact]
+    public void T_diff_shift_head_count_exceeding_lines_clamps_to_count()
+    {
+        var adapter = new TestAdapter();
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("only") }) },
+            null));
+
+        // count > Lines.Count —— 钳制为 Lines.Count，不抛错
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new ShiftHeadLineOp(5) },
+            null));
+
+        Assert.Empty(adapter.Lines);
+    }
+
+    [Fact]
+    public void T_diff_shift_head_then_append_applies_in_order()
+    {
+        var adapter = new TestAdapter();
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("a"), MakeDiffLine("b") }) },
+            null));
+
+        // shift_head(1) + append(1) —— 先删头部 a，再追加 c → [b, c]
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp>
+            {
+                new ShiftHeadLineOp(1),
+                new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("c") }),
+            },
+            null));
+
+        Assert.Equal(2, adapter.Lines.Count);
+        Assert.Equal("b", adapter.Lines[0].Entries[0].Segments[0].text);
+        Assert.Equal("c", adapter.Lines[1].Entries[0].Segments[0].text);
+    }
+
+    [Fact]
+    public void T_diff_shift_head_with_clear_line_diff_applies_both()
+    {
+        var adapter = new TestAdapter();
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp> { new AppendLinesOp(new List<DisplayLine> { MakeDiffLine("a"), MakeDiffLine("b"), MakeDiffLine("c"), MakeDiffLine("d") }) },
+            null));
+
+        // shift_head(1) + clear_line_diff(1) —— 先删头部 a，再删尾部 d → [b, c]
+        adapter.ApplyDiff(new DisplayDiff(
+            new List<LineOp>
+            {
+                new ShiftHeadLineOp(1),
+                new ClearLineDiffOp(1),
+            },
+            null));
+
+        Assert.Equal(2, adapter.Lines.Count);
+        Assert.Equal("b", adapter.Lines[0].Entries[0].Segments[0].text);
+        Assert.Equal("c", adapter.Lines[1].Entries[0].Segments[0].text);
+    }
 }

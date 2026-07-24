@@ -84,18 +84,22 @@ export function applyOps(state: DisplayState, ops: TurnOp[]): DisplayState {
 }
 
 /**
- * 应用 `DisplayDiff`（v5 协议增量）更新状态（issue 02）。
+ * 应用 `DisplayDiff`（v5 协议增量 + shift_head 扩展）更新状态（issue 02）。
  *
  * 与 C# `TestAdapter.ApplyDiff`（Emuera.Headless.Tests/TestAdapter.cs:58）对称：
  * - `append` → 追加 newLines（diff 已按行结构化，逐条转为内部 DisplayLine）
  * - `clear_line_diff` (clearCount) → 从末尾删除 min(clearCount, length) 行
  * - `clear_screen` → 清空全部行
+ * - `shift_head` (count) → 从头部删除 min(count, length) 行（MaxLog 滚动场景）
  * - diff.bgColor 非空 → 更新 bgColor
  *
  * 与 `applyOps` 的差别：applyOps 消费引擎内部 `TurnOp[]`（print/newline/...），
- * applyDiff 消费对外 `LineOp[]`（append/clear_line_diff/clear_screen，plan C v5 显式清空信号）。
+ * applyDiff 消费对外 `LineOp[]`（append/clear_line_diff/clear_screen/shift_head）。
  * **WS 帧的 `TurnRecord.diff.lineOps` 即 `LineOp[]`——前端实际消费 WS 流靠此函数**，
  * applyOps 主要为与 C# TestAdapter 的 ApplyOps 测试对称（内部 op 流）。
+ *
+ * 应用顺序：C# `DisplayState.ComputeDiff` 按 shift_head → clear_line_diff → append
+ * 顺序产出 lineOps（clear_screen 与 shift_head 互斥）。本函数按数组顺序应用即可。
  *
  * 函数式纯度：与 applyOps 一致——返回新对象，深拷贝 segments/button。
  *
@@ -130,6 +134,13 @@ export function applyDiff(state: DisplayState, diff: DisplayDiff): DisplayState 
       case 'clear_screen':
         lines.length = 0;
         break;
+      case 'shift_head': {
+        // 头部删除——与 C# TestAdapter.ApplyDiff 的 `Lines.RemoveRange(0, count)` 对称。
+        // count 超量时钳制到 lines.length（防御性，C# 端 ShiftHeadLineOp.count 已钳制）。
+        const removeCount = Math.min(op.count, lines.length);
+        if (removeCount > 0) lines.splice(0, removeCount);
+        break;
+      }
       default:
         throw new Error(`Unknown LineOp type: ${(op as { type: string }).type}`);
     }

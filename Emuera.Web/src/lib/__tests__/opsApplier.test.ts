@@ -475,6 +475,110 @@ describe('applyDiff', () => {
   });
 });
 
+// ---------- applyDiff: shift_head（MaxLog 头部截断） ----------
+//
+// 与 C# TestAdapterTests.T_diff_shift_head_* 系列（Emuera.Headless.Tests/TestAdapterTests.cs）
+// 对称——验证前端消费方与 C# TestAdapter 行为一致。
+describe('applyDiff: shift_head', () => {
+  function diffLine(text: string): DisplayLine {
+    return { entries: [entry(text)], align: 'left', isLineEnd: true };
+  }
+
+  function diff(partial: Partial<DisplayDiff>): DisplayDiff {
+    return {
+      lineOps: partial.lineOps ?? [],
+      bgColor: partial.bgColor ?? null,
+    };
+  }
+
+  it('T_diff_shift_head 对称：从头部删除指定行数', () => {
+    // 先 append 3 行 [a, b, c]
+    const setup = diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b'), diffLine('c')] }],
+    });
+    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    expect(state.lines).toHaveLength(3);
+
+    // shift_head 删除头部 1 行——剩 [b, c]
+    const shifted = applyDiff(state, diff({ lineOps: [{ type: 'shift_head', count: 1 }] }));
+    expect(shifted.lines).toHaveLength(2);
+    expect(shifted.lines[0].entries[0].segments[0].text).toBe('b');
+    expect(shifted.lines[1].entries[0].segments[0].text).toBe('c');
+  });
+
+  it('T_diff_shift_head_count_exceeding 对称：count 超过总行数时全部清空', () => {
+    const setup = diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('only')] }],
+    });
+    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    expect(state.lines).toHaveLength(1);
+
+    const shifted = applyDiff(state, diff({ lineOps: [{ type: 'shift_head', count: 5 }] }));
+    expect(shifted.lines).toEqual([]);
+  });
+
+  it('T_diff_shift_head_zero 对称：count=0 不改变行', () => {
+    const setup = diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('keep')] }],
+    });
+    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+
+    const shifted = applyDiff(state, diff({ lineOps: [{ type: 'shift_head', count: 0 }] }));
+    expect(shifted.lines).toHaveLength(1);
+    expect(shifted.lines[0].entries[0].segments[0].text).toBe('keep');
+  });
+
+  it('T_diff_shift_head_then_append 对称：头部截断 + 尾部追加（MaxLog 滚动场景）', () => {
+    // 长 game 达 MaxLog 后每新增一行 = ShiftHeadLineOp(1) + AppendLinesOp(1)
+    const setup = diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b')] }],
+    });
+    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+
+    const shifted = applyDiff(state, diff({
+      lineOps: [
+        { type: 'shift_head', count: 1 },
+        { type: 'append', newLines: [diffLine('c')] },
+      ],
+    }));
+    // 头部删 a + 尾部加 c → [b, c]
+    expect(shifted.lines).toHaveLength(2);
+    expect(shifted.lines[0].entries[0].segments[0].text).toBe('b');
+    expect(shifted.lines[1].entries[0].segments[0].text).toBe('c');
+  });
+
+  it('T_diff_shift_head_with_clear_line_diff 对称：头部截断 + 尾部清行', () => {
+    // 头部截断 + 尾部 CLEARLINE 可同回合发生（spec.md shift_head 与 ClearLineDiffOp 共存）
+    const setup = diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b'), diffLine('c'), diffLine('d')] }],
+    });
+    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+
+    const shifted = applyDiff(state, diff({
+      lineOps: [
+        { type: 'shift_head', count: 1 },          // 删 a → [b, c, d]
+        { type: 'clear_line_diff', clearCount: 1 }, // 删 d → [b, c]
+      ],
+    }));
+    expect(shifted.lines).toHaveLength(2);
+    expect(shifted.lines[0].entries[0].segments[0].text).toBe('b');
+    expect(shifted.lines[1].entries[0].segments[0].text).toBe('c');
+  });
+
+  it('shift_head 不与入参共享引用（纯度）', () => {
+    const setup = diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b')] }],
+    });
+    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const originalLinesLen = state.lines.length;
+
+    applyDiff(state, diff({ lineOps: [{ type: 'shift_head', count: 1 }] }));
+
+    // applyDiff 不应修改入参 state——state.lines 仍为 2 行
+    expect(state.lines).toHaveLength(originalLinesLen);
+  });
+});
+
 // ---------- 辅助 ----------
 
 function lineFromButton(text: string, value: number, col = 0, width?: number, generation = 0): DisplayLine {

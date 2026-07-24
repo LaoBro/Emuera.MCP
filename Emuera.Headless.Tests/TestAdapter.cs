@@ -58,11 +58,12 @@ internal sealed class TestAdapter
     }
 
     /// <summary>
-    /// 消费 DisplayDiff（plan C v5 显式清空信号）更新状态——模拟 Web 前端从 diff 重建显示。
+    /// 消费 DisplayDiff（plan C v5 显式清空信号 + shift_head 扩展）更新状态——模拟 Web 前端从 diff 重建显示。
     /// 与 <see cref="ApplyOps"/> 并存：ApplyOps 验证引擎内部 TurnOp 流，ApplyDiff 验证对外 diff 契约。
     /// - AppendLinesOp → 追加整行（diff 已按行结构化，逐条转为 AdapterLine）
     /// - ClearLineDiffOp(n) → 从行列表末尾删除 n 行（清行）
     /// - ClearScreenOp → 清空全部行（全清）
+    /// - ShiftHeadLineOp(count) → 从行列表头部删除 min(count, Lines.Count) 行（MaxLog 滚动）
     /// diff.bgColor 非空 → 更新 bgColor。
     /// </summary>
     public void ApplyDiff(DisplayDiff diff)
@@ -87,6 +88,11 @@ internal sealed class TestAdapter
                     break;
                 case ClearScreenOp:
                     Lines.Clear();
+                    break;
+                case ShiftHeadLineOp shiftHead:
+                    var h = Math.Min(shiftHead.count, Lines.Count);
+                    if (h > 0)
+                        Lines.RemoveRange(0, h);
                     break;
                 default:
                     throw new InvalidOperationException($"Unknown diff op type: {op.type}");

@@ -46,13 +46,17 @@ internal record DisplayDiff(
 );
 
 /// <summary>
-/// 行级差异操作（Phase 2 / plan C v5）。Emuera 显示模型是追加式的：新内容追加到末尾，
-/// CLEARLINE 从末尾删除，CLEAR 全部清除，头部行永不变。故 diff 只需三类尾部操作：
+/// 行级差异操作（Phase 2 / plan C v5 + shift_head 扩展）。Emuera 显示模型以追加为主：
+/// 新内容追加到末尾，CLEARLINE 从末尾删除，CLEAR 全部清除；MaxLog 截断时头部行被删除。
+/// 故 diff 需要四类操作：
 /// - AppendLinesOp：curr 比 prev 多出的尾部行
 /// - ClearLineDiffOp：清行（CLEARLINE）——截断末 clearCount 行，其后 AppendLinesOp 为 reprint
-/// - ClearScreenOp：全清（CLEAR/全重置）——清空全部行，其后 AppendLinesOp 为重印全量
+/// - ClearScreenOp：全清（CLEAR / 全重置）——清空全部行，其后 AppendLinesOp 为重印全量
+/// - ShiftHeadLineOp：头部截断（MaxLog 滚动）——删除头部 count 行，与 AppendLinesOp 共存
 /// 公共前缀 k 之后的差异用 ClearLineDiffOp(clearCount=prev.Count-k)+Append 表达
 /// （含末行原地编辑：PRINT 不带换行落到最后一行 = ClearLineDiffOp(1)+Append(1)）。
+/// shift_head 由 ConsolePrintManager.RemoveAt(0) 主动 enqueue ShiftHeadTurnOp 捕获，
+/// 避免 StructuralDiff 走 CommonPrefix 检测到 k=0 误判为 ClearScreenOp + 全量重印。
 /// </summary>
 internal abstract record LineOp(string type);
 
@@ -65,6 +69,14 @@ internal record ClearLineDiffOp(int clearCount) : LineOp("clear_line_diff");
 
 /// <summary>全清（CLEAR / 全重置场景）：清空全部行。其后如有 AppendLinesOp 即重印全量内容。</summary>
 internal record ClearScreenOp() : LineOp("clear_screen");
+
+/// <summary>头部截断（MaxLog 滚动场景）：删除头部 count 行。
+/// 由 ConsolePrintManager 在 displayLineList.Count > Config.MaxLog 时 RemoveAt(0) 主动 enqueue
+/// ShiftHeadTurnOp 捕获——避免 StructuralDiff 把头部删除误判为 ClearScreenOp + 全量重印。
+/// 与 AppendLinesOp 共存：长游戏达 MaxLog 后每新增一行 = ShiftHeadLineOp(1) + AppendLinesOp(1)。
+/// 与 ClearLineDiffOp 共存：头部截断 + 尾部 CLEARLINE 可同回合发生。
+/// 与 ClearScreenOp 互斥：全清已无头部可截。</summary>
+internal record ShiftHeadLineOp(int count) : LineOp("shift_head");
 
 internal abstract record TurnOp(string type);
 
@@ -80,6 +92,10 @@ internal record ClearLineOp(int n) : TurnOp("clearline");
 internal record ClearOp() : TurnOp("clear");
 
 internal record SetBgOp(string color) : TurnOp("set_bg");
+
+/// <summary>头部截断（MaxLog 滚动）：ConsolePrintManager.RemoveAt(0) 时 enqueue。
+/// DrainAndClassifyClears 累加为 ShiftHeadCount，ComputeDiff 在 lineOps 前置 ShiftHeadLineOp(count)。</summary>
+internal record ShiftHeadTurnOp(int count) : TurnOp("shift_head");
 
 internal record PrintSegment(
     string text,

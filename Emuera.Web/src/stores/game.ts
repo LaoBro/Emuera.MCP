@@ -207,6 +207,43 @@ export const useGameStore = defineStore('game', () => {
    */
   const protocolVersion = ref<number | null>(null);
 
+  // ---------- shift_head 协议：头部截断跟踪 ----------
+  //
+  // C# 端 `ConsolePrintManager.RemoveAt(0)` 触发 MaxLog 头部截断时，
+  // `DisplayState.ComputeDiff` 在 lineOps 前置 `ShiftHeadLineOp(count)`。
+  // 前端 `applyDiff` 处理该 op 时 `lines.splice(0, count)`——但若用户正在查看历史
+  // （isStickyToBottom=false），splice 后 scrollTop 仍指向原像素位置，导致视口内
+  // 显示的行内容跳变（原来第 N 行被新位置的第 N 行替换）。
+  //
+  // 解决：applyDiff 前检测 diff.lineOps 是否含 shift_head，累加 count 写入
+  // lastShiftHeadCount + 自增 shiftHeadTick（触发响应式）。TerminalDisplay
+  // `watch(shiftHeadTick)` 据此调 `adjustScrollTop(-count * rowHeight)`——
+  // scrollTop 上移 count 行高度，使视口内显示的行内容不变。
+  //
+  // 为什么用 tick + count 两个字段：
+  // - tick 是单调递增整数，watch 它即可触发响应式副作用（避免对 number ref 写相同值不触发 watch）
+  // - lastShiftHeadCount 携带本次 shift_head 的实际行数，供 TerminalDisplay 计算 adjustScrollTop delta
+  // 同一帧内多个 shift_head op（罕见）累加到 count；下一帧 turn 到达时旧值失效，
+  // watch 只在新 tick 触发——避免重复调整。
+  /** shift_head 事件触发器——每次 applyDiff 检测到 shift_head 时自增。 */
+  const shiftHeadTick = ref<number>(0);
+  /** 最近一次 shift_head 的累计行数——TerminalDisplay 据此算 adjustScrollTop delta。 */
+  const lastShiftHeadCount = ref<number>(0);
+
+  // ---------- clear_screen 全清事件跟踪 ----------
+  //
+  // spec.md「### 视觉处理」要求：clear_screen（含 race 降级产生的 ClearScreenOp + Append）
+  // 重置 isStickyToBottom=true + scrollToBottom——全清视为新画面，强制回底部。
+  //
+  // 检测策略：applyDiff 前扫描 diff.lineOps 是否含 clear_screen op，含则自增 clearScreenTick。
+  // TerminalDisplay `watch(clearScreenTick)` 据此 reset sticky + scrollToBottom。
+  //
+  // 为什么不用 `watch(lines.length)` 检测全清：applyDiff 在单 tick 内顺序应用 clear_screen + append，
+  // Vue 响应式只观察到最终 length（= append 后的行数），length 突变到 0 的中间态不可见 →
+  // 检测失败。在 applyDiff 调用前扫描 lineOps 是唯一可靠方式。
+  /** clear_screen 事件触发器——每次 applyDiff 检测到 clear_screen op 时自增。 */
+  const clearScreenTick = ref<number>(0);
+
   // ---------- 按钮 generation 失效 + 三重守卫（v6→v7）----------
   //
   // - currentTurnGeneration：当前回合的 generation 号，由 applyTurn/setSnapshot 更新。
@@ -457,9 +494,32 @@ export const useGameStore = defineStore('game', () => {
     acceptGeneration(turn.generation);
 
     // 应用 diff（若存在）。applyDiff 不修改入参——返回新对象。
-    const afterDiff = turn.diff
-      ? applyDiff(displayState.value, turn.diff)
-      : displayState.value;
+    // 同时检测 shift_head / clear_screen op（applyDiff 前扫描 lineOps）：
+    // - shift_head：累加 count 写入 lastShiftHeadCount + 自增 shiftHeadTick，
+    //   TerminalDisplay watch(shiftHeadTick) 据此调 adjustScrollTop 保持视觉位置。
+    // - clear_screen：自增 clearScreenTick，TerminalDisplay watch(clearScreenTick)
+    //   据此 reset isStickyToBottom=true + scrollToBottom（全清视为新画面）。
+    // 必须在 applyDiff 前扫描——applyDiff 单 tick 内顺序应用 clear_screen + append，
+    // Vue 响应式只观察最终 length，length 突变到 0 的中间态不可见。
+    let afterDiff: DisplayState;
+    if (turn.diff) {
+      let shiftHeadCount = 0;
+      let hasClearScreen = false;
+      for (const op of turn.diff.lineOps) {
+        if (op.type === 'shift_head') shiftHeadCount += op.count;
+        else if (op.type === 'clear_screen') hasClearScreen = true;
+      }
+      if (shiftHeadCount > 0) {
+        lastShiftHeadCount.value = shiftHeadCount;
+        shiftHeadTick.value++;
+      }
+      if (hasClearScreen) {
+        clearScreenTick.value++;
+      }
+      afterDiff = applyDiff(displayState.value, turn.diff);
+    } else {
+      afterDiff = displayState.value;
+    }
 
     // 用 turn 顶层字段覆盖 state/inputType/needValue
     displayState.value = {
@@ -497,6 +557,10 @@ export const useGameStore = defineStore('game', () => {
     lastSnapshot.value = null;
     displayState.value = { ...EMPTY_DISPLAY_STATE };
     protocolVersion.value = null;
+    // shift_head / clear_screen：重置跟踪状态——避免 reset 后 watch 误触发
+    lastShiftHeadCount.value = 0;
+    shiftHeadTick.value = 0;
+    clearScreenTick.value = 0;
     // T-025 D14：reset 时 serverState 回 Idle
     serverState.value = 'Idle';
     tinputStartedAt.value = null;
@@ -890,6 +954,10 @@ export const useGameStore = defineStore('game', () => {
     tinputTimeUpMessage,
     tinputRemainingMs,
     showTinputCountdown,
+    // shift_head / clear_screen：暴露给 TerminalDisplay watch
+    shiftHeadTick,
+    lastShiftHeadCount,
+    clearScreenTick,
     applyTurn,
     setSnapshot,
     reset,

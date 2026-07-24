@@ -323,3 +323,87 @@ describe('parseTurnRecord - ADR-0016 timer fields', () => {
     expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
   });
 });
+
+// ---------- shift_head LineOp ----------
+//
+// 与 C# DisplayDiffTests.ShiftHeadTests 系列（Emuera.Headless.Tests/DisplayDiffTests.cs）
+// 对称——验证前端解析器能正确反序列化 C# 端产出的 shift_head op。
+describe('parseTurnRecord - shift_head LineOp', () => {
+  it('解析 shift_head op（count=1，MaxLog 滚动场景）', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          { type: 'shift_head', count: 1 },
+          { type: 'append', newLines: [{ entries: [{ segments: [{ text: 'new' }] }], isLineEnd: true }] },
+        ],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    expect(turn.diff).not.toBeNull();
+    expect(turn.diff!.lineOps).toHaveLength(2);
+
+    const op0 = turn.diff!.lineOps[0];
+    expect(op0.type).toBe('shift_head');
+    if (op0.type !== 'shift_head') throw new Error('unreachable');
+    expect(op0.count).toBe(1);
+  });
+
+  it('解析 shift_head op（count>1，多行截断）', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [{ type: 'shift_head', count: 5 }],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    const op0 = turn.diff!.lineOps[0];
+    expect(op0.type).toBe('shift_head');
+    if (op0.type !== 'shift_head') throw new Error('unreachable');
+    expect(op0.count).toBe(5);
+  });
+
+  it('shift_head count 缺失抛 ParseTurnRecordError', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [{ type: 'shift_head' }],
+      },
+    });
+    expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
+  });
+
+  it('shift_head count 非 int 抛 ParseTurnRecordError', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [{ type: 'shift_head', count: '1' }],
+      },
+    });
+    expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
+  });
+
+  it('shift_head count=0 合法（无操作，防御性）', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [{ type: 'shift_head', count: 0 }],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    const op0 = turn.diff!.lineOps[0];
+    expect(op0.type).toBe('shift_head');
+    if (op0.type !== 'shift_head') throw new Error('unreachable');
+    expect(op0.count).toBe(0);
+  });
+});

@@ -84,3 +84,40 @@ describe('useUiStore platform', () => {
     expect(ui.currentView).toBe('terminal');
   });
 });
+
+// ---------- isStickyToBottom（虚拟滚动 + sticky 守卫） ----------
+//
+// spec.md 决策四：isStickyToBottom 跨组件共享——composable 内部维护，
+// 通过 onStickyChange 回调同步到 useUiStore；InputBar 读 store 实现全局 click 守卫。
+describe('useUiStore isStickyToBottom', () => {
+  beforeEach(() => setActivePinia(createPinia()));
+
+  it('初始值为 true（未滚动过视为在底部）', () => {
+    const ui = useUiStore();
+    expect(ui.isStickyToBottom).toBe(true);
+  });
+
+  it('setStickyToBottom(false) 翻看历史', () => {
+    const ui = useUiStore();
+    ui.setStickyToBottom(false);
+    expect(ui.isStickyToBottom).toBe(false);
+  });
+
+  it('setStickyToBottom(true) 滚回底部', () => {
+    const ui = useUiStore();
+    ui.setStickyToBottom(false);
+    expect(ui.isStickyToBottom).toBe(false);
+    ui.setStickyToBottom(true);
+    expect(ui.isStickyToBottom).toBe(true);
+  });
+
+  it('setStickyToBottom 幂等——重复设同值不报错', () => {
+    const ui = useUiStore();
+    ui.setStickyToBottom(true);
+    ui.setStickyToBottom(true);
+    expect(ui.isStickyToBottom).toBe(true);
+    ui.setStickyToBottom(false);
+    ui.setStickyToBottom(false);
+    expect(ui.isStickyToBottom).toBe(false);
+  });
+});

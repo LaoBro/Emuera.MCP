@@ -112,17 +112,26 @@ export interface DisplaySnapshot {
 // ---------- DisplayDiff：行级差异（增量） ----------
 
 /**
- * 行级差异操作（C# `LineOp`，plan C v5）。
+ * 行级差异操作（C# `LineOp`，plan C v5 + shift_head 扩展）。
  *
- * Emuera 显示模型是追加式：新内容追加到末尾，CLEARLINE 从末尾删除，CLEAR 全清。
- * 故 diff 只需三类尾部操作：append / clear_line_diff / clear_screen。
+ * Emuera 显示模型是追加式：新内容追加到末尾，CLEARLINE 从末尾删除，CLEAR 全清；
+ * MaxLog 截断时头部行被删除。故 diff 需要四类操作：
+ * - append / clear_line_diff / clear_screen：尾部操作（plan C v5）
+ * - shift_head：头部截断（MaxLog 滚动）——由 C# 端 `ConsolePrintManager.RemoveAt(0)`
+ *   主动 enqueue `ShiftHeadTurnOp` 捕获，避免 `StructuralDiff` 把头部删除误判为
+ *   `ClearScreenOp + AppendLinesOp` 全量重印。
  *
  * 鉴别字段 `type` 与 C# 子类 `LineOp.type` 一一对应。
+ *
+ * 应用顺序（applyDiff 内 switch）：shift_head → clear_line_diff → clear_screen → append。
+ * shift_head 与 clear_screen 互斥（同回合不会既头部截断又全清），
+ * 但 shift_head 可与 clear_line_diff + append 共存。
  */
 export type LineOp =
   | { type: 'append'; newLines: DisplayLine[] }
   | { type: 'clear_line_diff'; clearCount: number }
-  | { type: 'clear_screen' };
+  | { type: 'clear_screen' }
+  | { type: 'shift_head'; count: number };
 
 /**
  * 两个连续 DisplaySnapshot 之间的差异（C# `DisplayDiff`）。
