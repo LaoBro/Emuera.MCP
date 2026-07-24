@@ -10,7 +10,7 @@ handleException 处理（Process.cs:345），不会传播到 AgentJsonlProtocol.
 的 fatal turn（diff=null / error=ex.Message）。
 
 The test verifies:
-- Initial turn has protocolVersion == 6 and diff is null (first turn)
+- Initial turn has protocolVersion == 7 and diff is null (first turn)
 - After THROW, the turn has state=Error with error text in diff.lineOps
 - protocolVersion is absent from non-initial turns
 
@@ -33,7 +33,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
-from emuera_server import copy_test_game_with_erb, diff_text, snapshot_text, start_server
+from emuera_server import PROTOCOL_VERSION, copy_test_game_with_erb, diff_text, snapshot_text, start_server
 
 
 def main():
@@ -82,7 +82,7 @@ ENDIF
         check("text" not in initial, "initial turn has no text field (v2)")
         check("buttons" not in initial, "initial turn has no buttons field (v2)")
         check("ops" not in initial, "initial turn has no ops field (v5: removed)")
-        check(initial.get("protocolVersion") == 6, "Initial turn has protocolVersion == 6")
+        check(initial.get("protocolVersion") == PROTOCOL_VERSION, f"Initial turn has protocolVersion == {PROTOCOL_VERSION}")
         check(initial.get("diff") is None, "initial turn diff is null (first turn)")
         # First-turn content: diff is null → fetch snapshot
         snap_status, snap_body = server.get_snapshot(timeout=10)

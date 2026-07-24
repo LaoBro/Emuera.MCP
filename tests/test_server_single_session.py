@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
-from emuera_server import TEST_GAME_DIR, start_server
+from emuera_server import PROTOCOL_VERSION, TEST_GAME_DIR, start_server
 
 passed = 0
 failed = 0
@@ -58,7 +58,7 @@ try:
     check(initial_turn.get("state") == "WaitInput", f"initial turn state is WaitInput, got {initial_turn.get('state')}")
     check("text" not in initial_turn, "initial turn has no text field (v2)")
     check("ops" not in initial_turn, "initial turn has no ops field (v5: removed)")
-    check(initial_turn.get("protocolVersion") == 6, f"initial turn protocolVersion == 6, got {initial_turn.get('protocolVersion')}")
+    check(initial_turn.get("protocolVersion") == PROTOCOL_VERSION, f"initial turn protocolVersion == PROTOCOL_VERSION, got {initial_turn.get('protocolVersion')}")
     check(initial_turn.get("diff") is None, "initial turn diff is null (first turn)")
 
     input_status, input_body = server.post_input("0")
@@ -80,7 +80,7 @@ try:
     snap = json.loads(snap_body)
     check("state" in snap and isinstance(snap["state"], str), "snapshot has state string")
     check("lines" in snap and isinstance(snap["lines"], list), "snapshot has lines[] list")
-    check(snap.get("protocolVersion") == 6, f"snapshot protocolVersion == 6, got {snap.get('protocolVersion')}")
+    check(snap.get("protocolVersion") == PROTOCOL_VERSION, f"snapshot protocolVersion == PROTOCOL_VERSION, got {snap.get('protocolVersion')}")
     # 验证按钮几何存在（至少一个按钮有 col + width 整数字段）
     has_button_geometry = False
     for line in snap.get("lines", []):

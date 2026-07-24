@@ -1,7 +1,7 @@
 """Test: JSONL protocol v5 turn structure (diff model) via server mode.
 
 Verifies:
-1. Initial turn has protocolVersion: 6 and diff: null (first turn, no previous snapshot).
+1. Initial turn has protocolVersion: 7 and diff: null (first turn, no previous snapshot).
 2. v1 fields (text, buttons) are NOT present.
 3. Step turns carry diff.lineOps with append/clear_line_diff/clear_screen ops.
 4. append ops carry newLines[] with entries[].segments[] (per-segment style) + optional button.
@@ -28,7 +28,7 @@ _project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _project_dir)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from emuera_server import TEST_GAME_DIR, diff_text, snapshot_text, start_server
+from emuera_server import PROTOCOL_VERSION, TEST_GAME_DIR, diff_text, snapshot_text, start_server
 
 
 VALID_LINE_OP_TYPES = {"append", "clear_line_diff", "clear_screen"}
@@ -125,7 +125,7 @@ def main():
         check("text" not in turn1, "Turn 1 has no text field (v2)", passed, failed)
         check("buttons" not in turn1, "Turn 1 has no buttons field (v2)", passed, failed)
         check("ops" not in turn1, "Turn 1 has no ops field (v5: removed)", passed, failed)
-        check(turn1.get("protocolVersion") == 6, "Turn 1 has protocolVersion == 6", passed, failed)
+        check(turn1.get("protocolVersion") == PROTOCOL_VERSION, f"Turn 1 has protocolVersion == {PROTOCOL_VERSION}", passed, failed)
         check(diff1 is None, "Turn 1 diff is null (first turn, no previous snapshot)", passed, failed)
         check_diff(turn1, passed, failed, "Turn 1")
 

@@ -178,7 +178,7 @@ def main():
         check(s == 200, f"GET /turn after load-game returns 200, got {s}")
         if s == 200:
             turn = json.loads(turn_body)
-            # protocolVersion 不固定具体值——TurnRecord 协议会演进（ADR-0016 v6）
+            # protocolVersion 不固定具体值——TurnRecord 协议会演进（ADR-0016 v7）
             check("protocolVersion" in turn and isinstance(turn["protocolVersion"], int),
                   f"has int protocolVersion: {turn.get('protocolVersion')}")
             check(turn.get("state") == "WaitInput",

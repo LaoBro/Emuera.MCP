@@ -50,7 +50,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "Emuera.Web"
 sys.path.insert(0, str(ROOT / "tests"))
 
-from emuera_server import copy_test_game_with_erb, start_server, wait_for_port
+from emuera_server import PROTOCOL_VERSION, copy_test_game_with_erb, start_server, wait_for_port
 
 
 # 注入到临时游戏目录的 ERB。覆盖 ADR-0016 全部测试场景。
@@ -221,7 +221,7 @@ def main():
         print("  [ ] 手动输入后无 timeoutNotice 横幅")
         print("  [ ] WS 帧含 timeLimit/displayTime/timeUpMessage/timedOut 四字段")
         print("  [ ] timedOut: false 在非超时帧始终存在（非 nullable 字段）")
-        print("  [ ] 协议版本 protocolVersion=6")
+        print("  [ ] 协议版本 protocolVersion={PROTOCOL_VERSION}")
         print("  [ ] 晚加入者 GET /snapshot 携带 timer 字段")
         print()
         print("按 Enter 关闭两个 server（或 Ctrl+C 强制退出）...")
