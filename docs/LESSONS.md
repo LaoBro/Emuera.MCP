@@ -163,3 +163,69 @@
 **解决**：过滤条件改为 `dwEventFlags != 0 && dwEventFlags != DOUBLE_CLICK`，允许单击和双击，只忽略移动/释放/滚轮。
 
 **教训**：`dwEventFlags` 的值不只区分事件类型，还标记同一类型的不同交互方式（单击 vs 双击）。过滤时要明确哪些 flag 值需要保留，不能简单地 `!= 0` 一刀切。
+
+## MAUI Android 调试：Console.WriteLine 被 mono-stdout 淹没
+
+**场景**：在 MAUI Android 上用 `Console.WriteLine("[maui] ...")` 输出诊断日志。
+
+**结果**：日志完全被 Mono 运行时内部输出（GC、JIT、程序集加载）淹没，即使 `grep` 也很难找到目标行。
+
+**原因**：Android 上 `Console.WriteLine` 输出到 logcat tag `mono-stdout`，该 tag 包含大量 Mono 运行时日志。
+
+**解决**：改用 `Android.Util.Log.Info("EmueraMaui", message)` 输出到自定义 tag `EmueraMaui`，用 `adb logcat EmueraMaui:V *:S` 零噪音过滤。`System.Diagnostics.Debug.WriteLine` 输出到 `debug` tag 噪音次之，可作备选。
+
+**教训**：MAUI Android 调试日志不要用 `Console.WriteLine`，必须用平台原生的 `Android.Util.Log` 指定独立 tag。`adb logcat -s Tag` 是精确过滤的正确语法，`*:V` 会覆盖 `-s` 效果导致噪音重回。
+
+## MAUI Android WebView 远程调试需显式启用
+
+**场景**：app 白屏，需要用 Chrome DevTools 检查 Vue 前端 JS 运行时错误。
+
+**结果**：`chrome://inspect` 看不到 `com.emuera.maui` 的页面。
+
+**原因**：Android WebView 默认关闭远程调试，需要代码中显式调用 `Android.Webkit.WebView.SetWebContentsDebuggingEnabled(true)`。
+
+**解决**：在 `MauiProgram.ConfigureAndroidWebView()`（`MauiProgram.cs`）中添加该静态调用。此外，`edge://inspect` 比 `chrome://inspect` 连接更稳定——Chrome 有时返回 HTTP 404。
+
+**教训**：WebView 远程调试不是默认开启的。只要用到 MAUI WebView + Android，必须在初始化阶段显式启用。Edge DevTools 是比 Chrome 更稳定的备用方案。
+
+## file:// 协议下 WebView 被 CORS 策略拦截 ES Module 和 CSS
+
+**场景**：MAUI Android 用 `file:///android_asset/wwwroot/index.html` 加载 Vite 构建的 Vue SPA。
+
+**结果**：白屏，WebView Console 报错：
+- `Access to script at 'file:///...js' from origin 'null' has been blocked by CORS policy`
+- `Access to CSS stylesheet at 'file:///...css' from origin 'null' has been blocked by CORS policy`
+
+**原因**：Vite 默认构建产物使用 ES Module（`<script type="module">`）和独立 CSS 文件。Android WebView 在 `file://` 协议下默认禁止跨源加载（`origin: null` 无法加载 `file://` 资源）。
+
+**解决**：在 `ConfigureAndroidWebView()` 中设置：
+```csharp
+wv.Settings.AllowFileAccessFromFileURLs = true;
+wv.Settings.AllowUniversalAccessFromFileURLs = true;
+```
+两行分别放行 `file:// → file://` 和 `file:// → 任意源` 的跨域请求。
+
+**替代方案**：也可让 Vite 构建为 IIFE 格式 + 内联 CSS（`vite-plugin-singlefile`），但修改 WebView 设置更简单，且不改变前端构建流程。
+
+**教训**：`file://` 协议有严格的跨域限制，混合 Vite ES Module 构建产物时必须在 WebView 设置中显式放行。这是 MAUI + Vite 组合在 Android 上的必踩坑。
+
+## Android 状态栏遮挡 MAUI WebView 内容
+
+**场景**：MAUI Android 全屏 WebView 加载 Vue SPA，顶部按钮无法点击。
+
+**结果**：状态栏（时间、电量等）覆盖在 WebView 内容之上，被遮住的按钮点不到。
+
+**原因**：MAUI `ContentPage` 默认不处理安全区域（Safe Area），WebView 从屏幕最顶部开始绘制，被系统状态栏遮住。
+
+**解决**：在 `MainPage` 构造函数中添加 Android 专用方法，读取系统资源获取状态栏实际高度，转为 MAUI DIP 单位后设为 WebView 的 `Margin.Top`：
+```csharp
+int resourceId = Android.Content.Res.Resources.System.GetIdentifier(
+    "status_bar_height", "dimen", "android");
+int statusBarHeightPx = resourceId > 0
+    ? Android.Content.Res.Resources.System.GetDimensionPixelSize(resourceId)
+    : 0;
+double density = DeviceDisplay.MainDisplayInfo.Density;
+MainWebView.Margin = new Thickness(0, statusBarHeightPx / density, 0, 0);
+```
+
+**教训**：MAUI 全屏 `VerticalOptions="Fill"` 在 Android 上会绘制到系统栏下方。不要假设 ContentPage 会自动处理安全区域——状态栏高度必须通过平台 API 获取并手动应用为 margin/padding。不同设备的 status_bar_height 不同（有无挖孔屏、导航手势等），不能用静态值。`Resource.GetIdentifier` + `GetDimensionPixelSize` 是获取状态栏高度的标准跨版本方式。
