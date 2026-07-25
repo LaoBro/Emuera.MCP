@@ -134,6 +134,12 @@ internal sealed class BridgeHost : IDisposable
     public string? MainGameDir => _mainGameDir;
 
     /// <summary>
+    /// game-library spec ID10：游戏循环是否正在运行——MainPage 据此决定 Android 物理返回键行为。
+    /// <c>true</c> 表示游戏循环已启动且未 Dispose。
+    /// </summary>
+    public bool IsGameRunning => _started && !_disposed;
+
+    /// <summary>
     /// 从 Preferences 加载 mainGameDir——无值时按平台回退（spec ID5）。
     /// <para>
     /// 平台默认：
@@ -262,6 +268,17 @@ internal sealed class BridgeHost : IDisposable
                     HandleExitGame();
                     return;
                 }
+                // game-library spec ID6：Android 存储权限检查与请求
+                if (type == "checkPermission")
+                {
+                    HandleCheckPermission();
+                    return;
+                }
+                if (type == "requestPermission")
+                {
+                    HandleRequestPermission();
+                    return;
+                }
                 // 其他 typed 消息（input 等）原样入队——AgentJsonlProtocol.RunLoopAsync 内
                 // JsonSerializer.Deserialize<JsonlCommand> 校验 type=="input" 后取 value。
                 // 不在此处解 value 字段，避免与 protocol 层重复解析 / 不一致。
@@ -368,6 +385,8 @@ internal sealed class BridgeHost : IDisposable
         }
 
         Console.WriteLine($"[bridge] HandleScanGames: rootDir={rootDir}");
+        // game-library spec ID13：检查主目录是否存在——Vue 端区分「目录不存在」vs「无游戏」
+        bool rootDirExists = !string.IsNullOrEmpty(rootDir) && Directory.Exists(rootDir);
         var games = GameScanner.Scan(rootDir);
         var gamesPayload = games.Select(g => new { name = g.Name, fullPath = g.FullPath }).ToList();
         var msgJson = JsonSerializer.Serialize(new
@@ -375,6 +394,7 @@ internal sealed class BridgeHost : IDisposable
             type = "gamesScanned",
             games = gamesPayload,
             rootDir,
+            rootDirExists,
         });
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
     }
@@ -454,6 +474,75 @@ internal sealed class BridgeHost : IDisposable
         {
             Dispose();
         }
+    }
+
+    /// <summary>
+    /// game-library spec ID6：检查 Android MANAGE_EXTERNAL_STORAGE 权限状态——回复 Vue。
+    /// <para>
+    /// Android 平台检查 <see cref="Android.OS.Environment.IsExternalStorageManager"/>；
+    /// 非 Android 平台（Windows）自动视为已授权（<c>granted: true</c>）。
+    /// 回复消息：<c>{"type":"permissionStatus","granted":true/false}</c>
+    /// </para>
+    /// </summary>
+    private void HandleCheckPermission()
+    {
+        bool granted;
+#if ANDROID
+        try
+        {
+            granted = Android.OS.Environment.IsExternalStorageManager;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[bridge] HandleCheckPermission error: {ex.Message}");
+            granted = false;
+        }
+#else
+        // Windows MAUI 不检查 Android 权限——默认视为已授权
+        granted = true;
+#endif
+        var msg = JsonSerializer.Serialize(new { type = "permissionStatus", granted });
+        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
+        Console.WriteLine($"[bridge] HandleCheckPermission: granted={granted}");
+        AgentLog.Instance.Write($"[bridge] HandleCheckPermission: granted={granted}");
+    }
+
+    /// <summary>
+    /// game-library spec ID6：引导用户授权 MANAGE_EXTERNAL_STORAGE——
+    /// 启动 Android 系统设置页。
+    /// <para>
+    /// Intent: <c>Settings.ActionManageAppAllFilesPermission</c> +
+    /// <c>Intent.SetData(Android.Net.Uri.FromParts("package", PackageName, null))</c>
+    /// </para>
+    /// <para>
+    /// 不回复消息——用户跳转设置页后，返回 app 时通过 <c>MainActivity.OnResume</c> 或
+    /// Vue 端「已授权，重新扫描」按钮重新投递 <c>checkPermission</c>。
+    /// 非 Android 平台 no-op（Windows 无此权限概念）。
+    /// </para>
+    /// </summary>
+    private void HandleRequestPermission()
+    {
+#if ANDROID
+        try
+        {
+            var context = Android.App.Application.Context;
+            var intent = new Android.Content.Intent(
+                Android.Provider.Settings.ActionManageAppAllFilesPermission);
+            intent.SetData(Android.Net.Uri.FromParts("package", context.PackageName, null));
+            intent.AddFlags(Android.Content.ActivityFlags.NewTask);
+            context.StartActivity(intent);
+            Console.WriteLine("[bridge] HandleRequestPermission: launched settings intent");
+            AgentLog.Instance.Write("[bridge] HandleRequestPermission: launched settings intent");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[bridge] HandleRequestPermission failed: {ex.Message}");
+            AgentLog.Instance.Write($"[bridge] HandleRequestPermission failed: {ex.Message}");
+        }
+#else
+        Console.WriteLine("[bridge] HandleRequestPermission: no-op (non-Android platform)");
+        AgentLog.Instance.Write("[bridge] HandleRequestPermission: no-op (non-Android platform)");
+#endif
     }
 
     /// <summary>

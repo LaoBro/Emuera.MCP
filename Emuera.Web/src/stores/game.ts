@@ -275,6 +275,13 @@ export const useGameStore = defineStore('game', () => {
   const scannedGames = ref<GameEntry[]>([]);
   /** 最近一次 scanGames 的 rootDir——列表页底部展示「主目录: <path>」用。 */
   const scanRootDir = ref<string | null>(null);
+  /**
+   * game-library spec ID13：最近一次 scanGames 的 rootDir 是否存在——
+   * C# HandleScanGames 检查 Directory.Exists(rootDir) 后通过 gamesScanned 消息携带。
+   * 列表页空状态据此区分「主目录不存在」vs「主目录存在但无游戏」。
+   * null 表示尚未扫描。
+   */
+  const scanRootDirExists = ref<boolean | null>(null);
   /** scanGames 进行中标志——列表页展示 loading 占位。 */
   const scanStatus = ref<'idle' | 'scanning'>('idle');
   /**
@@ -287,6 +294,19 @@ export const useGameStore = defineStore('game', () => {
    * null 表示弹窗未打开。listDirectories 消息回复后写入。
    */
   const directoryList = ref<DirectoryListResult | null>(null);
+  /**
+   * game-library spec ID6：Android 存储权限状态——
+   * 'unknown' = 尚未检查（首启动），'granted' = 已授权 MANAGE_EXTERNAL_STORAGE，
+   * 'denied' = 未授权（需展示引导页）。
+   *
+   * MAUI Android 首启动时 useAppInit 投递 checkPermission 检查权限，
+   * C# BridgeHost 回复 permissionStatus { granted: true/false }。
+   * 'granted' 时进入列表页；'denied' 时叠加 PermissionGuide.vue 引导页；
+   * 'unknown' 时展示 loading 占位（等待 C# 回复）。
+   *
+   * 非 Android 平台保持 'granted'（不展示引导页）。
+   */
+  const permissionStatus = ref<'unknown' | 'granted' | 'denied'>('unknown');
   /**
    * T-025 D14：当前 server 状态字符串——驱动 UI 元素可见性（如「快速重开」按钮）。
    *
@@ -370,6 +390,13 @@ export const useGameStore = defineStore('game', () => {
   // 检测失败。在 applyDiff 调用前扫描 lineOps 是唯一可靠方式。
   /** clear_screen 事件触发器——每次 applyDiff 检测到 clear_screen op 时自增。 */
   const clearScreenTick = ref<number>(0);
+
+  /**
+   * game-library spec ID10：Android 物理返回键触发退出确认——计数器。
+   * useAppInit 收到 backButtonPressed 消息时自增，App.vue watch 此值弹出确认对话框。
+   * 与 shiftHeadTick / clearScreenTick 同样为单调递增触发器模式。
+   */
+  const backButtonPressedTick = ref<number>(0);
 
   // ---------- 按钮 generation 失效 + 三重守卫（v6→v7）----------
   //
@@ -921,9 +948,10 @@ export const useGameStore = defineStore('game', () => {
    * @param games C# GameScanner.Scan 返回的游戏列表
    * @param rootDir 扫描时使用的主目录路径（C# 回复中携带）
    */
-  function setScannedGames(games: GameEntry[], rootDir: string | null): void {
+  function setScannedGames(games: GameEntry[], rootDir: string | null, rootDirExists?: boolean | null): void {
     scannedGames.value = games;
     scanRootDir.value = rootDir;
+    scanRootDirExists.value = rootDirExists ?? null;
     scanStatus.value = 'idle';
     // 同步 mainGameDir——C# 端 HandleScanGames 收到非空 rootDir 时已写 Preferences，
     // Vue 端此处同步 localStorage 让首启动 UI 立即正确
@@ -948,6 +976,14 @@ export const useGameStore = defineStore('game', () => {
   /** game-library spec ID8：关闭目录浏览器弹窗——清空 directoryList。 */
   function clearDirectoryList(): void {
     directoryList.value = null;
+  }
+
+  /**
+   * game-library spec ID6：设置 Android 存储权限状态——
+   * useAppInit 收到 C# permissionStatus 消息后调用。
+   */
+  function setPermissionStatus(status: 'unknown' | 'granted' | 'denied'): void {
+    permissionStatus.value = status;
   }
 
   /**
@@ -1210,6 +1246,8 @@ export const useGameStore = defineStore('game', () => {
     shiftHeadTick,
     lastShiftHeadCount,
     clearScreenTick,
+    // game-library spec ID10：Android 物理返回键退出确认
+    backButtonPressedTick,
     applyTurn,
     setSnapshot,
     reset,
@@ -1228,6 +1266,7 @@ export const useGameStore = defineStore('game', () => {
     lastPlayedGame,
     scannedGames,
     scanRootDir,
+    scanRootDirExists,
     scanStatus,
     exitStatus,
     directoryList,
@@ -1236,6 +1275,9 @@ export const useGameStore = defineStore('game', () => {
     setScannedGames,
     setDirectoryList,
     clearDirectoryList,
+    // game-library spec ID6：Android 存储权限状态
+    permissionStatus,
+    setPermissionStatus,
     beginExitGame,
     completeExitGame,
     // T-025 D14：快速重开 + server 状态

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, defineAsyncComponent } from 'vue';
+import { onMounted, ref, computed, watch, defineAsyncComponent } from 'vue';
 import { useUiStore } from './stores/ui';
 import { useGameStore } from './stores/game';
 import { initAppState } from './composables/useAppInit';
@@ -29,6 +29,15 @@ onMounted(() => initAppState());
 const isMaui = isMauiEnvironment();
 
 /**
+ * game-library spec layout fix：MAUI 全屏游戏选择界面可见性——
+ * 游戏未加载时（gameDir 为 null + serverState 空闲）显示全屏 MauiGameList，
+ * 游戏运行中或 HTTP 模式显示标准 header + main 布局。
+ */
+const showMauiGameList = computed(() =>
+  isMaui && !game.gameDir && game.serverState === 'Idle',
+);
+
+/**
  * 「快速重开」按钮可见性——按模式分流：
  * - HTTP 模式：serverState 非 Idle 时显示（有活跃 session 才能重开）
  * - MAUI 模式：gameDir 非空时显示（已选过目录才能重开同目录）
@@ -49,6 +58,17 @@ const isExiting = computed(() => game.exitStatus === 'exiting');
 
 /** 退出确认对话框可见性。 */
 const showExitConfirm = ref(false);
+
+/**
+ * game-library spec ID10：Android 物理返回键——监听 backButtonPressedTick 自增后弹出退出确认。
+ * backButtonPressed 消息由 MainPage.OnBackButtonPressed 投递，useAppInit 转发至此计数器。
+ */
+watch(() => game.backButtonPressedTick, () => {
+  if (!isMaui) return;
+  if (isExiting.value) return;
+  if (game.serverState === 'Idle' && !game.gameDir) return;
+  showExitConfirm.value = true;
+});
 
 /**
  * 快速重开 click——按模式分流：
@@ -96,16 +116,19 @@ function onExitCancel(): void {
 
 <template>
   <div class="app-root">
-    <header class="app-header">
-      <ConnectionPanel v-if="!isMaui" />
-      <!-- Issue 05：游戏选择器，按平台条件渲染（MAUI 模式下隐藏——spec ID11） -->
-      <GamePickerMobile v-if="!isMaui && ui.platform === 'android'" />
-      <GamePicker v-else-if="!isMaui" />
-      <!-- game-library spec ID7 / ID11：MAUI 模式下用游戏列表替换旧 MauiGamePicker -->
-      <MauiGameList v-if="isMaui" />
-      <!-- T-025 D14：快速重开按钮——游戏运行/结束时显示，一键重载同目录（MAUI 模式下隐藏） -->
-      <button
-        v-if="canQuickRestart"
+    <!-- game-library spec layout fix：MAUI 全屏游戏选择界面——游戏未加载时独占整个页面 -->
+    <MauiGameList v-if="showMauiGameList" />
+
+    <!-- 游戏运行中或 HTTP 模式：标准 header + main 布局 -->
+    <template v-else>
+      <header class="app-header">
+        <ConnectionPanel v-if="!isMaui" />
+        <!-- Issue 05：游戏选择器，按平台条件渲染（MAUI 模式下隐藏——spec ID11） -->
+        <GamePickerMobile v-if="!isMaui && ui.platform === 'android'" />
+        <GamePicker v-else-if="!isMaui" />
+        <!-- T-025 D14：快速重开按钮——游戏运行/结束时显示，一键重载同目录 -->
+        <button
+          v-if="canQuickRestart"
         class="quick-restart-btn"
         :disabled="isRestarting"
         :title="`重开当前游戏：${game.gameDir ?? ''}`"
@@ -161,6 +184,8 @@ function onExitCancel(): void {
       <SettingsView v-else-if="ui.currentView === 'settings'" />
       <TerminalView v-else />
     </main>
+
+    </template>
 
     <!-- game-library spec ID10：退出确认对话框 -->
     <div v-if="showExitConfirm" class="confirm-overlay" @click.self="onExitCancel">

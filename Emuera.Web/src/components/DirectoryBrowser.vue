@@ -49,9 +49,12 @@ watch(
   () => props.visible,
   (v) => {
     if (v) {
-      // 弹窗打开——清旧数据并拉取当前 mainGameDir 的子目录
+      // 弹窗打开——清旧数据并拉取子目录列表
       game.clearDirectoryList();
-      listDirectories(game.mainGameDir);
+      // game-library spec ID8：Android 起点默认为 /storage/emulated/0/
+      // （首次启动 mainGameDir 可能为 null）
+      const startPath = game.mainGameDir || '/storage/emulated/0/';
+      listDirectories(startPath);
     }
   },
   { immediate: true },

@@ -5,6 +5,7 @@ import {
   registerTurnHandler,
   registerMessageHandler,
   scanGames as scanGamesBridge,
+  checkStoragePermission as checkStoragePermissionBridge,
 } from '../lib/mauiBridge';
 
 /**
@@ -53,12 +54,19 @@ export async function initAppState(): Promise<void> {
     // 4. 用户反馈修复：不发 sendReady()——首次启动不自动加载游戏，等用户主动选目录。
     //    占位 BridgeHost 永远等不到 ready 信号，游戏循环不启动。
     //    用户选目录后 loadGameFromPath → C# OnReloadGame → Start（跳过 ready 检查）
-    // 5. game-library spec ID12：投递 scanGames 让 C# 扫描主目录并回复 gamesScanned——
-    //    Vue 收到后填充列表页。首启动若 mainGameDir 为 null（Android 未授权），
-    //    C# 端 HandleScanGames 回复空 games + null rootDir，Vue 列表页展示「请选择主目录」UI。
-    //    scanStatus='scanning' 让列表页展示 loading 占位，避免首启动白屏。
-    game.scanStatus = 'scanning';
-    scanGamesBridge(game.mainGameDir);
+    // 5. game-library spec ID6：Android 平台先检查存储权限——
+    //    permissionStatus 为 'unknown' 时投递 checkPermission，C# 回复后 dispatch 到 handleMauiMessage。
+    //    权限未授权则不继续 scanGames（等用户授权后重检）。
+    //    Windows 平台不必检查，直接 scanGames。
+    if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+      // Android MAUI：先检查权限状态
+      console.log('[useAppInit] Android MAUI: checking storage permission');
+      checkStoragePermissionBridge();
+    } else {
+      // Windows MAUI：直接扫描主目录
+      game.scanStatus = 'scanning';
+      scanGamesBridge(game.mainGameDir);
+    }
     // 6. 不走 HTTP/WS 路径
     return;
   }
@@ -164,10 +172,12 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
       )
       .map((g) => ({ name: g.name, fullPath: g.fullPath }));
     const rootDir = typeof m.rootDir === 'string' ? m.rootDir : null;
+    // game-library spec ID13：主目录是否存在（C# HandleScanGames 检查 Directory.Exists）
+    const rootDirExists = typeof m.rootDirExists === 'boolean' ? m.rootDirExists : null;
     console.log(
-      `[useAppInit] gamesScanned: ${games.length} games, rootDir=${rootDir}`,
+      `[useAppInit] gamesScanned: ${games.length} games, rootDir=${rootDir}, rootDirExists=${rootDirExists}`,
     );
-    game.setScannedGames(games, rootDir);
+    game.setScannedGames(games, rootDir, rootDirExists);
     return;
   }
 
@@ -191,6 +201,31 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
     game.completeExitGame();
     // 自动重新扫描主目录——spec ID12 退出后回列表自动 rescan
     scanGamesBridge(game.mainGameDir);
+    return;
+  }
+
+  // game-library spec ID6：Android 存储权限状态回复
+  if (type === 'permissionStatus') {
+    const granted = (m as Record<string, unknown>).granted === true;
+    console.log('[useAppInit] permissionStatus:', granted ? 'granted' : 'denied');
+    game.setPermissionStatus(granted ? 'granted' : 'denied');
+    if (granted) {
+      // 授权成功——设置默认主目录 + 开始扫描
+      if (!game.mainGameDir) {
+        game.setMainGameDir('/storage/emulated/0/emuera');
+      }
+      game.scanStatus = 'scanning';
+      scanGamesBridge(game.mainGameDir);
+    }
+    // 未授权：不 scanGames——PermissionGuide 覆盖层展示，用户操作后重检
+    return;
+  }
+
+  // game-library spec ID10：Android 物理返回键——触发退出确认对话框
+  if (type === 'backButtonPressed') {
+    console.log('[useAppInit] backButtonPressed: incrementing trigger for exit confirm');
+    // 自增计数器——App.vue watch 此值后弹出退出确认对话框
+    game.backButtonPressedTick++;
     return;
   }
 

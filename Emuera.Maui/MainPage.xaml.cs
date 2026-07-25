@@ -277,4 +277,31 @@ public partial class MainPage : ContentPage
         base.OnDisappearing();
         _host?.Dispose();
     }
+
+    /// <summary>
+    /// game-library spec ID10：Android 物理返回键处理。
+    /// <para>
+    /// 游戏运行中（<see cref="BridgeHost.IsGameRunning"/> 为 true）时拦截返回键，
+    /// 投递 <c>backButtonPressed</c> 消息给 Vue——Vue 端弹出退出确认对话框。
+    /// 用户确认后调 <c>exitGame</c> 流程；取消时无操作。
+    /// </para>
+    /// <para>
+    /// 列表态（无活跃游戏）不拦截——走系统默认行为（最小化 app）。
+    /// </para>
+    /// </summary>
+    /// <returns><c>true</c> 表示已处理返回键，阻止默认行为。</returns>
+    protected override bool OnBackButtonPressed()
+    {
+        if (_host is { IsGameRunning: true })
+        {
+            Console.WriteLine("[maui] OnBackButtonPressed: game running, forwarding to Vue");
+            // 投递 backButtonPressed 给 Vue——Vue 端弹出退出确认对话框
+            var msg = System.Text.Json.JsonSerializer.Serialize(
+                new { type = "backButtonPressed" });
+            _jsBridge.PostMessage(msg);
+            return true; // 已处理，阻止系统默认返回行为
+        }
+        Console.WriteLine("[maui] OnBackButtonPressed: no game running, default behavior");
+        return base.OnBackButtonPressed();
+    }
 }

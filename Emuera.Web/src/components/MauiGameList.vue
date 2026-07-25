@@ -8,6 +8,7 @@ import {
   loadGameFromPath,
 } from '../lib/mauiBridge';
 import DirectoryBrowser from './DirectoryBrowser.vue';
+import PermissionGuide from './PermissionGuide.vue';
 
 /**
  * game-library spec ID7 / ID11：MAUI 游戏列表组件——替换旧 MauiGamePicker.vue。
@@ -147,6 +148,14 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
 
 <template>
   <div class="maui-game-list">
+    <!-- game-library spec layout fix：全屏选择界面标题栏 -->
+    <header class="mgl-header">
+      <h1 class="mgl-title">Emuera</h1>
+      <span class="mgl-path" :title="mainDirDisplay">{{ mainDirDisplay }}</span>
+      <button class="change-dir-btn" @click="onChangeMainDir">更改主目录</button>
+    </header>
+
+    <div class="mgl-body">
     <!-- 错误 banner -->
     <div v-if="currentError" class="error-banner">
       <span class="error-text">{{ currentError }}</span>
@@ -160,12 +169,23 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
 
     <!-- 空状态 -->
     <div v-else-if="isEmpty" class="empty-state">
-      <div class="empty-icon">⚠️</div>
-      <div class="empty-title">未找到游戏</div>
-      <div class="empty-hint">请把游戏放到以下目录:</div>
-      <div class="empty-path" :title="mainDirDisplay">{{ mainDirDisplay }}</div>
-      <div class="empty-hint">游戏目录需要包含 csv/ 和 erb/ 两个子目录</div>
-      <button class="change-dir-btn" @click="onChangeMainDir">更改主目录</button>
+      <!-- game-library spec ID13：主目录不存在 vs 存在但无游戏 -->
+      <template v-if="game.scanRootDirExists === false">
+        <div class="empty-icon">⚠️</div>
+        <div class="empty-title">主目录不存在</div>
+        <div class="empty-hint">请手动创建以下目录并把游戏放进去:</div>
+        <div class="empty-path" :title="mainDirDisplay">{{ mainDirDisplay }}</div>
+        <div class="empty-hint">游戏目录需要包含 csv/ 和 erb/ 两个子目录</div>
+        <button class="change-dir-btn" @click="onChangeMainDir">更改主目录</button>
+      </template>
+      <template v-else>
+        <div class="empty-icon">⚠️</div>
+        <div class="empty-title">未找到游戏</div>
+        <div class="empty-hint">请把游戏放到以下目录:</div>
+        <div class="empty-path" :title="mainDirDisplay">{{ mainDirDisplay }}</div>
+        <div class="empty-hint">游戏目录需要包含 csv/ 和 erb/ 两个子目录</div>
+        <button class="change-dir-btn" @click="onChangeMainDir">更改主目录</button>
+      </template>
     </div>
 
     <!-- 游戏列表 -->
@@ -183,12 +203,9 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
           </button>
         </li>
       </ul>
-      <div class="main-dir-display">
-        <span class="main-dir-label">主目录:</span>
-        <span class="main-dir-path" :title="mainDirDisplay">{{ mainDirDisplay }}</span>
-        <button class="change-dir-btn small" @click="onChangeMainDir">更改</button>
-      </div>
     </div>
+
+    </div><!-- /.mgl-body -->
 
     <!-- Android 目录浏览器弹窗 -->
     <DirectoryBrowser
@@ -197,6 +214,11 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
       @confirm="onDirectoryConfirm"
       @cancel="onDirectoryCancel"
     />
+
+    <!-- game-library spec ID6：Android 权限引导页覆盖层——未授权时阻止操作列表 -->
+    <PermissionGuide
+      v-if="isAndroidMaui && game.permissionStatus !== 'granted'"
+    />
   </div>
 </template>
 
@@ -204,20 +226,66 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
 .maui-game-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  height: 100vh;
+  background: #1e1e1e;
+  color: #e0e0e0;
   font-size: 13px;
-  width: 100%;
+  overflow: hidden;
+}
+
+/* 全屏标题栏 */
+.mgl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #252526;
+  border-bottom: 1px solid #3c3c3c;
+  flex-shrink: 0;
+}
+.mgl-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #e0e0e0;
+  flex-shrink: 0;
+}
+.mgl-path {
+  flex: 1;
+  margin: 0 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  color: #4ec9b0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* 滚动内容区 */
+.mgl-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px 0;
 }
 .scanning {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 16px;
   text-align: center;
   color: #9aa0a6;
   font-size: 13px;
 }
 .empty-state {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 24px 16px;
   text-align: center;
@@ -265,6 +333,7 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
   font-size: 12px;
 }
 .game-list-wrapper {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -273,10 +342,10 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
   list-style: none;
   margin: 0;
   padding: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 60vh;
   overflow-y: auto;
 }
 .game-item {
@@ -319,28 +388,6 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
   padding: 1px 6px;
   border-radius: 8px;
   flex-shrink: 0;
-}
-.main-dir-display {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #2d2d30;
-  border-radius: 3px;
-  font-size: 11px;
-}
-.main-dir-label {
-  color: #9aa0a6;
-  flex-shrink: 0;
-}
-.main-dir-path {
-  flex: 1;
-  font-family: ui-monospace, Consolas, monospace;
-  color: #4ec9b0;
-  word-break: break-all;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .error-banner {
   display: flex;

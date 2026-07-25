@@ -245,3 +245,33 @@ export function listDirectories(dirPath?: string | null): void {
 export function exitGame(): void {
   postInput(JSON.stringify({ type: 'exitGame' }));
 }
+
+// ---------- game-library spec ID6：Android 存储权限 ----------
+
+/**
+ * game-library spec ID6：请求 C# 检查 Android MANAGE_EXTERNAL_STORAGE 权限状态。
+ *
+ * Vue 端 MAUI Android 首启动时调用。C# `BridgeHost.HandleCheckPermission` 收到后：
+ * 1. 检查 `Android.OS.Environment.IsExternalStorageManager`
+ * 2. 回复 `{"type":"permissionStatus","granted":true/false}`
+ *
+ * 非 Android 平台（Windows）C# 自动回复 granted=true。
+ */
+export function checkStoragePermission(): void {
+  postInput(JSON.stringify({ type: 'checkPermission' }));
+}
+
+/**
+ * game-library spec ID6：请求 C# 引导用户授权 MANAGE_EXTERNAL_STORAGE。
+ *
+ * C# `BridgeHost.HandleRequestPermission` 收到后：
+ * 1. 启动 Intent: `Settings.ActionManageAppAllFilesPermission` +
+ *    `Intent.SetData(Android.Net.Uri.FromParts("package", PackageName, null))`
+ * 2. 不回复消息——用户跳转系统设置后，返回时由 `OnResume` 或 Vue 端「已授权，重新扫描」按钮
+ *    重新投递 `checkPermission`。
+ *
+ * 非 Android 平台 no-op。
+ */
+export function requestStoragePermission(): void {
+  postInput(JSON.stringify({ type: 'requestPermission' }));
+}
