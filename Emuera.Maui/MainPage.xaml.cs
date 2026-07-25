@@ -72,7 +72,38 @@ public partial class MainPage : ContentPage
 
         // 兜底日志：WebView 导航结果监听——每种结果都输出日志方便诊断白屏
         MainWebView.Navigated += OnWebViewNavigated;
+
+#if ANDROID
+        ApplyAndroidStatusBarPadding();
+#endif
     }
+
+#if ANDROID
+    /// <summary>
+    /// 获取 Android 状态栏高度并设为 WebView 顶部间距——避免内容被状态栏遮挡。
+    /// </summary>
+    private void ApplyAndroidStatusBarPadding()
+    {
+        try
+        {
+            int resourceId = Android.Content.Res.Resources.System.GetIdentifier(
+                "status_bar_height", "dimen", "android");
+            int statusBarHeightPx = resourceId > 0
+                ? Android.Content.Res.Resources.System.GetDimensionPixelSize(resourceId)
+                : 0;
+            double density = DeviceDisplay.MainDisplayInfo.Density;
+            double topDip = statusBarHeightPx / density;
+            Android.Util.Log.Info("EmueraMaui",
+                $"ApplyAndroidStatusBarPadding: statusBarHeightPx={statusBarHeightPx}, density={density}, topDip={topDip:F1}");
+            MainWebView.Margin = new Thickness(0, topDip, 0, 0);
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Warn("EmueraMaui",
+                $"ApplyAndroidStatusBarPadding failed: {ex.Message}");
+        }
+    }
+#endif
 
     private async void OnWebViewHandlerChanged(object? sender, EventArgs e)
     {
