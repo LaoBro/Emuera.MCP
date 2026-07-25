@@ -42,18 +42,26 @@ internal sealed class AndroidJsBridge : IJsBridge
 	/// <inheritdoc />
 	public Task Attach(Microsoft.Maui.Controls.WebView webView)
 	{
+		Android.Util.Log.Info("EmueraMaui", $"AndroidJsBridge.Attach called, _attached={_attached}, Handler={(webView?.Handler != null ? webView.Handler.GetType().Name : "null")}");
 		if (_attached)
 			return Task.CompletedTask;
 		if (webView?.Handler is not WebViewHandler handler)
+		{
+			Android.Util.Log.Warn("EmueraMaui", $"AndroidJsBridge.Attach: WebViewHandler null, cannot attach");
 			return Task.CompletedTask;
+		}
 		if (handler.PlatformView is not AWebView platformView)
+		{
+			Android.Util.Log.Warn("EmueraMaui", $"AndroidJsBridge.Attach: PlatformView is {handler.PlatformView?.GetType().Name ?? "null"}, not Android.Webkit.WebView");
 			return Task.CompletedTask;
+		}
 
 		_androidWebView = platformView;
 		_bridge = new Bridge(this);
 		// 注册名 "emueraBridge" 与 Vue 端 (window as any).emueraBridge.postMessage 对齐（spec ID5）。
 		platformView.AddJavascriptInterface(_bridge, "emueraBridge");
 		_attached = true;
+		Android.Util.Log.Info("EmueraMaui", "AndroidJsBridge.Attach completed: emueraBridge registered");
 		// Android WebView 无需异步初始化（AddJavascriptInterface 同步生效），直接返回 CompletedTask。
 		return Task.CompletedTask;
 	}

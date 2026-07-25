@@ -69,10 +69,16 @@ public partial class MainPage : ContentPage
         // HandlerChanged 是 MAUI WebView 平台原生视图就绪的最早可靠时机（spec ID8）。
         // 在此 Attach IJsBridge（订阅 WebMessageReceived / AddJavascriptInterface）+ 设 URL 加载 Vue。
         MainWebView.HandlerChanged += OnWebViewHandlerChanged;
+
+        // 兜底日志：WebView 导航结果监听——每种结果都输出日志方便诊断白屏
+        MainWebView.Navigated += OnWebViewNavigated;
     }
 
     private async void OnWebViewHandlerChanged(object? sender, EventArgs e)
     {
+#if ANDROID
+        Android.Util.Log.Info("EmueraMaui", $"OnWebViewHandlerChanged fired, _urlSet={_urlSet}, Handler={MainWebView.Handler?.GetType().Name}");
+#endif
         // Attach 幂等（WindowsJsBridge / AndroidJsBridge 内部 _attached flag 防重复）。
         // Attach 内部会配置虚拟主机映射（Windows）——必须 await 完成后再设 URL，
         // 否则首帧导航到 https://app.local/ 时映射未就绪导致空白。
@@ -83,7 +89,30 @@ public partial class MainPage : ContentPage
         {
             _urlSet = true;
             var url = ResolveWebViewUrl();
+#if ANDROID
+            Android.Util.Log.Info("EmueraMaui", $"Setting WebView URL: {url}");
+#endif
             MainWebView.Source = new UrlWebViewSource { Url = url };
+        }
+    }
+
+    /// <summary>
+    /// WebView 导航完成回调——输出导航结果用于诊断白屏。
+    /// </summary>
+    private void OnWebViewNavigated(object? sender, WebNavigatedEventArgs e)
+    {
+        var source = e.Url ?? "(null)";
+        var result = e.Result.ToString();
+#if ANDROID
+        Android.Util.Log.Info("EmueraMaui", $"WebView Navigated: result={result}, url={source}");
+#else
+        Console.WriteLine($"[maui] WebView Navigated: result={result}, url={source}");
+#endif
+        if (e.Result != WebNavigationResult.Success)
+        {
+#if ANDROID
+            Android.Util.Log.Warn("EmueraMaui", $"WebView navigation FAILED: {result}, url={source}");
+#endif
         }
     }
 

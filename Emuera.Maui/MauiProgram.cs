@@ -68,12 +68,24 @@ public static class MauiProgram
             // === spec ID8 启动编排 ===
             // 同步等待 EnsureGameDirAsync——见类 remarks。
             Console.WriteLine("[maui] EnsureGameDirAsync starting");
+#if ANDROID
+            Android.Util.Log.Info("EmueraMaui", "EnsureGameDirAsync starting");
+#endif
             var gameDir = Task.Run(GameResourceExtractor.EnsureGameDirAsync).GetAwaiter().GetResult();
             Console.WriteLine($"[maui] EnsureGameDirAsync completed: gameDir={gameDir}");
+#if ANDROID
+            Android.Util.Log.Info("EmueraMaui", $"EnsureGameDirAsync completed: gameDir={gameDir}");
+#endif
             var paths = GamePaths.Resolve(gameDir);
             Console.WriteLine($"[maui] GamePaths.Resolve completed: ExeDir={paths.ExeDir}");
+#if ANDROID
+            Android.Util.Log.Info("EmueraMaui", $"GamePaths.Resolve completed: ExeDir={paths.ExeDir}");
+#endif
             var (configData, terminalSetup) = EmueraRuntimeInitializer.Initialize(paths);
             Console.WriteLine("[maui] EmueraRuntimeInitializer.Initialize completed");
+#if ANDROID
+            Android.Util.Log.Info("EmueraMaui", "EmueraRuntimeInitializer.Initialize completed");
+#endif
 
             // DI 注册单例——MainPage 经 DI 注入，重建时不重新初始化运行时
             builder.Services.AddSingleton(configData);
@@ -86,10 +98,15 @@ public static class MauiProgram
                     sp.GetRequiredService<ITerminalSetup>()));
 
             Console.WriteLine("[maui] MauiProgram.CreateMauiApp completed, returning built app");
+#if ANDROID
+            Android.Util.Log.Info("EmueraMaui", "CreateMauiApp completed, returning built app");
+#endif
 
 #if ANDROID
             // Android WebView 配置：JavaScript + DOM Storage + 文件访问 + console 日志捕获
+            Android.Util.Log.Info("EmueraMaui", "ConfigureAndroidWebView called before Build");
             ConfigureAndroidWebView();
+            Android.Util.Log.Info("EmueraMaui", "ConfigureAndroidWebView completed");
 #endif
 
             return builder.Build();
@@ -97,6 +114,9 @@ public static class MauiProgram
         catch (Exception ex)
         {
             Console.WriteLine($"[maui] FATAL: CreateMauiApp failed: {ex}");
+#if ANDROID
+            Android.Util.Log.Info("EmueraMaui", $"FATAL: CreateMauiApp failed: {ex}");
+#endif
             throw;
         }
     }
@@ -108,6 +128,9 @@ public static class MauiProgram
     /// </summary>
     private static void ConfigureAndroidWebView()
     {
+        // 启用 WebView 远程调试——chrome://inspect 可连接
+        Android.Webkit.WebView.SetWebContentsDebuggingEnabled(true);
+
         WebViewHandler.Mapper.AppendToMapping("emueraWebView", (handler, view) =>
         {
             if (handler.PlatformView is Android.Webkit.WebView wv)
@@ -115,6 +138,10 @@ public static class MauiProgram
                 wv.Settings.JavaScriptEnabled = true;
                 wv.Settings.DomStorageEnabled = true;
                 wv.Settings.AllowFileAccess = true;
+                // file:// 协议下允许加载外部 JS/CSS——Vite 构建产物使用 ES Module + 独立 CSS 文件，
+                // 若不加此行会因 CORS 策略被拦截导致白屏
+                wv.Settings.AllowFileAccessFromFileURLs = true;
+                wv.Settings.AllowUniversalAccessFromFileURLs = true;
                 wv.SetWebChromeClient(new LoggingWebChromeClient());
             }
         });

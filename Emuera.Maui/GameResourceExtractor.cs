@@ -42,14 +42,24 @@ internal static class GameResourceExtractor
     /// <returns>解压后的游戏目录绝对路径（<c>&lt;AppDataDirectory&gt;/emuera/</c>，以分隔符结尾）。</returns>
     public static async Task<string> EnsureGameDirAsync()
     {
+#if ANDROID
+        Android.Util.Log.Info("EmueraMaui", $"EnsureGameDirAsync starting, AppDataDirectory={FileSystem.AppDataDirectory}");
+#endif
         var appData = FileSystem.AppDataDirectory;
         var gameDir = Path.Combine(appData, "emuera") + Path.DirectorySeparatorChar;
         var markerFile = Path.Combine(gameDir, MarkerFileName);
 
         if (File.Exists(markerFile))
+        {
+#if ANDROID
+            Android.Util.Log.Info("EmueraMaui", $"EnsureGameDirAsync: marker exists, returning existing gameDir={gameDir}");
+#endif
             return gameDir;
+        }
 
-        Directory.CreateDirectory(gameDir);
+#if ANDROID
+        Android.Util.Log.Info("EmueraMaui", $"EnsureGameDirAsync: no marker, extracting to {gameDir}");
+#endif
 
         // Phase 1 硬编码 test_game/ 文件列表——见类 remarks。
         // 路径相对 MauiAsset 打包根（PackagePrefix="game/"）。
@@ -61,6 +71,9 @@ internal static class GameResourceExtractor
 
         // 写 marker——记录解压完成时间，便于诊断。
         await File.WriteAllTextAsync(markerFile, DateTime.UtcNow.ToString("O"));
+#if ANDROID
+        Android.Util.Log.Info("EmueraMaui", $"EnsureGameDirAsync completed: gameDir={gameDir}");
+#endif
         return gameDir;
     }
 
