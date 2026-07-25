@@ -4,7 +4,7 @@ import {
   isMauiEnvironment,
   registerTurnHandler,
   registerMessageHandler,
-  loadGameFromPath,
+  scanGames as scanGamesBridge,
 } from '../lib/mauiBridge';
 
 /**
@@ -22,11 +22,13 @@ import {
  * - `window.location.protocol` 判断为 MAUI（`ms-appx-web:` / `file:` / `https:app.local`）时：
  *   1. 注册 `window.__emueraOnTurn`——C# PostTurn 调此函数，参数为 turn 对象，JSON.stringify 后调 game.applyTurn
  *   2. 注册 `window.__emueraOnMessage`——C# PostMessage 调此函数，按 type 分发非 turn 事件
- *      （issue 09：`folderPicked` → 调 `loadGameFromPath(path)` 触发 hot-swap reload）
+ *      （game-library spec ID9：`folderPicked` → `setMainGameDir` + `scanGames` 更改主目录并重扫；
+ *      旧 issue 09 的「folderPicked → loadGameFromPath」语义已废弃）
  *   3. 标记 conn.status='connected'——让 sendInput / UI 组件认为已连接（MAUI 无 WS 但语义等价）
  *   4. **不**发 `sendReady()`——用户反馈：启动时不应自动加载游戏（即便内置 test_game 也不行）。
- *      首次启动仅注册回调 + 设 connected 状态，等用户主动点选目录后通过 `loadGameFromPath`
- *      触发 C# `OnReloadGame` → `RecreateHost` + `Start`（Start 内部设 `_readyReceived=true` 跳过 ready 检查）。
+ *      首次启动仅注册回调 + 设 connected 状态，等用户在列表页点选游戏后通过 `loadGameFromPath`
+ *      （在 `MauiGameList.vue` 内）触发 C# `OnReloadGame` → `RecreateHost` + `Start`
+ *      （Start 内部设 `_readyReceived=true` 跳过 ready 检查）。
  *      MainPage 构造时创建的占位 BridgeHost 永远等不到 ready 信号，不会启动游戏循环。
  *   5. return——不走 HTTP/WS 路径
  *
@@ -43,15 +45,21 @@ export async function initAppState(): Promise<void> {
     // 1. 注册 C# → JS turn 回调——C# PostTurn 调 window.__emueraOnTurn(turnJson)，
     //    turnJson 是 JS 字面量（JSON ⊂ JS），Vue 端 JSON.stringify 还原为字符串后复用 game.applyTurn
     registerTurnHandler((rawJson) => game.applyTurn(rawJson));
-    // 2. issue 09：注册 C# → JS 非 turn 消息回调——C# PostMessage 调 window.__emueraOnMessage(msg)，
-    //    按 type 分发：folderPicked → loadGameFromPath 触发 hot-swap reload
+    // 2. issue 09 / game-library spec ID9：注册 C# → JS 非 turn 消息回调——C# PostMessage 调 window.__emueraOnMessage(msg)，
+    //    按 type 分发：folderPicked → setMainGameDir + scanGames（更改主目录 + 重扫，详见 handleMauiMessage）
     registerMessageHandler((msg) => handleMauiMessage(msg, game));
     // 3. 标记已连接——MAUI 无 WS 但 sendInput / UI 组件按 status='connected' 判定可用
     conn.status = 'connected';
     // 4. 用户反馈修复：不发 sendReady()——首次启动不自动加载游戏，等用户主动选目录。
     //    占位 BridgeHost 永远等不到 ready 信号，游戏循环不启动。
     //    用户选目录后 loadGameFromPath → C# OnReloadGame → Start（跳过 ready 检查）
-    // 5. 不走 HTTP/WS 路径
+    // 5. game-library spec ID12：投递 scanGames 让 C# 扫描主目录并回复 gamesScanned——
+    //    Vue 收到后填充列表页。首启动若 mainGameDir 为 null（Android 未授权），
+    //    C# 端 HandleScanGames 回复空 games + null rootDir，Vue 列表页展示「请选择主目录」UI。
+    //    scanStatus='scanning' 让列表页展示 loading 占位，避免首启动白屏。
+    game.scanStatus = 'scanning';
+    scanGamesBridge(game.mainGameDir);
+    // 6. 不走 HTTP/WS 路径
     return;
   }
   // 防御性 window 检查——与 isMauiEnvironment() 同模式，让 node 测试环境（vitest environment='node'）下
@@ -80,17 +88,37 @@ export async function initAppState(): Promise<void> {
 }
 
 /**
- * issue 09 文件选择器：处理 C# `PostMessage` 推来的非 turn 消息——
+ * issue 09 文件选择器 + game-library spec ID3 / ID9：处理 C# `PostMessage` 推来的非 turn 消息——
  * `registerMessageHandler` 注册的回调，按 `type` 字段分发。
  *
- * 消息契约（C# `BridgeHost.HandlePickFolder` 推送）：
- * - `{"type":"folderPicked","path":"..."}`——用户选中目录，调 `loadGameFromPath(path)` 触发 hot-swap reload
+ * 消息契约（C# `BridgeHost.Handle*` 推送）：
+ * - `{"type":"folderPicked","path":"..."}`——用户选中目录（Windows FolderPicker），
+ *   game-library spec ID9 后语义改为「更改主目录」——保存为 mainGameDir + 重新 scanGames
  * - `{"type":"folderPicked","error":"..."}`——文件选择器失败，写 `mauiError` 让 UI 展示
+ * - `{"type":"gamesScanned","games":[{name,fullPath}],"rootDir":...}`——scanGames 回复，写入 store
+ * - `{"type":"directoriesListed","currentPath":...,"parentPath":...|"null","subDirectories":[...]}`——listDirectories 回复
+ * - `{"type":"gameExited"}`——exitGame 处理完成，清状态 + 自动重新 scanGames
  *
- * 收到 `folderPicked` 带 path 时的处理：
- * 1. `game.setGameDir(path)`——更新 gameDir ref + 持久化到 localStorage
- * 2. `game.reset()`——清空旧游戏显示状态（displayState / turnHistory / TINPUT timer）
- * 3. `loadGameFromPath(path)`——投递 `{"type":"loadGame","path":...}` 让 C# hot-swap reload
+ * 收到 `folderPicked` 带 path 时的处理（game-library spec ID9 修订）：
+ * 1. `game.setMainGameDir(path)`——更新 mainGameDir ref + 持久化到 localStorage
+ * 2. `game.scanStatus = 'scanning'`——让列表页展示 loading 占位
+ * 3. `scanGamesBridge(path)`——投递 `{"type":"scanGames","rootDir":...}`，
+ *    C# `HandleScanGames` 收到后更新 `_mainGameDir` + 写 Preferences + 扫描 + 回复 gamesScanned
+ *
+ * **为何不再调 `loadGameFromPath(path)`**：game-library spec 后 `pickFolder` 仅用于「更改主目录」，
+ * 不再用于「选游戏目录加载」（后者改由点击列表项触发 `loadGameFromPath(fullPath)`）。
+ * 旧 issue 09 的「folderPicked → loadGameFromPath」语义已废弃。
+ *
+ * 收到 `gamesScanned` 时的处理（game-library spec ID7）：
+ * - `game.setScannedGames(games, rootDir)`——写入 store，列表页据此渲染
+ * - **不**自动加载游戏——列表页等用户点击项再触发
+ *
+ * 收到 `directoriesListed` 时的处理（game-library spec ID8）：
+ * - `game.setDirectoryList(result)`——写入 store，DirectoryBrowser.vue 弹窗据此渲染
+ *
+ * 收到 `gameExited` 时的处理（game-library spec ID10 / ID12）：
+ * 1. `game.completeExitGame()`——清 gameDir + displayState + serverState + exitStatus
+ * 2. `scanGamesBridge()`——自动重新扫描主目录，列表页填新数据
  *
  * C# 侧 reload 失败时（`GamePaths.Validate` 抛 `GamePathValidationException` 或
  * `EmueraRuntimeInitializer.Initialize` 抛异常）由 `MainPage.OnReloadGame` 调
@@ -124,6 +152,48 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
     return;
   }
 
+  // game-library spec ID3 / ID7：scanGames 回复——写入 store 让列表页渲染
+  if (type === 'gamesScanned') {
+    const rawGames = Array.isArray(m.games) ? m.games : [];
+    const games = rawGames
+      .filter((g): g is { name: string; fullPath: string } =>
+        !!g &&
+        typeof g === 'object' &&
+        typeof (g as Record<string, unknown>).name === 'string' &&
+        typeof (g as Record<string, unknown>).fullPath === 'string',
+      )
+      .map((g) => ({ name: g.name, fullPath: g.fullPath }));
+    const rootDir = typeof m.rootDir === 'string' ? m.rootDir : null;
+    console.log(
+      `[useAppInit] gamesScanned: ${games.length} games, rootDir=${rootDir}`,
+    );
+    game.setScannedGames(games, rootDir);
+    return;
+  }
+
+  // game-library spec ID3 / ID8：listDirectories 回复——写入 store 让 DirectoryBrowser 渲染
+  if (type === 'directoriesListed') {
+    const currentPath = typeof m.currentPath === 'string' ? m.currentPath : '';
+    const parentPath = typeof m.parentPath === 'string' ? m.parentPath : null;
+    const subDirectories = Array.isArray(m.subDirectories)
+      ? m.subDirectories.filter((s): s is string => typeof s === 'string')
+      : [];
+    console.log(
+      `[useAppInit] directoriesListed: currentPath=${currentPath}, subDirectories.length=${subDirectories.length}`,
+    );
+    game.setDirectoryList({ currentPath, parentPath, subDirectories });
+    return;
+  }
+
+  // game-library spec ID3 / ID10 / ID12：exitGame 处理完成——清状态 + 自动重新扫描
+  if (type === 'gameExited') {
+    console.log('[useAppInit] gameExited: completing exit and rescanning');
+    game.completeExitGame();
+    // 自动重新扫描主目录——spec ID12 退出后回列表自动 rescan
+    scanGamesBridge(game.mainGameDir);
+    return;
+  }
+
   if (type !== 'folderPicked') {
     console.warn('[useAppInit] handleMauiMessage: unknown message type:', type);
     return;
@@ -134,17 +204,18 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
     game.mauiError = `选择目录失败：${m.error}`;
     return;
   }
-  // folderPicked 带 path → 触发 hot-swap reload
+  // folderPicked 带 path → game-library spec ID9：更改主目录 + 重新扫描
+  // （旧 issue 09 的「folderPicked → loadGameFromPath」语义已废弃——pickFolder 现仅用于更改主目录）
   const path = m.path;
   if (typeof path !== 'string' || !path.trim()) {
     console.warn('[useAppInit] folderPicked: missing or non-string path');
     return;
   }
-  console.log('[useAppInit] folderPicked, triggering reload:', path);
-  // 1. 更新 gameDir + 持久化
-  game.setGameDir(path);
-  // 2. 清空旧游戏显示状态——新游戏首帧到达前不残留旧画面
-  game.reset();
-  // 3. 通知 C# hot-swap reload——后台重新初始化运行时 + 重建 BridgeHost + Start
-  loadGameFromPath(path);
+  console.log('[useAppInit] folderPicked, updating mainGameDir + rescanning:', path);
+  // 1. 更新 mainGameDir + 持久化到 localStorage
+  game.setMainGameDir(path);
+  // 2. 标记扫描中——列表页展示 loading 占位
+  game.scanStatus = 'scanning';
+  // 3. 投递 scanGames 让 C# 扫描新主目录——C# HandleScanGames 会同步更新 _mainGameDir + 写 Preferences
+  scanGamesBridge(path);
 }

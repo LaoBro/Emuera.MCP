@@ -19,6 +19,50 @@ import { TURN_HISTORY_MAX } from '../config/constants';
 const GAME_DIR_STORAGE_KEY = 'emuera.gameDir';
 
 /**
+ * game-library spec ID5：主目录持久化 key（localStorage）。
+ *
+ * MAUI 模式下 Vue 端同步存一份 mainGameDir——
+ * - C# 端 `Preferences.Set("emuera.mainGameDir", ...)` 是权威源（构造 BridgeHost 时读）
+ * - Vue 端 localStorage 备份供首帧渲染前知道主目录（如展示在列表页底部）
+ *
+ * 与 `emuera.gameDir` 区别：
+ * - `emuera.gameDir`：当前加载的游戏目录（特定游戏）
+ * - `emuera.mainGameDir`：游戏库主目录（包含多个游戏的父目录）
+ */
+const MAIN_GAME_DIR_STORAGE_KEY = 'emuera.mainGameDir';
+
+/**
+ * game-library spec ID5：上次玩过的游戏名持久化 key（localStorage）。
+ *
+ * 列表页据此高亮上次玩的游戏——存目录名（不是完整路径），
+ * 主目录变更后仍可匹配同名子目录。
+ */
+const LAST_PLAYED_GAME_STORAGE_KEY = 'emuera.lastPlayedGame';
+
+/**
+ * game-library spec ID1：扫描到的游戏条目（与 C# `GameEntry` record 对称）。
+ */
+export interface GameEntry {
+  /** 游戏目录名（Path.GetFileName，主目录下的子目录名）。 */
+  name: string;
+  /** 游戏目录绝对路径。 */
+  fullPath: string;
+}
+
+/**
+ * game-library spec ID2：目录列举结果（与 C# `DirectoryListResult` record 对称）。
+ * 用于 Android 目录浏览器弹窗导航。
+ */
+export interface DirectoryListResult {
+  /** 当前目录绝对路径。 */
+  currentPath: string;
+  /** 父目录绝对路径——null 表示已在根，不可再上。 */
+  parentPath: string | null;
+  /** 子目录名排序后的列表。 */
+  subDirectories: string[];
+}
+
+/**
  * Issue 05：结构化错误码——与 C# `KestrelGameServer.HandleLoadGameAsync` 错误契约对齐。
  *
  * 路径级错误（400）：
@@ -121,6 +165,55 @@ function clearGameDirFromStorage(): void {
 }
 
 /**
+ * game-library spec ID5：从 localStorage 读 mainGameDir——纯函数，便于单测。
+ * SSR / 旧浏览器无 localStorage 时返 null。
+ */
+export function readMainGameDirFromStorage(
+  storage: Storage | null = typeof localStorage !== 'undefined' ? localStorage : null,
+): string | null {
+  if (!storage) return null;
+  try {
+    const v = storage.getItem(MAIN_GAME_DIR_STORAGE_KEY);
+    return typeof v === 'string' && v.length > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** game-library spec ID5：写 mainGameDir 到 localStorage——失败时静默。 */
+function writeMainGameDirToStorage(dir: string): void {
+  try {
+    localStorage.setItem(MAIN_GAME_DIR_STORAGE_KEY, dir);
+  } catch {
+    // 静默
+  }
+}
+
+/**
+ * game-library spec ID5：从 localStorage 读 lastPlayedGame——纯函数，便于单测。
+ */
+export function readLastPlayedGameFromStorage(
+  storage: Storage | null = typeof localStorage !== 'undefined' ? localStorage : null,
+): string | null {
+  if (!storage) return null;
+  try {
+    const v = storage.getItem(LAST_PLAYED_GAME_STORAGE_KEY);
+    return typeof v === 'string' && v.length > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** game-library spec ID5：写 lastPlayedGame 到 localStorage——失败时静默。 */
+function writeLastPlayedGameToStorage(name: string): void {
+  try {
+    localStorage.setItem(LAST_PLAYED_GAME_STORAGE_KEY, name);
+  } catch {
+    // 静默
+  }
+}
+
+/**
  * useGameStore — 游戏帧数据与显示状态（issue 03 升级 / issue 04 ADR-0016 v6 重构）。
  *
  * 协议消费链路（issue 02 引入纯函数，issue 03 在此 wiring，ADR-0016 加 timer 字段）：
@@ -161,6 +254,39 @@ export const useGameStore = defineStore('game', () => {
   //         加载级错误（500）旧 session 已被 dispose——connect() 时 server 会建新空 session
   /** 当前游戏目录（持久化到 localStorage）。null 表示尚未加载过任何游戏。 */
   const gameDir = ref<string | null>(readGameDirFromStorage());
+
+  // ---------- game-library spec ID5 / ID7：主目录 + 游戏列表 + 上次玩过 ----------
+  //
+  // mainGameDir：游戏库主目录（包含多个游戏的父目录），MAUI 模式下 C# 端 Preferences 是权威源，
+  // Vue 端 localStorage 同步备份。首启动时 Vue 端可能未初始化（C# 还没推 layout 消息），
+  // 用 readMainGameDirFromStorage 读 localStorage 让 UI 立即展示主目录路径。
+  //
+  // scannedGames：scanGames 消息回复后写入——列表页据此渲染游戏列表。
+  // scanRootDir：最近一次 scanGames 的 rootDir——列表页底部展示「主目录: <path>」用。
+  // scanStatus：scanning 期间列表页展示 loading 占位，避免空列表被误认为「无游戏」。
+  //
+  // lastPlayedGame：用户上次玩的游戏目录名（不是完整路径），列表页据此高亮项。
+  // 主目录变更后仍可匹配同名子目录——存名字而非路径。
+  /** 游戏库主目录（持久化到 localStorage）。null 表示首启动未设置。 */
+  const mainGameDir = ref<string | null>(readMainGameDirFromStorage());
+  /** 上次玩过的游戏目录名（持久化到 localStorage）。null 表示未玩过。 */
+  const lastPlayedGame = ref<string | null>(readLastPlayedGameFromStorage());
+  /** scanGames 消息回复后的游戏列表——列表页据此渲染。 */
+  const scannedGames = ref<GameEntry[]>([]);
+  /** 最近一次 scanGames 的 rootDir——列表页底部展示「主目录: <path>」用。 */
+  const scanRootDir = ref<string | null>(null);
+  /** scanGames 进行中标志——列表页展示 loading 占位。 */
+  const scanStatus = ref<'idle' | 'scanning'>('idle');
+  /**
+   * 退出游戏进行中标志——unloadGame 投递 exitGame 后置 true，
+   * 收到 gameExited 消息后置 false。期间 UI 禁用退出按钮避免重复点击。
+   */
+  const exitStatus = ref<'idle' | 'exiting'>('idle');
+  /**
+   * game-library spec ID8：目录浏览器当前结果——DirectoryBrowser.vue 弹窗渲染依据。
+   * null 表示弹窗未打开。listDirectories 消息回复后写入。
+   */
+  const directoryList = ref<DirectoryListResult | null>(null);
   /**
    * T-025 D14：当前 server 状态字符串——驱动 UI 元素可见性（如「快速重开」按钮）。
    *
@@ -577,6 +703,8 @@ export const useGameStore = defineStore('game', () => {
     acceptGeneration(0);
     // issue 09：reset 时清空 mauiError——hot-swap reload 前清旧错误
     mauiError.value = null;
+    // game-library：reset 时清退出状态——unloadGame 完成或异常后重置
+    exitStatus.value = 'idle';
   }
 
   /**
@@ -751,6 +879,125 @@ export const useGameStore = defineStore('game', () => {
     if (!trimmed) return;
     gameDir.value = trimmed;
     writeGameDirToStorage(trimmed);
+  }
+
+  /**
+   * game-library spec ID5 / ID7：设置主目录——
+   * 用户通过「更改主目录」按钮（Windows FolderPicker / Android 目录浏览器）选中后调用。
+   *
+   * 更新 `mainGameDir` ref + 持久化到 localStorage。
+   * **不**触发 scanGames——调用方（useAppInit）收到 folderPicked / directoriesListed 后
+   * 自行投递 scanGames，store 仅管状态。
+   *
+   * @param dir 用户选中的主目录绝对路径。
+   */
+  function setMainGameDir(dir: string): void {
+    const trimmed = dir.trim();
+    if (!trimmed) return;
+    mainGameDir.value = trimmed;
+    writeMainGameDirToStorage(trimmed);
+  }
+
+  /**
+   * game-library spec ID5：设置上次玩过的游戏名——
+   * 用户点击列表项加载游戏时调用，列表页据此高亮。
+   *
+   * @param name 游戏目录名（GameEntry.name，不是完整路径）。
+   */
+  function setLastPlayedGame(name: string): void {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    lastPlayedGame.value = trimmed;
+    writeLastPlayedGameToStorage(trimmed);
+  }
+
+  /**
+   * game-library spec ID3 / ID7：写入 scanGames 消息回复结果——
+   * `useAppInit` 收到 C# 推来的 `gamesScanned` 消息后调此方法。
+   *
+   * 同步更新 scannedGames / scanRootDir / scanStatus——
+   * 列表页 watch scannedGames 重新渲染，scanStatus='idle' 关闭 loading 占位。
+   *
+   * @param games C# GameScanner.Scan 返回的游戏列表
+   * @param rootDir 扫描时使用的主目录路径（C# 回复中携带）
+   */
+  function setScannedGames(games: GameEntry[], rootDir: string | null): void {
+    scannedGames.value = games;
+    scanRootDir.value = rootDir;
+    scanStatus.value = 'idle';
+    // 同步 mainGameDir——C# 端 HandleScanGames 收到非空 rootDir 时已写 Preferences，
+    // Vue 端此处同步 localStorage 让首启动 UI 立即正确
+    if (rootDir && rootDir !== mainGameDir.value) {
+      mainGameDir.value = rootDir;
+      writeMainGameDirToStorage(rootDir);
+    }
+  }
+
+  /**
+   * game-library spec ID8：写入 listDirectories 消息回复结果——
+   * `useAppInit` 收到 C# 推来的 `directoriesListed` 消息后调此方法。
+   *
+   * DirectoryBrowser.vue 弹窗 watch directoryList 重新渲染子目录列表。
+   *
+   * @param result C# DirectoryLister.ListDirectories 返回的目录列举结果
+   */
+  function setDirectoryList(result: DirectoryListResult): void {
+    directoryList.value = result;
+  }
+
+  /** game-library spec ID8：关闭目录浏览器弹窗——清空 directoryList。 */
+  function clearDirectoryList(): void {
+    directoryList.value = null;
+  }
+
+  /**
+   * game-library spec ID10 / ID12：开始退出游戏流程——
+   * 由 App.vue 退出按钮点击处理调用。
+   *
+   * 与 `loadGame` / `quickRestart` 的区别：
+   * - 不投递 HTTP 请求——MAUI 模式靠 C# BridgeHost.HandleExitGame 处理（Dispose + 重建 host）
+   * - 不重置 displayState——C# 重建 BridgeHost 后新 host 不 Start，displayState 保持原样
+   *   直到 Vue 收到 gameExited 后由调用方再调 reset()
+   *
+   * 此方法仅置 `exitStatus='exiting'`——实际 exitGame 消息投递由调用方负责
+   * （`mauiBridge.exitGame()`，分离 store 状态与桥接投递职责，便于单测）。
+   *
+   * 二次进入保护：exitStatus='exiting' 时拒绝。
+   */
+  function beginExitGame(): boolean {
+    if (exitStatus.value === 'exiting') return false;
+    exitStatus.value = 'exiting';
+    return true;
+  }
+
+  /**
+   * game-library spec ID10：完成退出游戏流程——
+   * `useAppInit` 收到 C# 推来的 `gameExited` 消息后调此方法。
+   *
+   * 清空当前游戏相关状态（gameDir / serverState / displayState / lastPlayedGame 不清——
+   * 列表页高亮仍需 lastPlayedGame），重置 exitStatus='idle' 让 UI 解锁。
+   *
+   * **不**投递 scanGames——调用方收到 gameExited 后自行投递 scanGames 重新填充列表。
+   */
+  function completeExitGame(): void {
+    // 清空当前游戏显示状态——回列表态不残留旧画面
+    lastTurnJson.value = null;
+    turnHistory.value = [];
+    lastTurn.value = null;
+    lastSnapshot.value = null;
+    displayState.value = { ...EMPTY_DISPLAY_STATE };
+    protocolVersion.value = null;
+    serverState.value = 'Idle';
+    // 清 gameDir——回到列表态无活跃游戏
+    gameDir.value = null;
+    try {
+      localStorage.removeItem(GAME_DIR_STORAGE_KEY);
+    } catch {
+      // 静默
+    }
+    exitStatus.value = 'idle';
+    stopTinputTicker();
+    acceptGeneration(0);
   }
 
   /** issue 09：清空 mauiError——用户关闭错误提示时调用。 */
@@ -976,6 +1223,21 @@ export const useGameStore = defineStore('game', () => {
     mauiError,
     setGameDir,
     clearMauiError,
+    // game-library：主目录 + 游戏列表 + 上次玩过 + 退出游戏 + 目录浏览器
+    mainGameDir,
+    lastPlayedGame,
+    scannedGames,
+    scanRootDir,
+    scanStatus,
+    exitStatus,
+    directoryList,
+    setMainGameDir,
+    setLastPlayedGame,
+    setScannedGames,
+    setDirectoryList,
+    clearDirectoryList,
+    beginExitGame,
+    completeExitGame,
     // T-025 D14：快速重开 + server 状态
     quickRestart,
     serverState,

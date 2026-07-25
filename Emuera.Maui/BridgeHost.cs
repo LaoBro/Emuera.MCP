@@ -1,8 +1,12 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Emuera.Maui.JsBridge;
+using Microsoft.Maui.Storage;
 using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
@@ -44,17 +48,34 @@ namespace Emuera.Maui;
 /// </remarks>
 internal sealed class BridgeHost : IDisposable
 {
+    /// <summary>Preferences key——主目录路径持久化（spec ID5）。</summary>
+    private const string MainGameDirKey = "emuera.mainGameDir";
+
     private readonly IDispatcher _dispatcher;
     private readonly ConfigData _configData;
     private readonly ITerminalSetup _terminalSetup;
     private readonly IJsBridge _jsBridge;
     private readonly MauiBridgeIO _bridgeIO;
     private readonly Action<string>? _onReloadGame;
+    private readonly Action? _onGameExited;
     private readonly CancellationTokenSource _cts = new();
     private Task? _gameTask;
     private bool _disposed;
     private bool _started;
     private bool _readyReceived;
+
+    /// <summary>
+    /// 当前主目录路径——game-library spec ID4 / ID5。
+    /// <para>
+    /// 构造时从 <see cref="Preferences"/> 读取（key=<see cref="MainGameDirKey"/>）；无值时按平台回退：
+    /// Windows <c>Documents/emuera</c>，Android <c>null</c>（待权限引导后设置）。
+    /// </para>
+    /// <para>
+    /// <see cref="HandleScanGames"/> 收到非空 rootDir 时更新此字段 + 写 Preferences，
+    /// 保证 Vue 端与 C# 端主目录一致。
+    /// </para>
+    /// </summary>
+    private string? _mainGameDir;
 
     /// <summary>
     /// 构造桥接宿主——不启动游戏循环（spec ID7 延迟启动）。
@@ -80,22 +101,81 @@ internal sealed class BridgeHost : IDisposable
     /// <param name="terminalSetup">已启用 ANSI 的 <see cref="ITerminalSetup"/> 单例。</param>
     /// <param name="jsBridge">平台 <see cref="IJsBridge"/> 实现（Windows / Android）。</param>
     /// <param name="onReloadGame">issue 09 hot-swap reload 回调——传游戏目录绝对路径让 MainPage 重建 BridgeHost。</param>
+    /// <param name="onGameExited">game-library spec ID10 退出游戏回调——BridgeHost 处理 <c>exitGame</c>
+    /// 后调此回调让 MainPage 重建 BridgeHost（新 host 不启动游戏循环，等 Vue 触发 scanGames）。</param>
     internal BridgeHost(
         IDispatcher dispatcher,
         ConfigData configData,
         ITerminalSetup terminalSetup,
         IJsBridge jsBridge,
-        Action<string>? onReloadGame = null)
+        Action<string>? onReloadGame = null,
+        Action? onGameExited = null)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _configData = configData ?? throw new ArgumentNullException(nameof(configData));
         _terminalSetup = terminalSetup ?? throw new ArgumentNullException(nameof(terminalSetup));
         _jsBridge = jsBridge ?? throw new ArgumentNullException(nameof(jsBridge));
         _onReloadGame = onReloadGame;
+        _onGameExited = onGameExited;
+
+        // game-library spec ID5：从 Preferences 读 mainGameDir——无值时按平台回退
+        // Windows: Documents/emuera；Android: null（待权限引导后设置）
+        _mainGameDir = LoadMainGameDir();
 
         // MauiBridgeIO 的 _onTurn 回调在游戏循环线程执行——Dispatcher.Dispatch 切 UI 线程投递给 WebView。
         _bridgeIO = new MauiBridgeIO(OnTurnFromGame);
         _jsBridge.InputReceived += OnInputFromJs;
+    }
+
+    /// <summary>
+    /// 当前主目录路径——game-library spec ID4。
+    /// Vue 端首次启动时通过 <c>mainDir</c> 消息接收此值；用户更改主目录后通过 <c>scanGames</c> 更新。
+    /// </summary>
+    public string? MainGameDir => _mainGameDir;
+
+    /// <summary>
+    /// 从 Preferences 加载 mainGameDir——无值时按平台回退（spec ID5）。
+    /// <para>
+    /// 平台默认：
+    /// <list type="bullet">
+    ///   <item>Windows：<c>Documents/emuera</c></item>
+    ///   <item>Android：<c>null</c>（首启动待权限引导后由 <c>PermissionGuidePage</c> 写入默认值）</item>
+    /// </list>
+    /// </para>
+    /// </summary>
+    private static string? LoadMainGameDir()
+    {
+        try
+        {
+            var stored = Preferences.Get(MainGameDirKey, null);
+            if (!string.IsNullOrEmpty(stored))
+                return stored;
+        }
+        catch
+        {
+            // Preferences 不可用（极少见）——回退到平台默认
+        }
+#if WINDOWS
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "emuera");
+#else
+        return null;
+#endif
+    }
+
+    /// <summary>
+    /// 持久化 mainGameDir 到 Preferences——spec ID5。
+    /// 失败时静默（Preferences 不可用），_mainGameDir 字段仍更新。
+    /// </summary>
+    private void SaveMainGameDir(string dir)
+    {
+        try
+        {
+            Preferences.Set(MainGameDirKey, dir);
+        }
+        catch
+        {
+            // 静默——字段已更新，仅持久化失败
+        }
     }
 
     /// <summary>
@@ -119,6 +199,9 @@ internal sealed class BridgeHost : IDisposable
     ///   <item><c>{"type":"ready"}</c>——首帧 ready 信号，调 <see cref="Start"/> 启动游戏循环（仅一次，幂等）</item>
     ///   <item><c>{"type":"pickFolder"}</c>——issue 09 文件选择器，调 <see cref="HandlePickFolder"/> 弹原生选择器</item>
     ///   <item><c>{"type":"loadGame","path":...}</c>——issue 09 hot-swap reload，调 <see cref="HandleLoadGame"/> 通知 MainPage 重建</item>
+    ///   <item>game-library spec ID3：<c>{"type":"scanGames","rootDir":...}</c> /
+    ///       <c>{"type":"listDirectories","dirPath":...}</c> / <c>{"type":"exitGame"}</c>——
+    ///       分别调 <see cref="HandleScanGames"/> / <see cref="HandleListDirectories"/> / <see cref="HandleExitGame"/></item>
     ///   <item>其他（如 <c>{"type":"input","value":"..."}</c>）——原样入 <see cref="MauiBridgeIO.EnqueueInput"/>，
     ///       由 <c>AgentJsonlProtocol.RunLoopAsync</c> 反序列化消费</item>
     /// </list>
@@ -160,6 +243,23 @@ internal sealed class BridgeHost : IDisposable
                 if (type == "loadGame")
                 {
                     HandleLoadGame(doc.RootElement);
+                    return;
+                }
+                // game-library spec ID3：游戏列表扫描 / 目录列举 / 退出游戏——
+                // 这些消息可在游戏循环未启动时处理（Vue 启动后立即 scanGames 填充列表）
+                if (type == "scanGames")
+                {
+                    HandleScanGames(doc.RootElement);
+                    return;
+                }
+                if (type == "listDirectories")
+                {
+                    HandleListDirectories(doc.RootElement);
+                    return;
+                }
+                if (type == "exitGame")
+                {
+                    HandleExitGame();
                     return;
                 }
                 // 其他 typed 消息（input 等）原样入队——AgentJsonlProtocol.RunLoopAsync 内
@@ -230,6 +330,129 @@ internal sealed class BridgeHost : IDisposable
             // 推 error 事件给 Vue 让 UI 解除 picking 状态 + 显示错误
             var errJson = JsonSerializer.Serialize(new { type = "folderPicked", error = ex.Message });
             _dispatcher.Dispatch(() => _jsBridge.PostMessage(errJson));
+        }
+    }
+
+    /// <summary>
+    /// 处理 Vue 端 scanGames 消息（game-library spec ID3 / ID4）——
+    /// 扫描 rootDir 下的游戏列表并回复 <c>gamesScanned</c>。
+    /// <para>
+    /// 流程：
+    /// <list type="number">
+    ///   <item>读 <c>msg.rootDir</c>——若未提供则用 <see cref="_mainGameDir"/></item>
+    ///   <item>若 rootDir 非空且与 <see cref="_mainGameDir"/> 不同——更新 <see cref="_mainGameDir"/> + 写 Preferences</item>
+    ///   <item>调 <see cref="GameScanner.Scan"/> 扫描</item>
+    ///   <item>回复 <c>{"type":"gamesScanned","games":[{name,fullPath}],"rootDir":...}</c></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>rootDir 为空时的处理</b>：若 <see cref="_mainGameDir"/> 也为 null（Android 首启动未授权），
+    /// 回复空 games + null rootDir——Vue 端据此显示「请选择主目录」UI。
+    /// </para>
+    /// </summary>
+    private void HandleScanGames(JsonElement root)
+    {
+        string? rootDir = null;
+        if (root.TryGetProperty("rootDir", out var rootEl) && rootEl.ValueKind == JsonValueKind.String)
+        {
+            rootDir = rootEl.GetString();
+        }
+        if (string.IsNullOrEmpty(rootDir))
+            rootDir = _mainGameDir;
+        else if (rootDir != _mainGameDir)
+        {
+            // 用户更改主目录——更新字段 + 持久化
+            _mainGameDir = rootDir;
+            SaveMainGameDir(rootDir!);
+            Console.WriteLine($"[bridge] mainGameDir updated to: {rootDir}");
+        }
+
+        Console.WriteLine($"[bridge] HandleScanGames: rootDir={rootDir}");
+        var games = GameScanner.Scan(rootDir);
+        var gamesPayload = games.Select(g => new { name = g.Name, fullPath = g.FullPath }).ToList();
+        var msgJson = JsonSerializer.Serialize(new
+        {
+            type = "gamesScanned",
+            games = gamesPayload,
+            rootDir,
+        });
+        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
+    }
+
+    /// <summary>
+    /// 处理 Vue 端 listDirectories 消息（game-library spec ID3 / ID8）——
+    /// 列举 dirPath 下的子目录并回复 <c>directoriesListed</c>，用于 Android 目录浏览器弹窗。
+    /// <para>
+    /// 回复格式：<c>{"type":"directoriesListed","currentPath":...,"parentPath":...|"null","subDirectories":[...]}</c>。
+    /// dirPath 缺失时使用 <see cref="_mainGameDir"/>（若也为 null 则回复空结果）。
+    /// </para>
+    /// </summary>
+    private void HandleListDirectories(JsonElement root)
+    {
+        string? dirPath = null;
+        if (root.TryGetProperty("dirPath", out var dirEl) && dirEl.ValueKind == JsonValueKind.String)
+        {
+            dirPath = dirEl.GetString();
+        }
+        if (string.IsNullOrEmpty(dirPath))
+            dirPath = _mainGameDir;
+
+        Console.WriteLine($"[bridge] HandleListDirectories: dirPath={dirPath}");
+        var result = DirectoryLister.ListDirectories(dirPath);
+        var msgJson = JsonSerializer.Serialize(new
+        {
+            type = "directoriesListed",
+            currentPath = result.CurrentPath,
+            parentPath = result.ParentPath,
+            subDirectories = result.SubDirectories,
+        });
+        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
+    }
+
+    /// <summary>
+    /// 处理 Vue 端 exitGame 消息（game-library spec ID3 / ID10）——
+    /// 退出当前游戏并回复 <c>gameExited</c>，让 Vue 回到列表态。
+    /// <para>
+    /// 流程：
+    /// <list type="number">
+    ///   <item>回复 <c>{"type":"gameExited"}</c> 给 Vue——必须先回复再 Dispose，
+    ///       Dispose 后 OnInputFromJs 守卫会丢消息</item>
+    ///   <item>调 <see cref="Dispose"/>——取消游戏循环 + 关 MauiBridgeIO</item>
+    ///   <item>调 <c>_onGameExited?.Invoke()</c>——让 MainPage 重建 BridgeHost
+    ///       （新 host 不启动游戏循环，等 Vue 触发 scanGames）</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>时序保证</b>：PostMessage 用 <see cref="IDispatcher.Dispatch"/> 异步派发到 UI 线程，
+    /// 此方法返回后 UI 线程会依次执行：投递 gameExited → 重建 host。
+    /// Vue 端收到 gameExited 后投递 scanGames，此时新 host 已就绪可接收。
+    /// </para>
+    /// </summary>
+    private void HandleExitGame()
+    {
+        Console.WriteLine("[bridge] HandleExitGame: disposing game loop and notifying Vue");
+        AgentLog.Instance.Write("[bridge] HandleExitGame: disposing game loop and notifying Vue");
+
+        // 1. 先回复 gameExited——Dispatch 异步派发到 UI 线程队列
+        var msgJson = JsonSerializer.Serialize(new { type = "gameExited" });
+        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
+
+        // 2. 调回调让 MainPage 重建 BridgeHost——RecreateHost 内会 Dispose 当前 host
+        //    Dispose 后 OnInputFromJs 守卫 _disposed=true，新 host 接管后续消息
+        try
+        {
+            _onGameExited?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[bridge] HandleExitGame: _onGameExited threw: {ex}");
+            AgentLog.Instance.Write($"[bridge] HandleExitGame: _onGameExited threw: {ex}");
+        }
+
+        // 3. 若未提供 _onGameExited 回调（旧调用方）——直接 Dispose 让游戏循环停止
+        if (_onGameExited is null)
+        {
+            Dispose();
         }
     }
 

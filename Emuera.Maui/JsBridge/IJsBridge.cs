@@ -21,7 +21,9 @@ namespace Emuera.Maui.JsBridge;
 ///       返回 <see cref="Task"/> 让调用方 await 平台初始化完成后再设 URL——
 ///       Windows <c>SetVirtualHostNameToFolderMapping</c> 必须在导航开始前完成（issue 07）。</item>
 ///   <item><see cref="PickFolderAsync"/>：弹出原生文件夹选择器，返回所选路径（用户取消返 null）。
-///       issue 09 文件选择器——Vue 端 <c>pickGameFolder()</c> → C# <c>BridgeHost.HandlePickFolder</c> → 此方法。</item>
+///       issue 09 文件选择器——Vue 端 <c>pickGameFolder()</c> → C# <c>BridgeHost.HandlePickFolder</c> → 此方法。
+///       game-library spec ID11 后仅 Windows 重写此方法；Android 改走 <c>listDirectories</c> + Vue 弹窗，
+///       接口提供默认实现返 <c>null</c> 兜底。</item>
 /// </list>
 /// iOS / MacCatalyst 不在 Phase 1 范围（spec Out of Scope）。
 /// </remarks>
@@ -65,25 +67,32 @@ internal interface IJsBridge
 	Task Attach(WebView webView);
 
 	/// <summary>
-	/// 弹出原生文件夹选择器——issue 09 文件选择器。
+	/// 弹出原生文件夹选择器——issue 09 文件选择器（Windows 专用）。
 	/// </summary>
 	/// <remarks>
 	/// <para>
 	/// 平台实现：
 	/// <list type="bullet">
-	///   <item>Windows：WinRT <c>Windows.Storage.Pickers.FolderPicker</c>——
+	///   <item>Windows：<see cref="WindowsJsBridge.PickFolderAsync"/> 重写此方法——
+	///     WinRT <c>Windows.Storage.Pickers.FolderPicker</c>。
 	///     .NET 10 MAUI (10.0.20) 的 <c>Microsoft.Maui.Storage</c> 没有 <c>FolderPicker</c> 类型
 	///     （<c>FilePicker</c> 存在但 <c>FolderPicker</c> 不存在），故直接用 WinRT API。
 	///     unpackaged 模式必须调 <c>InitializeWithWindow.Initialize(picker, hwnd)</c> 关联窗口句柄。</item>
-	///   <item>Android：Phase 2 实现——Storage Access Framework（<c>Intent.ACTION_OPEN_DOCUMENT_TREE</c>）
-	///     返回 <c>content://</c> URI，需 ContentResolver 转 file path。当前返回 null（未实现）。</item>
+	///   <item>Android：game-library spec ID11 后不再使用此方法——Android 改走
+	///     <see cref="BridgeHost.HandleListDirectories"/> + Vue 端 <c>DirectoryBrowser.vue</c> 弹窗
+	///     导航选目录。Android 路径不会投递 <c>pickFolder</c> 消息，故此方法不会被调用。
+	///     默认实现返回 <c>null</c> 防御性兜底（万一被调用也不崩）。</item>
 	/// </list>
 	/// </para>
 	/// <para>
-	/// 必须在 UI 线程调用——WinRT picker 依赖窗口句柄，BridgeHost.HandlePickFolder 在 OnInputFromJs 内
-	/// （UI 线程）调此方法。
+	/// 必须在 UI 线程调用——WinRT picker 依赖窗口句柄，<see cref="BridgeHost.HandlePickFolder"/>
+	/// 在 <see cref="BridgeHost.OnInputFromJs"/> 内（UI 线程）调此方法。
+	/// </para>
+	/// <para>
+	/// game-library spec ID11：原 <c>AndroidJsBridge.PickFolderAsync</c> 空桩（<c>return null</c>）
+	/// 已删除——default interface method 兜底，避免 Android 实现类被强制 override 一个不用的方法。
 	/// </para>
 	/// </remarks>
-	/// <returns>用户选中的目录绝对路径；用户取消或失败返回 <c>null</c>。</returns>
-	Task<string?> PickFolderAsync();
+	/// <returns>用户选中的目录绝对路径；用户取消或失败返回 <c>null</c>。Android 路径不应到达此方法。</returns>
+	Task<string?> PickFolderAsync() => Task.FromResult<string?>(null);
 }

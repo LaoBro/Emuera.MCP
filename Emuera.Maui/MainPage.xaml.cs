@@ -180,7 +180,34 @@ public partial class MainPage : ContentPage
     private void RecreateHost()
     {
         _host?.Dispose();
-        _host = new BridgeHost(Dispatcher, _configData, _terminalSetup, _jsBridge, OnReloadGame);
+        _host = new BridgeHost(Dispatcher, _configData, _terminalSetup, _jsBridge, OnReloadGame, OnGameExited);
+    }
+
+    /// <summary>
+    /// game-library spec ID10 退出游戏回调——<see cref="BridgeHost.HandleExitGame"/> 收到
+    /// <c>{"type":"exitGame"}</c> 后调此方法。
+    /// <para>
+    /// 与 <see cref="OnReloadGame"/> 的区别：
+    /// <list type="bullet">
+    ///   <item><see cref="OnReloadGame"/>：用户选了新游戏 → 后台 init 新运行时 → 重建 host + Start</item>
+    ///   <item><see cref="OnGameExited"/>：用户退出当前游戏 → 不 init（保留旧运行时配置供 scanGames 等基础消息处理）→
+    ///       重建 host 不 Start（等 Vue 触发 scanGames 后用户再选新游戏触发 OnReloadGame）</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>为何保留旧运行时配置</b>：scanGames / listDirectories / exitGame 等基础消息不依赖 ConfigData/ITerminalSetup，
+    /// 但 BridgeHost 构造签名要求这俩参数（用于 PushLayoutMessage / PushConfigMessage）。
+    /// 退出后这些 push 不再发生（新 host 不 Start），故旧值无副作用。
+    /// 用户选新游戏时 <see cref="OnReloadGame"/> 会重新 init 替换。
+    /// </para>
+    /// </summary>
+    private void OnGameExited()
+    {
+        Console.WriteLine("[maui] OnGameExited: recreating BridgeHost without starting game loop");
+        // RecreateHost 内已 Dispose 旧 host——但此时我们正处在旧 host 的 HandleExitGame 调用栈内，
+        // RecreateHost 会 Dispose 当前 host（_disposed=true）。这是安全的——HandleExitGame 后续无访问 host 字段。
+        // 新 host 订阅 InputReceived 后接管后续消息（Vue 发的 scanGames）。
+        RecreateHost();
     }
 
     /// <summary>

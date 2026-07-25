@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { onMounted, computed, defineAsyncComponent } from 'vue';
+import { onMounted, ref, computed, defineAsyncComponent } from 'vue';
 import { useUiStore } from './stores/ui';
 import { useGameStore } from './stores/game';
 import { initAppState } from './composables/useAppInit';
-import { isMauiEnvironment, loadGameFromPath } from './lib/mauiBridge';
+import { isMauiEnvironment, loadGameFromPath, exitGame as exitGameBridge } from './lib/mauiBridge';
 import ConnectionPanel from './components/ConnectionPanel.vue';
 import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
-import MauiGamePicker from './components/MauiGamePicker.vue';
+import MauiGameList from './components/MauiGameList.vue';
 import TerminalView from './views/TerminalView.vue';
 
 const DebugView = defineAsyncComponent(() => import('./views/DebugView.vue'));
@@ -24,7 +24,7 @@ onMounted(() => initAppState());
 
 /**
  * Issue 07 / spec ID11：MAUI 模式下隐藏 HTTP 模式的连接面板和游戏目录选择器——
- * 改用 MauiGamePicker（原生文件夹选择器按钮）。
+ * 改用 MauiGameList（游戏列表 + 更改主目录 + 退出按钮）。
  */
 const isMaui = isMauiEnvironment();
 
@@ -37,6 +37,18 @@ const canQuickRestart = computed(() =>
   isMaui ? !!game.gameDir : game.serverState !== 'Idle',
 );
 const isRestarting = computed(() => game.reloadStatus === 'loading');
+
+/**
+ * game-library spec ID10：MAUI 模式「退出游戏」按钮可见性——
+ * 游戏运行中（serverState != 'Idle' 或 gameDir 非空）时显示。
+ */
+const canExitGame = computed(
+  () => isMaui && (game.serverState !== 'Idle' || !!game.gameDir),
+);
+const isExiting = computed(() => game.exitStatus === 'exiting');
+
+/** 退出确认对话框可见性。 */
+const showExitConfirm = ref(false);
 
 /**
  * 快速重开 click——按模式分流：
@@ -55,6 +67,31 @@ async function onQuickRestart(): Promise<void> {
   }
   await game.quickRestart();
 }
+
+/**
+ * game-library spec ID10：用户点击「退出」按钮——弹确认对话框。
+ * 不直接退出，避免误点丢失游戏进度。
+ */
+function onExitClick(): void {
+  if (isExiting.value) return;
+  showExitConfirm.value = true;
+}
+
+/**
+ * game-library spec ID10：用户确认退出——投递 exitGame 消息让 C# Dispose + 重建 host。
+ * store.beginExitGame 置 exitStatus='exiting'，UI 禁用退出按钮；
+ * C# 回复 gameExited 后 useAppInit 调 completeExitGame 重置状态。
+ */
+function onExitConfirm(): void {
+  showExitConfirm.value = false;
+  if (!game.beginExitGame()) return; // 二次进入保护
+  exitGameBridge();
+}
+
+/** 用户取消退出——关闭对话框，无副作用。 */
+function onExitCancel(): void {
+  showExitConfirm.value = false;
+}
 </script>
 
 <template>
@@ -64,8 +101,8 @@ async function onQuickRestart(): Promise<void> {
       <!-- Issue 05：游戏选择器，按平台条件渲染（MAUI 模式下隐藏——spec ID11） -->
       <GamePickerMobile v-if="!isMaui && ui.platform === 'android'" />
       <GamePicker v-else-if="!isMaui" />
-      <!-- issue 09：MAUI 模式下用原生文件夹选择器替代文本输入 + 加载按钮 -->
-      <MauiGamePicker v-if="isMaui" />
+      <!-- game-library spec ID7 / ID11：MAUI 模式下用游戏列表替换旧 MauiGamePicker -->
+      <MauiGameList v-if="isMaui" />
       <!-- T-025 D14：快速重开按钮——游戏运行/结束时显示，一键重载同目录（MAUI 模式下隐藏） -->
       <button
         v-if="canQuickRestart"
@@ -75,6 +112,15 @@ async function onQuickRestart(): Promise<void> {
         @click="onQuickRestart"
       >
         {{ isRestarting ? '重开中…' : '快速重开' }}
+      </button>
+      <!-- game-library spec ID10：退出游戏按钮——MAUI 模式 + 游戏运行时显示 -->
+      <button
+        v-if="canExitGame"
+        class="exit-game-btn"
+        :disabled="isExiting"
+        @click="onExitClick"
+      >
+        {{ isExiting ? '退出中…' : '退出' }}
       </button>
       <div class="zoom-controls">
         <button
@@ -115,6 +161,17 @@ async function onQuickRestart(): Promise<void> {
       <SettingsView v-else-if="ui.currentView === 'settings'" />
       <TerminalView v-else />
     </main>
+
+    <!-- game-library spec ID10：退出确认对话框 -->
+    <div v-if="showExitConfirm" class="confirm-overlay" @click.self="onExitCancel">
+      <div class="confirm-modal">
+        <div class="confirm-text">确认退出？未保存进度会丢失</div>
+        <div class="confirm-actions">
+          <button class="confirm-btn cancel" @click="onExitCancel">取消</button>
+          <button class="confirm-btn ok" @click="onExitConfirm">确认退出</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -203,9 +260,79 @@ async function onQuickRestart(): Promise<void> {
   opacity: 0.6;
   cursor: not-allowed;
 }
+.exit-game-btn {
+  background: #5a1d1d;
+  color: #f48771;
+  border: 1px solid #7a2a2a;
+  padding: 4px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.exit-game-btn:hover:not(:disabled) {
+  background: #6a2d2d;
+}
+.exit-game-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 .app-main {
   flex: 1;
   overflow: hidden;
   display: flex;
+}
+/* game-library spec ID10：退出确认对话框 */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.confirm-modal {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  padding: 16px 20px;
+  max-width: 360px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.confirm-text {
+  font-size: 14px;
+  color: #e0e0e0;
+  text-align: center;
+}
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+.confirm-btn {
+  background: #333;
+  color: #ccc;
+  border: 1px solid #444;
+  padding: 6px 16px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  min-width: 88px;
+}
+.confirm-btn:hover {
+  background: #444;
+}
+.confirm-btn.ok {
+  background: #5a1d1d;
+  color: #f48771;
+  border-color: #7a2a2a;
+}
+.confirm-btn.ok:hover {
+  background: #6a2d2d;
 }
 </style>

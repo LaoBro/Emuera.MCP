@@ -16,10 +16,11 @@
  *    Android: `window.emueraBridge.postMessage(json)`（AddJavascriptInterface 注册的桥接对象）
  * 3. 启动后 `postMessage(JSON.stringify({type:'ready'}))`——
  *    C# 侧 `BridgeHost.OnInputFromJs` 收到后写日志（T07），T08 接入游戏循环后启动 `GameLoopComposer.RunAsync`。
- * 4. issue 09 文件选择器：`pickGameFolder()` 请求 C# 弹原生 FolderPicker →
+ * 4. issue 09 文件选择器 / game-library spec ID9：`pickGameFolder()` 请求 C# 弹原生 FolderPicker →
  *    C# 经 `PostMessage` 推 `{"type":"folderPicked","path":...}` →
- *    `registerMessageHandler` 注册的 handler 收到后调 `loadGameFromPath(path)` →
- *    C# `HandleLoadGame` 触发 hot-swap reload（后台重新初始化运行时 + 重建 BridgeHost）。
+ *    `registerMessageHandler` 注册的 handler 收到后调 `setMainGameDir(path)` + `scanGames(path)`
+ *    （game-library spec ID9 修订：原 issue 09 的 `loadGameFromPath(path)` 语义已废弃，
+ *    `pickFolder` 现仅用于「更改主目录」，加载游戏改由点击列表项触发 `loadGameFromPath`）。
  */
 
 /**
@@ -106,12 +107,15 @@ export function sendReady(): void {
 }
 
 /**
- * issue 09 文件选择器——请求 C# 弹出原生文件夹选择器。
+ * issue 09 文件选择器 / game-library spec ID9——请求 C# 弹出原生文件夹选择器（仅 Windows）。
  *
  * Vue 端调用后，C# `BridgeHost.HandlePickFolder` 调 `IJsBridge.PickFolderAsync`
- * （MAUI `FolderPicker.PickAsync`：Windows 用 Win32 dialog，Android 用 Storage Access Framework）。
+ * （Windows：WinRT `Windows.Storage.Pickers.FolderPicker`）。
  * 用户选中后，C# 经 `PostMessage` 推 `{"type":"folderPicked","path":...}` 回 Vue，
- * 由 `registerMessageHandler` 注册的 handler 接收。
+ * 由 `registerMessageHandler` 注册的 handler 接收——
+ * game-library spec ID9 后语义改为「更改主目录」：handler 调 `setMainGameDir(path)` + `scanGames(path)`。
+ *
+ * Android 不走此路径——Android 改用 `listDirectories` + Vue 端 `DirectoryBrowser.vue` 弹窗导航。
  *
  * 用户取消时 C# 不推消息——Vue 端无需处理取消（原生 picker 模态结束后自然回到 UI）。
  */
@@ -120,13 +124,16 @@ export function pickGameFolder(): void {
 }
 
 /**
- * issue 09 文件选择器——注册 C# → JS 的非 turn 消息回调。
+ * issue 09 / game-library spec ID3——注册 C# → JS 的非 turn 消息回调。
  *
  * C# 侧 `IJsBridge.PostMessage(msgJson)` 执行 `window.__emueraOnMessage(msgJson)`，
  * `msgJson` 作为 JS 字面量直接嵌入（JSON ⊂ JS 字面量）。
  * Vue 端 handler 收到的是已解析的 JS 对象——按 `type` 字段分发：
- * - `{"type":"folderPicked","path":...}`——文件选择器成功，调 `loadGameFromPath(path)` 触发 hot-swap reload
+ * - `{"type":"folderPicked","path":...}`——文件选择器成功，调 `setMainGameDir(path)` + `scanGames(path)`（spec ID9 修订）
  * - `{"type":"folderPicked","error":...}`——文件选择器失败，展示错误
+ * - `{"type":"gamesScanned",...}`——scanGames 回复，写入 store 渲染列表
+ * - `{"type":"directoriesListed",...}`——listDirectories 回复，渲染 DirectoryBrowser
+ * - `{"type":"gameExited"}`——exitGame 完成，清状态 + 自动 rescan
  *
  * 与 `registerTurnHandler` 分流——turn 经 `__emueraOnTurn` 推 `applyTurn` 协议消费链路，
  * 非 turn 事件经 `__emueraOnMessage` 推此 handler，避免污染 turn 协议。
@@ -140,10 +147,12 @@ export function registerMessageHandler(handler: (msg: unknown) => void): void {
 }
 
 /**
- * issue 09 文件选择器——请求 C# hot-swap reload 到指定游戏目录。
+ * issue 09 / game-library spec ID3——请求 C# hot-swap reload 到指定游戏目录。
  *
- * Vue 端在 `folderPicked` 收到 path 后调此方法，C# `BridgeHost.HandleLoadGame` 收到后
- * 调 `_onReloadGame(path)` 回调，`MainPage.OnReloadGame` 在后台线程重新初始化运行时
+ * Vue 端在 `MauiGameList.vue` 点击列表项时调此方法（不再由 `folderPicked` 触发——
+ * game-library spec ID9 修订后 `folderPicked` 改走 `setMainGameDir` + `scanGames`），
+ * C# `BridgeHost.HandleLoadGame` 收到后调 `_onReloadGame(path)` 回调，
+ * `MainPage.OnReloadGame` 在后台线程重新初始化运行时
  * （`EmueraRuntimeInitializer.Initialize` + `GamePaths.Validate`），成功后 UI 线程
  * `RecreateHost` + `Start`——Vue 已 ready，无需再等 ready 信号，新游戏循环首帧自然推来。
  *
@@ -151,4 +160,88 @@ export function registerMessageHandler(handler: (msg: unknown) => void): void {
  */
 export function loadGameFromPath(path: string): void {
   postInput(JSON.stringify({ type: 'loadGame', path }));
+}
+
+// ---------- game-library spec ID3：MAUI 桥接新消息（JS → C#）----------
+//
+// 三个新消息投递函数：
+// - scanGames：扫描主目录下的游戏列表
+// - listDirectories：列举目录下的子目录（Android 目录浏览器弹窗用）
+// - exitGame：退出当前游戏回到列表态
+//
+// 与 C# `BridgeHost.OnInputFromJs` 内的 type 分发分支对齐：
+//   "scanGames" / "listDirectories" / "exitGame"
+//
+// 投递后 C# 异步处理并经 `__emueraOnMessage` 回复对应消息：
+// - scanGames → gamesScanned（含 games 数组 + rootDir）
+// - listDirectories → directoriesListed（含 currentPath/parentPath/subDirectories）
+// - exitGame → gameExited（无 payload）
+
+/**
+ * game-library spec ID3 / ID7：请求 C# 扫描主目录下的游戏列表。
+ *
+ * Vue 端在以下时机调用：
+ * - App.vue onMounted：MAUI 模式首启动 + 主目录已知
+ * - MauiGameList.vue：用户更改主目录后重新扫描
+ * - useAppInit：收到 `gameExited` 后自动重新扫描
+ *
+ * C# `BridgeHost.HandleScanGames` 收到后：
+ * 1. 读 rootDir——若未提供则用 C# 端 `_mainGameDir` 字段
+ * 2. 若 rootDir 与 `_mainGameDir` 不同——更新 + 写 Preferences
+ * 3. 调 `GameScanner.Scan(rootDir)` 扫描
+ * 4. 回复 `{"type":"gamesScanned","games":[{name,fullPath}],"rootDir":...}`
+ *
+ * @param rootDir 主目录绝对路径——null/undefined/空串时 C# 用已存的主目录
+ */
+export function scanGames(rootDir?: string | null): void {
+  const payload: Record<string, unknown> = { type: 'scanGames' };
+  if (rootDir && rootDir.trim()) {
+    payload.rootDir = rootDir.trim();
+  }
+  postInput(JSON.stringify(payload));
+}
+
+/**
+ * game-library spec ID3 / ID8：请求 C# 列举目录下的子目录。
+ *
+ * Android 目录浏览器弹窗（`DirectoryBrowser.vue`）用此方法导航：
+ * - 打开弹窗时调 `listDirectories(currentMainDir)` 拿初始列表
+ * - 点击子目录项时调 `listDirectories(selectedPath)` 进入下一级
+ * - 点击「返回上级」时调 `listDirectories(parentPath)`
+ *
+ * C# `BridgeHost.HandleListDirectories` 收到后：
+ * 1. 读 dirPath——若未提供则用 C# 端 `_mainGameDir` 字段
+ * 2. 调 `DirectoryLister.ListDirectories(dirPath)` 列举
+ * 3. 回复 `{"type":"directoriesListed","currentPath":...,"parentPath":...|"null","subDirectories":[...]}`
+ *
+ * @param dirPath 要列举的目录绝对路径——null/undefined/空串时 C# 用已存的主目录
+ */
+export function listDirectories(dirPath?: string | null): void {
+  const payload: Record<string, unknown> = { type: 'listDirectories' };
+  if (dirPath && dirPath.trim()) {
+    payload.dirPath = dirPath.trim();
+  }
+  postInput(JSON.stringify(payload));
+}
+
+/**
+ * game-library spec ID3 / ID10：请求 C# 退出当前游戏。
+ *
+ * Vue 端在用户点击「退出」按钮 + 确认对话框后调用。
+ *
+ * C# `BridgeHost.HandleExitGame` 收到后：
+ * 1. 经 `IDispatcher.Dispatch` 异步投递 `{"type":"gameExited"}` 回 Vue（必须先回复再 Dispose）
+ * 2. 调 `_onGameExited?.Invoke()`——MainPage 重建 BridgeHost（新 host 不 Start）
+ * 3. 若 `_onGameExited` 为 null——直接 Dispose 让游戏循环停止
+ *
+ * 时序：PostMessage 用 Dispatch 异步派发到 UI 线程队列，此方法返回后 UI 线程会
+ * 依次执行：投递 gameExited → 重建 host。Vue 端收到 gameExited 后投递 scanGames，
+ * 此时新 host 已就绪可接收。
+ *
+ * 与 `loadGameFromPath` 的区别：
+ * - loadGame：用户选新游戏 → C# hot-swap reload + Start 新游戏循环
+ * - exitGame：用户退出当前 → C# 仅 Dispose + 重建空 host（不 Start），等 Vue 触发 scanGames
+ */
+export function exitGame(): void {
+  postInput(JSON.stringify({ type: 'exitGame' }));
 }
