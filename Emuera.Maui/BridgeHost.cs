@@ -490,7 +490,15 @@ internal sealed class BridgeHost : IDisposable
 #if ANDROID
         try
         {
-            granted = Android.OS.Environment.IsExternalStorageManager;
+            if (OperatingSystem.IsAndroidVersionAtLeast(30))
+            {
+                granted = Android.OS.Environment.IsExternalStorageManager;
+            }
+            else
+            {
+                // API < 30 无 MANAGE_EXTERNAL_STORAGE 概念，默认视为已授权（传统存储模式）
+                granted = true;
+            }
         }
         catch (Exception ex)
         {
@@ -515,6 +523,10 @@ internal sealed class BridgeHost : IDisposable
     /// <c>Intent.SetData(Android.Net.Uri.FromParts("package", PackageName, null))</c>
     /// </para>
     /// <para>
+    /// API < 30 降级：打开应用详情设置页（<c>Settings.ActionApplicationDetailsSettings</c>），
+    /// 用户可在此授予 READ_EXTERNAL_STORAGE。
+    /// </para>
+    /// <para>
     /// 不回复消息——用户跳转设置页后，返回 app 时通过 <c>MainActivity.OnResume</c> 或
     /// Vue 端「已授权，重新扫描」按钮重新投递 <c>checkPermission</c>。
     /// 非 Android 平台 no-op（Windows 无此权限概念）。
@@ -526,8 +538,19 @@ internal sealed class BridgeHost : IDisposable
         try
         {
             var context = Android.App.Application.Context;
-            var intent = new Android.Content.Intent(
-                Android.Provider.Settings.ActionManageAppAllFilesPermission);
+            Android.Content.Intent intent;
+
+            if (OperatingSystem.IsAndroidVersionAtLeast(30))
+            {
+                intent = new Android.Content.Intent(
+                    "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION");
+            }
+            else
+            {
+                intent = new Android.Content.Intent(
+                    Android.Provider.Settings.ActionApplicationDetailsSettings);
+            }
+
             intent.SetData(Android.Net.Uri.FromParts("package", context.PackageName, null));
             intent.AddFlags(Android.Content.ActivityFlags.NewTask);
             context.StartActivity(intent);
