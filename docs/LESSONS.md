@@ -326,3 +326,112 @@ protected override void OnCreate(Bundle? savedInstanceState)
 ```
 
 **教训**：`RegisterForActivityResult` 必须在 `super.onCreate()` 之后、`onStart()` 之前调用。标准 AndroidX 时序不可颠倒。
+
+## MAUI Android——AddJavascriptInterface 桥接在 WebView 中不可靠
+
+**场景**：MAUI Android WebView 中通过 `AddJavascriptInterface` 注册 C# 对象供 JS 调用。
+启动时 `window.emueraBridge.postMessage()` 能正常工作，用户交互后静默失效——JS 端对
+象存在、调用不抛异常，但 C# 方法永不被触发。
+
+**结果**：点击按钮无任何反应，C# 端收不到消息。`adb logcat` 也无 `Bridge.PostMessage` 日志。
+
+**原因**：Android WebView 的 `AddJavascriptInterface` 在 MAUI 壳中存在可靠性问题——
+JS 引擎线程与 UI 线程间的 Java bridge 可能因 WebView 进程重启、JS context 重建或
+线程安全问题而静默断开。JS 端仍看到 `window.emueraBridge` 对象（来自旧绑定缓存），
+调用却不再触发 C#。
+
+**解决**：使用 `WebViewClient.ShouldOverrideUrlLoading` + 隐藏 iframe 作为 JS→C# 备用通道：
+```csharp
+// C# 端——WebViewClient 拦截 bridge:// URL
+platformView.SetWebViewClient(new BridgeClient(this));
+
+class BridgeClient : WebViewClient
+{
+    public override bool ShouldOverrideUrlLoading(WebView view, IWebResourceRequest request)
+    {
+        if (request?.Url?.Scheme == "bridge")
+        {
+            var path = request.Url.Host + request.Url.Path;
+            BridgeUrlReceived?.Invoke(path);
+            return true;
+        }
+        return base.ShouldOverrideUrlLoading(view, request);
+    }
+}
+```
+
+```typescript
+// JS 端——隐藏 iframe 发送 bridge:// URL
+function sendBridgeUrl(action: string): void {
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = `bridge://${action}`;
+  document.body.appendChild(iframe);
+  setTimeout(() => document.body.removeChild(iframe), 500);
+}
+```
+
+**教训**：`AddJavascriptInterface` 不应作为 MAUI WebView 的唯一 JS→C# 通道。
+`ShouldOverrideUrlLoading` + URL scheme 是 Android 文档推荐的标准备选方案，
+比 Java bridge 更底层、更可靠。二者可并存——启动初期走 bridge，备用 URL 拦截兜底。
+
+## bridge:// URL 拦截——不要忘记 Query 参数
+
+**场景**：`WebViewClient.ShouldOverrideUrlLoading` 中手动拼接 URL 组件构建消息路径。
+
+**结果**：`bridge://post?msg=...` 的 `?msg=...` 部分被丢弃，收到的消息只有 `"post"`（不含数据）。
+
+**原因**：`request.Url.Host + request.Url.Path` 只含域名和路径，不含 Query 字符串。
+`bridge://post?msg=...` 解析后：`Host="post"`, `Path=""`, `Query="?msg=..."`。
+需同时拼接 `Query` 或用 `Android.Net.Uri.GetQueryParameter("msg")` 直接取参数。
+
+**教训**：URL 解析用 SDK 的 `Uri.GetQueryParameter()`，不要手动拼接 `Host+Path+Query`。
+
+## SAF——`BuildChildDocumentsUriUsingTree` 第一个参数必须是原始树 URI
+
+**场景**：`SafGameDirAccessor` 中把任意传入的路径（可能是子文档 URI）当树 URI 传给
+`DocumentsContract.BuildChildDocumentsUriUsingTree(firstParam, parentDocId)`。
+
+**结果**：子目录导航失败，`ResolveSubPath` 退化为 `basePath`（返原值），`Validate()` 校验失败。
+
+**原因**：`BuildChildDocumentsUriUsingTree` 的第一个参数**必须是 `ACTION_OPEN_DOCUMENT_TREE`
+返回的原始树 URI**（如 `content://.../tree/primary%3Aemuera`），不能是子文档 URI
+（如 `content://.../tree/primary%3Aemuera/document/primary%3Aemuera%2Fcsv`）。
+
+**解决**：缓存 `_treeAndroidUri` 字段（原始树 URI），所有 `BuildChildDocumentsUriUsingTree`
+调用统一用它做第一个参数，第二个参数从传入路径提取文档 ID。
+
+## SAF——`DirAccessor` 必须按路径选择，不能全局替换
+
+**场景**：`MainActivity.OnCreate` 无条件将 `GamePaths.Current.DirAccessor` 替换为
+`SafGameDirAccessor`。
+
+**结果**：内置 `test_game`（本地文件路径）走 `SafGameDirAccessor` → 所有目录存在性检查
+返回 false → `Preload.Load` 认为目录不存在 → 文件逐 I/O 慢路径 → 极其缓慢 + GAMEBASE.CSV
+被跳过 → 空壳游戏。
+
+**解决**：`OnReloadGame` 和 `ScanAndPushGames` 等所有使用 DirAccessor 的地方**按路径判断**：
+```csharp
+var dirAccessor = path.StartsWith("content://")
+    ? (IGameDirAccessor?)SafGameDirAccessor.Instance
+    : new FileSystemGameDirAccessor();
+```
+`SafGameDirAccessor` 只用于 SAF content URI 路径，本地文件路径始终走 `FileSystemGameDirAccessor`。
+
+**教训**：DirAccessor 的选择是**路径属性**，不是**全局属性**。一个应用中可能同时存在本地测试游戏
+和 SAF 外部游戏，不能全局替换。
+
+## `Preload` 文件编码检测——必须用字节级 BOM 检测，不能直接 `ReadAllText` + `Split`
+
+**场景**：`Preload.ReadAllLinesViaAccessor` 初版用 `dirAccessor.ReadAllText(path)` + `Split('\n')`。
+
+**结果**：ERA 游戏的 ERB 文件通常是 SHIFT-JIS 编码。UTF-8 `StreamReader`（默认）解码 SHIFT-JIS
+字节流时，`\r`/`\n` 字节可能被当作多字节日文字符的一部分被"吞掉"，换行符丢失，两行合成一行，
+解析器报错"无法解析的行"。
+
+**解决**：加 `ReadAllBytes` 到 `IGameDirAccessor`，`Preload` 调用 `dirAccessor.ReadAllBytes`
+获取原始字节数组 → 传入 `EncodingHandler.ReadAllLinesFromBytes`（BOM 检测 → UTF-8 尝试 →
+SHIFT-JIS 回退 → `StringReader.ReadLine` 分行）。
+
+**教训**：文件读取必须保留原始字节级别的编码检测路径。`ReadAllText` 预设单一编码不够，
+必须以字节数组为中介，复用原有的 `BOM → UTF-8 → SHIFT-JIS` 级联检测。
