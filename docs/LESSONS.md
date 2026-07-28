@@ -435,3 +435,121 @@ SHIFT-JIS 回退 → `StringReader.ReadLine` 分行）。
 
 **教训**：文件读取必须保留原始字节级别的编码检测路径。`ReadAllText` 预设单一编码不够，
 必须以字节数组为中介，复用原有的 `BOM → UTF-8 → SHIFT-JIS` 级联检测。
+
+## SAF——`GetDocumentId` vs `GetTreeDocumentId` 不能混用
+
+**场景**：在 `SafGameDirAccessor` 中统一用 `DocumentsContract.GetDocumentId(docUri)` 提取文档 ID。
+
+**结果**：
+- 对树 URI（`.../tree/...`）抛异常——`GetDocumentId` 只对文档 URI 有效
+- 对含 `%2F`（编码的 `/`）的文档 URI（`.../document/...%2Ftest_game`），只返回第一段（如 `...:emuera`，丢掉了 `/test_game`）
+- `DirectoryExists` 检查了错误的目录但返回 True（因为根目录存在）→ 假阳性
+
+**解决**：
+```csharp
+private static string ResolveDocId(Android.Net.Uri docUri)
+{
+    var uriStr = docUri.ToString();
+    // 文档 URI（.../document/...）：手动从路径提取完整文档 ID
+    var posDoc = uriStr.LastIndexOf("/document/");
+    if (posDoc >= 0)
+        return Uri.UnescapeDataString(uriStr[(posDoc + 10)..]);
+    // 树 URI（.../tree/...）：用标准的 GetTreeDocumentId
+    if (uriStr.Contains("/tree/"))
+        return DocumentsContract.GetTreeDocumentId(docUri);
+    return DocumentsContract.GetDocumentId(docUri);
+}
+```
+
+**教训**：
+- `GetDocumentId` 只适用于文档 URI，对树 URI 无效
+- `GetTreeDocumentId` 对文档 URI 返回树根的文档 ID（不是你想要的子文档 ID）
+- 含 `%2F` 的文档 URI 不能依赖 `GetDocumentId`——它只返回编码 `%2F` 之前的部分
+- 路径中同时含 `/tree/` 和 `/document/` 的 URI（SAF 常见格式），优先检查 `/document/`
+
+## SAF——`CombinePath` 不能字符串拼接 content URI
+
+**场景**：`SafGameDirAccessor.CombinePath` 实现为 `$"{basePath.TrimEnd('/')}/{filename}"`。
+
+**结果**：`content://.../document/...:emuera/test_game/csv/ABL.CSV` → Android 解析时忽略
+`/ABL.CSV`（因为文档 URI 只识别 `/document/` 后的第一个路径段），实际打开的是 csv 目录
+本身 → `OpenInputStream` 抛 `EISDIR (Is a directory)`。
+
+**解决**：用 `DocumentsContract.BuildDocumentUriUsingTree(treeUri, docId + "/" + filename)`：
+```csharp
+var baseUri = Android.Net.Uri.Parse(basePath);
+var docId = ResolveDocId(baseUri);
+var childUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, $"{docId}/{filename}");
+return childUri.ToString();
+```
+
+**教训**：SAF content URI 不是文件系统路径——不能用字符串拼接构造子文件路径。必须用
+`BuildDocumentUriUsingTree` 把父文档 ID 和文件名组合成完整子文档 ID 再构造 URI。
+
+## `EraStreamReader.Open` 必须走 DirAccessor，不能直接 `File.ReadAllBytes`
+
+**场景**：`EraStreamReader.Open(path)` → `EncodingHandler.ReadAllLinesWithDetection(filepath)`
+→ `File.ReadAllBytes(path)`。对 SAF content URI 路径，`File.ReadAllBytes` 阻塞或失败。
+
+**解决**：让 `Open` 委托给 `OpenOnCache`（缓存未命中时走 `DirAccessor.ReadAllBytes`→
+`EncodingHandler.ReadAllLinesFromBytes`），从内容源级别统一所有文件读取路径：
+```csharp
+public bool Open(string path, string name)
+{
+    return OpenOnCache(path, name);
+}
+public bool OpenOnCache(string path, string name)
+{
+    filepath = path; filename = name;
+    curNo = 0; nextNo = 0;
+    // 先查 Preload 缓存
+    var cached = Preload.TryGetFileLines(path);
+    if (cached != null) { _fileLines = cached; return true; }
+    // 缓存未命中：走 DirAccessor（SAF content URI）
+    var dirAccessor = GamePaths.Current?.DirAccessor;
+    if (dirAccessor != null)
+    {
+        var bytes = dirAccessor.ReadAllBytes(path);
+        if (bytes != null)
+        { _fileLines = EncodingHandler.ReadAllLinesFromBytes(bytes); return true; }
+    }
+    // 最后 fallback 原始 File.ReadAllBytes
+    try { _fileLines = EncodingHandler.ReadAllLinesWithDetection(filepath); return true; }
+    catch { Dispose(); return false; }
+}
+```
+
+**教训**：`EncodingHandler.ReadAllLinesWithDetection(path)` 是原始 I/O 漏斗——
+任何地方传入 content URI 都会阻塞。`EraStreamReader` 是 ERA 引擎所有文件读取的
+中心入口，必须在**这一层**切换到 DirAccessor，而不是在调用方逐个修补。
+
+## SAF `ResolveSubPath` 必须大小写不敏感（Android ext4）
+
+**场景**：`ResolveSubPath(gamePath, "csv")` 用 `string.Equals(name, subDir, StringComparison.Ordinal)`
+进行大小写敏感匹配。
+
+**结果**：真实游戏目录名是 `CSV`（大写），`ResolveSubPath` 返回 fallback `gamePath`，
+`GamePaths.CsvDir` 被设为游戏根目录而非 `.../CSV` → 所有 CSV 文件查不到 → 空壳游戏。
+
+**修复**：改用 `OrdinalIgnoreCase`：
+```csharp
+if (string.Equals(name, subDir, StringComparison.OrdinalIgnoreCase))
+```
+
+**教训**：Android 文件系统（ext4/f2fs）是大小写敏感的，ERA 游戏目录命名约定不统——
+有的用 `CSV/ERB`（大写），有的用 `csv/erb`（小写）。SAF 路径下的子目录查找必须
+大小写不敏感。
+
+## Android——`NavigationPage.Navigated` 对 `file:///android_asset/` URL 不触发
+
+**场景**：在 `OnWebViewNavigated` 事件中触发自动启动内置游戏。
+
+**结果**：事件永不被触发，因为 Android 上 `file:///android_asset/wwwroot/index.html`
+的加载不走 MAUI 的 `Navigated` 事件路径。
+
+**解决**：改用 `WebView.HandlerChanged` 事件（在 `OnPageFinished` 之后的时机）触发，
+或直接在 `Page.OnAppearing` 中延迟执行。
+
+**教训**：Android `file:///android_asset/` 导航事件在 MAUI 中不可靠（`Navigated` 不触发，
+`Navigating` 也可能不触发）。需要自动触发的逻辑应放在 `HandlerChanged`（必触发）或
+`OnAppearing` 中加延迟执行。
