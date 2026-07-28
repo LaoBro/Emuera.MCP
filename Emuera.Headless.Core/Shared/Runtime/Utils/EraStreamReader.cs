@@ -51,6 +51,10 @@ internal sealed partial class EraStreamReader : IDisposable
 			_fileLines = cached;
 			return true;
 		}
+		System.Diagnostics.Debug.WriteLine($"[EraStreamReader] cache MISS: {path}");
+#if ANDROID
+		Android.Util.Log.Info("EmueraMaui", $"[ESR] MISS: {path}");
+#endif
 		// 缓存未命中：走 DirAccessor（SAF content URI 无需 ContentResolver，不抛 FileNotFoundException）
 		var dirAccessor = GamePaths.Current?.DirAccessor;
 		if (dirAccessor != null)
@@ -59,18 +63,20 @@ internal sealed partial class EraStreamReader : IDisposable
 			if (bytes != null)
 			{
 				_fileLines = EncodingHandler.ReadAllLinesFromBytes(bytes);
-				// 写入 Preload 缓存供后续使用
-				// files[path] = _fileLines; // Preload.files 是 internal，此处不可访问
+				System.Diagnostics.Debug.WriteLine($"[EraStreamReader] fallback OK: {path} ({bytes.Length} bytes)");
 				return true;
 			}
+			System.Diagnostics.Debug.WriteLine($"[EraStreamReader] fallback FAILED: {path}");
 		}
 		try
 		{
 			_fileLines = EncodingHandler.ReadAllLinesWithDetection(filepath);
+			System.Diagnostics.Debug.WriteLine($"[EraStreamReader] file I/O fallback: {path}");
 			return true;
 		}
 		catch
 		{
+			System.Diagnostics.Debug.WriteLine($"[EraStreamReader] ALL fallbacks FAILED: {path}");
 			Dispose();
 			return false;
 		}

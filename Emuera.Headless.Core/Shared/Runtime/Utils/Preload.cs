@@ -14,6 +14,9 @@ static partial class Preload
 {
     static readonly ConcurrentDictionary<string, string[]> files = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>ADR-0019：返回所有已缓存文件路径键，保证与 ErbLoader/ErhLoader 查找键一致。</summary>
+    public static IEnumerable<string> GetAllCachedKeys() => files.Keys;
+
     public static string[] GetFileLines(string path) => files[path];
 
     public static string[]? TryGetFileLines(string path)
@@ -57,6 +60,7 @@ static partial class Preload
         }
 
         Debug.WriteLine($"Load: {path} : End in {(DateTime.Now - startTime).TotalMilliseconds}ms");
+        Console.WriteLine($"[preload] {path} → {files.Count} files loaded");
     }
 
     public static async Task Load(IEnumerable<string> paths, IGameDirAccessor dirAccessor)
@@ -72,17 +76,26 @@ static partial class Preload
         try
         {
             var bytes = dirAccessor.ReadAllBytes(path);
-            if (bytes == null) return [];
-            return EncodingHandler.ReadAllLinesFromBytes(bytes);
+            if (bytes == null)
+            {
+                Console.WriteLine($"[preload] EMPTY_BYTES: {path}");
+                return [];
+            }
+            var lines = EncodingHandler.ReadAllLinesFromBytes(bytes);
+            if (lines.Length == 0)
+                Console.WriteLine($"[preload] EMPTY_LINES: {path}");
+            return lines;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             ParserMediator.Warn(string.Format(trerror.FileUsingOtherProcess.Text, path), new ScriptPosition(path, 0), 0, "");
+            Console.WriteLine($"[preload] IOERR: {path} → {ex.Message}");
             return [];
         }
         catch (Exception)
         {
             ParserMediator.Warn(trerror.AbnormalEncode.Text, new ScriptPosition(path, 0), 0, "");
+            Console.WriteLine($"[preload] ENCERR: {path}");
             return [];
         }
     }

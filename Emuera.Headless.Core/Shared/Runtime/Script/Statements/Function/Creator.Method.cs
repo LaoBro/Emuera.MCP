@@ -235,7 +235,7 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			var dir = Utils.GetValidPath(arguments[0].GetStrValue(exm));
-			if (dir == null || !Directory.Exists(dir)) return -1;
+			if (dir == null || !SafCompat.DirectoryExists(dir)) return -1;
 			var pattern = arguments.Count > 1 ? arguments[1].GetStrValue(exm) : "*";
 			var option = arguments.Count > 2
 				? (arguments[2].GetIntValue(exm) == 0 ? SearchOption.TopDirectoryOnly : SearchOption.AllDirectories)
@@ -243,7 +243,7 @@ internal static partial class FunctionMethodCreator
 			string[] files;
 			try
 			{
-				files = Directory.EnumerateFiles(dir, pattern, option).ToArray();
+				files = SafCompat.EnumerateFiles(dir, pattern, option);
 				for (int i = 0; i < files.Length; i++)
 				{
 					files[i] = Path.GetRelativePath(Program.ExeDir, files[i]);
@@ -1265,7 +1265,7 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			var filepath = Utils.GetValidPath(arguments[0].GetStrValue(exm));
-			if (filepath != null && File.Exists(filepath)) return 1;
+			if (filepath != null && SafCompat.FileExists(filepath)) return 1;
 			return 0;
 		}
 	}
@@ -6049,7 +6049,7 @@ internal static partial class FunctionMethodCreator
 					else
 						filepath = Program.ContentDir + filename;
 				}
-				if (!File.Exists(filepath))
+				if (!SafCompat.FileExists(filepath))
 					return 0;
 				#region EM_私家版_webp
 				// bmp = new Bitmap(filepath);
@@ -6996,7 +6996,7 @@ internal static partial class FunctionMethodCreator
 			//		Config.ForceCreateSavDir();
 			//	else
 			//		Config.Config.CreateSavDir();
-			//	System.IO.File.WriteAllText(filepath, savText, encoding);
+			//	System.IO.SafCompat.WriteAllText(filepath, savText, encoding);
 			//}
 			//catch { return 0; }
 			string savText = arguments[0].GetStrValue(exm), filepath;
@@ -7040,10 +7040,10 @@ internal static partial class FunctionMethodCreator
 				else
 				{
 					if (filepath.LastIndexOf('\\') >= 0)
-						Directory.CreateDirectory(filepath.Substring(0, filepath.LastIndexOf('\\')));
+						SafCompat.CreateDirectory(filepath.Substring(0, filepath.LastIndexOf('\\')));
 				}
 
-				File.WriteAllText(filepath, savText, Config.SaveEncode);
+				SafCompat.WriteAllText(filepath, savText, Config.SaveEncode);
 			}
 			catch { return 0; }
 			#endregion
@@ -7098,12 +7098,12 @@ internal static partial class FunctionMethodCreator
 			//Encoding encoding = forceUTF8 ?
 			//	Encoding.GetEncoding("UTF-8") :
 			//	Config.SaveEncode;
-			//if (!System.IO.File.Exists(filepath))
+			//if (!System.IO.SafCompat.FileExists(filepath))
 			//	return "";
 			//string ret;
 			//try
 			//{
-			//	ret = System.IO.File.ReadAllText(filepath, encoding);
+			//	ret = System.IO.SafCompat.ReadAllText(filepath, encoding);
 			//}
 			//catch { return ""; }
 			//return ret;
@@ -7130,11 +7130,11 @@ internal static partial class FunctionMethodCreator
 					return "";
 			}
 
-			if (!File.Exists(filepath))
+			if (!SafCompat.FileExists(filepath))
 				return "";
 			try
 			{
-				ret = File.ReadAllText(filepath, EncodingHandler.DetectEncoding(filepath));
+				ret = SafCompat.ReadAllText(filepath, EncodingHandler.DetectEncoding(filepath));
 			}
 			catch { return ""; }
 			//一貫性の観点で\rには死んでもらう
@@ -7220,7 +7220,7 @@ internal static partial class FunctionMethodCreator
 			Bitmap bmp = null;
 			try
 			{
-				if (!File.Exists(filepath))
+				if (!SafCompat.FileExists(filepath))
 					return 0;
 				#region EM_私家版_webp
 				// bmp = new Bitmap(filepath);
@@ -7263,7 +7263,7 @@ internal static partial class FunctionMethodCreator
 		{
 			string str = arguments[0].GetStrValue(exm);
 			string filepath = Path.GetFullPath(".\\sound\\" + str);
-			if (File.Exists(filepath))
+			if (SafCompat.FileExists(filepath))
 				return 1;
 			return 0;
 		}

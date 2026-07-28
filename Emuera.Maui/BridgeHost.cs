@@ -845,6 +845,10 @@ internal sealed class BridgeHost : IDisposable
     /// </summary>
     private void ShowFatalError(Exception ex)
     {
+#if ANDROID
+        Android.Util.Log.Error("EmueraMaui", $"FATAL: {ex}");
+#endif
+        System.Diagnostics.Debug.WriteLine($"[FATAL] {ex}");
         ShowError(ex.Message);
     }
 

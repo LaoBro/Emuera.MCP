@@ -41,14 +41,14 @@ internal partial class ParserMediator
 	//1756 Process.Load.csより移動
 	public static void LoadEraExRenameFile(string filepath)
 	{
-		if (!File.Exists(filepath))
+		if (!SafCompat.FileExists(filepath))
 		{
 			return;
 		}
 		if (RenameDic.Count > 0)
 			RenameDic.Clear();
 
-		var fileLine = File.ReadAllLines(filepath, EncodingHandler.DetectEncoding(filepath));
+		var fileLine = SafCompat.ReadAllLines(filepath);
 		ScriptPosition? pos = null;
 		Regex regex = unEscapedCommaRegex();
 		try

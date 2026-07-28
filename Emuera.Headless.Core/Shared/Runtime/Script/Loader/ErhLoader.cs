@@ -8,6 +8,7 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Sub;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
@@ -40,7 +41,9 @@ internal sealed class ErhLoader
 	/// <returns></returns>
 	public bool LoadHeaderFiles(string headerDir, bool displayReport)
 	{
-		List<KeyValuePair<string, string>> headerFiles = Config.Config.GetFiles(headerDir, "*.ERH");
+		List<KeyValuePair<string, string>>? headerFiles = GetErhFilesFromCache(headerDir);
+		if (headerFiles == null)
+			headerFiles = Config.Config.GetFiles(headerDir, "*.ERH");
 		bool noError = true;
 
 
@@ -402,5 +405,24 @@ internal sealed class ErhLoader
 		//WordCollection wc = LexicalAnalyzer.Analyse(st, LexEndWith.EoL, LexAnalyzeFlag.AllowAssignment);
 		//UserDefinedFunctionData data = UserDefinedFunctionData.Create(wc, funcs, position);
 		//idDic.AddRefMethod(UserDefinedRefMethod.Create(data));
+	}
+
+	/// <summary>ADR-0019：从 Preload 缓存获取 ERH 文件列表（SAF 路径专用）。</summary>
+	private static List<KeyValuePair<string, string>>? GetErhFilesFromCache(string dirPath)
+	{
+		if (!dirPath.StartsWith("content://", StringComparison.Ordinal)) return null;
+		var dirPrefix = dirPath.TrimEnd('/') + "/";
+		var erbFiles = Preload.GetAllCachedKeys()
+			.Where(k => k.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase)
+				&& k.EndsWith(".ERH", StringComparison.OrdinalIgnoreCase))
+			.Select(k =>
+			{
+				var relPath = k[dirPrefix.Length..];
+				return new KeyValuePair<string, string>(relPath, k);
+			})
+			.ToList();
+		if (erbFiles.Count == 0)
+			Console.WriteLine($"[ErhLoader] GetErhFilesFromCache({dirPath}) → 0 files from {Preload.GetAllCachedKeys().Count()} cached keys");
+		return erbFiles;
 	}
 }

@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
@@ -67,7 +68,9 @@ internal sealed class ErbLoader
 		var firstDir = env.DirAccessor.GetDirectories(erbDir, "*#*", Config.Config.SearchSubdirectory ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
 		List<string> loadedFiles = new List<string>();
 		#endregion
-		var erbFiles = Config.Config.GetFiles(erbDir, "*.ERB");
+		var erbFiles = GetErbFilesFromCache(erbDir);
+		if (erbFiles == null)
+			erbFiles = Config.Config.GetFiles(erbDir, "*.ERB");
 		List<string> isOnlyEvent = [];
 		noError = true;
 		var starttime = DateTime.Now;
@@ -77,7 +80,7 @@ internal sealed class ErbLoader
 			#region EE_ファイル読み込み順拡張
 			foreach (var dir in firstDir)
 			{
-				var firstErbFiles = Config.Config.GetFiles(dir, erbDir, "*.ERB");
+			var firstErbFiles = GetErbFilesFromCache(dir) ?? Config.Config.GetFiles(dir, erbDir, "*.ERB");
 				foreach (var erb in firstErbFiles)
 				{
 
@@ -148,6 +151,7 @@ internal sealed class ErbLoader
 #if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
 #endif
+			Console.WriteLine($"[ErbLoader] EXCEPTION: {e}");
 			output.PrintError(string.Format(trerror.UnexpectedErrorFrom.Text, AssemblyData.EmueraVersionText));
 			output.PrintError(e.GetType().ToString() + ":" + e.Message);
 			return false;
@@ -380,6 +384,7 @@ internal sealed class ErbLoader
 		if (!eReader.OpenOnCache(filepath, filename))
 		{
 			output.PrintError(string.Format(trerror.FailedOpenFile.Text, eReader.Filename));
+			return; // ADR-0019：文件打不开直接跳过，避免空 eReader 进入解析循环
 		}
 		var ppstate = new PPState(env, idDic);
 		LogicalLine nextLine = new NullLine();
@@ -1572,6 +1577,30 @@ internal sealed class ErbLoader
 			if (func.FunctionCode == FunctionCode.TRYCALLLIST || func.FunctionCode == FunctionCode.TRYJUMPLIST)
 				useCallForm = true;
 		}
+	}
+
+	/// <summary>ADR-0019：从 Preload 缓存获取 ERB 文件列表（SAF 路径专用，保证路径键与 EraStreamReader 查找一致）。</summary>
+	private static List<KeyValuePair<string, string>>? GetErbFilesFromCache(string dirPath)
+	{
+		var dirAccessor = GamePaths.Current?.DirAccessor;
+		if (dirAccessor == null) return null;
+		if (!dirPath.StartsWith("content://", StringComparison.Ordinal)) return null;
+		// 从 Preload 缓存拿所有文件键，按扩展名 + 目录前缀过滤
+		var dirPrefix = dirPath.TrimEnd('/') + "/";
+		var erbFiles = Preload.GetAllCachedKeys()
+			.Where(k => k.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase)
+				&& k.EndsWith(".ERB", StringComparison.OrdinalIgnoreCase))
+			.Select(k =>
+			{
+				var relPath = k[dirPrefix.Length..];
+				return new KeyValuePair<string, string>(relPath, k);
+			})
+			.ToList();
+		if (erbFiles.Count == 0)
+		{
+			Console.WriteLine($"[ErbLoader] GetErbFilesFromCache({dirPath}) → 0 files from {Preload.GetAllCachedKeys().Count()} cached keys");
+		}
+		return erbFiles;
 	}
 
 }

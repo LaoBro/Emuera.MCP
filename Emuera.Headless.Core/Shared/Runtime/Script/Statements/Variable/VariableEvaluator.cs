@@ -1786,11 +1786,11 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	/// <returns></returns>
 	public static void CreateDatFolder()
 	{
-		if (Directory.Exists(Program.DatDir))
+		if (SafCompat.DirectoryExists(Program.DatDir))
 			return;
 		try
 		{
-			Directory.CreateDirectory(Program.DatDir);
+			SafCompat.CreateDirectory(Program.DatDir);
 		}
 		catch
 		{
@@ -1806,12 +1806,12 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	public static List<string> GetDatFiles(bool charadat, string pattern)
 	{
 		List<string> files = [];
-		if (!Directory.Exists(Program.DatDir))
+		if (!SafCompat.DirectoryExists(Program.DatDir))
 			return files;
 		string searchPattern = "var_" + pattern + ".dat";
 		if (charadat)
 			searchPattern = "chara_" + pattern + ".dat";
-		string[] pathes = Directory.GetFiles(Program.DatDir, searchPattern, SearchOption.TopDirectoryOnly);
+		string[] pathes = SafCompat.GetFiles(Program.DatDir, searchPattern, SearchOption.TopDirectoryOnly);
 		foreach (string path in pathes)
 		{
 			if (!Path.GetExtension(path).Equals(".dat", StringComparison.OrdinalIgnoreCase))
@@ -1879,7 +1879,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	public EraDataResult CheckDataByFilename(string filename, EraSaveFileType type)
 	{
 		EraDataResult result = new();
-		if (!File.Exists(filename))
+		if (!SafCompat.FileExists(filename))
 		{
 			result.State = EraDataState.FILENOTFOUND;
 			result.DataMes = "----";
@@ -1970,7 +1970,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	//    EraDataReader reader = null;
 	//    try
 	//    {
-	//        if (!File.Exists(filename))
+	//        if (!SafCompat.FileExists(filename))
 	//        {
 	//            result.State = EraDataState.FILENOTFOUND;
 	//            result.DataMes = "----";
@@ -2055,7 +2055,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	{
 		string filepath = getSaveDataPathC(savename);
 		RESULT = 0;
-		if (!File.Exists(filepath))
+		if (!SafCompat.FileExists(filepath))
 			return;
 		EraBinaryDataReader bReader = null!;
 		FileStream fs = null!;
@@ -2140,7 +2140,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	{
 		string filepath = getSaveDataPathV(savename);
 		RESULT = 0;
-		if (!File.Exists(filepath))
+		if (!SafCompat.FileExists(filepath))
 			return;
 		EraBinaryDataReader bReader = null!;
 		FileStream fs = null!;
@@ -2287,7 +2287,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	public bool LoadGlobal()
 	{
 		string filepath = getSaveDataPathG();
-		if (!File.Exists(filepath))
+		if (!SafCompat.FileExists(filepath))
 			return false;
 		EraDataReader reader = null!;
 		EraBinaryDataReader bReader = null!;
@@ -2440,7 +2440,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	public bool LoadFrom(int dataIndex)
 	{
 		string filepath = getSaveDataPath(dataIndex);
-		if (!File.Exists(filepath))
+		if (!SafCompat.FileExists(filepath))
 			throw new ExeEE(trerror.NotExistPath.Text);
 
 		using var fs = new FileStream(filepath, FileMode.Open, FileAccess.Read);
@@ -2464,9 +2464,9 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	public static void DelData(int dataIndex)
 	{
 		string filepath = getSaveDataPath(dataIndex);
-		if (!File.Exists(filepath))
+		if (!SafCompat.FileExists(filepath))
 			return;
-		FileAttributes att = File.GetAttributes(filepath);
+		FileAttributes att = SafCompat.GetAttributes(filepath);
 		if ((att & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
 			throw new CodeEE(string.Format(trerror.DelReadOnlyFile.Text, filepath));
 		//{
@@ -2474,7 +2474,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		//    console.PrintError("指定されたファイル\"" + filepath + "\"は読み込み専用のため削除できません");
 		//    return;
 		//}
-		File.Delete(filepath);
+		SafCompat.Delete(filepath);
 		return;
 	}
 

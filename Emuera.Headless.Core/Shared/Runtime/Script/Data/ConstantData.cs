@@ -1779,7 +1779,7 @@ internal sealed class ConstantData
 		}
 
 		var aliasPath = Path.GetDirectoryName(csvPath) + "\\" + Path.GetFileNameWithoutExtension(csvPath) + ".als";
-		if (File.Exists(aliasPath))
+		if (SafCompat.FileExists(aliasPath))
 		{
 			loadAliases(aliasPath, targetIndex);
 		}
@@ -1788,7 +1788,7 @@ internal sealed class ConstantData
 	private void loadAliases(string aliasPath, int targetIndex)
 	{
 
-		if (!File.Exists(aliasPath))
+		if (!SafCompat.FileExists(aliasPath))
 			return;
 		if (aliases[targetIndex] == null)
 		{

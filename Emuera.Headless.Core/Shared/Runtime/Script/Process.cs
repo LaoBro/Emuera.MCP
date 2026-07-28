@@ -113,12 +113,12 @@ internal sealed partial class Process(EmueraConsole view)
 			if (Config.UseKeyMacro && !env.AnalysisMode)
 			{
 				//if (File.Exists(Program.ExeDir + "macro.txt"))
-				if (File.Exists(Program.ExeDir + "macro.txt"))
+				if (SafCompat.FileExists(env.DirAccessor.CombinePath(Program.ExeDir, "macro.txt")))
 				{
 					if (Config.DisplayReport)
 						console.PrintSystemLine(trsl.LoadingMacro.Text);
 					//KeyMacro.LoadMacroFile(Program.ExeDir + "macro.txt");
-					KeyMacro.LoadMacroFile(Program.ExeDir + "macro.txt");
+					KeyMacro.LoadMacroFile(env.DirAccessor.CombinePath(Program.ExeDir, "macro.txt"));
 				}
 			}
 			#endregion
@@ -128,11 +128,11 @@ internal sealed partial class Process(EmueraConsole view)
 			//_replace.csv読み込み
 			if (Config.UseReplaceFile && !env.AnalysisMode)
 			{
-				if (File.Exists(env.CsvDir + "_Replace.csv"))
+				if (SafCompat.FileExists(env.DirAccessor.CombinePath(env.CsvDir, "_Replace.csv")))
 				{
 					if (Config.DisplayReport)
 						console.PrintSystemLine(trsl.LoadingReplace.Text);
-					ConfigData.Current!.LoadReplaceFile(env.CsvDir + "_Replace.csv");
+					ConfigData.Current!.LoadReplaceFile(env.DirAccessor.CombinePath(env.CsvDir, "_Replace.csv"));
 					if (ParserMediator.HasWarning)
 					{
 						ParserMediator.FlushWarningList();
@@ -156,11 +156,11 @@ internal sealed partial class Process(EmueraConsole view)
 			//_rename.csv読み込み
 			if (Config.UseRenameFile)
 			{
-				if (File.Exists(env.CsvDir + "_Rename.csv"))
+				if (SafCompat.FileExists(env.DirAccessor.CombinePath(env.CsvDir, "_Rename.csv")))
 				{
 					if (Config.DisplayReport || env.AnalysisMode)
 						console.PrintSystemLine(trsl.LoadingRename.Text);
-					ParserMediator.LoadEraExRenameFile(env.CsvDir + "_Rename.csv");
+					ParserMediator.LoadEraExRenameFile(env.DirAccessor.CombinePath(env.CsvDir, "_Rename.csv"));
 				}
 				else
 					console.PrintError(trsl.MissingRename.Text);
