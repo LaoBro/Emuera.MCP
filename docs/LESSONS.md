@@ -553,3 +553,84 @@ if (string.Equals(name, subDir, StringComparison.OrdinalIgnoreCase))
 **教训**：Android `file:///android_asset/` 导航事件在 MAUI 中不可靠（`Navigated` 不触发，
 `Navigating` 也可能不触发）。需要自动触发的逻辑应放在 `HandlerChanged`（必触发）或
 `OnAppearing` 中加延迟执行。
+
+## SAF URI——URL 编码 `%2F` 导致 `StartsWith` 前缀匹配失效
+
+**场景**：`GetErbFilesFromCache` 用 `dirPath.TrimEnd('/') + "/"` 构造前缀，
+再用 `cacheKey.StartsWith(prefix)` 过滤 Preload 缓存中的文件。
+
+**结果**：永远匹配到 0 个文件。`ResolveSubPath` 返回的 URI 中 `/` 编码为 `%2F`
+（如 `...%2FERB`），而构造的前缀用字面 `/`（`...%2FERB/`）。缓存键中的路径分隔符
+也编码为 `%2F`（如 `...%2FERB%2Ffile.ERB`），所以 `StartsWith("...%2FERB/")` 永远
+不匹配 `"...%2FERB%2Ffile.ERB"`。
+
+**解决**：不依赖目录前缀匹配。对于 SAF 路径，直接用扩展名过滤全部缓存键：
+```csharp
+var erbFiles = Preload.GetAllCachedKeys()
+    .Where(k => k.EndsWith(".ERB", StringComparison.OrdinalIgnoreCase))
+    .Select(k => new KeyValuePair<string, string>(Path.GetFileName(k), k))
+    .ToList();
+```
+
+**教训**：SAF URI 中的路径分隔符是 `%2F`（URL 编码的 `/`），不是字面 `/`。
+不要用 `TrimEnd('/')` + `"/"` 构造 SAF URI 的目录前缀，更不要用 `StartsWith`
+做目录范围过滤。如果不问目录边界，直接用扩展名匹配更可靠。
+
+## `Process.Initialize` 返回 false 时缺少异常诊断
+
+**场景**：`Process.Initialize` 返回 false，`ConsoleStateManager` 设
+`ConsoleState.Error` 状态，游戏显示"错误：未知错误"。
+
+**结果**：Exception 被 `Initialize` 的 catch 块捕获，调用 `handleException`
+输出到游戏控制台（可能被清空或覆盖），开发者在 adb 日志中看不到异常详情。
+
+**原因**：`Initialize` 的 catch 块：
+```csharp
+catch (Exception e)
+{
+    handleException(e, null!, true);
+    console.PrintSystemLine(trsl.ErhLoadingError.Text);
+    return false;
+}
+```
+`handleException` 把异常信息写入 `console`（游戏输出缓冲区），但这个缓冲区
+后续可能被 `OutputLog`/`RefreshStrings` 清空或覆盖，不会输出到 `Console.WriteLine`
+能到达的 logcat DOTNET tag。
+
+**解决**：在 catch 块中加 `Console.WriteLine` 日志：
+```csharp
+catch (Exception e)
+{
+    Console.WriteLine($"[proc] Initialize exception: {e}");
+    handleException(e, null!, true);
+    ...
+}
+```
+
+**教训**：任何在 MAUI/Android 游戏内部被 catch 的异常，默认不会出现在
+`adb logcat` 可见的日志流中。`handleException` 把错误写入游戏输出缓冲区，
+但该缓冲区可能在后续操作中被覆盖。必须显式加 `Console.WriteLine` 才能让
+异常信息出现在 logcat DOTNET tag。
+
+## 运行时脚本 `File.*` 调用是全量迁移的最后一块
+
+**场景**：`Creator.Method.cs`（10 处）和 `VariableEvaluator.cs`（26 处）
+中有大量 `File.Exists`/`Directory.Exists`/`File.ReadAllText`/`FileStream`
+等原始 System.IO 调用。初始化路径的 `File.*` 调用已迁移，但运行时脚本路径
+（ERB `GETDIR`、`EXIST`、`SAVEDATA`、`LOADDATA` 等指令）还有大量未迁移。
+
+**解决**：新增 `SafCompat` 辅助类，包装 `File.*`/`Directory.*` 调用：
+```csharp
+internal static bool FileExists(string path)
+{
+    if (!path.StartsWith("content://")) return File.Exists(path);
+    return GamePaths.Current?.DirAccessor?.FileExists(path) ?? false;
+}
+```
+在脚本函数中逐处替换。SAF 写路径（`SAVEDATA`/`FileStream`）暂不支持，
+静默跳过并打出警告。
+
+**教训**：SAF 文件读取迁移不是一次性的——它分布在初始化路径和运行时脚本路径
+两个层次。初始化路径（Preload/EraStreamReader/Loader）是核心，运行时脚本路径
+（Creator.Method/VariableEvaluator）是 ERB 脚本执行时触发的第二层。
+后者同样重要但易被忽略。
