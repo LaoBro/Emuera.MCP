@@ -4,12 +4,11 @@ import { useGameStore, mapLoadGameErrorCode } from '../stores/game';
 import {
   isMauiEnvironment,
   pickGameFolder,
+  sendBridgeUrl,
   scanGames as scanGamesBridge,
   loadGameFromPath,
 } from '../lib/mauiBridge';
 import DirectoryBrowser from './DirectoryBrowser.vue';
-import PermissionGuide from './PermissionGuide.vue';
-
 /**
  * game-library spec ID7 / ID11：MAUI 游戏列表组件——替换旧 MauiGamePicker.vue。
  *
@@ -83,8 +82,9 @@ function onChangeMainDir(): void {
     return;
   }
   if (isAndroidMaui.value) {
-    // Android：弹 DirectoryBrowser 模态框
-    showDirectoryBrowser.value = true;
+    // ADR-0019：Android 用 SAF 原生目录选择器替代手写 DirectoryBrowser
+    game.clearMauiError();
+    sendBridgeUrl('pickSafDirectory');
     return;
   }
   // 兜底——HTTP 模式或平台未识别，不应到此（App.vue 应只在 isMaui 时渲染此组件）
@@ -213,11 +213,6 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
       v-model:visible="showDirectoryBrowser"
       @confirm="onDirectoryConfirm"
       @cancel="onDirectoryCancel"
-    />
-
-    <!-- game-library spec ID6：Android 权限引导页覆盖层——未授权时阻止操作列表 -->
-    <PermissionGuide
-      v-if="isAndroidMaui && game.permissionStatus !== 'granted'"
     />
   </div>
 </template>

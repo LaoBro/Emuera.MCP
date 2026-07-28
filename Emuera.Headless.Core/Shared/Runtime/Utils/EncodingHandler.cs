@@ -20,6 +20,12 @@ public static class EncodingHandler
 	public static string[] ReadAllLinesWithDetection(string path)
 	{
 		byte[] bytes = File.ReadAllBytes(path);
+		return ReadAllLinesFromBytes(bytes);
+	}
+
+	/// <summary>ADR-0019：从字节数组检测编码并分行。</summary>
+	public static string[] ReadAllLinesFromBytes(byte[] bytes)
+	{
 		var bomEnc = DetectBomEncoding(bytes);
 		if (bomEnc != null)
 		{

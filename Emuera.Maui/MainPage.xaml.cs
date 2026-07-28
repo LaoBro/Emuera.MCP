@@ -183,9 +183,7 @@ public partial class MainPage : ContentPage
         _host = new BridgeHost(Dispatcher, _configData, _terminalSetup, _jsBridge, OnReloadGame, OnGameExited);
     }
 
-    /// <summary>
-    /// game-library spec ID10 退出游戏回调——<see cref="BridgeHost.HandleExitGame"/> 收到
-    /// <c>{"type":"exitGame"}</c> 后调此方法。
+    /// <summary>ADR-0019：防止 auto-start 被多次触发。</summary>
     /// <para>
     /// 与 <see cref="OnReloadGame"/> 的区别：
     /// <list type="bullet">
@@ -232,6 +230,9 @@ public partial class MainPage : ContentPage
     private void OnReloadGame(string gamePath)
     {
         Console.WriteLine($"[maui] OnReloadGame: {gamePath}");
+#if ANDROID
+        Android.Util.Log.Info("EmueraMaui", $"OnReloadGame: {gamePath}");
+#endif
         // 后台线程跑 IO 重型初始化——避免 UI 卡顿（加载 config / 语言文件）
         _ = Task.Run(() =>
         {
@@ -240,9 +241,24 @@ public partial class MainPage : ContentPage
             Exception? initError = null;
             try
             {
-                var paths = GamePaths.Resolve(gamePath);
+                // ADR-0019：按路径选 DirAccessor——SAF URI 用 SafGameDirAccessor，本地路径用 FileSystem
+#if ANDROID
+                var dirAccessor = (IGameDirAccessor?)(
+                    gamePath.StartsWith("content://", StringComparison.Ordinal)
+                        ? SafGameDirAccessor.Instance
+                        : new FileSystemGameDirAccessor());
+#else
+                // Windows: 不支持 SAF content URI
+                IGameDirAccessor? dirAccessor = new FileSystemGameDirAccessor();
+#endif
+                if (dirAccessor == null)
+                {
+                    initError = new InvalidOperationException("DirAccessor not available for SAF path");
+                    return;
+                }
+                var paths = GamePaths.Resolve(gamePath, dirAccessor);
                 paths.Validate(); // 校验失败抛 GamePathValidationException
-                (newConfig, newTerminal) = EmueraRuntimeInitializer.Initialize(paths);
+                (newConfig, newTerminal) = EmueraRuntimeInitializer.Initialize(paths, dirAccessor);
                 Console.WriteLine($"[maui] OnReloadGame init completed: ExeDir={paths.ExeDir}");
             }
             catch (Exception ex)

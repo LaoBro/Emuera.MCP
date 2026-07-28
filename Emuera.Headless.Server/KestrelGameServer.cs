@@ -405,7 +405,7 @@ internal sealed class KestrelGameServer : IDisposable
             GamePaths? previousPaths = GamePaths.Current;
             try
             {
-                paths = GamePaths.Resolve(gameDir);
+                paths = GamePaths.Resolve(gameDir, new FileSystemGameDirAccessor());
                 paths.Validate();
             }
             catch (GamePathValidationException ex)

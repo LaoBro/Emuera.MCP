@@ -85,9 +85,9 @@ internal sealed class GameBase
 	/// </summary>
 	/// <param name="basePath"></param>
 	/// <returns>読み込み続行するなら真、エラー終了なら偽</returns>
-	public bool LoadGameBaseCsv(string basePath)
+	public bool LoadGameBaseCsv(string basePath, IGameDirAccessor dirAccessor)
 	{
-		if (!File.Exists(basePath))
+		if (!dirAccessor.FileExists(basePath))
 		{
 			return true;
 		}

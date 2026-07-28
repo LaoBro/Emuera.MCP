@@ -41,16 +41,16 @@ public class GameScannerTests
     public void Scan_returns_empty_when_rootDir_does_not_exist()
     {
         var missing = Path.Combine(Path.GetTempPath(), "emuera-scan-missing-" + Guid.NewGuid().ToString("N"));
-        var result = GameScanner.Scan(missing);
+        var result = GameScanner.Scan(missing, new FileSystemGameDirAccessor());
         Assert.Empty(result);
     }
 
     [Fact]
     public void Scan_returns_empty_when_rootDir_is_null_or_empty()
     {
-        Assert.Empty(GameScanner.Scan(null));
-        Assert.Empty(GameScanner.Scan(""));
-        Assert.Empty(GameScanner.Scan("   "));
+        Assert.Empty(GameScanner.Scan(null, new FileSystemGameDirAccessor()));
+        Assert.Empty(GameScanner.Scan("", new FileSystemGameDirAccessor()));
+        Assert.Empty(GameScanner.Scan("   ", new FileSystemGameDirAccessor()));
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class GameScannerTests
         Directory.CreateDirectory(Path.Combine(gameDir, "csv"));
         Directory.CreateDirectory(Path.Combine(gameDir, "erb"));
 
-        var result = GameScanner.Scan(tmp.Root);
+        var result = GameScanner.Scan(tmp.Root, new FileSystemGameDirAccessor());
 
         var entry = Assert.Single(result);
         Assert.Equal("game1", entry.Name);
@@ -76,7 +76,7 @@ public class GameScannerTests
         Directory.CreateDirectory(Path.Combine(gameDir, "erb"));
         // 缺 csv/
 
-        var result = GameScanner.Scan(tmp.Root);
+        var result = GameScanner.Scan(tmp.Root, new FileSystemGameDirAccessor());
         Assert.Empty(result);
     }
 
@@ -88,7 +88,7 @@ public class GameScannerTests
         Directory.CreateDirectory(Path.Combine(gameDir, "csv"));
         // 缺 erb/
 
-        var result = GameScanner.Scan(tmp.Root);
+        var result = GameScanner.Scan(tmp.Root, new FileSystemGameDirAccessor());
         Assert.Empty(result);
     }
 
@@ -102,7 +102,7 @@ public class GameScannerTests
         File.WriteAllText(Path.Combine(gameDir, "csv"), "not a dir");
         Directory.CreateDirectory(Path.Combine(gameDir, "erb"));
 
-        var result = GameScanner.Scan(tmp.Root);
+        var result = GameScanner.Scan(tmp.Root, new FileSystemGameDirAccessor());
         Assert.Empty(result);
     }
 
@@ -114,7 +114,7 @@ public class GameScannerTests
         CreateGame(tmp.Root, "aaa-game");
         CreateGame(tmp.Root, "mid-game");
 
-        var result = GameScanner.Scan(tmp.Root);
+        var result = GameScanner.Scan(tmp.Root, new FileSystemGameDirAccessor());
 
         Assert.Equal(3, result.Count);
         Assert.Equal(new[] { "aaa-game", "mid-game", "zelda" }, result.Select(e => e.Name).ToArray());
@@ -129,7 +129,7 @@ public class GameScannerTests
         Directory.CreateDirectory(outer);
         CreateGame(outer, "nested-game"); // 直接在 outer 下创建 csv+erb
 
-        var result = GameScanner.Scan(tmp.Root);
+        var result = GameScanner.Scan(tmp.Root, new FileSystemGameDirAccessor());
         // outer 自身无 csv/erb → 不列入；nested-game 在 outer 下 → 不递归发现
         Assert.Empty(result);
     }
@@ -141,7 +141,7 @@ public class GameScannerTests
         using var tmp = new TempRoot();
         CreateGame(tmp.Root, "empty-game");
 
-        var result = GameScanner.Scan(tmp.Root);
+        var result = GameScanner.Scan(tmp.Root, new FileSystemGameDirAccessor());
         var entry = Assert.Single(result);
         Assert.Equal("empty-game", entry.Name);
     }
@@ -155,7 +155,7 @@ public class GameScannerTests
         CreateGame(tmp.Root, "游戏1");
         CreateGame(tmp.Root, "123");
 
-        var result = GameScanner.Scan(tmp.Root);
+        var result = GameScanner.Scan(tmp.Root, new FileSystemGameDirAccessor());
         Assert.Equal(3, result.Count);
     }
 
@@ -164,12 +164,12 @@ public class GameScannerTests
     [Fact]
     public void ListDirectories_returns_empty_for_null_or_empty_path()
     {
-        var r1 = DirectoryLister.ListDirectories(null);
+        var r1 = DirectoryLister.ListDirectories(null, new FileSystemGameDirAccessor());
         Assert.Equal(string.Empty, r1.CurrentPath);
         Assert.Null(r1.ParentPath);
         Assert.Empty(r1.SubDirectories);
 
-        var r2 = DirectoryLister.ListDirectories("");
+        var r2 = DirectoryLister.ListDirectories("", new FileSystemGameDirAccessor());
         Assert.Empty(r2.SubDirectories);
     }
 
@@ -178,7 +178,7 @@ public class GameScannerTests
     {
         var missing = Path.Combine(Path.GetTempPath(), "emuera-lister-missing-" + Guid.NewGuid().ToString("N"));
         // 注意：missing 的父（Path.GetTempPath）存在——parent 不为 null
-        var result = DirectoryLister.ListDirectories(missing);
+        var result = DirectoryLister.ListDirectories(missing, new FileSystemGameDirAccessor());
 
         Assert.Equal(missing, result.CurrentPath);
         Assert.Empty(result.SubDirectories);
@@ -198,7 +198,7 @@ public class GameScannerTests
         File.WriteAllText(Path.Combine(tmp.Root, "file1.txt"), "x");
         File.WriteAllText(Path.Combine(tmp.Root, "file2.txt"), "x");
 
-        var result = DirectoryLister.ListDirectories(tmp.Root);
+        var result = DirectoryLister.ListDirectories(tmp.Root, new FileSystemGameDirAccessor());
 
         Assert.Equal(tmp.Root, result.CurrentPath);
         Assert.Equal(new[] { "sub1", "sub2" }, result.SubDirectories.ToArray());
@@ -209,7 +209,7 @@ public class GameScannerTests
     {
         using var tmp = new TempRoot();
         // tmp.Root 存在但无子目录
-        var result = DirectoryLister.ListDirectories(tmp.Root);
+        var result = DirectoryLister.ListDirectories(tmp.Root, new FileSystemGameDirAccessor());
 
         Assert.Equal(tmp.Root, result.CurrentPath);
         Assert.Empty(result.SubDirectories);
@@ -225,7 +225,7 @@ public class GameScannerTests
         var sub2 = Path.Combine(sub1, "sub2");
         Directory.CreateDirectory(sub2);
 
-        var result = DirectoryLister.ListDirectories(sub2);
+        var result = DirectoryLister.ListDirectories(sub2, new FileSystemGameDirAccessor());
 
         Assert.Equal(sub2, result.CurrentPath);
         Assert.Equal(sub1, result.ParentPath);
@@ -238,7 +238,7 @@ public class GameScannerTests
         // 选用系统根——Path.GetPathRoot 得到的根路径
         var root = Path.GetPathRoot(Path.GetTempPath())!;
         // 在 Windows 上是 "C:\"，Linux 上是 "/"
-        var result = DirectoryLister.ListDirectories(root);
+        var result = DirectoryLister.ListDirectories(root, new FileSystemGameDirAccessor());
 
         Assert.Null(result.ParentPath);
     }
@@ -252,7 +252,7 @@ public class GameScannerTests
         Directory.CreateDirectory(Path.Combine(tmp.Root, "alpha"));
         Directory.CreateDirectory(Path.Combine(tmp.Root, "mid"));
 
-        var result = DirectoryLister.ListDirectories(tmp.Root);
+        var result = DirectoryLister.ListDirectories(tmp.Root, new FileSystemGameDirAccessor());
         Assert.Equal(new[] { "alpha", "mid", "zebra" }, result.SubDirectories.ToArray());
     }
 

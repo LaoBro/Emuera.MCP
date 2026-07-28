@@ -56,8 +56,8 @@ internal sealed class ConsoleStateManager
         _state._genericTimerStopwatch.Restart();
 
         Preload.Clear();
-        await Preload.Load(Program.ErbDir);
-        await Preload.Load(Program.CsvDir);
+        await Preload.Load(Program.ErbDir, GamePaths.Current.DirAccessor);
+        await Preload.Load(Program.CsvDir, GamePaths.Current.DirAccessor);
 
         logWriter?.WriteLine("File:Preload:End " + boottimeDebugStopwatch.ElapsedMilliseconds + "ms");
 
@@ -70,7 +70,10 @@ internal sealed class ConsoleStateManager
 			_ui.Focus();
 		}
 		_console.ClearDisplay();
-		var env = new LoaderEnv(Program.CsvDir, Program.ErbDir, Program.AnalysisMode, Program.AnalysisFiles, Program.DebugMode);
+		var env = new LoaderEnv(Program.CsvDir, Program.ErbDir, Program.AnalysisMode, Program.AnalysisFiles, Program.DebugMode)
+		{
+			DirAccessor = GamePaths.Current.DirAccessor
+		};
 		if (!await _state.process!.Initialize(env, logWriter))
         {
             _state.State = ConsoleState.Error;

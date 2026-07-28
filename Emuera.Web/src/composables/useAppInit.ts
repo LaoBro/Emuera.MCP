@@ -5,7 +5,6 @@ import {
   registerTurnHandler,
   registerMessageHandler,
   scanGames as scanGamesBridge,
-  checkStoragePermission as checkStoragePermissionBridge,
 } from '../lib/mauiBridge';
 
 /**
@@ -54,19 +53,10 @@ export async function initAppState(): Promise<void> {
     // 4. 用户反馈修复：不发 sendReady()——首次启动不自动加载游戏，等用户主动选目录。
     //    占位 BridgeHost 永远等不到 ready 信号，游戏循环不启动。
     //    用户选目录后 loadGameFromPath → C# OnReloadGame → Start（跳过 ready 检查）
-    // 5. game-library spec ID6：Android 平台先检查存储权限——
-    //    permissionStatus 为 'unknown' 时投递 checkPermission，C# 回复后 dispatch 到 handleMauiMessage。
-    //    权限未授权则不继续 scanGames（等用户授权后重检）。
-    //    Windows 平台不必检查，直接 scanGames。
-    if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
-      // Android MAUI：先检查权限状态
-      console.log('[useAppInit] Android MAUI: checking storage permission');
-      checkStoragePermissionBridge();
-    } else {
-      // Windows MAUI：直接扫描主目录
-      game.scanStatus = 'scanning';
-      scanGamesBridge(game.mainGameDir);
-    }
+    // ADR-0019：SAF 替代了 MANAGE_EXTERNAL_STORAGE，Android 不再需要检查存储权限。
+    // 直接扫描主目录，与 Windows 行为一致。
+    game.scanStatus = 'scanning';
+    scanGamesBridge(game.mainGameDir);
     // 6. 不走 HTTP/WS 路径
     return;
   }
@@ -204,20 +194,26 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
     return;
   }
 
-  // game-library spec ID6：Android 存储权限状态回复
-  if (type === 'permissionStatus') {
-    const granted = (m as Record<string, unknown>).granted === true;
-    console.log('[useAppInit] permissionStatus:', granted ? 'granted' : 'denied');
-    game.setPermissionStatus(granted ? 'granted' : 'denied');
-    if (granted) {
-      // 授权成功——设置默认主目录 + 开始扫描
-      if (!game.mainGameDir) {
-        game.setMainGameDir('/storage/emulated/0/emuera');
-      }
-      game.scanStatus = 'scanning';
-      scanGamesBridge(game.mainGameDir);
+  // ADR-0019：Android SAF 目录选择结果
+  if (type === 'safDirectoryPicked') {
+    if (m.cancelled === true) {
+      console.log('[useAppInit] safDirectoryPicked: user cancelled');
+      return;
     }
-    // 未授权：不 scanGames——PermissionGuide 覆盖层展示，用户操作后重检
+    if (typeof m.error === 'string') {
+      console.error('[useAppInit] safDirectoryPicked error:', m.error);
+      game.mauiError = `选择目录失败：${m.error}`;
+      return;
+    }
+    const path = m.path;
+    if (typeof path !== 'string' || !path.trim()) {
+      console.warn('[useAppInit] safDirectoryPicked: missing path');
+      return;
+    }
+    console.log('[useAppInit] safDirectoryPicked:', path);
+    game.setMainGameDir(path);
+    game.scanStatus = 'scanning';
+    scanGamesBridge(path);
     return;
   }
 

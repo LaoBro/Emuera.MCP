@@ -3,6 +3,5 @@
 	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true"></application>
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 	<uses-permission android:name="android.permission.INTERNET" />
-	<!-- game-library spec ID6: Android 11+ 需要 MANAGE_EXTERNAL_STORAGE 才能读取 /storage/emulated/0/ 下目录 -->
-	<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+	<!-- ADR-0019: MANAGE_EXTERNAL_STORAGE 已由 SAF 替代，不需要此权限 -->
 </manifest>

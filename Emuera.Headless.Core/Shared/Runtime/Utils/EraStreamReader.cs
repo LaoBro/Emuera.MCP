@@ -1,3 +1,4 @@
+using MinorShift.Emuera;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
@@ -30,26 +31,7 @@ internal sealed partial class EraStreamReader : IDisposable
 
 	public bool Open(string path, string name)
 	{
-		//そんなお行儀の悪いことはしていない
-		//if (disposed)
-		//    throw new ExeEE("破棄したオブジェクトを再利用しようとした");
-		//if ((reader != null) || (stream != null) || (filepath != null))
-		//    throw new ExeEE("使用中のオブジェクトを別用途に再利用しようとした");
-		filepath = path;
-		filename = name;
-		curNo = 0;
-		nextNo = 0;
-		try
-		{
-			// 决策零：合并编码检测与内容读取为单次 I/O（原 DetectEncoding + File.ReadAllLines 两遍）
-			_fileLines = EncodingHandler.ReadAllLinesWithDetection(filepath);
-		}
-		catch
-		{
-			Dispose();
-			return false;
-		}
-		return true;
+		return OpenOnCache(path, name);
 	}
 	public bool OpenOnCache(string path)
 	{
@@ -63,8 +45,35 @@ internal sealed partial class EraStreamReader : IDisposable
 		filename = name.ToString();
 		curNo = 0;
 		nextNo = 0;
-		_fileLines = Preload.GetFileLines(path);
-		return true;
+		var cached = Preload.TryGetFileLines(path);
+		if (cached != null)
+		{
+			_fileLines = cached;
+			return true;
+		}
+		// 缓存未命中：走 DirAccessor（SAF content URI 无需 ContentResolver，不抛 FileNotFoundException）
+		var dirAccessor = GamePaths.Current?.DirAccessor;
+		if (dirAccessor != null)
+		{
+			var bytes = dirAccessor.ReadAllBytes(path);
+			if (bytes != null)
+			{
+				_fileLines = EncodingHandler.ReadAllLinesFromBytes(bytes);
+				// 写入 Preload 缓存供后续使用
+				// files[path] = _fileLines; // Preload.files 是 internal，此处不可访问
+				return true;
+			}
+		}
+		try
+		{
+			_fileLines = EncodingHandler.ReadAllLinesWithDetection(filepath);
+			return true;
+		}
+		catch
+		{
+			Dispose();
+			return false;
+		}
 	}
 
 

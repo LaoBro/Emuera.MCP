@@ -378,7 +378,7 @@ internal sealed class ErhLoader
 	private void PrepareERDFileNames()
 	{
 		if (erdFileNames == null) erdFileNames = [];
-		foreach (var path in Directory.GetFiles(env.ErbDir, "*.erd", SearchOption.AllDirectories))
+		foreach (var path in env.DirAccessor.GetFiles(env.ErbDir, "*.erd", SearchOption.AllDirectories))
 		{
 			var key = Path.GetFileNameWithoutExtension(path).ToUpper();
 			if (erdFileNames.TryGetValue(key, out var list))
@@ -386,7 +386,7 @@ internal sealed class ErhLoader
 			else
 				erdFileNames[key] = [path];
 		}
-		foreach (var path in Directory.GetFiles(env.CsvDir, "*.csv", SearchOption.TopDirectoryOnly))
+		foreach (var path in env.DirAccessor.GetFiles(env.CsvDir, "*.csv", SearchOption.TopDirectoryOnly))
 		{
 			var key = Path.GetFileNameWithoutExtension(path).ToUpper();
 			if (erdFileNames.TryGetValue(key, out var list))

@@ -66,12 +66,9 @@ export function postInput(json: string): void {
   if (w.chrome?.webview) {
     w.chrome.webview.postMessage(json);
     console.log('[mauiBridge] postInput via chrome.webview:', json);
-  } else if (w.emueraBridge) {
-    w.emueraBridge.postMessage(json);
-    console.log('[mauiBridge] postInput via emueraBridge:', json);
   } else {
-    // 两者都不存在时静默 no-op——MAUI 桥接未 Attach 时 Vue 可能已加载（race），不抛错让 Vue 继续渲染
-    console.warn('[mauiBridge] postInput no bridge available (chrome.webview / emueraBridge both missing)');
+    // ADR-0019：Android 走 bridge:// URL 可靠通道，不再依赖 emueraBridge
+    sendBridgeUrl('post', json);
   }
 }
 
@@ -121,6 +118,36 @@ export function sendReady(): void {
  */
 export function pickGameFolder(): void {
   postInput(JSON.stringify({ type: 'pickFolder' }));
+}
+
+/**
+ * ADR-0019：Android SAF 原生目录选择器。
+ * C# BridgeHost 收到后调 SafGameDirAccessor.PickDirectoryAsync()。
+ * 用户选完后 C# 推 {"type":"safDirectoryPicked","path":"content://..."} 或 {"type":"safDirectoryPicked","cancelled":true}。
+ */
+export function pickSafDirectory(): void {
+  postInput(JSON.stringify({ type: 'pickSafDirectory' }));
+}
+
+/**
+ * ADR-0019：通过 bridge:// URL scheme 可靠发送 C# 命令（不依赖 emueraBridge）。
+ * 使用隐藏 iframe 触发 WebViewClient.ShouldOverrideUrlLoading。
+ *
+ * @param action 动作名（如 "pickSafDirectory"），或 "post" 表示附带 JSON 数据
+ * @param data 可选的 JSON 字符串数据（action="post" 时作为 msg 参数 URL 编码后附加）
+ */
+export function sendBridgeUrl(action: string, data?: string): void {
+  let url: string;
+  if (data) {
+    url = `bridge://post?msg=${encodeURIComponent(data)}`;
+  } else {
+    url = `bridge://${action}`;
+  }
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = url;
+  document.body.appendChild(iframe);
+  setTimeout(() => document.body.removeChild(iframe), 500);
 }
 
 /**
@@ -246,32 +273,4 @@ export function exitGame(): void {
   postInput(JSON.stringify({ type: 'exitGame' }));
 }
 
-// ---------- game-library spec ID6：Android 存储权限 ----------
-
-/**
- * game-library spec ID6：请求 C# 检查 Android MANAGE_EXTERNAL_STORAGE 权限状态。
- *
- * Vue 端 MAUI Android 首启动时调用。C# `BridgeHost.HandleCheckPermission` 收到后：
- * 1. 检查 `Android.OS.Environment.IsExternalStorageManager`
- * 2. 回复 `{"type":"permissionStatus","granted":true/false}`
- *
- * 非 Android 平台（Windows）C# 自动回复 granted=true。
- */
-export function checkStoragePermission(): void {
-  postInput(JSON.stringify({ type: 'checkPermission' }));
-}
-
-/**
- * game-library spec ID6：请求 C# 引导用户授权 MANAGE_EXTERNAL_STORAGE。
- *
- * C# `BridgeHost.HandleRequestPermission` 收到后：
- * 1. 启动 Intent: `Settings.ActionManageAppAllFilesPermission` +
- *    `Intent.SetData(Android.Net.Uri.FromParts("package", PackageName, null))`
- * 2. 不回复消息——用户跳转系统设置后，返回时由 `OnResume` 或 Vue 端「已授权，重新扫描」按钮
- *    重新投递 `checkPermission`。
- *
- * 非 Android 平台 no-op。
- */
-export function requestStoragePermission(): void {
-  postInput(JSON.stringify({ type: 'requestPermission' }));
-}
+// ---------- game-library spec ID8：Android 目录浏览器 ----------

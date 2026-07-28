@@ -50,6 +50,6 @@ static class Program
     static Program()
     {
         if (GamePaths.Current is null)
-            GamePaths.Resolve(null);
+            GamePaths.Resolve(null, new FileSystemGameDirAccessor());
     }
 }

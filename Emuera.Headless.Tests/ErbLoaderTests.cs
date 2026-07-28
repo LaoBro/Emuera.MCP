@@ -113,7 +113,7 @@ public class ErbLoaderTests
 
 		// 自定义 AnalysisMode = true 的 LoaderEnv
 		var analysisEnv = new LoaderEnv(h.CsvDir, h.ErbDir, analysisMode: true,
-			analysisFiles: new List<string>(), debugMode: false);
+			analysisFiles: new List<string>(), debugMode: false) { DirAccessor = new FileSystemGameDirAccessor() };
 		var spy = new List<LogicalLine?>();
 		var loader = new ErbLoader(h.Console, h.Exm, h.IdDic, analysisEnv, line => spy.Add(line));
 		var labelDic = new LabelDictionary();

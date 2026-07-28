@@ -205,8 +205,8 @@ internal sealed partial class Process(EmueraConsole view)
 
 	public async Task ReloadErb()
 	{
-		await Preload.Load(Program.ErbDir);
-		await Preload.Load(Program.CsvDir);
+		await Preload.Load(Program.ErbDir, GamePaths.Current.DirAccessor);
+		await Preload.Load(Program.CsvDir, GamePaths.Current.DirAccessor);
 		saveCurrentState(false);
 		state.SystemState = SystemStateCode.System_Reloaderb;
 		// ADR-0012：ErbLoader F2 构造注入，不再传 Process。复用 _loaderEnv。
@@ -219,7 +219,7 @@ internal sealed partial class Process(EmueraConsole view)
 	{
 		saveCurrentState(false);
 		state.SystemState = SystemStateCode.System_Reloaderb;
-		await Preload.Load(paths);
+		await Preload.Load(paths, GamePaths.Current.DirAccessor);
 		var loader = new ErbLoader(console, exm, idDic, _loaderEnv, line => scaningLine = line);
 		await loader.LoadErbList(paths, labelDic);
 		console.ReadAnyKey();
@@ -506,7 +506,9 @@ internal sealed partial class Process(EmueraConsole view)
 		string extents = position!.Value.Filename[^4..].ToLower();
 		if (extents != ".erb" && extents != ".csv")
 			return "";
-		string fullPath = (extents == ".csv" ? Program.CsvDir : Program.ErbDir) + position!.Value.Filename;
+		string fullPath = GamePaths.Current.DirAccessor.CombinePath(
+			extents == ".csv" ? Program.CsvDir : Program.ErbDir,
+			position!.Value.Filename);
 		string[]? lines = Preload.TryGetFileLines(fullPath);
 		int lineNo = position!.Value.LineNo;
 		return lines != null && lineNo > 0 && lineNo <= lines.Length
@@ -571,7 +573,8 @@ internal sealed partial class Process(EmueraConsole view)
 			LoaderEnv env, StreamWriter? logWriter, Stopwatch stopWatch)
 		{
 			logWriter?.WriteLine($"Proc:Init:MainCSV:Start {stopWatch.ElapsedMilliseconds}ms");
-			if (!await Task.Run(() => gamebase.LoadGameBaseCsv(env.CsvDir + "GAMEBASE.CSV")))
+			if (!await Task.Run(() => gamebase.LoadGameBaseCsv(
+				env.DirAccessor.CombinePath(env.CsvDir, "GAMEBASE.CSV"), env.DirAccessor)))
 			{
 				ParserMediator.FlushWarningList();
 				console.PrintSystemLine(trsl.GamebaseError.Text);
@@ -579,7 +582,7 @@ internal sealed partial class Process(EmueraConsole view)
 			}
 			logWriter?.WriteLine($"Proc:Init:MainCSV:End {stopWatch.ElapsedMilliseconds}ms");
 
-			constantData.LoadData(env.CsvDir, console, Config.DisplayReport);
+			constantData.LoadData(env.CsvDir, env.DirAccessor, console, Config.DisplayReport);
 			return true;
 		}
 

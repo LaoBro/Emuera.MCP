@@ -15,6 +15,8 @@ internal sealed class LoaderEnv
 	public bool AnalysisMode;
 	public List<string> AnalysisFiles;
 	public bool DebugMode;
+	/// <summary>ADR-0019：游戏目录访问抽象（SAF vs 文件系统）。必传。</summary>
+	public required IGameDirAccessor DirAccessor;
 
 	public LoaderEnv(string csvDir, string erbDir, bool analysisMode, List<string> analysisFiles, bool debugMode)
 	{

@@ -125,6 +125,12 @@ internal sealed class BridgeHost : IDisposable
         // MauiBridgeIO 的 _onTurn 回调在游戏循环线程执行——Dispatcher.Dispatch 切 UI 线程投递给 WebView。
         _bridgeIO = new MauiBridgeIO(OnTurnFromGame);
         _jsBridge.InputReceived += OnInputFromJs;
+#if ANDROID
+        // ADR-0019：兜底——InputReceived 无订阅者时仍能收到 JS 消息
+        AndroidJsBridge.FallbackInputHandler = OnInputFromJs;
+        // ADR-0019：BridgeClient URL 拦截——可靠 JS→C# 备份通道
+        AndroidJsBridge.BridgeUrlReceived += OnBridgeUrl;
+#endif
     }
 
     /// <summary>
@@ -217,6 +223,18 @@ internal sealed class BridgeHost : IDisposable
     /// 到此分支说明桥接层异常，但不阻塞游戏循环。
     /// </para>
     /// </summary>
+    /// <summary>ADR-0019：BridgeClient 备用通道。</summary>
+    private void OnBridgeUrl(string data)
+    {
+        if (_disposed) return;
+        // bridge://post?msg=... → data 是已解码的 JSON 字符串
+        // bridge://pickSafDirectory → data 是简单 action 名
+        if (data.StartsWith('{'))
+            OnInputFromJs(data);
+        else
+            OnInputFromJs($"{{\"type\":\"{data}\"}}");
+    }
+
     private void OnInputFromJs(string message)
     {
         // 三通道日志：Console（dotnet run 终端）+ AgentLog（持久化文件）+ Debug.WriteLine（VS 调试器）
@@ -244,6 +262,11 @@ internal sealed class BridgeHost : IDisposable
                 if (type == "pickFolder")
                 {
                     HandlePickFolder();
+                    return;
+                }
+                if (type == "pickSafDirectory")
+                {
+                    HandlePickSafDirectory();
                     return;
                 }
                 if (type == "loadGame")
@@ -351,6 +374,85 @@ internal sealed class BridgeHost : IDisposable
     }
 
     /// <summary>
+    /// ADR-0019：处理 Vue 端 pickSafDirectory 消息——Android SAF 原生目录选择器。
+    /// 通过 <see cref="IGameDirAccessor.PickDirectoryAsync"/> 弹出系统原生目录选择器。
+    /// </summary>
+    private async void HandlePickSafDirectory()
+    {
+        Console.WriteLine("[bridge] HandlePickSafDirectory");
+        AgentLog.Instance.Write("[bridge] HandlePickSafDirectory");
+        try
+        {
+#if ANDROID
+            var dirAccessor = (IGameDirAccessor?)SafGameDirAccessor.Instance;
+#else
+            IGameDirAccessor? dirAccessor = null;
+#endif
+            if (dirAccessor == null)
+            {
+                Console.WriteLine("[bridge] HandlePickSafDirectory: no DirAccessor");
+#if ANDROID
+                var errJson = JsonSerializer.Serialize(new { type = "safDirectoryPicked", error = "DirAccessor is null — SafGameDirAccessor not initialized" });
+#else
+                var errJson = JsonSerializer.Serialize(new { type = "safDirectoryPicked", error = "SAF not supported on this platform" });
+#endif
+                _dispatcher.Dispatch(() => _jsBridge.PostMessage(errJson));
+                return;
+            }
+
+            var result = await dirAccessor.PickDirectoryAsync();
+            if (result == null)
+            {
+                var cancelJson = JsonSerializer.Serialize(new { type = "safDirectoryPicked", cancelled = true });
+                _dispatcher.Dispatch(() => _jsBridge.PostMessage(cancelJson));
+                return;
+            }
+
+            Console.WriteLine($"[bridge] HandlePickSafDirectory: picked={result}");
+            // 更新主目录 + 持久化
+            _mainGameDir = result;
+            SaveMainGameDir(result);
+
+            // 直接扫描并推送 gamesScanned——避免 JS→C# 走不可靠的 emueraBridge
+            ScanAndPushGames(result);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[bridge] HandlePickSafDirectory failed: {ex}");
+            var errJson = JsonSerializer.Serialize(new { type = "safDirectoryPicked", error = ex.Message });
+            _dispatcher.Dispatch(() => _jsBridge.PostMessage(errJson));
+        }
+    }
+
+    /// <summary>
+    /// ADR-0019：直接扫描 rootDir 并推送 gamesScanned 到 Vue。
+    /// 绕过 JS→C# scanGames 消息链（emueraBridge 不可靠）。
+    /// </summary>
+    private void ScanAndPushGames(string? rootDir)
+    {
+        var dirAccessor = rootDir != null && rootDir.StartsWith("content://", StringComparison.Ordinal)
+#if ANDROID
+            ? (IGameDirAccessor?)SafGameDirAccessor.Instance
+#else
+            ? null
+#endif
+            : GamePaths.Current?.DirAccessor;
+        bool rootDirExists = !string.IsNullOrEmpty(rootDir) &&
+            (dirAccessor?.DirectoryExists(rootDir) ?? false);
+        var games = GameScanner.Scan(rootDir, dirAccessor ?? new FileSystemGameDirAccessor());
+        var gamesPayload = games.Select(g => new { name = g.Name, fullPath = g.FullPath }).ToList();
+        var msgJson = JsonSerializer.Serialize(new
+        {
+            type = "gamesScanned",
+            games = gamesPayload,
+            rootDir,
+            rootDirExists,
+        });
+        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
+        Console.WriteLine($"[bridge] ScanAndPushGames: {gamesPayload.Count} games, rootDir={rootDir}");
+    }
+
+    /// <summary>
     /// 处理 Vue 端 scanGames 消息（game-library spec ID3 / ID4）——
     /// 扫描 rootDir 下的游戏列表并回复 <c>gamesScanned</c>。
     /// <para>
@@ -387,7 +489,7 @@ internal sealed class BridgeHost : IDisposable
         Console.WriteLine($"[bridge] HandleScanGames: rootDir={rootDir}");
         // game-library spec ID13：检查主目录是否存在——Vue 端区分「目录不存在」vs「无游戏」
         bool rootDirExists = !string.IsNullOrEmpty(rootDir) && Directory.Exists(rootDir);
-        var games = GameScanner.Scan(rootDir);
+        var games = GameScanner.Scan(rootDir, GamePaths.Current.DirAccessor);
         var gamesPayload = games.Select(g => new { name = g.Name, fullPath = g.FullPath }).ToList();
         var msgJson = JsonSerializer.Serialize(new
         {
@@ -418,7 +520,7 @@ internal sealed class BridgeHost : IDisposable
             dirPath = _mainGameDir;
 
         Console.WriteLine($"[bridge] HandleListDirectories: dirPath={dirPath}");
-        var result = DirectoryLister.ListDirectories(dirPath);
+        var result = DirectoryLister.ListDirectories(dirPath, GamePaths.Current.DirAccessor);
         var msgJson = JsonSerializer.Serialize(new
         {
             type = "directoriesListed",
@@ -488,23 +590,9 @@ internal sealed class BridgeHost : IDisposable
     {
         bool granted;
 #if ANDROID
-        try
-        {
-            if (OperatingSystem.IsAndroidVersionAtLeast(30))
-            {
-                granted = Android.OS.Environment.IsExternalStorageManager;
-            }
-            else
-            {
-                // API < 30 无 MANAGE_EXTERNAL_STORAGE 概念，默认视为已授权（传统存储模式）
-                granted = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[bridge] HandleCheckPermission error: {ex.Message}");
-            granted = false;
-        }
+        // ADR-0019：SAF 替代了 MANAGE_EXTERNAL_STORAGE，不需要存储权限。
+        // 始终返 granted=true，让 Vue 跳过 PermissionGuide 直接进入游戏列表。
+        granted = true;
 #else
         // Windows MAUI 不检查 Android 权限——默认视为已授权
         granted = true;
@@ -534,38 +622,10 @@ internal sealed class BridgeHost : IDisposable
     /// </summary>
     private void HandleRequestPermission()
     {
-#if ANDROID
-        try
-        {
-            var context = Android.App.Application.Context;
-            Android.Content.Intent intent;
-
-            if (OperatingSystem.IsAndroidVersionAtLeast(30))
-            {
-                intent = new Android.Content.Intent(
-                    "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION");
-            }
-            else
-            {
-                intent = new Android.Content.Intent(
-                    Android.Provider.Settings.ActionApplicationDetailsSettings);
-            }
-
-            intent.SetData(Android.Net.Uri.FromParts("package", context.PackageName, null));
-            intent.AddFlags(Android.Content.ActivityFlags.NewTask);
-            context.StartActivity(intent);
-            Console.WriteLine("[bridge] HandleRequestPermission: launched settings intent");
-            AgentLog.Instance.Write("[bridge] HandleRequestPermission: launched settings intent");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[bridge] HandleRequestPermission failed: {ex.Message}");
-            AgentLog.Instance.Write($"[bridge] HandleRequestPermission failed: {ex.Message}");
-        }
-#else
-        Console.WriteLine("[bridge] HandleRequestPermission: no-op (non-Android platform)");
-        AgentLog.Instance.Write("[bridge] HandleRequestPermission: no-op (non-Android platform)");
-#endif
+        // ADR-0019：SAF 替代了 MANAGE_EXTERNAL_STORAGE，不需要跳转系统设置。
+        // 此方法保留为空操作——Vue 因 permissionStatus 永远 granted 已不会调用。
+        Console.WriteLine("[bridge] HandleRequestPermission: no-op (SAF replaces MANAGE_EXTERNAL_STORAGE)");
+        AgentLog.Instance.Write("[bridge] HandleRequestPermission: no-op (SAF replaces MANAGE_EXTERNAL_STORAGE)");
     }
 
     /// <summary>

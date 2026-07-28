@@ -64,7 +64,7 @@ internal sealed class ErbLoader
 		labelDic = labelDictionary;
 		labelDic.Initialized = false;
 		#region EE_ファイル読み込み順拡張
-		var firstDir = Directory.GetDirectories(erbDir, "*#*", Config.Config.SearchSubdirectory ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
+		var firstDir = env.DirAccessor.GetDirectories(erbDir, "*#*", Config.Config.SearchSubdirectory ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
 		List<string> loadedFiles = new List<string>();
 		#endregion
 		var erbFiles = Config.Config.GetFiles(erbDir, "*.ERB");

@@ -58,9 +58,9 @@ internal sealed class LoaderTestHarness : IDisposable
 		Directory.CreateDirectory(ErbDir);
 
 		// GamePaths.Resolve 使 Program.CsvDir/ErbDir 指向临时目录。
-		// 注意：Program 的静态构造器（首次触达 Program.* 时运行）会 GamePaths.Resolve(null) 重置为默认，
+		// 注意：Program 的静态构造器（首次触达 Program.* 时运行）会 GamePaths.Resolve(null, new FileSystemGameDirAccessor()) 重置为默认，
 		// 故此处先调一次（触发 EmueraConsole 构造可能间接触发 Program 静态 ctor），再在 InitializeAsync 内重调一次确保生效。
-		GamePaths.Resolve(TempRoot);
+		GamePaths.Resolve(TempRoot, new FileSystemGameDirAccessor());
 
 		// Config scope 在测试方法的 async 流内开启——AsyncLocal 才能下渗到后续 await Task.Run。
 		_scope = GlobalStatic.OpenScope(new ConfigData());
@@ -69,20 +69,20 @@ internal sealed class LoaderTestHarness : IDisposable
 		var ui = new HeadlessConsole();
 		Console = new EmueraConsole(ui, new NullTerminalSetup());
 		// EmueraConsole 构造可能触发 Program 静态 ctor（重置 GamePaths），故再 Resolve 一次。
-		GamePaths.Resolve(TempRoot);
+		GamePaths.Resolve(TempRoot, new FileSystemGameDirAccessor());
 		// 复刻 ConsoleStateManager.Initialize 的 Process 装配段（不走其 RunEmueraProgram）：
 		Process = new Process(Console);
 		GlobalStatic.Console = Console;
 		GlobalStatic.Process = Process;
 
-		Env = new LoaderEnv(CsvDir, ErbDir, analysisMode: false, analysisFiles: new List<string>(), debugMode: false);
+		Env = new LoaderEnv(CsvDir, ErbDir, analysisMode: false, analysisFiles: new List<string>(), debugMode: false) { DirAccessor = new FileSystemGameDirAccessor() };
 	}
 
 	/// <summary>启动引擎（空目录 Initialize），使 Process 的引擎字段与 GlobalStatic 上下文就绪。须在构造器之后 await。</summary>
 	public async Task InitializeAsync()
 	{
 		// Program 静态 ctor 可能在此前的任意 Program.* 触达时已重置 GamePaths；进入 Initialize 前最终确认。
-		GamePaths.Resolve(TempRoot);
+		GamePaths.Resolve(TempRoot, new FileSystemGameDirAccessor());
 		// Preload.Clear 复刻 ConsoleStateManager.Initialize 的清理——避免跨测试 stale 缓存。
 		Preload.Clear();
 		var ok = await Process.Initialize(Env, null);
@@ -113,8 +113,8 @@ internal sealed class LoaderTestHarness : IDisposable
 	/// </summary>
 	public async Task PreloadAsync()
 	{
-		await Preload.Load(ErbDir);
-		await Preload.Load(CsvDir);
+		await Preload.Load(ErbDir, new FileSystemGameDirAccessor());
+		await Preload.Load(CsvDir, new FileSystemGameDirAccessor());
 	}
 
 	/// <summary>

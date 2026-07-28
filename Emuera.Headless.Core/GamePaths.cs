@@ -15,23 +15,42 @@ internal sealed class GamePaths
     public string ContentDir { get; }
     public string SoundDir { get; }
     public string FontDir { get; }
+    /// <summary>ADR-0019：游戏目录访问抽象。必传——调用方负责注入平台实现。</summary>
+    public IGameDirAccessor DirAccessor { get; set; } = null!;
 
-    private GamePaths(string exeDir)
+    private GamePaths(string exeDir, IGameDirAccessor dirAccessor)
     {
-        ExeDir = Path.GetFullPath(new DirectoryInfo(exeDir).FullName + Path.DirectorySeparatorChar);
-        CsvDir = Path.Combine(ExeDir, "csv") + Path.DirectorySeparatorChar;
-        ErbDir = Path.Combine(ExeDir, "erb") + Path.DirectorySeparatorChar;
-        DebugDir = Path.Combine(ExeDir, "debug") + Path.DirectorySeparatorChar;
-        DatDir = Path.Combine(ExeDir, "dat") + Path.DirectorySeparatorChar;
-        ContentDir = Path.Combine(ExeDir, "resources") + Path.DirectorySeparatorChar;
-        SoundDir = Path.Combine(ExeDir, "sound") + Path.DirectorySeparatorChar;
-        FontDir = Path.Combine(ExeDir, "font") + Path.DirectorySeparatorChar;
+        bool isContentUri = exeDir.StartsWith("content://", StringComparison.Ordinal);
+
+        if (isContentUri)
+        {
+            ExeDir = exeDir;
+            CsvDir = dirAccessor?.ResolveSubPath(exeDir, "csv") ?? exeDir;
+            ErbDir = dirAccessor?.ResolveSubPath(exeDir, "erb") ?? exeDir;
+            DebugDir = dirAccessor?.ResolveSubPath(exeDir, "debug") ?? exeDir;
+            DatDir = dirAccessor?.ResolveSubPath(exeDir, "dat") ?? exeDir;
+            ContentDir = dirAccessor?.ResolveSubPath(exeDir, "resources") ?? exeDir;
+            SoundDir = dirAccessor?.ResolveSubPath(exeDir, "sound") ?? exeDir;
+            FontDir = dirAccessor?.ResolveSubPath(exeDir, "font") ?? exeDir;
+        }
+        else
+        {
+            ExeDir = Path.GetFullPath(new DirectoryInfo(exeDir).FullName + Path.DirectorySeparatorChar);
+            CsvDir = Path.Combine(ExeDir, "csv") + Path.DirectorySeparatorChar;
+            ErbDir = Path.Combine(ExeDir, "erb") + Path.DirectorySeparatorChar;
+            DebugDir = Path.Combine(ExeDir, "debug") + Path.DirectorySeparatorChar;
+            DatDir = Path.Combine(ExeDir, "dat") + Path.DirectorySeparatorChar;
+            ContentDir = Path.Combine(ExeDir, "resources") + Path.DirectorySeparatorChar;
+            SoundDir = Path.Combine(ExeDir, "sound") + Path.DirectorySeparatorChar;
+            FontDir = Path.Combine(ExeDir, "font") + Path.DirectorySeparatorChar;
+        }
     }
 
-    public static GamePaths Resolve(string? exeDirArg)
+    public static GamePaths Resolve(string? exeDirArg, IGameDirAccessor dirAccessor)
     {
         var baseDirectory = exeDirArg ?? DetectDefault();
-        var paths = new GamePaths(baseDirectory);
+        var paths = new GamePaths(baseDirectory, dirAccessor);
+        paths.DirAccessor = dirAccessor;
         Current = paths;
         return paths;
     }
@@ -60,12 +79,25 @@ internal sealed class GamePaths
     /// </summary>
     public void Validate()
     {
-        if (!Directory.Exists(ExeDir))
-            throw new GamePathValidationException("DIR_NOT_FOUND", $"目录不存在: {ExeDir}");
-        if (!Directory.Exists(CsvDir))
-            throw new GamePathValidationException("MISSING_CSV", $"缺少 csv 目录: {CsvDir}");
-        if (!Directory.Exists(ErbDir))
-            throw new GamePathValidationException("MISSING_ERB", $"缺少 erb 目录: {ErbDir}");
+        var isContentUri = ExeDir.StartsWith("content://", StringComparison.Ordinal);
+        if (isContentUri)
+        {
+            if (!DirAccessor.DirectoryExists(ExeDir))
+                throw new GamePathValidationException("DIR_NOT_FOUND", $"目录不存在: {ExeDir}");
+            if (!DirAccessor.DirectoryExists(CsvDir))
+                throw new GamePathValidationException("MISSING_CSV", $"缺少 csv 目录: {CsvDir}");
+            if (!DirAccessor.DirectoryExists(ErbDir))
+                throw new GamePathValidationException("MISSING_ERB", $"缺少 erb 目录: {ErbDir}");
+        }
+        else
+        {
+            if (!Directory.Exists(ExeDir))
+                throw new GamePathValidationException("DIR_NOT_FOUND", $"目录不存在: {ExeDir}");
+            if (!Directory.Exists(CsvDir))
+                throw new GamePathValidationException("MISSING_CSV", $"缺少 csv 目录: {CsvDir}");
+            if (!Directory.Exists(ErbDir))
+                throw new GamePathValidationException("MISSING_ERB", $"缺少 erb 目录: {ErbDir}");
+        }
     }
 }
 

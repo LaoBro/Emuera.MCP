@@ -22,7 +22,7 @@ public class GamePathsTests
     public void Validate_passes_when_csv_and_erb_exist()
     {
         using var tmp = new TempGameDir();
-        var paths = GamePaths.Resolve(tmp.Root);
+        var paths = GamePaths.Resolve(tmp.Root, new FileSystemGameDirAccessor());
         paths.Validate(); // 不抛异常即通过
     }
 
@@ -31,7 +31,7 @@ public class GamePathsTests
     {
         // 选一个保证不存在的路径——Path.GetTempPath + 不存在的 GUID 子目录
         var missing = Path.Combine(Path.GetTempPath(), "emuera-missing-" + Guid.NewGuid().ToString("N"));
-        var paths = GamePaths.Resolve(missing);
+        var paths = GamePaths.Resolve(missing, new FileSystemGameDirAccessor());
 
         var ex = Assert.Throws<GamePathValidationException>(() => paths.Validate());
         Assert.Equal("DIR_NOT_FOUND", ex.Code);
@@ -42,7 +42,7 @@ public class GamePathsTests
     public void Validate_throws_MISSING_CSV_when_csv_dir_absent()
     {
         using var tmp = new TempGameDir(createCsv: false, createErb: true);
-        var paths = GamePaths.Resolve(tmp.Root);
+        var paths = GamePaths.Resolve(tmp.Root, new FileSystemGameDirAccessor());
 
         var ex = Assert.Throws<GamePathValidationException>(() => paths.Validate());
         Assert.Equal("MISSING_CSV", ex.Code);
@@ -53,7 +53,7 @@ public class GamePathsTests
     public void Validate_throws_MISSING_ERB_when_erb_dir_absent()
     {
         using var tmp = new TempGameDir(createCsv: true, createErb: false);
-        var paths = GamePaths.Resolve(tmp.Root);
+        var paths = GamePaths.Resolve(tmp.Root, new FileSystemGameDirAccessor());
 
         var ex = Assert.Throws<GamePathValidationException>(() => paths.Validate());
         Assert.Equal("MISSING_ERB", ex.Code);

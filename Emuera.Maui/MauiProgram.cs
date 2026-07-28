@@ -76,12 +76,12 @@ public static class MauiProgram
 #if ANDROID
             Android.Util.Log.Info("EmueraMaui", $"EnsureGameDirAsync completed: gameDir={gameDir}");
 #endif
-            var paths = GamePaths.Resolve(gameDir);
+            var paths = GamePaths.Resolve(gameDir, new FileSystemGameDirAccessor());
             Console.WriteLine($"[maui] GamePaths.Resolve completed: ExeDir={paths.ExeDir}");
 #if ANDROID
             Android.Util.Log.Info("EmueraMaui", $"GamePaths.Resolve completed: ExeDir={paths.ExeDir}");
 #endif
-            var (configData, terminalSetup) = EmueraRuntimeInitializer.Initialize(paths);
+            var (configData, terminalSetup) = EmueraRuntimeInitializer.Initialize(paths, new FileSystemGameDirAccessor());
             Console.WriteLine("[maui] EmueraRuntimeInitializer.Initialize completed");
 #if ANDROID
             Android.Util.Log.Info("EmueraMaui", "EmueraRuntimeInitializer.Initialize completed");

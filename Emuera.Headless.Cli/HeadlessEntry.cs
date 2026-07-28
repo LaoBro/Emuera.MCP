@@ -32,13 +32,13 @@ internal static class HeadlessEntry
         var options = HeadlessOptions.Parse(args);
         if (options == null) return;
 
-        var paths = GamePaths.Resolve(options.ExeDir);
+        var paths = GamePaths.Resolve(options.ExeDir, new FileSystemGameDirAccessor());
 
         // Initialize 完成所有共享 bootstrap（encoding/culture/ConfigData/Lang 等）但不调 paths.Validate——
         // 这样 Validate 失败时调用方仍持有已加载的 configData + 已启用 ANSI 的 terminalSetup，
         // Server 空闲模式 fallback 复用这两者，避免 "AsyncLocal 指向已加载 config 而本地变量是空 config"
         // 的 split-brain 与 ANSI 丢失回归（重构前行为）。
-        var (configData, terminalSetup) = EmueraRuntimeInitializer.Initialize(paths);
+        var (configData, terminalSetup) = EmueraRuntimeInitializer.Initialize(paths, new FileSystemGameDirAccessor());
 
         // T-025 D1/D2：GamePaths.Validate 失败按模式分流——
         // - server 模式：降级 warn 继续（空闲启动，浏览器可打开选择器，真正的加载推迟到 /load-game）

@@ -270,7 +270,7 @@ internal sealed class Config
 			if (!RelativePath.EndsWith('\\') && !RelativePath.EndsWith('/'))
 				RelativePath += "\\";
 		}
-		string[] filepaths = Directory.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly);
+		string[] filepaths = GamePaths.Current.DirAccessor.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly);
 		if (sort)
 			Array.Sort(filepaths);
 		for (int i = 0; i < filepaths.Length; i++)
@@ -279,7 +279,7 @@ internal sealed class Config
 
 		if (!toponly)
 		{
-			string[] dirList = Directory.GetDirectories(dir, "*", SearchOption.TopDirectoryOnly);
+			string[] dirList = GamePaths.Current.DirAccessor.GetDirectories(dir);
 			if (dirList.Length > 0)
 			{
 				if (sort)

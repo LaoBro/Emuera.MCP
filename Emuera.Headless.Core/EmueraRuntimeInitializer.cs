@@ -49,9 +49,11 @@ internal static class EmueraRuntimeInitializer
     /// </para>
     /// </summary>
     /// <param name="paths">已 Resolve 的游戏路径对象（通常由调用方在调本方法前 <c>GamePaths.Resolve(exeDir)</c>）。</param>
+    /// <param name="dirAccessor">ADR-0019：游戏目录访问抽象。Windows 传 <see cref="FileSystemGameDirAccessor"/>（或 null 降级），Android 传 SAF 实现。</param>
     /// <returns>已加载配置的 <see cref="ConfigData"/> 与已启用 ANSI 的 <see cref="ITerminalSetup"/>。</returns>
-    internal static (ConfigData ConfigData, ITerminalSetup TerminalSetup) Initialize(GamePaths paths)
+    internal static (ConfigData ConfigData, ITerminalSetup TerminalSetup) Initialize(GamePaths paths, IGameDirAccessor dirAccessor)
     {
+        paths.DirAccessor = dirAccessor;
         // === encoding ===
         // RegisterProvider 让 Encoding.GetEncoding("shift-jis") 等遗留编码可用于 ERB 文件读取。
         // Console.OutputEncoding 由调用方（Cli 的 HeadlessEntry.Main）在 Parse 前设置——MAUI 无控制台，

@@ -298,16 +298,6 @@ export const useGameStore = defineStore('game', () => {
    * game-library spec ID6：Android 存储权限状态——
    * 'unknown' = 尚未检查（首启动），'granted' = 已授权 MANAGE_EXTERNAL_STORAGE，
    * 'denied' = 未授权（需展示引导页）。
-   *
-   * MAUI Android 首启动时 useAppInit 投递 checkPermission 检查权限，
-   * C# BridgeHost 回复 permissionStatus { granted: true/false }。
-   * 'granted' 时进入列表页；'denied' 时叠加 PermissionGuide.vue 引导页；
-   * 'unknown' 时展示 loading 占位（等待 C# 回复）。
-   *
-   * 非 Android 平台保持 'granted'（不展示引导页）。
-   */
-  const permissionStatus = ref<'unknown' | 'granted' | 'denied'>('unknown');
-  /**
    * T-025 D14：当前 server 状态字符串——驱动 UI 元素可见性（如「快速重开」按钮）。
    *
    * 来源：
@@ -979,14 +969,6 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * game-library spec ID6：设置 Android 存储权限状态——
-   * useAppInit 收到 C# permissionStatus 消息后调用。
-   */
-  function setPermissionStatus(status: 'unknown' | 'granted' | 'denied'): void {
-    permissionStatus.value = status;
-  }
-
-  /**
    * game-library spec ID10 / ID12：开始退出游戏流程——
    * 由 App.vue 退出按钮点击处理调用。
    *
@@ -1275,9 +1257,6 @@ export const useGameStore = defineStore('game', () => {
     setScannedGames,
     setDirectoryList,
     clearDirectoryList,
-    // game-library spec ID6：Android 存储权限状态
-    permissionStatus,
-    setPermissionStatus,
     beginExitGame,
     completeExitGame,
     // T-025 D14：快速重开 + server 状态

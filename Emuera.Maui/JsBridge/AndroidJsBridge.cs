@@ -44,8 +44,14 @@ internal sealed class AndroidJsBridge : IJsBridge
 	/// <inheritdoc />
 	public event Action<string>? InputReceived;
 
-	/// <inheritdoc />
-	public Task Attach(Microsoft.Maui.Controls.WebView webView)
+    /// <summary>ADR-0019 诊断：静态日志缓冲区，Vue 通过 scanGames/gamesScanned 回复可见。</summary>
+    internal static string? LastDiagnostic;
+
+    /// <summary>InputReceived 无订阅者时的兜底回调。</summary>
+    internal static Action<string>? FallbackInputHandler;
+
+    /// <inheritdoc />
+    public Task Attach(Microsoft.Maui.Controls.WebView webView)
 	{
 		Android.Util.Log.Info("EmueraMaui", $"AndroidJsBridge.Attach called, _attached={_attached}, Handler={(webView?.Handler != null ? webView.Handler.GetType().Name : "null")}");
 		if (_attached)
@@ -63,8 +69,11 @@ internal sealed class AndroidJsBridge : IJsBridge
 
 		_androidWebView = platformView;
 		_bridge = new Bridge(this);
-		// 注册名 "emueraBridge" 与 Vue 端 (window as any).emueraBridge.postMessage 对齐（spec ID5）。
 		platformView.AddJavascriptInterface(_bridge, "emueraBridge");
+
+		// ADR-0019：WebViewClient 拦截 bridge:// URL——可靠 JS→C# 通道，不依赖 emueraBridge
+		platformView.SetWebViewClient(new BridgeClient(this));
+
 		_attached = true;
 		Android.Util.Log.Info("EmueraMaui", "AndroidJsBridge.Attach completed: emueraBridge registered");
 		// Android WebView 无需异步初始化（AddJavascriptInterface 同步生效），直接返回 CompletedTask。
@@ -130,8 +139,47 @@ internal sealed class AndroidJsBridge : IJsBridge
 		{
 			if (!string.IsNullOrEmpty(message))
 			{
-				_owner.InputReceived?.Invoke(message);
+				var hasSub = _owner.InputReceived != null;
+				if (hasSub)
+					_owner.InputReceived!.Invoke(message);
+				else
+					FallbackInputHandler?.Invoke(message);
 			}
+		}
+	}
+
+	/// <summary>ADR-0019：bridge:// URL → Action 回调——可靠 JS→C# 通道。</summary>
+	internal static event Action<string>? BridgeUrlReceived;
+
+	private sealed class BridgeClient : WebViewClient
+	{
+		private readonly AndroidJsBridge _bridge;
+		public BridgeClient(AndroidJsBridge bridge) => _bridge = bridge;
+
+		public override bool ShouldOverrideUrlLoading(AWebView? view, IWebResourceRequest? request)
+		{
+			if (request?.Url?.Scheme == "bridge")
+			{
+				var host = request.Url.Host;
+				if (host == "post")
+				{
+					var msg = request.Url.GetQueryParameter("msg");
+					if (msg != null)
+					{
+						var json = Uri.UnescapeDataString(msg);
+						Android.Util.Log.Info("EmueraMaui", $"BridgeClient post: {json[..Math.Min(json.Length, 80)]}");
+						BridgeUrlReceived?.Invoke(json);
+						return true;
+					}
+				}
+				else
+				{
+					Android.Util.Log.Info("EmueraMaui", $"BridgeClient action: {host}");
+					BridgeUrlReceived?.Invoke(host);
+					return true;
+				}
+			}
+			return base.ShouldOverrideUrlLoading(view, request);
 		}
 	}
 }

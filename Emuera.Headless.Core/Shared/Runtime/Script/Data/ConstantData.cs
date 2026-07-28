@@ -216,9 +216,9 @@ internal sealed class ConstantData
 			CharacterStrArray2DLength[i] = (1L << 32) + 1L;
 	}
 
-	private void loadVariableSizeData(string csvPath, bool disp)
+	private void loadVariableSizeData(string csvPath, bool disp, IGameDirAccessor dirAccessor)
 	{
-		if (!File.Exists(csvPath))
+		if (!(dirAccessor?.FileExists(csvPath) ?? File.Exists(csvPath)))
 			return;
 		using var eReader = new EraStreamReader(false);
 		if (!eReader.Open(csvPath))
@@ -622,10 +622,12 @@ internal sealed class ConstantData
 	}
 
 
-	public void LoadData(string csvDir, EmueraConsole console, bool disp)
+	public void LoadData(string csvDir, IGameDirAccessor dirAccessor, EmueraConsole console, bool disp)
 	{
+		string sep1 = "【DIAG-LD】Step0";
 		output = console;
-		loadVariableSizeData(Path.Combine(csvDir, "VariableSize.CSV"), disp);
+		output.PrintError(sep1 + csvDir);
+		loadVariableSizeData(dirAccessor.CombinePath(csvDir, "VariableSize.CSV"), disp, dirAccessor);
 		for (int i = 0; i < countNameCsv; i++)
 		{
 			names[i] = new string[MaxDataList[i]];
@@ -633,38 +635,41 @@ internal sealed class ConstantData
 		}
 		ItemPrice = new long[MaxDataList[itemIndex]];
 		#region EE_ERD
-		loadDataTo(Path.Combine(csvDir, "ABL.CSV"), ablIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "EXP.CSV"), expIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "TALENT.CSV"), talentIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "PALAM.CSV"), paramIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "TRAIN.CSV"), trainIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "MARK.CSV"), markIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "ITEM.CSV"), itemIndex, ItemPrice, disp);
-		loadDataTo(Path.Combine(csvDir, "BASE.CSV"), baseIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "SOURCE.CSV"), sourceIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "EX.CSV"), exIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "STR.CSV"), strIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "EQUIP.CSV"), equipIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "TEQUIP.CSV"), tequipIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "FLAG.CSV"), flagIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "TFLAG.CSV"), tflagIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "CFLAG.CSV"), cflagIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "TCVAR.CSV"), tcvarIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "CSTR.CSV"), cstrIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "STAIN.CSV"), stainIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "CDFLAG1.CSV"), cdflag1Index, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "CDFLAG2.CSV"), cdflag2Index, null!, disp);
+		string sep2 = "【DIAG-LD】Step1 ABL", sep3 = "【DIAG-LD】Step2 EXP";
+		loadDataTo(dirAccessor.CombinePath(csvDir, "ABL.CSV"), ablIndex, null!, disp, dirAccessor);
+		output.PrintError(sep2);
+		output.PrintError(sep3);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "EXP.CSV"), expIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "TALENT.CSV"), talentIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "PALAM.CSV"), paramIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "TRAIN.CSV"), trainIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "MARK.CSV"), markIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "ITEM.CSV"), itemIndex, ItemPrice, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "BASE.CSV"), baseIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "SOURCE.CSV"), sourceIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "EX.CSV"), exIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "STR.CSV"), strIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "EQUIP.CSV"), equipIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "TEQUIP.CSV"), tequipIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "FLAG.CSV"), flagIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "TFLAG.CSV"), tflagIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "CFLAG.CSV"), cflagIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "TCVAR.CSV"), tcvarIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "CSTR.CSV"), cstrIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "STAIN.CSV"), stainIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "CDFLAG1.CSV"), cdflag1Index, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "CDFLAG2.CSV"), cdflag2Index, null!, disp, dirAccessor);
 
-		loadDataTo(Path.Combine(csvDir, "STRNAME.CSV"), strnameIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "TSTR.CSV"), tstrnameIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "SAVESTR.CSV"), savestrnameIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "GLOBAL.CSV"), globalIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "GLOBALS.CSV"), globalsIndex, null!, disp);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "STRNAME.CSV"), strnameIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "TSTR.CSV"), tstrnameIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "SAVESTR.CSV"), savestrnameIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "GLOBAL.CSV"), globalIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "GLOBALS.CSV"), globalsIndex, null!, disp, dirAccessor);
 		#endregion
 		#region EE_CSV機能拡張
-		loadDataTo(Path.Combine(csvDir, "DAY.CSV"), dayIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "TIME.CSV"), timeIndex, null!, disp);
-		loadDataTo(Path.Combine(csvDir, "MONEY.CSV"), moneyIndex, null!, disp);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "DAY.CSV"), dayIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "TIME.CSV"), timeIndex, null!, disp, dirAccessor);
+		loadDataTo(dirAccessor.CombinePath(csvDir, "MONEY.CSV"), moneyIndex, null!, disp, dirAccessor);
 		#endregion
 		//逆引き辞書を作成
 		for (int i = 0; i < names.Length; i++)
@@ -695,10 +700,12 @@ internal sealed class ConstantData
 			}
 		}
 		//if (!Program.AnalysisMode)
-		loadCharacterData(csvDir, disp);
+		string sepLast = "【DIAG-LD】StepLast loadCharacterData";
+		loadCharacterData(csvDir, dirAccessor, disp);
+		output.PrintError(sepLast);
 
 		#region EM_私家版_セーブ拡張
-		loadGlobalVarExSetting(csvDir, disp);
+		loadGlobalVarExSetting(csvDir, dirAccessor, disp);
 		#endregion
 		//逆引き辞書を作成2 (RELATION)
 		for (int i = 0; i < CharacterTmplList.Count; i++)
@@ -729,7 +736,7 @@ internal sealed class ConstantData
 		{
 			string[] nameArray = new string[varlength];
 			names[ERD_NAMES_INDEX] = nameArray;
-			loadDataTo(filepath, ERD_NAMES_INDEX, null!, disp);
+			loadDataTo(filepath, ERD_NAMES_INDEX, null!, disp, GamePaths.Current?.DirAccessor ?? new FileSystemGameDirAccessor());
 			names[ERD_NAMES_INDEX] = null!;
 			//逆引き辞書を作成
 			for (int j = 0; j < nameArray.Length; j++)
@@ -1235,9 +1242,9 @@ internal sealed class ConstantData
 	//    set { dummyChara = value; }
 	//}
 
-	private void loadCharacterData(string csvDir, bool disp)
+	private void loadCharacterData(string csvDir, IGameDirAccessor dirAccessor, bool disp)
 	{
-		if (!Directory.Exists(csvDir))
+		if (!dirAccessor.DirectoryExists(csvDir))
 			return;
 		List<KeyValuePair<string, string>> csvPaths = Config.Config.GetFiles(csvDir, "CHARA*.CSV");
 
@@ -1277,7 +1284,7 @@ internal sealed class ConstantData
 	}
 
 	#region EM_私家版_セーブ拡張
-	private void loadGlobalVarExSetting(string csvPath, bool disp)
+	private void loadGlobalVarExSetting(string csvPath, IGameDirAccessor dirAccessor, bool disp)
 	{
 		GlobalSaveXmls.Clear();
 		SaveXmls.Clear();
@@ -1285,7 +1292,7 @@ internal sealed class ConstantData
 		SaveMaps.Clear();
 		StaticMaps.Clear();
 		StaticXmls.Clear();
-		foreach (var path in Directory.GetFiles(csvPath, "VarExt*.csv", SearchOption.AllDirectories))
+		foreach (var path in dirAccessor.GetFiles(csvPath, "VarExt*.csv", SearchOption.AllDirectories))
 		{
 			using var eReader = new EraStreamReader(false);
 			if (!eReader.Open(path))
@@ -1686,10 +1693,10 @@ internal sealed class ConstantData
 		}
 	}
 
-	private void loadDataTo(string csvPath, int targetIndex, long[] targetI, bool disp)
+	private void loadDataTo(string csvPath, int targetIndex, long[] targetI, bool disp, IGameDirAccessor dirAccessor)
 	{
 
-		if (!File.Exists(csvPath))
+		if (!(dirAccessor?.FileExists(csvPath) ?? File.Exists(csvPath)))
 			return;
 		string[] target = names[targetIndex];
 		HashSet<int> defined = [];
