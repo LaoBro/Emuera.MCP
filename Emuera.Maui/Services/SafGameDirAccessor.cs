@@ -239,6 +239,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         // SAF content URI 不能用简单的字符串拼接——必须用 BuildDocumentUriUsingTree
         // 否则 content://.../dir/file.csv 会被 Android 解析为 content://.../dir（目录），
         // /file.csv 被忽略，OpenInputStream 读到目录本身 → EISDIR
+        // documentId 含 %2F 时必须用 ResolveDocId，不能用 GetDocumentId（只返回第一段）。
         if (basePath.StartsWith("content://", StringComparison.Ordinal) && _treeAndroidUri != null)
         {
             try
@@ -246,9 +247,9 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                 var baseUri = Android.Net.Uri.Parse(basePath);
                 if (baseUri != null)
                 {
-                    var docId = DocumentsContract.GetDocumentId(baseUri);
+                    var docId = ResolveDocId(baseUri);
                     var childUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, $"{docId}/{filename}");
-                    return childUri.ToString();
+                    return childUri.ToString()!;
                 }
             }
             catch
@@ -262,14 +263,11 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
 
     public string GetFileName(string path)
     {
+        // document 段内路径分隔符是 %2F：不能取 URI 最后一个 / 之后整段。
+        // 与 Core SafPath 对齐，得到逻辑短名（如 xxx.ERB）。
         try
         {
-            if (!TryParseUri(path, out var uri)) return path;
-            // 取最后一个 / 之后的部分
-            var s = uri.ToString()!;
-            var lastSlash = s.LastIndexOf('/');
-            var raw = lastSlash >= 0 ? s[(lastSlash + 1)..] : s;
-            return Uri.UnescapeDataString(raw);
+            return MinorShift.Emuera.Runtime.Utils.SafPath.GetLogicalFileName(path);
         }
         catch { return path; }
     }
@@ -325,7 +323,15 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             var mime = cursor.GetString(2);
             var childIsDir = mime == DocumentsContract.Document.MimeTypeDir;
 
-            if (childIsDir == isDir && (pattern == null || MatchWildcard(name, pattern)))
+            // 通配优先 match displayName；若 displayName 无扩展名，回退用 documentId 最后一段（部分 Provider 只给短名）
+            var nameForMatch = name;
+            if (pattern != null && !string.IsNullOrEmpty(docId) &&
+                (name == null || (pattern.Contains('.') && name.IndexOf('.') < 0)))
+            {
+                var lastSlash = docId.LastIndexOf('/');
+                nameForMatch = lastSlash >= 0 ? docId[(lastSlash + 1)..] : docId;
+            }
+            if (childIsDir == isDir && (pattern == null || MatchWildcard(nameForMatch, pattern)))
             {
                 var childDocUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, docId!);
                 result.Add(childDocUri.ToString()!);

@@ -258,9 +258,16 @@ internal sealed class Config
 	{
 		List<KeyValuePair<string, string>> retList = [];
 
+		// SAF：相对路径与短名必须走 SafPath（documentId 内 %2F），不能对 content URI 做字符串切片 / Path.GetFileName
 		string RelativePath;
 		if (string.Equals(dir, rootdir, StringComparison.OrdinalIgnoreCase))
 			RelativePath = "";
+		else if (SafPath.IsContentUri(dir) && SafPath.IsContentUri(rootdir))
+		{
+			RelativePath = SafPath.GetRelativePathFromRoot(rootdir, dir);
+			if (!string.IsNullOrEmpty(RelativePath) && !RelativePath.EndsWith('\\') && !RelativePath.EndsWith('/'))
+				RelativePath += "\\";
+		}
 		else
 		{
 			if (!dir.StartsWith(rootdir, StringComparison.OrdinalIgnoreCase))
@@ -274,8 +281,8 @@ internal sealed class Config
 		if (sort)
 			Array.Sort(filepaths);
 		for (int i = 0; i < filepaths.Length; i++)
-			if (Path.GetExtension(filepaths[i]).Length <= 4)
-				retList.Add(new KeyValuePair<string, string>(Path.Combine(RelativePath, Path.GetFileName(filepaths[i])), filepaths[i]));
+			if (Path.GetExtension(SafPath.GetLogicalFileName(filepaths[i])).Length <= 4)
+				retList.Add(new KeyValuePair<string, string>(Path.Combine(RelativePath, SafPath.GetLogicalFileName(filepaths[i])), filepaths[i]));
 
 		if (!toponly)
 		{

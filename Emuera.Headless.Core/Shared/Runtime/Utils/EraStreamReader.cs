@@ -26,7 +26,7 @@ internal sealed partial class EraStreamReader : IDisposable
 	string[] _fileLines = null!;
 	public bool Open(string path)
 	{
-		return Open(path, Path.GetFileName(path));
+		return Open(path, SafPath.GetLogicalFileName(path));
 	}
 
 	public bool Open(string path, string name)
@@ -36,7 +36,7 @@ internal sealed partial class EraStreamReader : IDisposable
 	public bool OpenOnCache(string path)
 	{
 
-		return OpenOnCache(path, Path.GetFileName(path));
+		return OpenOnCache(path, SafPath.GetLogicalFileName(path));
 	}
 
 	public bool OpenOnCache(string path, string name)

@@ -45,7 +45,9 @@ internal sealed class ConfigData
 		// Issue 12：构造时绑定当前游戏目录的 emuera.config 路径。
 		// /load-game 会先 GamePaths.Resolve(newDir) 再 new ConfigData()，
 		// 因此此处读取的是新目录；启动期 GamePaths.Current 可能已指向 --ExeDir。
-		configPath = (GamePaths.Current?.ExeDir ?? Program.ExeDir) + "emuera.config";
+		// SAF：禁止 ExeDir + "emuera.config" 字符串拼接（documentId 会粘成错误段）。
+		var exeDir = GamePaths.Current?.ExeDir ?? Program.ExeDir;
+		configPath = CombineConfigPath(exeDir, "emuera.config");
 		setDefault();
 		BuildIndex();
 	}
@@ -722,39 +724,79 @@ internal sealed class ConfigData
 	/// </summary>
 	public bool LoadConfig(string exeDir)
 	{
-		string csvDir = Path.Combine(exeDir, "csv") + Path.DirectorySeparatorChar;
-		string configPathLocal = exeDir + "emuera.config";
+		string csvDir;
+		if (SafPath.IsContentUri(exeDir))
+		{
+			var accessor = GamePaths.Current?.DirAccessor;
+			csvDir = accessor != null
+				? accessor.ResolveSubPath(exeDir, "csv")
+				: CombineConfigPath(exeDir, "csv");
+		}
+		else
+			csvDir = Path.Combine(exeDir, "csv") + Path.DirectorySeparatorChar;
+		string configPathLocal = CombineConfigPath(exeDir, "emuera.config");
 		return LoadConfigCore(configPathLocal, csvDir);
 	}
 
 	private bool LoadConfigCore(string configPathLocal, string csvDir)
 	{
-		string defaultConfigPath = csvDir + "_default.config";
-		string fixedConfigPath = csvDir + "_fixed.config";
-		if (!File.Exists(defaultConfigPath))
-			defaultConfigPath = csvDir + "default.config";
-		if (!File.Exists(fixedConfigPath))
-			fixedConfigPath = csvDir + "fixed.config";
+		string defaultConfigPath = CombineConfigPath(csvDir, "_default.config");
+		string fixedConfigPath = CombineConfigPath(csvDir, "_fixed.config");
+		if (!ConfigFileExists(defaultConfigPath))
+			defaultConfigPath = CombineConfigPath(csvDir, "default.config");
+		if (!ConfigFileExists(fixedConfigPath))
+			fixedConfigPath = CombineConfigPath(csvDir, "fixed.config");
 
-		loadConfig(defaultConfigPath, false);
-		loadConfig(configPathLocal, false);
-		loadConfig(fixedConfigPath, true);
+		bool loadedDefault = loadConfig(defaultConfigPath, false);
+		bool loadedMain = loadConfig(configPathLocal, false);
+		bool loadedFixed = loadConfig(fixedConfigPath, true);
 
 		// 候选 2 / ADR-0009：原 Config.SetConfig(this) 已坍缩——视图（Config）是薄转发层，
 		// 无副本可刷新；clamp/语言/存档目录逻辑下沉为实例方法 ApplyPostLoadEffects。
 		ApplyPostLoadEffects();
 		bool needSave = false;
 		// Issue 12：使用当前实际读取的 config 文件路径判断是否需要创建默认 config。
-		if (!File.Exists(configPathLocal))
+		// SAF：不能用 File.Exists（content URI 恒 false），否则会误判缺失并 SaveConfig。
+		if (!ConfigFileExists(configPathLocal))
 			needSave = true;
 		if (CheckUpdate())
 		{
 			GetItem(ConfigCode.LastKey).SetValue(GetConfigValue<long>(ConfigCode.LastKey));
 			needSave = true;
 		}
-		if (needSave)
+		// SAF 写路径尚未支持——不要在 content URI 上尝试创建默认 config
+		if (needSave && !SafPath.IsContentUri(configPathLocal))
 			SaveConfig();
+
+		Console.WriteLine(
+			$"[Config] LoadConfig: path={configPathLocal}, main={loadedMain}, default={loadedDefault}, fixed={loadedFixed}, " +
+			$"SystemSaveInBinary={GetConfigValue<bool>(ConfigCode.SystemSaveInBinary)}, UseERD={GetConfigValue<bool>(ConfigCode.UseERD)}");
+		Console.Out.Flush();
 		return true;
+	}
+
+	/// <summary>游戏目录下拼配置文件路径：SAF 走 DirAccessor.CombinePath，本地走字符串拼接（ExeDir 已带分隔符）。</summary>
+	private static string CombineConfigPath(string dir, string fileName)
+	{
+		if (string.IsNullOrEmpty(dir))
+			return fileName;
+		if (SafPath.IsContentUri(dir))
+		{
+			var accessor = GamePaths.Current?.DirAccessor;
+			if (accessor != null)
+				return accessor.CombinePath(dir, fileName);
+			return dir.TrimEnd('/') + "/" + fileName;
+		}
+		if (dir.EndsWith('\\') || dir.EndsWith('/'))
+			return dir + fileName;
+		return Path.Combine(dir, fileName);
+	}
+
+	private static bool ConfigFileExists(string path)
+	{
+		if (string.IsNullOrEmpty(path))
+			return false;
+		return SafCompat.FileExists(path);
 	}
 
 	#region EM_私家版_Emuera多言語化改造
@@ -918,7 +960,8 @@ internal sealed class ConfigData
 
 	private bool loadConfig(string confPath, bool fix)
 	{
-		if (!File.Exists(confPath))
+		// SAF：必须用 SafCompat / DirAccessor，File.Exists(content://) 恒 false
+		if (!ConfigFileExists(confPath))
 			return false;
 		using var eReader = new EraStreamReader(false);
 		if (!eReader.Open(confPath))

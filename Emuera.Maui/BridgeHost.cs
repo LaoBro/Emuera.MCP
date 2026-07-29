@@ -802,7 +802,9 @@ internal sealed class BridgeHost : IDisposable
                 },
                 async p =>
                 {
-                    await ((AgentJsonlProtocol)p).RunLoopAsync(enableTimeout: true, _cts.Token);
+                    Console.WriteLine("[bridge] GameLoopAsync starting RunLoopAsync");
+					await ((AgentJsonlProtocol)p).RunLoopAsync(enableTimeout: true, _cts.Token);
+					Console.WriteLine("[bridge] GameLoopAsync RunLoopAsync exited");
                 });
             Console.WriteLine("[bridge] game loop completed normally");
             AgentLog.Instance.Write("[bridge] game loop completed normally");

@@ -65,15 +65,15 @@ internal sealed class ErbLoader
 		labelDic = labelDictionary;
 		labelDic.Initialized = false;
 		#region EE_ファイル読み込み順拡張
-		var firstDir = env.DirAccessor.GetDirectories(erbDir, "*#*", Config.Config.SearchSubdirectory ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
+		var firstDir = env.DirAccessor.GetDirectories(erbDir, "*#*", Config.Config.SearchSubdirectory ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly) ?? [];
 		List<string> loadedFiles = new List<string>();
 		#endregion
-		var erbFiles = GetErbFilesFromCache(erbDir);
-		if (erbFiles == null)
-			erbFiles = Config.Config.GetFiles(erbDir, "*.ERB");
+		var erbFiles = GetErbFilesFromCache(erbDir) ?? Config.Config.GetFiles(erbDir, "*.ERB") ?? [];
 		List<string> isOnlyEvent = [];
 		noError = true;
 		var starttime = DateTime.Now;
+		Console.WriteLine($"[ErbLoader] LoadErbDir start: dir={erbDir}, files={erbFiles.Count}, firstDirs={firstDir.Length}");
+		Console.Out.Flush();
 		try
 		{
 			labelDic.RemoveAll();
@@ -151,15 +151,31 @@ internal sealed class ErbLoader
 #if !HEADLESS
 			System.Media.SystemSounds.Hand.Play();
 #endif
-			Console.WriteLine($"[ErbLoader] EXCEPTION: {e}");
+			var msg = $"[ErbLoader] EXCEPTION: {e.GetType().Name}: {e.Message}\n{e.StackTrace}";
+			Console.WriteLine(msg);
+			Console.Out.Flush();
+			Debug.WriteLine(msg);
 			output.PrintError(string.Format(trerror.UnexpectedErrorFrom.Text, AssemblyData.EmueraVersionText));
 			output.PrintError(e.GetType().ToString() + ":" + e.Message);
 			return false;
 		}
 		finally
 		{
-			setScanLine(null!);
+			// finally exception bypasses catch above and bubbles to Process.Initialize
+			try
+			{
+				setScanLine(null!);
+			}
+			catch (Exception ex)
+			{
+				var msg = $"[ErbLoader] finally exception: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
+				Console.WriteLine(msg);
+				Console.Out.Flush();
+				Debug.WriteLine(msg);
+			}
 		}
+		Console.WriteLine($"[ErbLoader] LoadErbDir done: noError={noError}, labels={labelDic?.Count ?? 0}");
+		Console.Out.Flush();
 		isOnlyEvent.Clear();
 		return noError;
 	}
@@ -1579,27 +1595,22 @@ internal sealed class ErbLoader
 		}
 	}
 
-	/// <summary>ADR-0019：从 Preload 缓存获取 ERB 文件列表（SAF 路径专用，保证路径键与 EraStreamReader 查找一致）。</summary>
+	/// <summary>ADR-0019：从 Preload 缓存获取 ERB 文件列表（SAF 路径专用）。
+	/// 用 Unescape 后的 documentId 前缀过滤（避免 raw URI 上 %2F 前缀匹配失效）；
+	/// Key = 相对 dir 的逻辑相对路径（对齐 Config.getFiles）；Value = 缓存全路径键。</summary>
 	private static List<KeyValuePair<string, string>>? GetErbFilesFromCache(string dirPath)
 	{
-		var dirAccessor = GamePaths.Current?.DirAccessor;
-		if (dirAccessor == null) return null;
-		if (!dirPath.StartsWith("content://", StringComparison.Ordinal)) return null;
-		// 从 Preload 缓存拿所有文件键，按扩展名 + 目录前缀过滤
-		var dirPrefix = dirPath.TrimEnd('/') + "/";
+		if (!SafPath.IsContentUri(dirPath)) return null;
 		var erbFiles = Preload.GetAllCachedKeys()
-			.Where(k => k.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase)
-				&& k.EndsWith(".ERB", StringComparison.OrdinalIgnoreCase))
-			.Select(k =>
-			{
-				var relPath = k[dirPrefix.Length..];
-				return new KeyValuePair<string, string>(relPath, k);
-			})
+			.Where(k => k.EndsWith(".ERB", StringComparison.OrdinalIgnoreCase)
+				&& SafPath.IsUnderRoot(dirPath, k))
+			.Select(k => new KeyValuePair<string, string>(
+				SafPath.GetRelativePathFromRoot(dirPath, k), k))
 			.ToList();
 		if (erbFiles.Count == 0)
-		{
-			Console.WriteLine($"[ErbLoader] GetErbFilesFromCache({dirPath}) → 0 files from {Preload.GetAllCachedKeys().Count()} cached keys");
-		}
+			Console.WriteLine($"[ErbLoader] GetErbFilesFromCache: 0 .ERB under root in {Preload.GetAllCachedKeys().Count()} cached keys");
+		else
+			Console.WriteLine($"[ErbLoader] GetErbFilesFromCache: {erbFiles.Count} files, firstKey={erbFiles[0].Key}");
 		return erbFiles;
 	}
 

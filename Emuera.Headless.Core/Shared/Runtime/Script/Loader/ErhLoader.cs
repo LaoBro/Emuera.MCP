@@ -44,8 +44,10 @@ internal sealed class ErhLoader
 		List<KeyValuePair<string, string>>? headerFiles = GetErhFilesFromCache(headerDir);
 		if (headerFiles == null)
 			headerFiles = Config.Config.GetFiles(headerDir, "*.ERH");
+		headerFiles ??= [];
 		bool noError = true;
-
+		Console.WriteLine("[ErhLoader] LoadHeaderFiles start: dir=" + headerDir + ", files=" + headerFiles.Count);
+		Console.Out.Flush();
 
 		dimlines = new Queue<DimLineWC>();
 		#region EE_ERD
@@ -53,6 +55,7 @@ internal sealed class ErhLoader
 		if (Config.Config.UseERD)
 			PrepareERDFileNames();
 		#endregion
+		int loadedCount = 0;
 		try
 		{
 			foreach (var (filename, file) in headerFiles)
@@ -60,10 +63,18 @@ internal sealed class ErhLoader
 				if (displayReport)
 					output.PrintSystemLine(string.Format(trsl.LoadingFile.Text, filename));
 				noError = loadHeaderFile(file, filename);
+				// 注意：if 无大括号时只能管一行。曾因诊断日志插入导致 break 无条件执行，142 个 ERH 只加载 1 个。
 				if (!noError)
+				{
+					Console.WriteLine("[ErhLoader] loadHeaderFile failed: name=" + filename + ", file=" + file);
+					Console.Out.Flush();
 					break;
+				}
+				loadedCount++;
 			}
 			//エラーが起きてる場合でも読み込めてる分だけはチェックする
+			Console.WriteLine($"[ErhLoader] ERH loaded={loadedCount}/{headerFiles.Count}, dimlines={dimlines.Count}");
+			Console.Out.Flush();
 			if (dimlines.Count > 0)
 			{
 				//&=でないと、ここで起きたエラーをキャッチできない
@@ -79,6 +90,8 @@ internal sealed class ErhLoader
 			erdFileNames = null!;
 			#endregion
 		}
+		Console.WriteLine("[ErhLoader] LoadHeaderFiles done: noError=" + noError);
+		Console.Out.Flush();
 		return noError;
 	}
 
@@ -94,6 +107,8 @@ internal sealed class ErhLoader
 
 		if (!eReader.OpenOnCache(filepath, filename))
 		{
+				Console.WriteLine("[ErhLoader] OpenOnCache FAIL: file=" + filepath + ", name=" + filename);
+				Console.Out.Flush();
 			throw new CodeEE(string.Format(trerror.FailedOpenFile.Text, eReader.Filename));
 			//return false;
 		}
@@ -381,22 +396,44 @@ internal sealed class ErhLoader
 	private void PrepareERDFileNames()
 	{
 		if (erdFileNames == null) erdFileNames = [];
+
+		void AddErdPath(string path)
+		{
+			var key = SafPath.GetLogicalFileNameWithoutExtension(path).ToUpperInvariant();
+			if (erdFileNames.TryGetValue(key, out var list))
+			{
+				if (!list.Contains(path, StringComparer.OrdinalIgnoreCase))
+					list.Add(path);
+			}
+			else
+				erdFileNames[key] = [path];
+		}
+
+		int fromCache = 0, fromEnum = 0;
+		// SAF：优先从 Preload 缓存收 .erd（避免对 displayName 做 *.erd 通配漏匹配，也避免整树二次枚举）
+		foreach (var path in Preload.GetAllCachedKeys())
+		{
+			var logical = SafPath.GetLogicalFileName(path);
+			if (!logical.EndsWith(".erd", StringComparison.OrdinalIgnoreCase))
+				continue;
+			if (!SafPath.IsUnderRoot(env.ErbDir, path))
+				continue;
+			AddErdPath(path);
+			fromCache++;
+		}
+		// 桌面 / 缓存未命中时的兜底枚举
 		foreach (var path in env.DirAccessor.GetFiles(env.ErbDir, "*.erd", SearchOption.AllDirectories))
 		{
-			var key = Path.GetFileNameWithoutExtension(path).ToUpper();
-			if (erdFileNames.TryGetValue(key, out var list))
-				list.Add(path);
-			else
-				erdFileNames[key] = [path];
+			AddErdPath(path);
+			fromEnum++;
 		}
 		foreach (var path in env.DirAccessor.GetFiles(env.CsvDir, "*.csv", SearchOption.TopDirectoryOnly))
-		{
-			var key = Path.GetFileNameWithoutExtension(path).ToUpper();
-			if (erdFileNames.TryGetValue(key, out var list))
-				list.Add(path);
-			else
-				erdFileNames[key] = [path];
-		}
+			AddErdPath(path);
+
+		// 验收日志：Android SAF 下必须能看到 hasDVAR=True
+		var sample = string.Join(", ", erdFileNames.Keys.Take(20));
+		Console.WriteLine($"[ErhLoader] PrepareERDFileNames: count={erdFileNames.Count}, hasDVAR={erdFileNames.ContainsKey("DVAR")}, fromCacheErd={fromCache}, fromEnumErd={fromEnum}, sample=[{sample}]");
+		Console.Out.Flush();
 	}
 	#endregion
 	private static void analyzeSharpFunction(CharStream st, ScriptPosition? position, bool funcs)
@@ -407,22 +444,21 @@ internal sealed class ErhLoader
 		//idDic.AddRefMethod(UserDefinedRefMethod.Create(data));
 	}
 
-	/// <summary>ADR-0019：从 Preload 缓存获取 ERH 文件列表（SAF 路径专用）。</summary>
+	/// <summary>ADR-0019：从 Preload 缓存获取 ERH 文件列表（SAF 路径专用）。
+	/// Key = 相对 dir 的逻辑相对路径；Value = 缓存全路径键（OpenOnCache 精确命中）。</summary>
 	private static List<KeyValuePair<string, string>>? GetErhFilesFromCache(string dirPath)
 	{
-		if (!dirPath.StartsWith("content://", StringComparison.Ordinal)) return null;
-		var dirPrefix = dirPath.TrimEnd('/') + "/";
-		var erbFiles = Preload.GetAllCachedKeys()
-			.Where(k => k.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase)
-				&& k.EndsWith(".ERH", StringComparison.OrdinalIgnoreCase))
-			.Select(k =>
-			{
-				var relPath = k[dirPrefix.Length..];
-				return new KeyValuePair<string, string>(relPath, k);
-			})
+		if (!SafPath.IsContentUri(dirPath)) return null;
+		var erhFiles = Preload.GetAllCachedKeys()
+			.Where(k => k.EndsWith(".ERH", StringComparison.OrdinalIgnoreCase)
+				&& SafPath.IsUnderRoot(dirPath, k))
+			.Select(k => new KeyValuePair<string, string>(
+				SafPath.GetRelativePathFromRoot(dirPath, k), k))
 			.ToList();
-		if (erbFiles.Count == 0)
-			Console.WriteLine($"[ErhLoader] GetErhFilesFromCache({dirPath}) → 0 files from {Preload.GetAllCachedKeys().Count()} cached keys");
-		return erbFiles;
+		if (erhFiles.Count == 0)
+			Console.WriteLine($"[ErhLoader] GetErhFilesFromCache: 0 .ERH under root in {Preload.GetAllCachedKeys().Count()} cached keys");
+		else
+			Console.WriteLine($"[ErhLoader] GetErhFilesFromCache: {erhFiles.Count} files, firstKey={erhFiles[0].Key}");
+		return erhFiles;
 	}
 }

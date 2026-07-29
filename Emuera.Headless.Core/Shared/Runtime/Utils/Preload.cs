@@ -29,14 +29,17 @@ static partial class Preload
     public static async Task Load(string path, IGameDirAccessor dirAccessor)
     {
         var startTime = DateTime.Now;
-        Debug.WriteLine($"Load: {path} : Start");
+        Console.WriteLine($"[preload] Load start: {path}");
 
         if (dirAccessor.DirectoryExists(path))
         {
+            Console.WriteLine($"[preload] DirExists OK: {path}");
             var allFiles = dirAccessor.GetFiles(path, "*", SearchOption.AllDirectories);
+            Console.WriteLine($"[preload] GetFiles returned {allFiles.Length} files from {path}");
             var targetFiles = allFiles.Where(f =>
             {
-                var ext = Path.GetExtension(f);
+                // SAF content URI 不能对整段 path 用 Path.GetExtension（应取逻辑短名）
+                var ext = Path.GetExtension(SafPath.GetLogicalFileName(f));
                 return ext.Equals(".csv", StringComparison.OrdinalIgnoreCase) ||
                        ext.Equals(".erb", StringComparison.OrdinalIgnoreCase) ||
                        ext.Equals(".erh", StringComparison.OrdinalIgnoreCase) ||
@@ -55,6 +58,7 @@ static partial class Preload
         }
         else
         {
+            Console.WriteLine($"[preload] DirExists FAILED: {path} → caching single entry");
             var value = ReadAllLinesViaAccessor(path, dirAccessor);
             files[path] = value;
         }
