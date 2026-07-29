@@ -564,17 +564,22 @@ if (string.Equals(name, subDir, StringComparison.OrdinalIgnoreCase))
 也编码为 `%2F`（如 `...%2FERB%2Ffile.ERB`），所以 `StartsWith("...%2FERB/")` 永远
 不匹配 `"...%2FERB%2Ffile.ERB"`。
 
-**解决**：不依赖目录前缀匹配。对于 SAF 路径，直接用扩展名过滤全部缓存键：
+**解决（初版，已过时）**：不依赖 raw URI 前缀匹配，改用扩展名过滤缓存键。  
+**后续修正**：`Path.GetFileName(contentUri)` 会得到**整段 documentId**，不能当相对路径 Key  
+（见下文「逻辑文件名 / SafPath」）。正确做法是 Unescape documentId 后做前缀比较与相对路径：
 ```csharp
+// SafPath.IsUnderRoot(dir, k) + SafPath.GetRelativePathFromRoot(dir, k)
 var erbFiles = Preload.GetAllCachedKeys()
-    .Where(k => k.EndsWith(".ERB", StringComparison.OrdinalIgnoreCase))
-    .Select(k => new KeyValuePair<string, string>(Path.GetFileName(k), k))
+    .Where(k => k.EndsWith(".ERB", StringComparison.OrdinalIgnoreCase)
+        && SafPath.IsUnderRoot(dirPath, k))
+    .Select(k => new KeyValuePair<string, string>(
+        SafPath.GetRelativePathFromRoot(dirPath, k), k))
     .ToList();
 ```
 
 **教训**：SAF URI 中的路径分隔符是 `%2F`（URL 编码的 `/`），不是字面 `/`。
 不要用 `TrimEnd('/')` + `"/"` 构造 SAF URI 的目录前缀，更不要用 `StartsWith`
-做目录范围过滤。如果不问目录边界，直接用扩展名匹配更可靠。
+做目录范围过滤。扩展名过滤只能解决「找得到文件」，**相对路径 Key 仍须走 documentId 语义**。
 
 ## `Process.Initialize` 返回 false 时缺少异常诊断
 
@@ -634,3 +639,137 @@ internal static bool FileExists(string path)
 两个层次。初始化路径（Preload/EraStreamReader/Loader）是核心，运行时脚本路径
 （Creator.Method/VariableEvaluator）是 ERB 脚本执行时触发的第二层。
 后者同样重要但易被忽略。
+
+## SAF——禁止对 content URI 使用 `Path.GetFileName*`（逻辑文件名 / SafPath）
+
+**场景（2026-07）**：TK 在 SAF 下加载后，警告路径是整段 documentId；`PrepareERDFileNames`
+用 `Path.GetFileNameWithoutExtension(path)` 作 EE_ERD 键。
+
+**结果**：
+- Win：`...\DVAR.erd` → key=`DVAR`
+- SAF：`content://.../document/...%2FDVAR.erd` → key≈**整段 URL-encoded documentId**
+- `erdFileNames.TryGetValue("DVAR")` 永远 miss；警告文件名不可读
+
+实测（.NET）：
+```text
+Path.GetFileName(contentUri)           → 整段 document 段
+Path.GetFileNameWithoutExtension(...)  → 去掉 .erd 后的整段 documentId
+Path.GetExtension(contentUri)          → 往往仍是 .erd（末尾扩展名碰巧可用，不可依赖）
+```
+
+**解决**：Core 侧 `SafPath`：
+1. 取 `/document/` 之后整段并 `Uri.UnescapeDataString` 得到 documentId  
+2. 按 `/` 取最后一段 → 逻辑短名（`DVAR.erd`）  
+3. `GetRelativePathFromRoot` 用 documentId 前缀差 → `SYSTEM\...\a.ERB`（对齐 `Config.getFiles`）  
+4. **禁止**再对完整 content URI 调用 `Path.GetFileName*` 当游戏逻辑文件名
+
+`SafGameDirAccessor.GetFileName` / `Config.getFiles` / `EraStreamReader` 默认名 / Preload 扩展名过滤
+一律走逻辑短名。
+
+**教训**：SAF 的路径分隔符活在 documentId 的 `%2F` 里，不在 URI path 的 `/` 上。
+`System.IO.Path` 按最后一个 `/` 切片，对 document URI 永远错。凡「文件名 / 相对路径 / 扩展名 /
+ERD 键」都要先解出逻辑路径。
+
+## C# 诊断日志插入 `if` 无大括号会改控制流
+
+**场景**：`ErhLoader.LoadHeaderFiles` 原代码：
+```csharp
+if (!noError)
+    break;
+```
+诊断时在 `if` 与 `break` 之间插入两行日志且**未加大括号**：
+```csharp
+if (!noError)
+    Console.WriteLine(...);  // 仅此行受 if 控制
+    Console.Out.Flush();     // 总是执行
+    break;                   // 总是执行
+```
+
+**结果**：142 个 ERH **只加载第 1 个**就退出；`noError` 仍可为 True（那一个文件成功）。
+日志显示 `files=142` 但实际只处理了 KOJO 类头文件 → `#DIM DVAR` / `#DEFINE カラー_*` 未注册 →
+ERB 阶段海量「解释できない識別子」。修好括号后：`ERH loaded=142/142, dimlines=1692`。
+
+**教训**：
+- C# 只认大括号，不认缩进；往单行 `if` 体插日志必须写成 `if (...) { log; break; }`
+- 「列表长度正确」≠「循环真的跑完」——验收要打 **实际 loaded 计数**（如 `loaded=142/142`）
+- 诊断代码与生产控制流绑在一起时，宁可用大括号块，也不要依赖「暂时只加一行」
+
+## SAF——`emuera.config` 不能用 `File.Exists` / 字符串拼接
+
+**场景**：`ConfigData` 用 `ExeDir + "emuera.config"` 与 `File.Exists(confPath)` 加载配置。
+
+**结果（Android SAF + TK）**：
+1. 字符串拼接把 `emuera.config` 粘进 documentId（缺 `%2F` 分隔）或路径对 `File.*` 无效  
+2. `File.Exists(content://...)` **恒 false** → 配置从未读入  
+3. `SystemSaveInBinary` 保持默认 **false**  
+4. 全部 `#DIM ... SAVEDATA CHARADATA` 抛 CodeEE（需二进制存档）→ `LoadHeaderFiles noError=False`
+   → `soft-return reason=ErhLoadHeaderFilesFalse`（加载「提前失败、输出变短」）
+
+Windows 同游戏正常，是因为本地 `File.Exists` 能读到 `emuera.config`。
+
+**解决**：
+- 路径：`DirAccessor.CombinePath(exeDir, "emuera.config")`（内部 `ResolveDocId`，见 CombinePath 课）  
+- 存在性：`SafCompat.FileExists` / DirAccessor，禁止对 content URI 用 `File.Exists`  
+- 缺失时不要在 content URI 上 `SaveConfig()`（写路径未支持）  
+- 验收日志：`[Config] LoadConfig: main=True, SystemSaveInBinary=True`（以**游戏目录那一次**为准；
+  启动时内置 `files/emuera` 可能先 Load 一次且 Binary=False）
+
+**教训**：配置加载与脚本加载是同一 SAF 语义问题。默认配置「看起来能跑」会在真正解析
+大游戏 `#DIM SAVEDATA` 时集中爆雷。桌面能过 ≠ Android 读到了同一份 config。
+
+## `CombinePath` 必须用 `ResolveDocId`，不能用 `GetDocumentId`
+
+**场景**：`SafGameDirAccessor.CombinePath` 一度写 `DocumentsContract.GetDocumentId(baseUri)`。
+
+**结果**：含 `%2F` 的子目录 document URI 只得到第一段 ID，拼出的子文件 URI 落在错误层级
+（与「GetDocumentId vs GetTreeDocumentId」课同一根因）。读 `emuera.config`、拼 sav 路径都会错。
+
+**解决**：与枚举/DirectoryExists 一致，一律 `ResolveDocId`（手动取 `/document/` 后整段并 Unescape）。
+
+**教训**：同一 accessor 里「有的 API 用 ResolveDocId、有的用 GetDocumentId」是隐性回归源。
+路径构造入口应只保留一种 documentId 提取方式。
+
+## 加载通了不等于可玩——`FileStream` 存档在 SAF 上必炸
+
+**场景（2026-07-30）**：TK 已进标题、开局选项正常；点「接受」触发 `@SYSTEM_AUTOSAVE`：
+```
+保存全局数据时发生错误 / SAVEDATA命令在存档时发生了意料之外的错误
+```
+
+**原因**：`VariableEvaluator.SaveGlobal` / `SaveTo` 仍：
+```csharp
+Config.CreateSavDir(); // Directory.CreateDirectory(content://…) 无效
+new FileStream(SavDir + "global.sav", FileMode.Create, FileAccess.Write); // 打不开 content URI
+```
+`SavDir` 派生自 `Program.ExeDir`（SAF 下为 content URI）。选目录权限目前只有
+`GrantReadUriPermission`，即便走 DocumentsContract 写也未接通。
+
+**状态**：已知未完成项（方案 A：App 私有目录重定向 SavDir；方案 B：完整 SAF 写 API）。  
+加载修复 **不会** 自动修好存档。
+
+**教训**：
+- 初始化只读路径与运行时写路径是两层；只测到标题会漏掉自动存档  
+- `SafCompat` 对写「静默跳过」与 `SaveGlobal` catch 转 CodeEE 表现不同——用户看到的是硬错误  
+- 验收清单应含：标题 → 开局接受/自动存档 → 继续遊戲读档
+
+## 诊断推进会「揭开」下一层失败，勿误判为回归
+
+**场景**：修掉「只加载 1 个 ERH」后，游戏输出突然变短，出现大量
+「バイナリ型セーブ」必須警告，并 `ErhLoadHeaderFilesFalse`。
+
+**原因**：以前几乎没跑 `#DIM`；全量 1692 条 dim 后才触发「未读到 SystemSaveInBinary」的真实错误。
+再修 config 后标题通；再点接受才暴露 FileStream 存档。
+
+**教训**：分层推进时，下一层失败是**进度**，不是「越修越坏」。用阶段日志区分：
+`ERH loaded` / `Config SystemSaveInBinary` / `Initialize OK` / 运行时 SAVEDATA。
+过时 handoff（如「Initialize false 主因」）必须显式作废，避免下一会话退回旧假设。
+
+## adb logcat 中文路径乱码 ≠ 内存中路径损坏
+
+**场景**：`firstKey=鍙ｄ伉\...KOJO_K4.ERH` 一类 mojibake；同时游戏已成功加载上千 ERB。
+
+**原因**：logcat / PowerShell 控制台编码与进程内 UTF-16 字符串不一致。  
+真正坏路径通常伴随 `OpenOnCache FAIL`、0 files、或 `hasDVAR` 类逻辑键错误。
+
+**教训**：优先信**结构化验收字段**（`loaded=142/142`、`hasDVAR`、`SystemSaveInBinary`、
+相对路径警告是否为 `SYSTEM\...`），不要仅凭 adb 中文乱码判定文件名损坏。
