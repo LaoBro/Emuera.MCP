@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Reflection;
+using System.Text;
+using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
@@ -83,6 +85,31 @@ public sealed class SafStage3CompatibilityTests
 		Assert.True(accessor.FileExists(generated));
 		Assert.Contains("<name>日本語</name>",
 			System.Text.Encoding.UTF8.GetString(accessor.ReadAllBytes(generated)!));
+	}
+
+	[Fact]
+	public async Task Saf_preload_caches_erd_and_als_files()
+	{
+		var accessor = new SafCompatContentUriTests.InMemoryContentDirAccessor(Root);
+		using var scope = new GamePathsScope(Root, accessor);
+		var erbDir = SafCompat.ResolveSubPath(Root, "erb");
+		SafCompat.CreateDirectory(erbDir);
+		var erd = SafCompat.CombinePath(erbDir, "DVAR.erd");
+		var als = SafCompat.CombinePath(erbDir, "DVAR.als");
+		accessor.Seed(erd, Encoding.UTF8.GetBytes("DVAR\n"));
+		accessor.Seed(als, Encoding.UTF8.GetBytes("1,alias\n"));
+
+		Preload.Clear();
+		try
+		{
+			await Preload.Load(erbDir, accessor);
+			Assert.Contains(erd, Preload.GetAllCachedKeys());
+			Assert.Contains(als, Preload.GetAllCachedKeys());
+		}
+		finally
+		{
+			Preload.Clear();
+		}
 	}
 
 	[Fact]
