@@ -32,13 +32,25 @@ internal sealed class EraDataReader : IDisposable
 	//    file = new FileStream(filepath, FileMode.Open, FileAccess.Read);
 	//    reader = new StreamReader(file, Config.Encode);
 	//}
-	public EraDataReader(FileStream file)
+	public EraDataReader(Stream file)
 	{
-		this.file = file;
-		file.Seek(0, SeekOrigin.Begin);
-		reader = new StreamReader(file, EncodingHandler.DetectEncoding(file));
+		// SAF OpenInputStream 可能不可 Seek；缓冲到 MemoryStream 再 DetectEncoding / SeekEmuStart
+		if (!file.CanSeek)
+		{
+			var ms = new MemoryStream();
+			file.CopyTo(ms);
+			file.Dispose();
+			ms.Position = 0;
+			this.file = ms;
+		}
+		else
+		{
+			this.file = file;
+			file.Seek(0, SeekOrigin.Begin);
+		}
+		reader = new StreamReader(this.file, EncodingHandler.DetectEncoding(this.file));
 	}
-	FileStream file;
+	Stream file;
 	StreamReader reader;
 	public const string FINISHER = "__FINISHED";
 	public const string EMU_1700_START = "__EMUERA_STRAT__";
@@ -462,7 +474,7 @@ internal sealed class EraDataWriter : IDisposable
 	//    writer = new StreamWriter(file, Config.SaveEncode);
 	//    //writer = new StreamWriter(filepath, false, Config.SaveEncode);
 	//}
-	public EraDataWriter(FileStream file)
+	public EraDataWriter(Stream file)
 	{
 		this.file = file;
 		writer = new StreamWriter(file, Config.Config.SaveEncode);
@@ -471,7 +483,7 @@ internal sealed class EraDataWriter : IDisposable
 	public const string FINISHER = EraDataReader.FINISHER;
 	public const string EMU_START = EraDataReader.EMU_1808_START;
 	public const string EMU_SEPARATOR = EraDataReader.EMU_SEPARATOR;
-	FileStream file;
+	Stream file;
 	StreamWriter writer;
 	#region eramaker
 	public void Write(long integer)

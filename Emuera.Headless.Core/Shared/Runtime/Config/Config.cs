@@ -200,10 +200,10 @@ internal sealed class Config
 	/// <summary>实际可绘制宽度（derived）。</summary>
 	public static int DrawableWidth => WindowX - DrawingParam_ShapePositionShift;
 
-	/// <summary>强制存档目录（derived，常量）。</summary>
-	public static string ForceSavDir => Program.ExeDir + "sav" + Path.DirectorySeparatorChar;
+	/// <summary>强制存档目录（derived）。SAF 下走 ResolveSubPath(ExeDir, "sav")，禁止字符串拼接。</summary>
+	public static string ForceSavDir => SafCompat.ResolveSubPath(Program.ExeDir, "sav");
 
-	/// <summary>存档目录（derived）。</summary>
+	/// <summary>存档目录（derived）。跟 WinForms：UseSaveFolder 时 sav/，否则游戏根。</summary>
 	public static string SavDir => UseSaveFolder ? ForceSavDir : Program.ExeDir;
 
 	/// <summary>语言 LCID（derived，值由 ConfigData.ApplyPostLoadEffects 经 useLanguage 计算并缓存）。</summary>
@@ -223,15 +223,15 @@ internal sealed class Config
 	/// <summary>强制创建 ForceSavDir。</summary>
 	public static void ForceCreateSavDir()
 	{
-		if (!Directory.Exists(ForceSavDir))
-			Directory.CreateDirectory(ForceSavDir);
+		if (!SafCompat.DirectoryExists(ForceSavDir))
+			SafCompat.CreateDirectory(ForceSavDir);
 	}
 
 	/// <summary>按 UseSaveFolder 创建 SavDir。</summary>
 	public static void CreateSavDir()
 	{
-		if (UseSaveFolder && !Directory.Exists(SavDir))
-			Directory.CreateDirectory(SavDir);
+		if (UseSaveFolder && !SafCompat.DirectoryExists(SavDir))
+			SafCompat.CreateDirectory(SavDir);
 	}
 
 

@@ -1,6 +1,7 @@
 #if ANDROID
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Text;
 using Android.Content;
 using Android.Provider;
 using AndroidX.Activity.Result;
@@ -10,7 +11,7 @@ namespace MinorShift.Emuera;
 /// <summary>
 /// <see cref="IGameDirAccessor"/> 的 Android SAF 实现。
 /// 使用 <c>ACTION_OPEN_DOCUMENT_TREE</c> 选目录，
-/// <see cref="DocumentsContract"/> + <see cref="ContentResolver"/> 列举/读文件。
+/// <see cref="DocumentsContract"/> + <see cref="ContentResolver"/> 列举/读/写文件。
 /// </summary>
 internal sealed class SafGameDirAccessor : IGameDirAccessor
 {
@@ -24,6 +25,8 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
     internal static SafGameDirAccessor? Instance { get; private set; }
 
     private const string PrefKey = "saf_tree_uri";
+    private const string WriteProbeFileName = "_emuera_write_probe.txt";
+    private const string OctetStreamMime = "application/octet-stream";
 
     // ── 辅助 ─────────────────────────────────────
 
@@ -66,11 +69,14 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         var uri = await _tcs.Task;
         if (uri != null)
         {
-            var flags = ActivityFlags.GrantReadUriPermission;
+            // 方案 B：存档写回游戏树，必须同时拿读+写持久化权限
+            var flags = ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantWriteUriPermission;
             _context.ContentResolver!.TakePersistableUriPermission(uri, flags);
             _treeUri = uri.ToString();
             _treeAndroidUri = uri;
             Microsoft.Maui.Storage.Preferences.Set(PrefKey, _treeUri);
+            Android.Util.Log.Info("EmueraMaui",
+                $"PickDirectory: took r/w persistable uri, hasWrite={HasWriteAccess()}, uri={_treeUri}");
         }
         return uri?.ToString();
     }
@@ -97,12 +103,39 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                 Android.Util.Log.Warn("EmueraMaui", $"DirectoryExists: TryParseUri failed for {path}");
                 return false;
             }
-            var docId = ResolveDocId(docUri);
-            var children = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri, docId);
-            using var cursor = _context.ContentResolver!.Query(children, null, null, null, null);
-            var result = cursor != null;
-            Android.Util.Log.Info("EmueraMaui", $"DirectoryExists: {path} → {result} (docId={docId})");
-            return result;
+            // 不调用 EnsureRealDirectoryUri（会 Create）；只做存在性查询
+            if (IsTreeRootUri(docUri)) return true;
+            if (TryQueryDocument(docUri, out var mime) && mime == DocumentsContract.Document.MimeTypeDir)
+                return true;
+            if (TryGetParentAndName(path, out var parentUri, out var name) && parentUri != null && name != null)
+            {
+                Android.Net.Uri? realParent = null;
+                if (IsTreeRootUri(parentUri))
+                {
+                    realParent = DocumentsContract.BuildDocumentUriUsingTree(
+                        _treeAndroidUri, DocumentsContract.GetTreeDocumentId(_treeAndroidUri));
+                }
+                else if (TryQueryDocument(parentUri, out var pm) && pm == DocumentsContract.Document.MimeTypeDir)
+                {
+                    realParent = parentUri;
+                }
+                else
+                {
+                    // 父亦为理论路径时：仅支持「树根下一级」查找（不创建）
+                    realParent = null;
+                    if (TryGetParentAndName(parentUri.ToString()!, out var grand, out var parentName)
+                        && grand != null && parentName != null && IsTreeRootUri(grand))
+                    {
+                        var grandReal = DocumentsContract.BuildDocumentUriUsingTree(
+                            _treeAndroidUri, DocumentsContract.GetTreeDocumentId(_treeAndroidUri));
+                        if (grandReal != null)
+                            realParent = FindChildDocument(grandReal, parentName, wantDir: true);
+                    }
+                }
+                if (realParent != null && FindChildDocument(realParent, name, wantDir: true) != null)
+                    return true;
+            }
+            return false;
         }
         catch (Exception ex)
         {
@@ -150,25 +183,26 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             childrenUri,
             new[] { DocumentsContract.Document.ColumnDocumentId, DocumentsContract.Document.ColumnDisplayName },
             null, null, null);
-        if (cursor == null)
+        if (cursor != null)
         {
-            Android.Util.Log.Warn("EmueraMaui", $"ResolveSubPath: query returned null cursor for {childrenUri}");
-            return basePath;
-        }
-
-        while (cursor.MoveToNext())
-        {
-            var name = cursor.GetString(1);
-            if (string.Equals(name, subDir, StringComparison.OrdinalIgnoreCase))
+            while (cursor.MoveToNext())
             {
-                var childDocId = cursor.GetString(0);
-                var result = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, childDocId!).ToString()!;
-                Android.Util.Log.Info("EmueraMaui", $"ResolveSubPath: found {subDir} → {result}");
-                return result;
+                var name = cursor.GetString(1);
+                if (string.Equals(name, subDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    var childDocId = cursor.GetString(0);
+                    var result = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, childDocId!).ToString()!;
+                    Android.Util.Log.Info("EmueraMaui", $"ResolveSubPath: found {subDir} → {result}");
+                    return result;
+                }
             }
         }
-        Android.Util.Log.Warn("EmueraMaui", $"ResolveSubPath: {subDir} NOT found under {basePath} (docId={docId})");
-        return basePath;
+
+        // 子目录尚不存在时返回理论 document URI，供 CreateDirectory / OpenWrite 按父+名创建
+        // （旧实现返回 basePath 会导致 sav/ 永远建在错误层级）
+        var theoretical = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri, $"{docId}/{subDir}")!.ToString()!;
+        Android.Util.Log.Info("EmueraMaui", $"ResolveSubPath: {subDir} not found, theoretical → {theoretical}");
+        return theoretical;
     }
 
     // ── 文件读取 ──────────────────────────────────
@@ -177,9 +211,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
     {
         try
         {
-            if (_treeAndroidUri == null || !TryParseUri(path, out var docUri)) return false;
-            using var stream = OpenRead(path);
-            return stream != null;
+            return ResolveExistingFileUri(path) != null;
         }
         catch { return false; }
     }
@@ -210,25 +242,206 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                 Android.Util.Log.Warn("EmueraMaui", $"OpenRead: _treeAndroidUri null for {path}");
                 return null;
             }
-            if (!TryParseUri(path, out var docUri))
+
+            var docUri = ResolveExistingFileUri(path);
+            if (docUri == null)
             {
-                Android.Util.Log.Warn("EmueraMaui", $"OpenRead: TryParseUri failed for {path}");
+                Android.Util.Log.Info("EmueraMaui", $"OpenRead: file not found: {path}");
                 return null;
             }
+
             var mime = GetMimeType(docUri);
             if (mime == null || mime == DocumentsContract.Document.MimeTypeDir)
             {
                 Android.Util.Log.Info("EmueraMaui", $"OpenRead: not a file: {path} (mime={mime ?? "null"})");
                 return null;
             }
-            var stream = _context.ContentResolver!.OpenInputStream(docUri);
-            Android.Util.Log.Info("EmueraMaui", $"OpenRead OK: {path} (mime={mime})");
-            return stream;
+
+            // 与写路径对称：一次 CopyTo 进 MemoryStream。
+            // 原因：
+            // 1) SAF InputStream 常不可 Seek / Length 不可靠 → EraBinaryDataReader.CreateReader
+            //    的 `fs.Length < 16` 会误判为坏档或走文本路径；
+            // 2) BinaryReader 对数十万字节存档逐字段读 ContentResolver 极慢（与写假死同因）。
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            using var input = _context.ContentResolver!.OpenInputStream(docUri);
+            if (input == null)
+            {
+                Android.Util.Log.Warn("EmueraMaui", $"OpenRead: OpenInputStream null for {path}");
+                return null;
+            }
+            var ms = new MemoryStream();
+            input.CopyTo(ms);
+            ms.Position = 0;
+            Android.Util.Log.Info("EmueraMaui",
+                $"OpenRead buffered OK path={path} bytes={ms.Length} ms={sw.ElapsedMilliseconds} mime={mime}");
+            return ms;
         }
         catch (Exception ex)
         {
             Android.Util.Log.Warn("EmueraMaui", $"OpenRead exception: {path} → {ex.Message}");
             return null;
+        }
+    }
+
+    // ── 文件/目录写入 ─────────────────────────────
+
+    public bool HasWriteAccess()
+    {
+        if (_treeAndroidUri == null) return false;
+        try
+        {
+            var treeStr = _treeAndroidUri.ToString();
+            foreach (var perm in _context.ContentResolver!.PersistedUriPermissions)
+            {
+                if (perm?.Uri == null || !perm.IsWritePermission) continue;
+                var permStr = perm.Uri.ToString();
+                // 持久化的是 tree URI；比较时兼容 document 形态
+                if (string.Equals(permStr, treeStr, StringComparison.Ordinal)
+                    || (treeStr != null && permStr != null && treeStr.StartsWith(permStr, StringComparison.Ordinal))
+                    || (treeStr != null && permStr != null && permStr.StartsWith(treeStr, StringComparison.Ordinal)))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Warn("EmueraMaui", $"HasWriteAccess exception: {ex.Message}");
+        }
+        return false;
+    }
+
+    public void CreateDirectory(string path)
+    {
+        if (_treeAndroidUri == null)
+            throw new InvalidOperationException("SAF tree URI not set");
+        if (!TryParseUri(path, out var dirUri))
+            throw new IOException($"CreateDirectory: invalid path {path}");
+
+        var real = EnsureRealDirectoryUri(dirUri)
+            ?? throw new IOException($"CreateDirectory failed: {path}");
+        Android.Util.Log.Info("EmueraMaui", $"CreateDirectory OK: {path} → {real}");
+    }
+
+    public Stream OpenWrite(string path)
+    {
+        if (_treeAndroidUri == null)
+            throw new InvalidOperationException("SAF tree URI not set");
+        if (!HasWriteAccess())
+        {
+            Android.Util.Log.Error("EmueraMaui",
+                "OpenWrite: no persisted write permission — re-pick game directory to grant write access");
+            throw new UnauthorizedAccessException(
+                "SAF write permission not granted. Please re-select the game directory to allow saving.");
+        }
+
+        var displayName = GetFileName(path);
+        if (string.IsNullOrEmpty(displayName))
+            throw new IOException($"OpenWrite: empty display name for {path}");
+
+        // 先解析/创建 document，但**不**立刻挂 OpenOutputStream。
+        // TK 存档可达数十 MB；经 ContentResolver 逐块写极慢甚至表现为卡死。
+        // 改为可 Seek 的内存缓冲，Dispose 时一次 CopyTo 写出。
+        var existing = ResolveExistingFileUri(path);
+        Android.Net.Uri docUri;
+        if (existing != null)
+        {
+            docUri = existing;
+            Android.Util.Log.Info("EmueraMaui", $"OpenWrite: defer buffer → existing {path}");
+        }
+        else
+        {
+            if (!TryGetParentAndName(path, out var parentUri, out var name))
+                throw new IOException($"OpenWrite: cannot resolve parent for {path}");
+
+            parentUri = EnsureRealDirectoryUri(parentUri)
+                ?? throw new IOException($"OpenWrite: parent directory missing or unwritable for {path}");
+
+            var created = DocumentsContract.CreateDocument(
+                _context.ContentResolver!,
+                parentUri,
+                GuessMime(displayName),
+                name);
+            if (created == null)
+                throw new IOException($"OpenWrite: CreateDocument returned null for {path}");
+            docUri = created;
+            Android.Util.Log.Info("EmueraMaui", $"OpenWrite: defer buffer → created {path} → {created}");
+        }
+
+        return new DeferredSafWriteStream(_context, docUri, path);
+    }
+
+    public void Delete(string path)
+    {
+        try
+        {
+            var docUri = ResolveExistingFileUri(path);
+            if (docUri == null)
+            {
+                Android.Util.Log.Info("EmueraMaui", $"Delete: not found {path}");
+                return;
+            }
+            var ok = DocumentsContract.DeleteDocument(_context.ContentResolver!, docUri);
+            Android.Util.Log.Info("EmueraMaui", $"Delete: {path} → {ok}");
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Warn("EmueraMaui", $"Delete exception: {path} → {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// B1 真机闸门：在树根写/读/删探针文件。成功返回 true 并写 log。
+    /// </summary>
+    internal bool TryWriteProbe(out string detail)
+    {
+        detail = "";
+        try
+        {
+            if (_treeAndroidUri == null)
+            {
+                detail = "tree URI null";
+                return false;
+            }
+            if (!HasWriteAccess())
+            {
+                detail = "no persisted write permission — re-pick directory";
+                Android.Util.Log.Warn("EmueraMaui", $"WriteProbe FAIL: {detail}");
+                return false;
+            }
+
+            var rootPath = TreeRootDocumentPath();
+            var probePath = CombinePath(rootPath, WriteProbeFileName);
+            var payload = Encoding.UTF8.GetBytes("emuera-write-probe-ok");
+
+            using (var ws = OpenWrite(probePath))
+                ws.Write(payload, 0, payload.Length);
+
+            using (var rs = OpenRead(probePath)
+                ?? throw new IOException("probe OpenRead returned null"))
+            {
+                using var ms = new MemoryStream();
+                rs.CopyTo(ms);
+                var read = ms.ToArray();
+                if (read.Length != payload.Length || !read.AsSpan().SequenceEqual(payload))
+                {
+                    detail = $"readback mismatch len={read.Length}";
+                    Android.Util.Log.Error("EmueraMaui", $"WriteProbe FAIL: {detail}");
+                    return false;
+                }
+            }
+
+            Delete(probePath);
+            detail = $"ok path={probePath}";
+            Android.Util.Log.Info("EmueraMaui", $"WriteProbe OK: {detail}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            detail = ex.ToString();
+            Android.Util.Log.Error("EmueraMaui", $"WriteProbe FAIL: {detail}");
+            return false;
         }
     }
 
@@ -354,6 +567,317 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".") + "$",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         return regex.IsMatch(input);
+    }
+
+    private string TreeRootDocumentPath()
+    {
+        if (_treeAndroidUri == null) return _treeUri ?? "";
+        // 树 URI 本身可作为 base；CombinePath/ResolveDocId 能处理
+        var docId = DocumentsContract.GetTreeDocumentId(_treeAndroidUri);
+        var docUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri, docId);
+        return docUri?.ToString() ?? _treeUri ?? "";
+    }
+
+    private bool IsTreeRootUri(Android.Net.Uri uri)
+    {
+        if (_treeAndroidUri == null) return false;
+        try
+        {
+            var treeId = DocumentsContract.GetTreeDocumentId(_treeAndroidUri);
+            var docId = ResolveDocId(uri);
+            return string.Equals(treeId, docId, StringComparison.Ordinal);
+        }
+        catch { return false; }
+    }
+
+    private bool DirectoryDocumentExists(string path)
+    {
+        try
+        {
+            if (_treeAndroidUri == null || !TryParseUri(path, out var docUri)) return false;
+            return EnsureRealDirectoryUri(docUri) != null;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// 将可能为「理论」的目录 URI 解析为 provider 中真实存在的目录 URI；
+    /// 若不存在则在真实父下 CreateDocument(DIR)。
+    /// </summary>
+    private Android.Net.Uri? EnsureRealDirectoryUri(Android.Net.Uri dirUri)
+    {
+        if (_treeAndroidUri == null) return null;
+        if (IsTreeRootUri(dirUri))
+            return DocumentsContract.BuildDocumentUriUsingTree(
+                _treeAndroidUri, DocumentsContract.GetTreeDocumentId(_treeAndroidUri));
+
+        if (TryQueryDocument(dirUri, out var mime) && mime == DocumentsContract.Document.MimeTypeDir)
+            return dirUri;
+
+        var path = dirUri.ToString()!;
+        if (!TryGetParentAndName(path, out var parentUri, out var name) || name == null || parentUri == null)
+            return null;
+
+        // 父目录：树根 / 已存在 / 再对父做一级 Ensure（仅支持「根下一级」，如 sav/dat）
+        Android.Net.Uri? effectiveParent;
+        if (IsTreeRootUri(parentUri))
+        {
+            effectiveParent = DocumentsContract.BuildDocumentUriUsingTree(
+                _treeAndroidUri, DocumentsContract.GetTreeDocumentId(_treeAndroidUri));
+        }
+        else if (TryQueryDocument(parentUri, out var parentMime)
+                 && parentMime == DocumentsContract.Document.MimeTypeDir)
+        {
+            effectiveParent = parentUri;
+        }
+        else
+        {
+            // 父仍是理论路径：若父的父是树根，则在树根下创建/查找父名
+            if (!TryGetParentAndName(parentUri.ToString()!, out var grand, out var parentName)
+                || grand == null || parentName == null)
+                return null;
+            if (!IsTreeRootUri(grand)
+                && !(TryQueryDocument(grand, out var gm) && gm == DocumentsContract.Document.MimeTypeDir))
+            {
+                Android.Util.Log.Warn("EmueraMaui",
+                    $"EnsureRealDirectoryUri: parent depth >1 not supported yet: {path}");
+                return null;
+            }
+            var grandReal = IsTreeRootUri(grand)
+                ? DocumentsContract.BuildDocumentUriUsingTree(
+                    _treeAndroidUri, DocumentsContract.GetTreeDocumentId(_treeAndroidUri))
+                : grand;
+            if (grandReal == null) return null;
+            effectiveParent = FindChildDocument(grandReal, parentName, wantDir: true);
+            if (effectiveParent == null)
+            {
+                effectiveParent = DocumentsContract.CreateDocument(
+                    _context.ContentResolver!,
+                    grandReal,
+                    DocumentsContract.Document.MimeTypeDir,
+                    parentName);
+            }
+        }
+
+        if (effectiveParent == null) return null;
+
+        var existing = FindChildDocument(effectiveParent, name, wantDir: true);
+        if (existing != null) return existing;
+
+        var created = DocumentsContract.CreateDocument(
+            _context.ContentResolver!,
+            effectiveParent,
+            DocumentsContract.Document.MimeTypeDir,
+            name);
+        if (created != null)
+            Android.Util.Log.Info("EmueraMaui", $"EnsureRealDirectoryUri created {name} → {created}");
+        return created;
+    }
+
+    private bool TryQueryDocument(Android.Net.Uri docUri, out string? mime)
+    {
+        mime = null;
+        try
+        {
+            using var cursor = _context.ContentResolver!.Query(
+                docUri,
+                new[] { DocumentsContract.Document.ColumnMimeType },
+                null, null, null);
+            if (cursor?.MoveToFirst() != true) return false;
+            mime = cursor.GetString(0);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>解析已存在文件的真实 document URI；不存在返回 null。</summary>
+    private Android.Net.Uri? ResolveExistingFileUri(string path)
+    {
+        if (_treeAndroidUri == null || !TryParseUri(path, out var docUri)) return null;
+
+        if (TryQueryDocument(docUri, out var mime)
+            && mime != null
+            && mime != DocumentsContract.Document.MimeTypeDir)
+            return docUri;
+
+        if (!TryGetParentAndName(path, out var parent, out var name)) return null;
+        return FindChildDocument(parent, name, wantDir: false);
+    }
+
+    private Android.Net.Uri? FindChildDocument(Android.Net.Uri parentUri, string displayName, bool wantDir)
+    {
+        if (_treeAndroidUri == null) return null;
+        try
+        {
+            var parentId = ResolveDocId(parentUri);
+            var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri, parentId);
+            using var cursor = _context.ContentResolver!.Query(
+                childrenUri,
+                new[]
+                {
+                    DocumentsContract.Document.ColumnDocumentId,
+                    DocumentsContract.Document.ColumnDisplayName,
+                    DocumentsContract.Document.ColumnMimeType
+                },
+                null, null, null);
+            if (cursor == null) return null;
+
+            while (cursor.MoveToNext())
+            {
+                var name = cursor.GetString(1);
+                var mime = cursor.GetString(2);
+                var isDir = mime == DocumentsContract.Document.MimeTypeDir;
+                if (isDir != wantDir) continue;
+                if (!string.Equals(name, displayName, StringComparison.OrdinalIgnoreCase))
+                {
+                    // displayName 无扩展时回退 documentId 末段
+                    var docId = cursor.GetString(0);
+                    if (docId == null) continue;
+                    var last = docId.LastIndexOf('/');
+                    var tail = last >= 0 ? docId[(last + 1)..] : docId;
+                    if (!string.Equals(tail, displayName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                }
+                var childId = cursor.GetString(0);
+                return DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri, childId!);
+            }
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Warn("EmueraMaui", $"FindChildDocument({displayName}) → {ex.Message}");
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 从 document/tree 路径拆出父目录 URI 与逻辑短名。
+    /// documentId 形如 primary:Download/game/sav/global.sav → parent=.../sav, name=global.sav
+    /// </summary>
+    private bool TryGetParentAndName(string path, [NotNullWhen(true)] out Android.Net.Uri? parentUri, [NotNullWhen(true)] out string? name)
+    {
+        parentUri = null;
+        name = null;
+        if (_treeAndroidUri == null || !TryParseUri(path, out var docUri)) return false;
+
+        var docId = ResolveDocId(docUri);
+        var lastSlash = docId.LastIndexOf('/');
+        if (lastSlash < 0)
+        {
+            // 单段 documentId：父为树根
+            name = docId;
+            var treeId = DocumentsContract.GetTreeDocumentId(_treeAndroidUri);
+            parentUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri, treeId);
+            return parentUri != null && !string.IsNullOrEmpty(name);
+        }
+
+        var parentId = docId[..lastSlash];
+        name = docId[(lastSlash + 1)..];
+        if (string.IsNullOrEmpty(name)) return false;
+        parentUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri, parentId);
+        return parentUri != null;
+    }
+
+    private Stream? TryOpenOutputStream(Android.Net.Uri docUri, string mode)
+    {
+        try
+        {
+            return _context.ContentResolver!.OpenOutputStream(docUri, mode);
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Warn("EmueraMaui", $"OpenOutputStream({mode}) failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static string GuessMime(string displayName)
+    {
+        var ext = Path.GetExtension(displayName);
+        if (ext.Equals(".txt", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".csv", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".erb", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".erh", StringComparison.OrdinalIgnoreCase))
+            return "text/plain";
+        return OctetStreamMime;
+    }
+
+    /// <summary>
+    /// SAF 写缓冲流：引擎侧写内存（可 Seek），Dispose 时一次 OpenOutputStream + CopyTo。
+    /// 避免 BinaryWriter 对数十 MB 存档逐字段打 ContentResolver 导致假死。
+    /// </summary>
+    private sealed class DeferredSafWriteStream : Stream
+    {
+        private readonly Context _context;
+        private readonly Android.Net.Uri _docUri;
+        private readonly string _pathForLog;
+        private readonly MemoryStream _buffer = new();
+        private bool _disposed;
+
+        public DeferredSafWriteStream(Context context, Android.Net.Uri docUri, string pathForLog)
+        {
+            _context = context;
+            _docUri = docUri;
+            _pathForLog = pathForLog;
+        }
+
+        public override bool CanRead => false;
+        public override bool CanSeek => true;
+        public override bool CanWrite => true;
+        public override long Length => _buffer.Length;
+        public override long Position
+        {
+            get => _buffer.Position;
+            set => _buffer.Position = value;
+        }
+
+        public override void Flush() => _buffer.Flush();
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException("DeferredSafWriteStream is write-only");
+
+        public override long Seek(long offset, SeekOrigin origin) => _buffer.Seek(offset, origin);
+
+        public override void SetLength(long value) => _buffer.SetLength(value);
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            _buffer.Write(buffer, offset, count);
+
+        public override void Write(ReadOnlySpan<byte> buffer) => _buffer.Write(buffer);
+
+        public override void WriteByte(byte value) => _buffer.WriteByte(value);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            if (disposing)
+            {
+                try
+                {
+                    var bytes = _buffer.Length;
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    _buffer.Position = 0;
+                    using var output = _context.ContentResolver!.OpenOutputStream(_docUri, "wt")
+                        ?? _context.ContentResolver.OpenOutputStream(_docUri, "w")
+                        ?? throw new IOException($"DeferredSafWriteStream: OpenOutputStream null for {_docUri}");
+                    _buffer.CopyTo(output);
+                    output.Flush();
+                    Android.Util.Log.Info("EmueraMaui",
+                        $"OpenWrite flush OK path={_pathForLog} bytes={bytes} ms={sw.ElapsedMilliseconds}");
+                }
+                catch (Exception ex)
+                {
+                    Android.Util.Log.Error("EmueraMaui",
+                        $"OpenWrite flush FAIL path={_pathForLog} ex={ex}");
+                    throw;
+                }
+                finally
+                {
+                    _buffer.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
     }
 }
 #endif

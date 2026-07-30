@@ -29,6 +29,26 @@ public interface IGameDirAccessor
     byte[]? ReadAllBytes(string path);
     Stream? OpenRead(string path);
 
+    // ── 文件/目录写入（方案 B：SAF 存档写回游戏树）──────────────────
+    /// <summary>确保目录存在（本地 mkdir；SAF 下对父目录 CreateDocument DIR）。</summary>
+    void CreateDirectory(string path);
+
+    /// <summary>
+    /// 创建或截断写入（对齐 <see cref="FileMode.Create"/>）。
+    /// 调用方负责 <see cref="IDisposable.Dispose"/>。
+    /// SAF 上必须按「父目录 + displayName」查找/创建，不能假设理论 URI 已在 provider 注册。
+    /// </summary>
+    Stream OpenWrite(string path);
+
+    /// <summary>删除文件；不存在则 no-op。目录删除行为由实现定义（SAF 仅删文件）。</summary>
+    void Delete(string path);
+
+    /// <summary>
+    /// 当前游戏根是否具备可写能力。
+    /// 本地文件系统恒为 true；SAF 检查持久化 URI 是否含 Write（缺写时需用户重新选目录）。
+    /// </summary>
+    bool HasWriteAccess();
+
     // ── 路径操作 ──────────────────────────────────
     string ResolveSubPath(string basePath, string subDir);
     string CombinePath(string basePath, string filename);

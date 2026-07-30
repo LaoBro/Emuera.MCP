@@ -859,8 +859,28 @@ internal sealed class ConfigData
 		if (!GetConfigValue<bool>(ConfigCode.AllowFunctionOverloading))
 			GetConfigItem(ConfigCode.WarnFunctionOverloading).SetValue(true);
 
-		if (GetConfigValue<bool>(ConfigCode.UseSaveFolder) && !Directory.Exists(SavDir))
-			createSavDirAndMoveFiles();
+		// SAF：跳过本地 Directory + 根目录挪档；仅确保 sav 目录可建（方案 B）
+		if (GetConfigValue<bool>(ConfigCode.UseSaveFolder))
+		{
+			if (SafPath.IsContentUri(Program.ExeDir))
+			{
+				try
+				{
+					if (!SafCompat.DirectoryExists(Config.ForceSavDir))
+						SafCompat.CreateDirectory(Config.ForceSavDir);
+				}
+				catch (Exception ex)
+				{
+#if HEADLESS
+					Console.Error.WriteLine($"[Config] SAF CreateSavDir skipped/failed: {ex.Message}");
+#endif
+				}
+			}
+			else if (!Directory.Exists(SavDir))
+			{
+				createSavDirAndMoveFiles();
+			}
+		}
 	}
 
 	/// <summary>存档目录（derived，与 Config.SavDir 同义；不缓存，现算现用）。</summary>
@@ -868,7 +888,7 @@ internal sealed class ConfigData
 	{
 		get
 		{
-			string forceSavDir = Program.ExeDir + "sav" + Path.DirectorySeparatorChar;
+			string forceSavDir = SafCompat.ResolveSubPath(Program.ExeDir, "sav");
 			return GetConfigValue<bool>(ConfigCode.UseSaveFolder) ? forceSavDir : Program.ExeDir;
 		}
 	}

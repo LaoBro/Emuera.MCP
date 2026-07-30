@@ -259,7 +259,17 @@ public partial class MainPage : ContentPage
                 var paths = GamePaths.Resolve(gamePath, dirAccessor);
                 paths.Validate(); // 校验失败抛 GamePathValidationException
                 (newConfig, newTerminal) = EmueraRuntimeInitializer.Initialize(paths, dirAccessor);
-                Console.WriteLine($"[maui] OnReloadGame init completed: ExeDir={paths.ExeDir}");
+                var hasWrite = dirAccessor.HasWriteAccess();
+                Console.WriteLine($"[maui] OnReloadGame init completed: ExeDir={paths.ExeDir}, hasWrite={hasWrite}");
+#if ANDROID
+                Android.Util.Log.Info("EmueraMaui",
+                    $"OnReloadGame init completed: ExeDir={paths.ExeDir}, hasWrite={hasWrite}");
+                if (!hasWrite && gamePath.StartsWith("content://", StringComparison.Ordinal))
+                {
+                    Android.Util.Log.Warn("EmueraMaui",
+                        "OnReloadGame: SAF tree has no write permission — saves will fail until user re-picks directory");
+                }
+#endif
             }
             catch (Exception ex)
             {

@@ -28,6 +28,24 @@ public sealed class FileSystemGameDirAccessor : IGameDirAccessor
     public byte[]? ReadAllBytes(string path) => File.Exists(path) ? File.ReadAllBytes(path) : null;
     public Stream? OpenRead(string path) => File.Exists(path) ? File.OpenRead(path) : null;
 
+    public void CreateDirectory(string path) => Directory.CreateDirectory(path);
+
+    public Stream OpenWrite(string path)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        return new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+    }
+
+    public void Delete(string path)
+    {
+        if (File.Exists(path))
+            File.Delete(path);
+    }
+
+    public bool HasWriteAccess() => true;
+
     public string ResolveSubPath(string basePath, string subDir)
         => Path.Combine(basePath, subDir) + Path.DirectorySeparatorChar;
     public string CombinePath(string basePath, string filename)

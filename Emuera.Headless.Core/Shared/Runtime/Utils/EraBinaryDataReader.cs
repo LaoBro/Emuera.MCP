@@ -100,10 +100,33 @@ internal abstract class EraBinaryDataReader : IDisposable
 	{
 		try
 		{
-			if (fs == null || fs.Length < 16)
+			if (fs == null)
 				return null!;
+
+			// SAF 等不可 Seek 流：Length 可能抛或恒 0。先尽量缓冲，再按长度判断。
+			// （Android SafGameDirAccessor.OpenRead 已整文件缓冲；此处作通用兜底。）
+			Stream body = fs;
+			if (!fs.CanSeek)
+			{
+				var buffered = new MemoryStream();
+				fs.CopyTo(buffered);
+				buffered.Position = 0;
+				body = buffered;
+			}
+			else if (fs.Position != 0)
+			{
+				// 已部分消费则不要瞎 Seek；仅当可回到 0 时规范起点
+				try { fs.Position = 0; } catch { /* keep */ }
+			}
+
+			long len;
+			try { len = body.CanSeek ? body.Length - body.Position : -1; }
+			catch { len = -1; }
+			if (len >= 0 && len < 16)
+				return null!;
+
 			#region EM_私家版_セーブ圧縮
-			BinaryReader reader = new(fs, Encoding.Unicode, true);
+			BinaryReader reader = new(body, Encoding.Unicode, leaveOpen: true);
 
 			//if (reader.ReadUInt64() != EraBDConst.Header)
 			//	return null!;
@@ -128,7 +151,7 @@ internal abstract class EraBinaryDataReader : IDisposable
 				reader = new BinaryReader(ms, Encoding.Unicode);
 			}
 			else
-				reader = new BinaryReader(reader.BaseStream, Encoding.Unicode);
+				reader = new BinaryReader(reader.BaseStream, Encoding.Unicode, leaveOpen: true);
 			#endregion
 
 			if (version == EraBDConst.Version1808)

@@ -14,6 +14,7 @@ using MinorShift.Emuera.UI.Game.Image;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
@@ -7145,8 +7146,10 @@ internal static partial class FunctionMethodCreator
 
 
 
-	private static string GetSaveDataPathText(int index, string dir) { return string.Format("{0}txt{1:00}.txt", dir, index); }
-	private static string GetSaveDataPathGraphics(int index) { return string.Format("{0}img{1:0000}.png", Config.SavDir, index); }
+	private static string GetSaveDataPathText(int index, string dir) =>
+		SafCompat.CombinePath(dir, string.Format(CultureInfo.InvariantCulture, "txt{0:00}.txt", index));
+	private static string GetSaveDataPathGraphics(int index) =>
+		SafCompat.CombinePath(Config.SavDir, string.Format(CultureInfo.InvariantCulture, "img{0:0000}.png", index));
 
 	/// <summary>
 	/// int GSAVE int ID, int fileNo

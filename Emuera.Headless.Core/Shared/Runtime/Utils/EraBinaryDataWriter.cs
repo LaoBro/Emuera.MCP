@@ -18,7 +18,7 @@ namespace MinorShift.Emuera.Runtime.Utils;
 /// </summary>
 internal sealed class EraBinaryDataWriter : IDisposable
 {
-	public EraBinaryDataWriter(FileStream fs)
+	public EraBinaryDataWriter(Stream fs)
 	{
 		#region EM_私家版_セーブ圧縮
 		// writer = new BinaryWriter(fs, Encoding.Unicode);

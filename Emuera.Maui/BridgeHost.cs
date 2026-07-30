@@ -413,6 +413,40 @@ internal sealed class BridgeHost : IDisposable
             _mainGameDir = result;
             SaveMainGameDir(result);
 
+            // 方案 B / B1：写权限 + 探针（logcat 验收；缺写时提示重选）
+            var hasWrite = dirAccessor.HasWriteAccess();
+            var writeProbeOk = false;
+            var writeProbeDetail = "";
+#if ANDROID
+            if (dirAccessor is SafGameDirAccessor saf)
+            {
+                writeProbeOk = saf.TryWriteProbe(out writeProbeDetail);
+            }
+#endif
+            Console.WriteLine(
+                $"[bridge] HandlePickSafDirectory: hasWrite={hasWrite}, writeProbeOk={writeProbeOk}, detail={writeProbeDetail}");
+#if ANDROID
+            Android.Util.Log.Info("EmueraMaui",
+                $"safDirectoryPicked hasWrite={hasWrite} writeProbeOk={writeProbeOk} detail={writeProbeDetail}");
+#endif
+            if (!hasWrite || !writeProbeOk)
+            {
+                var needRepick = JsonSerializer.Serialize(new
+                {
+                    type = "safDirectoryPicked",
+                    path = result,
+                    hasWrite,
+                    writeProbeOk,
+                    writeProbeDetail,
+                    error = hasWrite
+                        ? $"Write probe failed: {writeProbeDetail}"
+                        : "No write permission on selected folder. Please re-select the game directory and allow access.",
+                    needRepickForWrite = true
+                });
+                _dispatcher.Dispatch(() => _jsBridge.PostMessage(needRepick));
+                // 仍继续扫描——读权限可能足够浏览；存档会再失败并提示
+            }
+
             // 直接扫描并推送 gamesScanned——避免 JS→C# 走不可靠的 emueraBridge
             ScanAndPushGames(result);
         }

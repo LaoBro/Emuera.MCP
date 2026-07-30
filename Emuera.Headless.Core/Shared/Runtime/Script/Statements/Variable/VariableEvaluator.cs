@@ -1771,14 +1771,19 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	#region File操作
 
 
-	private static string getSaveDataPathG() { return Config.Config.SavDir + "global.sav"; }
-	private static string getSaveDataPath(int index) { return string.Create(CultureInfo.InvariantCulture, $"{Config.Config.SavDir}save{index:00}.sav"); }
-	private static string getSaveDataPath(string s) { return $"{Config.Config.SavDir}save{s:00}.sav"; }
+	// 方案 B：content URI 禁止 SavDir+"name" 字符串拼接，统一 SafCompat.CombinePath
+	private static string getSaveDataPathG() => SafCompat.CombinePath(Config.Config.SavDir, "global.sav");
+	private static string getSaveDataPath(int index) =>
+		SafCompat.CombinePath(Config.Config.SavDir, string.Create(CultureInfo.InvariantCulture, $"save{index:00}.sav"));
+	private static string getSaveDataPath(string s) =>
+		SafCompat.CombinePath(Config.Config.SavDir, string.Create(CultureInfo.InvariantCulture, $"save{s:00}.sav"));
 
-	private static string getSaveDataPathV(int index) { return Program.DatDir + string.Format("var_{0:00}.dat", index); }
-	private static string getSaveDataPathC(int index) { return Program.DatDir + string.Format("chara_{0:00}.dat", index); }
-	private static string getSaveDataPathV(string s) { return Program.DatDir + "var_" + s + ".dat"; }
-	private static string getSaveDataPathC(string s) { return Program.DatDir + "chara_" + s + ".dat"; }
+	private static string getSaveDataPathV(int index) =>
+		SafCompat.CombinePath(Program.DatDir, string.Format(CultureInfo.InvariantCulture, "var_{0:00}.dat", index));
+	private static string getSaveDataPathC(int index) =>
+		SafCompat.CombinePath(Program.DatDir, string.Format(CultureInfo.InvariantCulture, "chara_{0:00}.dat", index));
+	private static string getSaveDataPathV(string s) => SafCompat.CombinePath(Program.DatDir, "var_" + s + ".dat");
+	private static string getSaveDataPathC(string s) => SafCompat.CombinePath(Program.DatDir, "chara_" + s + ".dat");
 
 	/// <summary>
 	/// DatFolderが存在せず、かつ作成に失敗したらエラーを投げる
@@ -1885,13 +1890,14 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 			result.DataMes = "----";
 			return result;
 		}
-		FileStream fs = null!;
+		Stream fs = null!;
 		EraBinaryDataReader bReader = null!;
 		EraDataReader reader = null!;
 		long version;
 		try
 		{
-			fs = new FileStream(filename, FileMode.Open, FileAccess.Read);
+			fs = SafCompat.OpenRead(filename)
+				?? throw new FileNotFoundException(filename);
 			bReader = EraBinaryDataReader.CreateReader(fs);
 			if (bReader == null)//eramaker形式
 			{
@@ -2018,11 +2024,11 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		CheckDatFilename(savename);
 		string filepath = getSaveDataPathC(savename);
 		EraBinaryDataWriter bWriter = null!;
-		FileStream fs = null!;
+		Stream fs = null!;
 		try
 		{
 			Config.Config.CreateSavDir();
-			fs = new FileStream(filepath, FileMode.Create, FileAccess.Write);
+			fs = SafCompat.OpenWrite(filepath);
 			bWriter = new EraBinaryDataWriter(fs);
 			bWriter.WriteHeader();
 			bWriter.WriteFileType(EraSaveFileType.CharVar);
@@ -2058,11 +2064,12 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		if (!SafCompat.FileExists(filepath))
 			return;
 		EraBinaryDataReader bReader = null!;
-		FileStream fs = null!;
+		Stream fs = null!;
 		try
 		{
 			List<CharacterData> addCharaList = [];
-			fs = new FileStream(filepath, FileMode.Open, FileAccess.Read);
+			fs = SafCompat.OpenRead(filepath)
+				?? throw new FileNotFoundException(filepath);
 			bReader = EraBinaryDataReader.CreateReader(fs);
 			if (bReader == null)
 				return;
@@ -2105,11 +2112,11 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		CheckDatFilename(savename);
 		string filepath = getSaveDataPathV(savename);
 		EraBinaryDataWriter bWriter = null!;
-		FileStream fs = null!;
+		Stream fs = null!;
 		try
 		{
 			Config.Config.CreateSavDir();
-			fs = new FileStream(filepath, FileMode.Create, FileAccess.Write);
+			fs = SafCompat.OpenWrite(filepath);
 			bWriter = new EraBinaryDataWriter(fs);
 			bWriter.WriteHeader();
 			bWriter.WriteFileType(EraSaveFileType.Var);
@@ -2143,10 +2150,11 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		if (!SafCompat.FileExists(filepath))
 			return;
 		EraBinaryDataReader bReader = null!;
-		FileStream fs = null!;
+		Stream fs = null!;
 		try
 		{
-			fs = new FileStream(filepath, FileMode.Open, FileAccess.Read);
+			fs = SafCompat.OpenRead(filepath)
+				?? throw new FileNotFoundException(filepath);
 			bReader = EraBinaryDataReader.CreateReader(fs);
 			if (bReader == null)
 				return;
@@ -2236,7 +2244,11 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		try
 		{
 			Config.Config.CreateSavDir();
-			using var fs = new FileStream(filepath, FileMode.Create, FileAccess.Write);
+#if HEADLESS
+			var sw = System.Diagnostics.Stopwatch.StartNew();
+			Console.Error.WriteLine($"[SaveGlobal] begin path={filepath}");
+#endif
+			using var fs = SafCompat.OpenWrite(filepath);
 			if (Config.Config.SystemSaveInBinary)
 			{
 
@@ -2264,9 +2276,15 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 				varData.SaveGlobalToStream1808(writer);
 				writer.Close();
 			}
+#if HEADLESS
+			Console.Error.WriteLine($"[SaveGlobal] ok path={filepath} ms={sw.ElapsedMilliseconds}");
+#endif
 		}
-		catch (SystemException)
+		catch (SystemException ex)
 		{
+#if HEADLESS
+			Console.Error.WriteLine($"[SaveGlobal] path={filepath} ex={ex}");
+#endif
 			throw new CodeEE(trerror.ErrorSavingGlobalData.Text);
 			//console.PrintError(
 			//console.NewLine();
@@ -2291,14 +2309,19 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 			return false;
 		EraDataReader reader = null!;
 		EraBinaryDataReader bReader = null!;
-		FileStream fs = null!;
+		Stream fs = null!;
 		#region EM_LOADDATA、LOADGLOBAL、LOADDATA、LOADGLOBAL時にMAP,XML,DataTableを適切に削除するように
 		//DIM GLOVAL SAVEDATAにあたるデータだけが上書きされるらしい？
 		varData.RemoveEMGlobalData();
 		#endregion
 		try
 		{
-			fs = new FileStream(filepath, FileMode.Open, FileAccess.Read);
+#if HEADLESS
+			var sw = System.Diagnostics.Stopwatch.StartNew();
+			Console.Error.WriteLine($"[LoadGlobal] begin path={filepath}");
+#endif
+			fs = SafCompat.OpenRead(filepath)
+				?? throw new FileNotFoundException(filepath);
 			bReader = EraBinaryDataReader.CreateReader(fs);
 			if (bReader != null)
 			{
@@ -2331,10 +2354,16 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 					varData.LoadGlobalFromStream1808(reader);
 				}
 			}
+#if HEADLESS
+			Console.Error.WriteLine($"[LoadGlobal] ok path={filepath} ms={sw.ElapsedMilliseconds}");
+#endif
 			return true;
 		}
-		catch
+		catch (Exception ex)
 		{
+#if HEADLESS
+			Console.Error.WriteLine($"[LoadGlobal] fail path={filepath} ex={ex}");
+#endif
 			return false;
 		}
 		finally
@@ -2403,13 +2432,17 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 	public bool SaveTo(int saveIndex, string saveText)
 	{
 		string filepath = getSaveDataPath(saveIndex);
-		FileStream fs = null!;
+		Stream fs = null!;
 		EraDataWriter writer = null!;
 		EraBinaryDataWriter bWriter = null!;
 		try
 		{
 			Config.Config.CreateSavDir();
-			fs = new FileStream(filepath, FileMode.Create, FileAccess.Write);
+#if HEADLESS
+			var sw = System.Diagnostics.Stopwatch.StartNew();
+			Console.Error.WriteLine($"[SaveTo] begin index={saveIndex} path={filepath}");
+#endif
+			fs = SafCompat.OpenWrite(filepath);
 			if (Config.Config.SystemSaveInBinary)
 			{
 				bWriter = new EraBinaryDataWriter(fs);
@@ -2420,10 +2453,20 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 				writer = new EraDataWriter(fs);
 				SaveToStream(writer, saveText);
 			}
+#if HEADLESS
+			// 先关 writer 触发缓冲 flush，再打 ok
+			if (writer != null) { writer.Close(); writer = null!; }
+			else if (bWriter != null) { bWriter.Close(); bWriter = null!; }
+			else if (fs != null) { fs.Close(); fs = null!; }
+			Console.Error.WriteLine($"[SaveTo] ok index={saveIndex} ms={sw.ElapsedMilliseconds}");
+#endif
 			return true;
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
+#if HEADLESS
+			Console.Error.WriteLine($"[SaveTo] fail index={saveIndex} path={filepath} ex={ex}");
+#endif
 			return false;
 		}
 		finally
@@ -2443,22 +2486,40 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		if (!SafCompat.FileExists(filepath))
 			throw new ExeEE(trerror.NotExistPath.Text);
 
-		using var fs = new FileStream(filepath, FileMode.Open, FileAccess.Read);
-		using var bReader = EraBinaryDataReader.CreateReader(fs);
-		#region セーブデータ指定されているMap、Xml、DataTableをロード時に削除するように修正
-		VariableData.RemoveEMSaveData();
-		#endregion
-		if (bReader != null)
+#if HEADLESS
+		var sw = System.Diagnostics.Stopwatch.StartNew();
+		Console.Error.WriteLine($"[LoadFrom] begin index={dataIndex} path={filepath}");
+#endif
+		try
 		{
-			LoadFromStreamBinary(bReader);
+			using var fs = SafCompat.OpenRead(filepath)
+				?? throw new ExeEE(trerror.NotExistPath.Text);
+			using var bReader = EraBinaryDataReader.CreateReader(fs);
+			#region セーブデータ指定されているMap、Xml、DataTableをロード時に削除するように修正
+			VariableData.RemoveEMSaveData();
+			#endregion
+			if (bReader != null)
+			{
+				LoadFromStreamBinary(bReader);
+			}
+			else
+			{
+				using var reader = new EraDataReader(fs);
+				LoadFromStream(reader);
+			}
+			varData.LastLoadNo = dataIndex;
+#if HEADLESS
+			Console.Error.WriteLine($"[LoadFrom] ok index={dataIndex} ms={sw.ElapsedMilliseconds}");
+#endif
+			return true;
 		}
-		else
+		catch (Exception ex)
 		{
-			using var reader = new EraDataReader(fs);
-			LoadFromStream(reader);
+#if HEADLESS
+			Console.Error.WriteLine($"[LoadFrom] fail index={dataIndex} path={filepath} ex={ex}");
+#endif
+			throw;
 		}
-		varData.LastLoadNo = dataIndex;
-		return true;
 	}
 
 	public static void DelData(int dataIndex)
