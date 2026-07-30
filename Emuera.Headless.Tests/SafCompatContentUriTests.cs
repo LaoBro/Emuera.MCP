@@ -62,7 +62,7 @@ public class SafCompatContentUriTests
             .ToArray());
     }
 
-    private sealed class InMemoryContentDirAccessor : IGameDirAccessor
+    internal sealed class InMemoryContentDirAccessor : IGameDirAccessor
     {
         private readonly HashSet<string> _directories = new(StringComparer.Ordinal);
         private readonly Dictionary<string, byte[]> _files = new(StringComparer.Ordinal);

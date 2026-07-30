@@ -1819,13 +1819,14 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		string[] pathes = SafCompat.GetFiles(Program.DatDir, searchPattern, SearchOption.TopDirectoryOnly);
 		foreach (string path in pathes)
 		{
-			if (!Path.GetExtension(path).Equals(".dat", StringComparison.OrdinalIgnoreCase))
+			string logicalFileName = SafPath.GetLogicalFileName(path);
+			if (!Path.GetExtension(logicalFileName).Equals(".dat", StringComparison.OrdinalIgnoreCase))
 				continue;
-			string filename = Path.GetFileNameWithoutExtension(path);
-			if (charadat)
-				filename = filename.Substring(6);
-			else
-				filename = filename.Substring(4);
+			string filename = SafPath.GetLogicalFileNameWithoutExtension(path);
+			string prefix = charadat ? "chara_" : "var_";
+			if (!filename.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+				continue;
+			filename = filename[prefix.Length..];
 			if (string.IsNullOrEmpty(filename))
 				continue;
 			files.Add(filename);

@@ -81,21 +81,26 @@ public static class EncodingHandler
 		{
 			// 决策零：合并 I/O — 一次 ReadAllBytes 同时完成 BOM 检查 + UTF-8 验证，
 			// 不再经 StreamReader.ReadToEnd() 浪费一次完整扫描。
-			byte[] bytes = File.ReadAllBytes(filePath);
-			var bomEnc = DetectBomEncoding(bytes);
-			if (bomEnc != null)
-				return bomEnc;
-			try
-			{
-				UTF8Encoding.GetString(bytes);
-				return UTF8Encoding;
-			}
-			catch (DecoderFallbackException)
-			{
-				return shiftjisEncoding;
-			}
+			return DetectEncoding(File.ReadAllBytes(filePath));
 		}
 		catch
+		{
+			return shiftjisEncoding;
+		}
+	}
+
+	/// <summary>从已读取的字节判断 BOM、UTF-8 或 Shift-JIS，供 SAF 调用方避免回退到本地 File API。</summary>
+	public static Encoding DetectEncoding(byte[] bytes)
+	{
+		var bomEnc = DetectBomEncoding(bytes);
+		if (bomEnc != null)
+			return bomEnc;
+		try
+		{
+			UTF8Encoding.GetString(bytes);
+			return UTF8Encoding;
+		}
+		catch (DecoderFallbackException)
 		{
 			return shiftjisEncoding;
 		}

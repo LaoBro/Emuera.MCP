@@ -151,4 +151,37 @@ internal static class SafCompat
         return Path.Combine(basePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), subDir)
             + Path.DirectorySeparatorChar;
     }
+
+    /// <summary>
+    /// Resolves a script-supplied text filename beneath the game root. Only files at the root
+    /// and descendants of sav are allowed, so the same logical path works for filesystem and SAF roots.
+    /// </summary>
+    internal static bool TryResolveGameRelativePath(string relativePath, bool createParentDirectories, out string path)
+    {
+        path = null!;
+        if (string.IsNullOrWhiteSpace(relativePath)
+            || SafPath.IsContentUri(relativePath)
+            || Path.IsPathRooted(relativePath))
+            return false;
+
+        var segments = relativePath.Split(['/', '\\'], System.StringSplitOptions.None);
+        if (segments.Length == 0 || segments.Any(segment => string.IsNullOrEmpty(segment)
+            || segment == "." || segment == ".." || segment.Contains(':')))
+            return false;
+        if (segments.Length > 1 && !segments[0].Equals("sav", System.StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var directory = GamePaths.Current?.ExeDir;
+        if (string.IsNullOrEmpty(directory))
+            return false;
+        for (var index = 0; index < segments.Length - 1; index++)
+        {
+            directory = ResolveSubPath(directory, segments[index]);
+            if (createParentDirectories)
+                CreateDirectory(directory);
+        }
+
+        path = CombinePath(directory, segments[^1]);
+        return true;
+    }
 }

@@ -7018,17 +7018,15 @@ internal static partial class FunctionMethodCreator
 			}
 			else
 			{
-				filepath = Utils.GetValidPath(arguments[1].GetStrValue(exm));
-				if (filepath == null) return 0;
-				string tmp = Path.HasExtension(filepath) ? Path.GetExtension(filepath).ToLower().Substring(1) : "";
+				string relativePath = arguments[1].GetStrValue(exm);
+				string tmp = Path.HasExtension(relativePath) ? Path.GetExtension(relativePath).ToLowerInvariant().Substring(1) : "";
 				if (!Config.ValidExtension.Contains(tmp))
-					filepath = Path.ChangeExtension(filepath, "txt");
-				forceUTF8 = true;
+					relativePath = Path.ChangeExtension(relativePath, "txt");
+				if (!SafCompat.TryResolveGameRelativePath(relativePath, createParentDirectories: true, out filepath))
+					return 0;
 			}
 
-			// Encoding encoding = forceUTF8 ?
-			// 	Encoding.GetEncoding("UTF-8") :
-			// 	Config.SaveEncode;
+			Encoding encoding = forceUTF8 ? EncodingHandler.UTF8BOMEncoding : Config.SaveEncode;
 			try
 			{
 				if (i64 >= 0)
@@ -7038,13 +7036,7 @@ internal static partial class FunctionMethodCreator
 					else
 						Config.CreateSavDir();
 				}
-				else
-				{
-					if (filepath.LastIndexOf('\\') >= 0)
-						SafCompat.CreateDirectory(filepath.Substring(0, filepath.LastIndexOf('\\')));
-				}
-
-				SafCompat.WriteAllText(filepath, savText, Config.SaveEncode);
+				SafCompat.WriteAllText(filepath, savText, encoding);
 			}
 			catch { return 0; }
 			#endregion
@@ -7124,9 +7116,10 @@ internal static partial class FunctionMethodCreator
 			}
 			else
 			{
-				filepath = Utils.GetValidPath(arguments[0].GetStrValue(exm));
-				if (filepath == null) return string.Empty;
-				string tmp = Path.HasExtension(filepath) ? Path.GetExtension(filepath).ToLower().Substring(1) : "";
+				string relativePath = arguments[0].GetStrValue(exm);
+				if (!SafCompat.TryResolveGameRelativePath(relativePath, createParentDirectories: false, out filepath))
+					return string.Empty;
+				string tmp = Path.HasExtension(relativePath) ? Path.GetExtension(relativePath).ToLowerInvariant().Substring(1) : "";
 				if (!Config.ValidExtension.Contains(tmp))
 					return "";
 			}
@@ -7135,7 +7128,10 @@ internal static partial class FunctionMethodCreator
 				return "";
 			try
 			{
-				ret = SafCompat.ReadAllText(filepath, EncodingHandler.DetectEncoding(filepath));
+				Encoding encoding = forceUTF8
+					? EncodingHandler.UTF8BOMEncoding
+					: EncodingHandler.DetectEncoding(SafCompat.ReadAllBytes(filepath) ?? []);
+				ret = SafCompat.ReadAllText(filepath, encoding);
 			}
 			catch { return ""; }
 			//一貫性の観点で\rには死んでもらう
