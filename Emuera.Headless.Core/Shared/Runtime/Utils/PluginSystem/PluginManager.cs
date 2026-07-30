@@ -268,6 +268,16 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 		/// </summary>
 		public void LoadPlugins()
 		{
+			var pluginDir = SafCompat.ResolveSubPath(Program.ExeDir, "Plugins");
+			if (OperatingSystem.IsAndroid() || SafPath.IsContentUri(Program.ExeDir))
+			{
+				if (!SafCompat.DirectoryExists(pluginDir))
+					return;
+				var pluginFiles = GamePaths.Current.DirAccessor.GetFiles(pluginDir, "*.dll", SearchOption.TopDirectoryOnly);
+				if (pluginFiles.Length > 0)
+					throw new ExeEE("Android/SAF does not support loading game DLL plugins. Remove the Plugins/*.dll files or run this game on Windows.");
+				return;
+			}
 			if (!Directory.Exists(Path.Combine(Program.ExeDir, "Plugins")))
 			{
 				//フォルダを作らないようにする

@@ -6,6 +6,7 @@ using MinorShift.Emuera.Sub;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
@@ -906,6 +907,7 @@ internal sealed class ConfigData
 
 		long key = getUpdateKey();
 		bool updated = GetConfigValue<long>(ConfigCode.LastKey) != key;
+		NeedReduceArgumentOnLoad = updated;
 		if (updated)
 			GetConfigItem(ConfigCode.LastKey).SetValue(key);
 		return updated;
@@ -916,6 +918,9 @@ internal sealed class ConfigData
 		SearchOption option = SearchOption.TopDirectoryOnly;
 		if (GetConfigValue<bool>(ConfigCode.SearchSubdirectory))
 			option = SearchOption.AllDirectories;
+		if (SafPath.IsContentUri(Program.ExeDir))
+			return getSafUpdateKey(option);
+
 		string[] erbFiles = Directory.GetFiles(Program.ErbDir, "*.ERB", option);
 		string[] csvFiles = Directory.GetFiles(Program.CsvDir, "*.CSV", option);
 		long[] writetimes = new long[erbFiles.Length + csvFiles.Length];
@@ -934,6 +939,46 @@ internal sealed class ConfigData
 			}
 		}
 		return key;
+	}
+
+	/// <summary>
+	/// SAF providers do not expose a portable last-write-time contract. Keep ONCE
+	/// deterministic by hashing the logical ERB/CSV paths, which still detects
+	/// added/removed files without calling File.GetLastWriteTime(content://...).
+	/// </summary>
+	private static long getSafUpdateKey(SearchOption option)
+	{
+		try
+		{
+			var accessor = GamePaths.Current.DirAccessor;
+			var files = new List<string>();
+			files.AddRange(accessor.GetFiles(Program.ErbDir, "*.ERB", option)
+				.Where(path => string.Equals(Path.GetExtension(SafPath.GetLogicalFileName(path)), ".ERB", StringComparison.OrdinalIgnoreCase))
+				.Select(path => "erb:" + SafPath.GetRelativePathFromRoot(Program.ExeDir, path)));
+			files.AddRange(accessor.GetFiles(Program.CsvDir, "*.CSV", option)
+				.Where(path => string.Equals(Path.GetExtension(SafPath.GetLogicalFileName(path)), ".CSV", StringComparison.OrdinalIgnoreCase))
+				.Select(path => "csv:" + SafPath.GetRelativePathFromRoot(Program.ExeDir, path)));
+
+			files.Sort(StringComparer.OrdinalIgnoreCase);
+			unchecked
+			{
+				long key = 1469598103934665603L;
+				foreach (var file in files)
+				{
+					foreach (var ch in file)
+					{
+						key ^= ch;
+						key *= 1099511628211L;
+					}
+				}
+				return key;
+			}
+		}
+		catch (Exception ex)
+		{
+			Console.Error.WriteLine($"[Config] SAF update detection unavailable; continuing without timestamp reduction: {ex.Message}");
+			return 0;
+		}
 	}
 
 	private void createSavDirAndMoveFiles()

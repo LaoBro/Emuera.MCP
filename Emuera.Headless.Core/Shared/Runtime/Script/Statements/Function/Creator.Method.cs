@@ -7261,7 +7261,7 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string str = arguments[0].GetStrValue(exm);
-			string filepath = Path.GetFullPath(".\\sound\\" + str);
+			string filepath = SafCompat.CombinePath(Program.SoundDir, str);
 			if (SafCompat.FileExists(filepath))
 				return 1;
 			return 0;

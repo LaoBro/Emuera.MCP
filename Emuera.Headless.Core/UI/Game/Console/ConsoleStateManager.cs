@@ -296,10 +296,11 @@ internal sealed class ConsoleStateManager
         SearchOption op = SearchOption.AllDirectories;
         if (!Config.SearchSubdirectory)
             op = SearchOption.TopDirectoryOnly;
-        var fnames = Directory.EnumerateFiles(erbPath, "*.ERB", op);
+        var fnames = GamePaths.Current.DirAccessor.GetFiles(erbPath, "*.ERB", op);
         foreach (var fname in fnames)
         {
-            if (string.Equals(Path.GetExtension(fname), ".ERB", StringComparison.OrdinalIgnoreCase))
+            var logicalName = SafPath.GetLogicalFileName(fname);
+            if (string.Equals(Path.GetExtension(logicalName), ".ERB", StringComparison.OrdinalIgnoreCase))
                 paths.Add(fname);
         }
         bool notRedraw = false;

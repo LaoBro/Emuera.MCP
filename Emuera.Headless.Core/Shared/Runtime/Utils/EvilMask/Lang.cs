@@ -1194,6 +1194,7 @@ internal sealed partial class Lang
 		[Managed] public static TranslatableString IsDefinedErdVariable { get; } = new TranslatableString("変数名\"{0}\"は既にERD変数\"{1}\"の定義に使われており、予期せぬ配列参照を引き起こす場合があります");
 		[Managed] public static TranslatableString CanNotParseStringToIntTooltipImg { get; } = new TranslatableString("\"{0}\"を数値型に変換できません（文字列型として使う場合はTOOLTIP_IMGをオフにしてください）");
 		[Managed] public static TranslatableString ImcompatibleSoundFile { get; } = new TranslatableString("非対応のサウンドファイルが指定されました");
+		[Managed] public static TranslatableString SoundPlaybackUnsupported { get; } = new TranslatableString("Androidではサウンド再生に対応していません");
 		[Managed] public static TranslatableString IgnoreRandomize { get; } = new TranslatableString("新しい乱数アルゴリズムではRANDOMIZEは無視されます");
 		[Managed] public static TranslatableString CanNotUseInitrand { get; } = new TranslatableString("新しい乱数アルゴリズムではINITRANDは機能しません");
 		[Managed] public static TranslatableString CanNotUseDumprand { get; } = new TranslatableString("新しい乱数アルゴリズムではDUMPRANDは機能しません");
@@ -1350,10 +1351,12 @@ internal sealed partial class Lang
 
 	public static void LoadLanguageFiles()
 	{
+		langList.Clear();
+		localeList.Clear();
 		foreach (var pair in trItems) pair.Value.Clear();
-		if (Directory.Exists(langDir))
+		if (SafCompat.DirectoryExists(LangDir))
 		{
-			foreach (var path in Directory.EnumerateFiles(langDir, "emuera.*.xml", SearchOption.TopDirectoryOnly))
+			foreach (var path in GamePaths.Current.DirAccessor.GetFiles(LangDir, "emuera.*.xml", SearchOption.TopDirectoryOnly))
 			{
 				AddLanguageFile(path);
 			}
@@ -1454,7 +1457,9 @@ internal sealed partial class Lang
 		}
 		else
 		{
-			xml.Load(path);
+			using var stream = SafCompat.OpenRead(path)
+				?? throw new FileNotFoundException(path);
+			xml.Load(stream);
 		}
 		return xml;
 	}
@@ -1465,15 +1470,15 @@ internal sealed partial class Lang
 
 	static public void GenerateDefaultLangFile()
 	{
-		if (!Directory.Exists(langDir))
-			Directory.CreateDirectory(langDir);
-		FileStream fs = new(langDir + "emuera-default-lang.xml", FileMode.Create);
+		if (!SafCompat.DirectoryExists(LangDir))
+			SafCompat.CreateDirectory(LangDir);
+		using Stream fs = SafCompat.OpenWrite(SafCompat.CombinePath(LangDir, "emuera-default-lang.xml"));
 		XmlWriterSettings settings = new()
 		{
 			Indent = true,
 			IndentChars = "\t"
 		};
-		XmlWriter writer = XmlWriter.Create(fs, settings);
+		using var writer = XmlWriter.Create(fs, settings);
 		XmlDocument xml = new();
 		var root = xml.CreateElement("lang");
 		xml.AppendChild(root);
@@ -1493,7 +1498,7 @@ internal sealed partial class Lang
 		writer.Flush();
 	}
 
-	static readonly string langDir = Path.Combine(Program.ExeDir, "lang") + Path.DirectorySeparatorChar;
+	private static string LangDir => SafCompat.ResolveSubPath(Program.ExeDir, "lang");
 
 	static readonly Dictionary<string, string> langList = [];
 	static readonly Dictionary<string, string> localeList = [];

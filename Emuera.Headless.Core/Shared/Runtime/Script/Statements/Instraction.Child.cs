@@ -2709,10 +2709,12 @@ internal sealed partial class FunctionIdentifier
 			else
 				datFilename = soundArg.Str.GetStrValue(exm);
 			int repeat = soundArg.Opt != null ? (int)Math.Max(soundArg.Opt.GetIntValue(exm), 1) : 1;
-			string filepath = Path.GetFullPath(Program.SoundDir + datFilename);
 			try
 			{
-				if (File.Exists(filepath))
+				if (OperatingSystem.IsAndroid())
+					throw new CodeEE(trerror.SoundPlaybackUnsupported.Text);
+				string filepath = SafCompat.CombinePath(Program.SoundDir, datFilename);
+				if (SafCompat.FileExists(filepath))
 				{
 					int i;
 					for (i = 0; i < sound.Length; i++)
@@ -2729,6 +2731,10 @@ internal sealed partial class FunctionIdentifier
 
 					sound[i].play(filepath, repeat);
 				}
+			}
+			catch (CodeEE)
+			{
+				throw;
 			}
 			catch
 			{
@@ -2772,12 +2778,18 @@ internal sealed partial class FunctionIdentifier
 				datFilename = arg.ConstStr;
 			else
 				datFilename = arg.Term.GetStrValue(exm);
-			string filepath = Path.GetFullPath(Program.SoundDir + datFilename);
 
 			try
 			{
-				if (File.Exists(filepath))
+				if (OperatingSystem.IsAndroid())
+					throw new CodeEE(trerror.SoundPlaybackUnsupported.Text);
+				string filepath = SafCompat.CombinePath(Program.SoundDir, datFilename);
+				if (SafCompat.FileExists(filepath))
 					bgm.play(filepath, -1); // -1 means repeat indefinitely
+			}
+			catch (CodeEE)
+			{
+				throw;
 			}
 			catch
 			{
