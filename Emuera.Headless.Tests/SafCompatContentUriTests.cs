@@ -28,6 +28,7 @@ public class SafCompatContentUriTests
         var savDir = SafCompat.ResolveSubPath(Root, "sav");
         SafCompat.CreateDirectory(savDir);
         var savePath = SafCompat.CombinePath(savDir, "global.sav");
+        Assert.Equal(savDir, accessor.GetParentPath(savePath));
 
         SafCompat.WriteAllText(savePath, "global-data", Encoding.UTF8);
 
@@ -135,6 +136,16 @@ public class SafCompatContentUriTests
         public bool HasWriteAccess() => true;
         public string ResolveSubPath(string basePath, string subDir) => AppendDocumentSegment(basePath, subDir);
         public string CombinePath(string basePath, string filename) => AppendDocumentSegment(basePath, filename);
+        public string GetParentPath(string path)
+        {
+            var docId = SafPath.TryGetDocumentId(path);
+            if (docId == null) return path;
+            var slash = docId.LastIndexOf('/');
+            if (slash < 0) return path;
+            var marker = "/document/";
+            var markerPos = path.LastIndexOf(marker, StringComparison.Ordinal);
+            return path[..(markerPos + marker.Length)] + Uri.EscapeDataString(docId[..slash]);
+        }
         public string GetFileName(string path) => SafPath.GetLogicalFileName(path);
         public void Seed(string path, byte[] bytes) => _files[path] = bytes;
 

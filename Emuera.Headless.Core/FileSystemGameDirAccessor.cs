@@ -50,5 +50,7 @@ public sealed class FileSystemGameDirAccessor : IGameDirAccessor
         => Path.Combine(basePath, subDir) + Path.DirectorySeparatorChar;
     public string CombinePath(string basePath, string filename)
         => Path.Combine(basePath, filename);
+    public string GetParentPath(string path)
+        => Path.GetDirectoryName(path) ?? path;
     public string GetFileName(string path) => Path.GetFileName(path);
 }

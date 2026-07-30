@@ -197,7 +197,7 @@ internal sealed class ErbLoader
 			foreach (var fpath in paths)
 			{
 				if (fpath.StartsWith(env.ErbDir, Config.Config.SCIgnoreCase) && !env.AnalysisMode)
-					fname = Path.GetRelativePath(env.ErbDir, fpath);
+					fname = SafPath.GetRelativePathFromRoot(env.ErbDir, fpath);
 				else
 					fname = fpath;
 				if (env.AnalysisMode)

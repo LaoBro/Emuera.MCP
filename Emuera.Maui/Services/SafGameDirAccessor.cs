@@ -529,6 +529,21 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         return $"{trimmed}/{filename}";
     }
 
+    public string GetParentPath(string path)
+    {
+        if (_treeAndroidUri == null || !TryParseUri(path, out var docUri))
+            return path;
+
+        var docId = ResolveDocId(docUri);
+        var lastSlash = docId.LastIndexOf('/');
+        if (lastSlash < 0)
+            return TreeRootDocumentPath();
+
+        var parentId = docId[..lastSlash];
+        var parentUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri, parentId);
+        return parentUri?.ToString() ?? TreeRootDocumentPath();
+    }
+
     public string GetFileName(string path)
     {
         // document 段内路径分隔符是 %2F：不能取 URI 最后一个 / 之后整段。

@@ -52,5 +52,6 @@ public interface IGameDirAccessor
     // ── 路径操作 ──────────────────────────────────
     string ResolveSubPath(string basePath, string subDir);
     string CombinePath(string basePath, string filename);
+    string GetParentPath(string path);
     string GetFileName(string path);
 }

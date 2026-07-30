@@ -1778,7 +1778,9 @@ internal sealed class ConstantData
 			eReader.Close();
 		}
 
-		var aliasPath = Path.GetDirectoryName(csvPath) + "\\" + Path.GetFileNameWithoutExtension(csvPath) + ".als";
+		var aliasName = SafPath.GetLogicalFileNameWithoutExtension(csvPath) + ".als";
+		var aliasParent = dirAccessor!.GetParentPath(csvPath);
+		var aliasPath = dirAccessor.CombinePath(aliasParent, aliasName);
 		if (SafCompat.FileExists(aliasPath))
 		{
 			loadAliases(aliasPath, targetIndex);
