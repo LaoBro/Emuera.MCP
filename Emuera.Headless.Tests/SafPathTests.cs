@@ -33,6 +33,15 @@ public class SafPathTests
 	}
 
 	[Fact]
+	public void GetLogicalFileName_SAF_ignores_uri_query_and_fragment()
+	{
+		var uriWithMetadata = DvarErd + "?provider=documents#preview";
+
+		Assert.Equal("DVAR.erd", SafPath.GetLogicalFileName(uriWithMetadata));
+		Assert.Equal("DVAR", SafPath.GetLogicalFileNameWithoutExtension(uriWithMetadata));
+	}
+
+	[Fact]
 	public void GetRelativePathFromRoot_SAF_uses_backslash_like_Config_getFiles()
 	{
 		Assert.Equal("DVAR.erd", SafPath.GetRelativePathFromRoot(ErbRoot, DvarErd));

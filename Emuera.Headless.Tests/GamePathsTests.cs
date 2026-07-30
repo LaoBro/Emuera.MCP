@@ -16,6 +16,7 @@ namespace MinorShift.Emuera.Tests;
 /// 注：GamePaths.Resolve 会重赋静态 GamePaths.Current——测试间无隔离，但每个 case
 /// 各自 Resolve 独立临时目录，互不读对方的 paths 字段。
 /// </summary>
+[Collection("LoaderTests")]
 public class GamePathsTests
 {
     [Fact]

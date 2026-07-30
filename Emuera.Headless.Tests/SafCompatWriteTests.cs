@@ -9,6 +9,7 @@ namespace MinorShift.Emuera.Tests;
 /// <summary>
 /// 方案 B / B2：SafCompat 写路径经 FileSystemGameDirAccessor 的本地契约。
 /// </summary>
+[Collection("LoaderTests")]
 public class SafCompatWriteTests
 {
     [Fact]
