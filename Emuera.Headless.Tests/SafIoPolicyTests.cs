@@ -17,6 +17,10 @@ public class SafIoPolicyTests
         @"\b(?:File|Directory)\.[A-Za-z_][A-Za-z0-9_]*\b|\bnew\s+(?:(?:System\.IO\.)?FileStream|(?:System\.IO\.)?FileInfo|(?:System\.IO\.)?DirectoryInfo)\b",
         RegexOptions.Compiled);
 
+    private static readonly Regex UnsafeContentPathSemantics = new(
+        @"\bPath\.GetRelativePath\s*\(|\bPath\.GetDirectoryName\s*\(\s*csvPath\s*\)|\bPath\.GetFileNameWithoutExtension\s*\(\s*csvPath\s*\)",
+        RegexOptions.Compiled);
+
     private static readonly IReadOnlyDictionary<string, string> KnownDirectIoFiles =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -121,6 +125,31 @@ public class SafIoPolicyTests
 
         Assert.True(violations.Count == 0,
             "Direct I/O in Shared/Runtime exceeds the documented SAF baseline:\n" + string.Join('\n', violations));
+    }
+
+    [Fact]
+    public void Shared_runtime_does_not_reintroduce_known_content_path_semantics()
+    {
+        var runtimeDir = Path.Combine(FindRepositoryRoot(), "Emuera.Headless.Core", "Shared", "Runtime");
+        var violations = new List<string>();
+        foreach (var path in Directory.EnumerateFiles(runtimeDir, "*.cs", SearchOption.AllDirectories))
+        {
+            var lines = File.ReadAllLines(path);
+            var relativePath = Path.GetRelativePath(runtimeDir, path).Replace('\\', '/');
+            for (var index = 0; index < lines.Length; index++)
+            {
+                var line = lines[index].TrimStart();
+                if (line.StartsWith("//", StringComparison.Ordinal)
+                    || line.StartsWith("/*", StringComparison.Ordinal)
+                    || line.StartsWith("*", StringComparison.Ordinal))
+                    continue;
+                if (UnsafeContentPathSemantics.IsMatch(line))
+                    violations.Add($"{relativePath}:{index + 1}: {line.Trim()}");
+            }
+        }
+
+        Assert.True(violations.Count == 0,
+            "Known unsafe content URI path semantics were reintroduced:\n" + string.Join('\n', violations));
     }
 
     private static string FindRepositoryRoot()
