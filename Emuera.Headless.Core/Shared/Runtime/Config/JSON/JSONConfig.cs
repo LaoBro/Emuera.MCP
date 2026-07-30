@@ -6,7 +6,8 @@ using System.Text.Json;
 namespace MinorShift.Emuera.Runtime.Config.JSON;
 static class JSONConfig
 {
-	public static JSONConfigData Data = null!;
+	// Some runtime types read this during static initialization before the startup loader runs.
+	public static JSONConfigData Data = new();
 
 	const string _configFileName = "setting.json";
 	static string _configFilePath = Program.ExeDir + _configFileName;
@@ -31,7 +32,7 @@ static class JSONConfig
 		if (File.Exists(_configFilePath))
 		{
 			var json = File.ReadAllText(_configFilePath);
-			Data = JsonSerializer.Deserialize<JSONConfigData>(json)!;
+			Data = JsonSerializer.Deserialize<JSONConfigData>(json) ?? new JSONConfigData();
 		}
 		else
 		{
