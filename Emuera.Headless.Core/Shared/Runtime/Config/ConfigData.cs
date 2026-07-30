@@ -1052,11 +1052,13 @@ internal sealed class ConfigData
 		}
 		catch (EmueraException ee)
 		{
-			ParserMediator.ConfigWarn(ee.Message, pos, 1, null!);
+			if (ParserMediator.Level >= 2) // Debug
+				ParserMediator.ConfigWarn(ee.Message, pos, 1, null!);
 		}
 		catch (Exception exc)
 		{
-			ParserMediator.ConfigWarn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace!);
+			if (ParserMediator.Level >= 2) // Debug
+				ParserMediator.ConfigWarn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace!);
 		}
 		finally { eReader.Dispose(); }
 		return true;
@@ -1095,11 +1097,13 @@ internal sealed class ConfigData
 		}
 		catch (EmueraException ee)
 		{
-			ParserMediator.Warn(ee.Message, pos, 1);
+			if (ParserMediator.Level >= 2) // Debug
+				ParserMediator.Warn(ee.Message, pos, 1);
 		}
 		catch (Exception exc)
 		{
-			ParserMediator.Warn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace!);
+			if (ParserMediator.Level >= 2) // Debug
+				ParserMediator.Warn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace!);
 		}
 		finally { eReader.Dispose(); }
 	}
@@ -1172,12 +1176,14 @@ internal sealed class ConfigData
 		}
 		catch (EmueraException ee)
 		{
-			ParserMediator.ConfigWarn(ee.Message, pos, 1, null!);
+			if (ParserMediator.Level >= 2) // Debug
+				ParserMediator.ConfigWarn(ee.Message, pos, 1, null!);
 			goto err;
 		}
 		catch (Exception exc)
 		{
-			ParserMediator.ConfigWarn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace!);
+			if (ParserMediator.Level >= 2) // Debug
+				ParserMediator.ConfigWarn(exc.GetType().ToString() + ":" + exc.Message, pos, 1, exc.StackTrace!);
 			goto err;
 		}
 		finally { eReader.Dispose(); }
