@@ -1209,6 +1209,8 @@ internal sealed partial class Lang
 	public sealed class MessageBox
 	{
 		[Managed] public static TranslatableString ConfigError { get; } = new TranslatableString("設定のエラー");
+		[Managed] public static TranslatableString ConfigSaveFailure { get; } = new TranslatableString("設定を保存できませんでした");
+		[Managed] public static TranslatableString MacroSaveFailure { get; } = new TranslatableString("マクロを保存できませんでした");
 		[Managed] public static TranslatableString TooSmallFontSize { get; } = new TranslatableString("フォントサイズが小さすぎます(8が下限)");
 		[Managed] public static TranslatableString LineHeightLessThanFontSize { get; } = new TranslatableString("行の高さがフォントサイズより小さいため、フォントサイズと同じ高さと解釈されます");
 		[Managed] public static TranslatableString TooSmallDisplaySaveData { get; } = new TranslatableString("表示するセーブデータ数が少なすぎます(20が下限)");

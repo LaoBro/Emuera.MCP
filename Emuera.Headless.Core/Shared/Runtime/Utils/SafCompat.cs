@@ -157,6 +157,16 @@ internal static class SafCompat
     /// and descendants of sav are allowed, so the same logical path works for filesystem and SAF roots.
     /// </summary>
     internal static bool TryResolveGameRelativePath(string relativePath, bool createParentDirectories, out string path)
+        => TryResolvePathUnderGameRoot(relativePath, createParentDirectories, out path, onlySavTree: true);
+
+    /// <summary>
+    /// Resolves a relative path beneath the game root for engine-owned files such as logs.
+    /// Unlike script text paths, descendants are not restricted to <c>sav</c>.
+    /// </summary>
+    internal static bool TryResolvePathUnderGameRoot(string relativePath, bool createParentDirectories, out string path)
+        => TryResolvePathUnderGameRoot(relativePath, createParentDirectories, out path, onlySavTree: false);
+
+    private static bool TryResolvePathUnderGameRoot(string relativePath, bool createParentDirectories, out string path, bool onlySavTree)
     {
         path = null!;
         if (string.IsNullOrWhiteSpace(relativePath)
@@ -168,7 +178,7 @@ internal static class SafCompat
         if (segments.Length == 0 || segments.Any(segment => string.IsNullOrEmpty(segment)
             || segment == "." || segment == ".." || segment.Contains(':')))
             return false;
-        if (segments.Length > 1 && !segments[0].Equals("sav", System.StringComparison.OrdinalIgnoreCase))
+        if (onlySavTree && segments.Length > 1 && !segments[0].Equals("sav", System.StringComparison.OrdinalIgnoreCase))
             return false;
 
         var directory = GamePaths.Current?.ExeDir;

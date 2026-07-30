@@ -240,7 +240,8 @@ internal sealed class Config
 	public static void SetLanguageSetting(ConfigData instance, string lang)
 	{
 		instance.GetConfigItem(ConfigCode.EmueraLang).SetValue(lang);
-		instance.SaveConfig();
+		if (!instance.SaveConfig())
+			Dialog.Show(trmb.ConfigError.Text, trmb.ConfigSaveFailure.Text);
 	}
 
 	/// <summary>KeyValuePair&lt;相对路径, 完全路径&gt; 列表。</summary>

@@ -658,42 +658,35 @@ internal sealed class ConsolePrintManager
 
     // --- Log ---
 
-    private bool OutputLogInternal(string fullpath, bool hideInfo)
+    private bool OutputLogInternal(string fullpath, bool hideInfo, bool showFailure)
     {
         try
         {
             var log = GetLog(hideInfo);
-            File.WriteAllText(fullpath, log, EncodingHandler.UTF8BOMEncoding);
+            SafCompat.WriteAllText(fullpath, log, EncodingHandler.UTF8BOMEncoding);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            Dialog.Show(trmb.FailedOutputLog.Text, trmb.FailedOutputLogError.Text);
+            Console.Error.WriteLine($"[OutputLog] Failed to write {fullpath}: {ex}");
+            if (showFailure)
+                Dialog.Show(trmb.FailedOutputLog.Text, trmb.FailedOutputLogError.Text);
             return false;
         }
         return true;
     }
 
-    public bool OutputLog(string? filename, bool hideInfo)
+    public bool OutputLog(string? filename, bool hideInfo, bool showFailure = true)
     {
-        if (filename == "" || filename == null)
-            filename = Program.ExeDir + "emuera.log";
-        else
-            filename = Program.ExeDir + filename;
-        if (filename.Contains("../", StringComparison.Ordinal))
-        {
-            Dialog.Show(trmb.FailedOutputLog.Text, trmb.CanNotOutputToParentDirectory.Text);
-            return false;
-        }
-        if (!filename.StartsWith(Program.ExeDir, StringComparison.OrdinalIgnoreCase))
+        if (!TryResolveOutputLogPath(filename, out var fullpath, out var relativePath))
         {
             Dialog.Show(trmb.FailedOutputLog.Text, trmb.CanOnlyOutputToSubDirectory.Text);
             return false;
         }
-        if (OutputLogInternal(filename, hideInfo))
+        if (OutputLogInternal(fullpath, hideInfo, showFailure))
         {
             if (_ui.Created)
             {
-                PrintSystemLine(string.Format(trsl.LogFileHasBeenCreated.Text, filename.Replace(Program.ExeDir, "")));
+                PrintSystemLine(string.Format(trsl.LogFileHasBeenCreated.Text, relativePath));
                 _console.RefreshStrings(true);
             }
             return true;
@@ -701,25 +694,29 @@ internal sealed class ConsolePrintManager
         return false;
     }
 
-    public bool OutputSystemLog(string filename)
+    public bool OutputSystemLog(string? filename)
     {
-        if (filename == "" || filename == null)
-            filename = Program.ExeDir + "emuera.log";
-        if (!filename.StartsWith(Program.ExeDir, StringComparison.OrdinalIgnoreCase))
+        if (!TryResolveOutputLogPath(filename, out var fullpath, out var relativePath))
         {
             Dialog.Show(trmb.FailedOutputLog.Text, trmb.CanOnlyOutputToSubDirectory.Text);
             return false;
         }
-        if (OutputLogInternal(filename, false))
+        if (OutputLogInternal(fullpath, false, showFailure: true))
         {
             if (_ui.Created)
             {
-                PrintSystemLine(string.Format(trsl.LogFileHasBeenCreated.Text, filename.Replace(Program.ExeDir, "")));
+                PrintSystemLine(string.Format(trsl.LogFileHasBeenCreated.Text, relativePath));
                 _console.RefreshStrings(true);
             }
             return true;
         }
         return false;
+    }
+
+    private static bool TryResolveOutputLogPath(string? filename, out string fullpath, out string relativePath)
+    {
+        relativePath = string.IsNullOrEmpty(filename) ? "emuera.log" : filename;
+        return SafCompat.TryResolvePathUnderGameRoot(relativePath, createParentDirectories: true, out fullpath);
     }
 
     public string GetLog(bool hideInfo)
@@ -735,14 +732,14 @@ internal sealed class ConsolePrintManager
                 builder.AppendLine(trsl.NotDefinedGameBase.Text);
             else
                 builder.AppendLine(_state.process!.gameBase.ScriptTitle + " " + _state.process!.gameBase.ScriptVersionText);
-            var patchVersionsPath = Path.Combine(Program.ExeDir, "patch_versions");
-            if (Directory.Exists(patchVersionsPath))
+            var patchVersionsPath = SafCompat.ResolveSubPath(Program.ExeDir, "patch_versions");
+            if (SafCompat.DirectoryExists(patchVersionsPath))
             {
                 builder.AppendLine(trsl.PatchVersion.Text);
-                var versionTexts = Directory.EnumerateFiles(patchVersionsPath, "*.txt")
-                    .Where(x => Path.GetExtension(x) == ".txt")
+                var versionTexts = SafCompat.GetFiles(patchVersionsPath, "*.txt", SearchOption.TopDirectoryOnly)
+                    .Where(x => Path.GetExtension(SafPath.GetLogicalFileName(x)).Equals(".txt", StringComparison.OrdinalIgnoreCase))
                     .OrderBy(x => x, StringComparer.Ordinal)
-                    .Select(x => File.ReadAllText(x).Trim());
+                    .Select(x => SafCompat.ReadAllText(x).Trim());
                 builder.AppendLine(string.Join("+", versionTexts));
             }
             builder.AppendLine();

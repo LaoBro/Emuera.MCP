@@ -63,9 +63,10 @@ public static class MauiProgram
         builder.Logging.AddDebug();
 #endif
 
-        try
-        {
-            // === spec ID8 启动编排 ===
+		try
+		{
+			AppDataPaths.Configure(FileSystem.AppDataDirectory);
+			// === spec ID8 启动编排 ===
             // 同步等待 EnsureGameDirAsync——见类 remarks。
             Console.WriteLine("[maui] EnsureGameDirAsync starting");
 #if ANDROID

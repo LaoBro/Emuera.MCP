@@ -266,8 +266,8 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView, IButtonDis
     // Log delegation
     // ========================================
 
-    internal bool OutputLog(string? filename, bool hideInfo) => _printManager.OutputLog(filename, hideInfo);
-    internal bool OutputSystemLog(string filename) => _printManager.OutputSystemLog(filename);
+    internal bool OutputLog(string? filename, bool hideInfo, bool showFailure = true) => _printManager.OutputLog(filename, hideInfo, showFailure);
+    internal bool OutputSystemLog(string? filename) => _printManager.OutputSystemLog(filename);
     internal string GetLog(bool hideInfo) => _printManager.GetLog(hideInfo);
 
     // ========================================
@@ -312,7 +312,7 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView, IButtonDis
             PrintError(trerror.ProgramStatusError.Text);
         }
         if (_state.State == ConsoleState.Error && !_state.noOutputLog)
-            OutputSystemLog(Program.ExeDir + "emuera.log");
+            OutputSystemLog("emuera.log");
         PrintFlush(false);
         _inputHandler.NewGeneration();
     }

@@ -30,11 +30,9 @@ namespace MinorShift.Emuera.GameView
             {
                 try
                 {
-                    string exeDir = Program.ExeDir;
-                    if (string.IsNullOrEmpty(exeDir)) exeDir = AppContext.BaseDirectory;
-                    string dir = Path.Combine(exeDir, "debug");
+                    string dir = AppDataPaths.Directory;
                     Directory.CreateDirectory(dir);
-                    FilePath = Path.Combine(dir, "agent.log");
+                    FilePath = AppDataPaths.CombinePath("agent.log");
                     // append:false 覆盖式，每次进程启动清空，只保留最后一次运行日志
                     _writer = new StreamWriter(FilePath, append: false) { AutoFlush = false };
                     AppDomain.CurrentDomain.ProcessExit += OnProcessExit;

@@ -43,17 +43,20 @@ internal sealed class ConsoleStateManager
         {
             if (Config.DisplayReport)
             {
-                using var fs = new FileStream(Program.ExeDir + "time.log", FileMode.OpenOrCreate);
-                logWriter = new StreamWriter(fs);
+                string timeLogPath = SafCompat.CombinePath(Program.ExeDir, "time.log");
+                logWriter = new StreamWriter(SafCompat.OpenWrite(timeLogPath));
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Console.Error.WriteLine($"[time.log] Failed to open initialization log: {ex}");
             ParserMediator.Warn(trerror.TimeLogFileLocked.Text, null, 0);
         }
-        logWriter?.WriteLine("Init:Start");
-        logWriter?.WriteLine("File:Preload:Start");
-        _state._genericTimerStopwatch.Restart();
+        try
+        {
+            logWriter?.WriteLine("Init:Start");
+            logWriter?.WriteLine("File:Preload:Start");
+            _state._genericTimerStopwatch.Restart();
 
         Preload.Clear();
         await Preload.Load(Program.ErbDir, GamePaths.Current.DirAccessor);
@@ -78,7 +81,7 @@ internal sealed class ConsoleStateManager
         {
             Console.WriteLine("[csm] Process.Initialize returned false");
             _state.State = ConsoleState.Error;
-            _console.OutputLog(null!, false);
+            _console.OutputLog(null, false, showFailure: false);
             _console.PrintFlush(false);
             _console.RefreshStrings(true);
             return;
@@ -87,7 +90,19 @@ internal sealed class ConsoleStateManager
         _console.RunEmueraProgram("");
         _console.RefreshStrings(true);
 
-        logWriter?.WriteLine("Init:End " + boottimeDebugStopwatch.ElapsedMilliseconds + "ms");
+            logWriter?.WriteLine("Init:End " + boottimeDebugStopwatch.ElapsedMilliseconds + "ms");
+        }
+        finally
+        {
+            try
+            {
+                logWriter?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[time.log] Failed to close initialization log: {ex}");
+            }
+        }
     }
 
     public void Quit() => _state.State = ConsoleState.Quit;
@@ -348,7 +363,7 @@ internal sealed class ConsoleStateManager
         }
         else if (com.Equals("OUTPUT", sc) || com.Equals("OUTPUTLOG", sc))
         {
-            _console.OutputSystemLog(Program.ExeDir + "emuera.log");
+            _console.OutputSystemLog("emuera.log");
             return;
         }
         else if (com.Equals("QUIT", sc) || com.Equals("EXIT", sc))

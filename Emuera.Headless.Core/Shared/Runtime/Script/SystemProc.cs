@@ -184,7 +184,7 @@ internal sealed class SystemProc
 			if (Program.AnalysisMode)
 			{
 				console.PrintSystemLine(trsl.AnalysisCompleted.Text);
-				console.OutputSystemLog(Program.ExeDir + "Analysis.log");
+				console.OutputSystemLog("Analysis.log");
 				console.noOutputLog = true;
 				console.PrintSystemLine(trsl.PressEnterOrClick.Text);
 #if !HEADLESS
@@ -198,7 +198,7 @@ internal sealed class SystemProc
 				console.PrintErrorButton(trsl.ExitBecauseCanNotInterpreted1.Text, null, 3);
 				console.PrintSystemLine(string.Format(trsl.ExitBecauseCanNotInterpreted2.Text, Config.GetConfigName(ConfigCode.CompatiErrorLine)));
 				console.PrintSystemLine(trsl.ExitBecauseCanNotInterpreted3.Text);
-				console.OutputSystemLog(Program.ExeDir + "emuera.log");
+				console.OutputSystemLog("emuera.log");
 				console.noOutputLog = true;
 				console.PrintSystemLine(trsl.PressEnterOrClick.Text);
 #if !HEADLESS

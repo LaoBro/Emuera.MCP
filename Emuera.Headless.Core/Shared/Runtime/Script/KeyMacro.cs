@@ -1,16 +1,14 @@
 using MinorShift.Emuera.Sub;
+using MinorShift.Emuera.Runtime.Utils;
 using System;
 using System.IO;
 using trmk = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.KeyMacro;
+using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 
 namespace MinorShift.Emuera.Runtime.Script;
 
 internal static class KeyMacro
 {
-	#region eee_カレントディレクトリー
-	//readonly static string macroPath = Program.ExeDir + "macro.txt";
-	readonly static string macroPath = Program.ExeDir + "macro.txt";
-	#endregion
 	public const string gID = "グループ";
 	public const int MaxGroup = 10;
 	public const int MaxFkey = 12;
@@ -52,11 +50,10 @@ internal static class KeyMacro
 	{
 		if (!isMacroChanged)
 			return true;
-		StreamWriter writer = null!;
-
 		try
 		{
-			writer = new StreamWriter(macroPath, false, Config.Config.Encode);
+			string macroPath = SafCompat.CombinePath(Program.ExeDir, "macro.txt");
+			using var writer = new StreamWriter(SafCompat.OpenWrite(macroPath), Config.Config.Encode);
 			for (int g = 0; g < MaxGroup; g++)
 			{
 				writer.WriteLine(gID + g.ToString() + ":" + groupName[g]);
@@ -66,14 +63,11 @@ internal static class KeyMacro
 				writer.WriteLine(macroName[i] + macro[i]);
 			}
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[KeyMacro] SaveMacro failed: {ex}");
+			Dialog.Show(trmb.ConfigError.Text, trmb.MacroSaveFailure.Text);
 			return false;
-		}
-		finally
-		{
-			if (writer != null)
-				writer.Close();
 		}
 		return true;
 	}

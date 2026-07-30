@@ -29,7 +29,7 @@ internal sealed class ConfigData
 	// 启动期 / CLI 无 GamePaths 时 fallback 到 Program.ExeDir。
 	readonly string configPath;
 	#endregion
-	readonly static string configdebugPath = Program.DebugDir + "debug.config";
+	private static string ConfigDebugPath => SafCompat.CombinePath(Program.DebugDir, "debug.config");
 
 	private static readonly AsyncLocal<ConfigData?> _current = new();
 	public static ConfigData? Current => _current.Value;
@@ -635,13 +635,15 @@ internal sealed class ConfigData
 
 	public bool SaveConfig()
 	{
-		StreamWriter writer = null!;
+		return SaveConfig(configPath);
+	}
 
+	private bool SaveConfig(string targetPath)
+	{
 		try
 		{
 			#region EM_私家版_Emuera多言語化改造
-			// writer = new StreamWriter(configPath, false, Config.Encode);
-			writer = new StreamWriter(configPath, false, Config.Encode);
+			using var writer = new StreamWriter(SafCompat.OpenWrite(targetPath), Config.Encode);
 
 			// for (int i = 0; i < configArray.Length; i++)
 			for (int i = 0; i < configArray.Count; i++)
@@ -686,14 +688,10 @@ internal sealed class ConfigData
 				writer.WriteLine(item.ToString());
 			}
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[Config] SaveConfig failed: {ex}");
 			return false;
-		}
-		finally
-		{
-			if (writer != null)
-				writer.Close();
 		}
 		return true;
 	}
@@ -764,9 +762,8 @@ internal sealed class ConfigData
 			GetItem(ConfigCode.LastKey).SetValue(GetConfigValue<long>(ConfigCode.LastKey));
 			needSave = true;
 		}
-		// SAF 写路径尚未支持——不要在 content URI 上尝试创建默认 config
-		if (needSave && !SafPath.IsContentUri(configPathLocal))
-			SaveConfig();
+		if (needSave && !SaveConfig(configPathLocal))
+			Console.Error.WriteLine($"[Config] Could not create or update {configPathLocal}.");
 
 		Console.WriteLine(
 			$"[Config] LoadConfig: path={configPathLocal}, main={loadedMain}, default={loadedDefault}, fixed={loadedFixed}, " +
@@ -1111,12 +1108,10 @@ internal sealed class ConfigData
 
 	public bool SaveDebugConfig()
 	{
-		StreamWriter writer = null!;
 		try
 		{
 			#region EM_私家版_Emuera多言語化改造
-			// writer = new StreamWriter(configdebugPath, false, Config.Encode);
-			writer = new StreamWriter(configdebugPath, false, Config.Encode);
+			using var writer = new StreamWriter(SafCompat.OpenWrite(ConfigDebugPath), Config.Encode);
 
 			// for (int i = 0; i < debugArray.Length; i++)
 			for (int i = 0; i < debugArray.Count; i++)
@@ -1128,14 +1123,10 @@ internal sealed class ConfigData
 				writer.WriteLine(item.ToString());
 			}
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[Config] SaveDebugConfig failed: {ex}");
 			return false;
-		}
-		finally
-		{
-			if (writer != null)
-				writer.Close();
 		}
 		return true;
 	}
@@ -1143,9 +1134,9 @@ internal sealed class ConfigData
 	public bool LoadDebugConfig()
 	{
 		using var eReader = new EraStreamReader(false);
-		if (!File.Exists(configdebugPath))
+		if (!SafCompat.FileExists(ConfigDebugPath))
 			goto err;
-		if (!eReader.Open(configdebugPath))
+		if (!eReader.Open(ConfigDebugPath))
 			goto err;
 		ScriptPosition? pos = null;
 		try
