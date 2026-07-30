@@ -258,6 +258,23 @@ public partial class MainPage : ContentPage
                 }
                 var paths = GamePaths.Resolve(gamePath, dirAccessor);
                 paths.Validate(); // 校验失败抛 GamePathValidationException
+#if ANDROID
+                if (gamePath.StartsWith("content://", StringComparison.Ordinal)
+                    && dirAccessor is SafGameDirAccessor saf)
+                {
+                    var safHasWrite = dirAccessor.HasWriteAccess();
+                    var probeOk = saf.TryWriteProbe(out var probeDetail);
+                    if (!safHasWrite || !probeOk)
+                    {
+                        throw new UnauthorizedAccessException(
+                            "SAF game directory does not have usable write permission. " +
+                            "Please re-select the game directory and allow write access. " +
+                            $" Probe: {probeDetail}");
+                    }
+                    Android.Util.Log.Info("EmueraMaui",
+                        $"OnReloadGame SAF write probe OK: {probeDetail}");
+                }
+#endif
                 (newConfig, newTerminal) = EmueraRuntimeInitializer.Initialize(paths, dirAccessor);
                 var hasWrite = dirAccessor.HasWriteAccess();
                 Console.WriteLine($"[maui] OnReloadGame init completed: ExeDir={paths.ExeDir}, hasWrite={hasWrite}");

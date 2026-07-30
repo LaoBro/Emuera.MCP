@@ -25,8 +25,25 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
     internal static SafGameDirAccessor? Instance { get; private set; }
 
     private const string PrefKey = "saf_tree_uri";
-    private const string WriteProbeFileName = "_emuera_write_probe.txt";
+    private const string DeferredWriteLimitPrefKey = "saf_deferred_write_limit_bytes";
+    private const string WriteProbeFilePrefix = "_emuera_write_probe_";
     private const string OctetStreamMime = "application/octet-stream";
+    private const long DefaultDeferredWriteLimitBytes = 64L * 1024 * 1024;
+
+    /// <summary>
+    /// Deferred SAF writes are bounded before allocating unbounded memory.
+    /// Advanced deployments may override this with the app preference key above;
+    /// non-positive values fall back to the safe default.
+    /// </summary>
+    internal static long DeferredWriteLimitBytes
+    {
+        get
+        {
+            var configured = Microsoft.Maui.Storage.Preferences.Get(
+                DeferredWriteLimitPrefKey, DefaultDeferredWriteLimitBytes);
+            return configured > 0 ? configured : DefaultDeferredWriteLimitBytes;
+        }
+    }
 
     // ── 辅助 ─────────────────────────────────────
 
@@ -69,9 +86,29 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         var uri = await _tcs.Task;
         if (uri != null)
         {
-            // 方案 B：存档写回游戏树，必须同时拿读+写持久化权限
+            // 方案 B：存档写回游戏树，优先持久化读+写权限。
+            // 某些 DocumentsProvider 只返回读授权；保留 URI 并继续走探针，
+            // 让上层给出“请重新选择目录”的可诊断提示，而不是在这里吞掉选择结果。
             var flags = ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantWriteUriPermission;
-            _context.ContentResolver!.TakePersistableUriPermission(uri, flags);
+            try
+            {
+                _context.ContentResolver!.TakePersistableUriPermission(uri, flags);
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("EmueraMaui",
+                    $"PickDirectory: persist read/write permission failed: {ex.Message}");
+                try
+                {
+                    _context.ContentResolver!.TakePersistableUriPermission(
+                        uri, ActivityFlags.GrantReadUriPermission);
+                }
+                catch (Exception readEx)
+                {
+                    Android.Util.Log.Warn("EmueraMaui",
+                        $"PickDirectory: persist read-only permission failed: {readEx.Message}");
+                }
+            }
             _treeUri = uri.ToString();
             _treeAndroidUri = uri;
             Microsoft.Maui.Storage.Preferences.Set(PrefKey, _treeUri);
@@ -341,9 +378,11 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
 
         // 先解析/创建 document，但**不**立刻挂 OpenOutputStream。
         // TK 存档可达数十 MB；经 ContentResolver 逐块写极慢甚至表现为卡死。
-        // 改为可 Seek 的内存缓冲，Dispose 时一次 CopyTo 写出。
+        // 改为有上限的可 Seek 内存缓冲，Dispose 时一次 CopyTo 写出。
+        // 旧文档只有在输出流成功打开后才会被 provider 截断；打开失败时旧内容保持不变。
         var existing = ResolveExistingFileUri(path);
         Android.Net.Uri docUri;
+        var createdDocument = false;
         if (existing != null)
         {
             docUri = existing;
@@ -365,10 +404,11 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             if (created == null)
                 throw new IOException($"OpenWrite: CreateDocument returned null for {path}");
             docUri = created;
+            createdDocument = true;
             Android.Util.Log.Info("EmueraMaui", $"OpenWrite: defer buffer → created {path} → {created}");
         }
 
-        return new DeferredSafWriteStream(_context, docUri, path);
+        return new DeferredSafWriteStream(_context, docUri, path, createdDocument);
     }
 
     public void Delete(string path)
@@ -412,30 +452,45 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             }
 
             var rootPath = TreeRootDocumentPath();
-            var probePath = CombinePath(rootPath, WriteProbeFileName);
+            var probeName = $"{WriteProbeFilePrefix}{Guid.NewGuid():N}.tmp";
+            var probePath = CombinePath(rootPath, probeName);
             var payload = Encoding.UTF8.GetBytes("emuera-write-probe-ok");
 
-            using (var ws = OpenWrite(probePath))
-                ws.Write(payload, 0, payload.Length);
-
-            using (var rs = OpenRead(probePath)
-                ?? throw new IOException("probe OpenRead returned null"))
+            try
             {
-                using var ms = new MemoryStream();
-                rs.CopyTo(ms);
-                var read = ms.ToArray();
-                if (read.Length != payload.Length || !read.AsSpan().SequenceEqual(payload))
+                using (var ws = OpenWrite(probePath))
+                    ws.Write(payload, 0, payload.Length);
+
+                using (var rs = OpenRead(probePath)
+                    ?? throw new IOException("probe OpenRead returned null"))
                 {
-                    detail = $"readback mismatch len={read.Length}";
-                    Android.Util.Log.Error("EmueraMaui", $"WriteProbe FAIL: {detail}");
-                    return false;
+                    using var ms = new MemoryStream();
+                    rs.CopyTo(ms);
+                    var read = ms.ToArray();
+                    if (read.Length != payload.Length || !read.AsSpan().SequenceEqual(payload))
+                    {
+                        detail = $"readback mismatch len={read.Length}";
+                        Android.Util.Log.Error("EmueraMaui", $"WriteProbe FAIL: {detail}");
+                        return false;
+                    }
+                }
+
+                detail = $"ok path={probePath}";
+                Android.Util.Log.Info("EmueraMaui", $"WriteProbe OK: {detail}");
+                return true;
+            }
+            finally
+            {
+                try
+                {
+                    Delete(probePath);
+                }
+                catch (Exception cleanupEx)
+                {
+                    Android.Util.Log.Warn("EmueraMaui",
+                        $"WriteProbe cleanup failed path={probePath} ex={cleanupEx.Message}");
                 }
             }
-
-            Delete(probePath);
-            detail = $"ok path={probePath}";
-            Android.Util.Log.Info("EmueraMaui", $"WriteProbe OK: {detail}");
-            return true;
         }
         catch (Exception ex)
         {
@@ -810,14 +865,18 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         private readonly Context _context;
         private readonly Android.Net.Uri _docUri;
         private readonly string _pathForLog;
+        private readonly bool _createdDocument;
         private readonly MemoryStream _buffer = new();
         private bool _disposed;
+        private bool _writeFailed;
 
-        public DeferredSafWriteStream(Context context, Android.Net.Uri docUri, string pathForLog)
+        public DeferredSafWriteStream(
+            Context context, Android.Net.Uri docUri, string pathForLog, bool createdDocument)
         {
             _context = context;
             _docUri = docUri;
             _pathForLog = pathForLog;
+            _createdDocument = createdDocument;
         }
 
         public override bool CanRead => false;
@@ -837,14 +896,77 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
 
         public override long Seek(long offset, SeekOrigin origin) => _buffer.Seek(offset, origin);
 
-        public override void SetLength(long value) => _buffer.SetLength(value);
+        public override void SetLength(long value)
+        {
+            try
+            {
+                EnsureWithinLimit(value);
+                _buffer.SetLength(value);
+            }
+            catch
+            {
+                _writeFailed = true;
+                throw;
+            }
+        }
 
-        public override void Write(byte[] buffer, int offset, int count) =>
-            _buffer.Write(buffer, offset, count);
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            try
+            {
+                EnsureWriteWithinLimit(count);
+                _buffer.Write(buffer, offset, count);
+            }
+            catch
+            {
+                _writeFailed = true;
+                throw;
+            }
+        }
 
-        public override void Write(ReadOnlySpan<byte> buffer) => _buffer.Write(buffer);
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            try
+            {
+                EnsureWriteWithinLimit(buffer.Length);
+                _buffer.Write(buffer);
+            }
+            catch
+            {
+                _writeFailed = true;
+                throw;
+            }
+        }
 
-        public override void WriteByte(byte value) => _buffer.WriteByte(value);
+        public override void WriteByte(byte value)
+        {
+            try
+            {
+                EnsureWriteWithinLimit(1);
+                _buffer.WriteByte(value);
+            }
+            catch
+            {
+                _writeFailed = true;
+                throw;
+            }
+        }
+
+        private void EnsureWriteWithinLimit(int count)
+        {
+            var limit = DeferredWriteLimitBytes;
+            if (count < 0 || _buffer.Position > limit - count)
+                throw new IOException(
+                    $"DeferredSafWriteStream limit exceeded for {_pathForLog}; limit={limit} bytes");
+        }
+
+        private void EnsureWithinLimit(long value)
+        {
+            var limit = DeferredWriteLimitBytes;
+            if (value < 0 || value > limit)
+                throw new IOException(
+                    $"DeferredSafWriteStream limit exceeded for {_pathForLog}; limit={limit} bytes");
+        }
 
         protected override void Dispose(bool disposing)
         {
@@ -854,6 +976,12 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             {
                 try
                 {
+                    if (_writeFailed)
+                    {
+                        DeleteCreatedDocument();
+                        base.Dispose(disposing);
+                        return;
+                    }
                     var bytes = _buffer.Length;
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     _buffer.Position = 0;
@@ -869,6 +997,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                 {
                     Android.Util.Log.Error("EmueraMaui",
                         $"OpenWrite flush FAIL path={_pathForLog} ex={ex}");
+                    DeleteCreatedDocument();
                     throw;
                 }
                 finally
@@ -877,6 +1006,22 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                 }
             }
             base.Dispose(disposing);
+        }
+
+        private void DeleteCreatedDocument()
+        {
+            if (!_createdDocument) return;
+            try
+            {
+                DocumentsContract.DeleteDocument(_context.ContentResolver!, _docUri);
+                Android.Util.Log.Info("EmueraMaui",
+                    $"OpenWrite cleanup removed incomplete document path={_pathForLog}");
+            }
+            catch (Exception cleanupEx)
+            {
+                Android.Util.Log.Warn("EmueraMaui",
+                    $"OpenWrite cleanup failed path={_pathForLog} ex={cleanupEx.Message}");
+            }
         }
     }
 }

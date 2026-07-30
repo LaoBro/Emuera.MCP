@@ -62,6 +62,26 @@ public class SafCompatContentUriTests
             .ToArray());
     }
 
+    [Fact]
+    public void Content_uri_write_contract_handles_overwrite_empty_nested_and_missing_delete()
+    {
+        var accessor = new InMemoryContentDirAccessor(Root);
+        _ = GamePaths.Resolve(Root, accessor);
+
+        var nestedDir = SafCompat.ResolveSubPath(SafCompat.ResolveSubPath(Root, "sav"), "nested");
+        SafCompat.CreateDirectory(nestedDir);
+        var path = SafCompat.CombinePath(nestedDir, "slot.sav");
+
+        SafCompat.WriteAllText(path, "first", Encoding.UTF8);
+        SafCompat.WriteAllText(path, "second", Encoding.UTF8);
+        Assert.Equal("second", SafCompat.ReadAllText(path, Encoding.UTF8));
+
+        SafCompat.WriteAllText(path, string.Empty, Encoding.UTF8);
+        Assert.Equal(string.Empty, SafCompat.ReadAllText(path, Encoding.UTF8));
+        SafCompat.Delete(SafCompat.CombinePath(nestedDir, "missing.sav"));
+        Assert.True(accessor.FileExists(path));
+    }
+
     internal sealed class InMemoryContentDirAccessor : IGameDirAccessor
     {
         private readonly HashSet<string> _directories = new(StringComparer.Ordinal);
