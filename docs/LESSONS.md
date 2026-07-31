@@ -783,3 +783,95 @@ new FileStream(SavDir + "global.sav", FileMode.Create, FileAccess.Write); // 打
 
 **教训**：优先信**结构化验收字段**（`loaded=142/142`、`hasDVAR`、`SystemSaveInBinary`、
 相对路径警告是否为 `SYSTEM\...`），不要仅凭 adb 中文乱码判定文件名损坏。
+
+## 每次写入读 Preferences 会让存档慢 100×（热路径别碰偏好存储）
+
+**场景（2026-07-31）**：`DeferredSafWriteStream` 加 64MB 上限检查时，`DeferredWriteLimitBytes`
+属性**每次访问都执行 `Preferences.Get`**，而 `EnsureWriteWithinLimit` 在每次 `WriteByte`/`Write` 上调用。
+
+**结果**：478KB 未压缩存档从 ~50ms 变成 **4.9s**（几十万次 WriteByte × 每次 SharedPreferences 查询）。
+logcat 时间线证据：`defer buffer →`（打开流）到 `flush OK`（写出）间隔 4.9s，而 `flush OK ... ms=5`
+说明 ContentResolver 实际写出只要 5ms——4.9s 全在**写内存缓冲**阶段，唯一非纯内存操作就是每次写入读偏好。
+
+**原因**：`Preferences.Get`（Android SharedPreferences）虽有进程内缓存，但每次仍有 AppContext 解析 +
+方法调用开销；放在逐字节热路径 = 存档字节数 × 单次开销。
+
+**解决**：首次访问读一次进 static 字段，属性只返回缓存。安全上限 / 失败清理 / 权限逻辑原样保留。
+
+**教训**：
+- 静态配置读取值必须缓存，禁止在逐元素/逐字节热路径上反复读偏好
+- 意图正确的健壮性提交也可能带性能 bug——保留其安全功能，只修性能实现
+- 判定"慢在哪"要拆时间线：`defer buffer →` 与 `flush OK` 之间是写缓冲（CPU/每写开销），
+  `flush OK ... ms=` 才是 ContentResolver 实际写
+
+## 存档卡死根因链——慢存档撞上无限循环检测，再被当致命错误吞掉
+
+**场景（2026-07-31）**：点「接受」触发自动存档后游戏冻结，前端停在 `state=Running` + "游戏运行中…"，
+画面不变；Debug 帧 error=`"script requested exit (QUIT/EXIT)"`；logcat 末尾 `game loop completed normally`。
+
+**原因链**（四环）：
+1. **慢存档**（见上条）4.9s
+2. **无限循环检测误报**：`checkInfiniteLoop` 每 10000 行检查
+   `checkInfiniteLoopStopwatch >= InfiniteLoopAlertTime`（默认 5000ms），慢存档让累计脚本运行时间超时，
+   HEADLESS 分支直接 `throw GameExitException`
+3. **StepAsync catch-all 吞掉**：`catch (Exception ex)` 把 `GameExitException` 当致命错误，
+   构造 `state: console.State.ToString()`（脚本中断时仍是 "Running"）+ error 文本的回合并 `Stop()`
+4. **前端假死**：state=Running + diff=null → 画面不变、无可见错误
+
+**与既往提交的关系**：80ed962 修的是"存档写失败"（FileStream 打不开 content URI）；**620c1f6 引入"存档写太慢"**。
+同一可见症状（点按钮→冻结）、两批不同根因——80ed962 之后的"新冻结"由 620c1f6 引起，80ed962 本身不是问题。
+
+**教训**：
+- 「点按钮就冻结」先拿 Debug 帧的 `error` 字段定性——它是卡死是"什么异常"的第一手证据
+- `game loop completed normally` 不代表一切正常——RunLoopAsync 正常返回可能是协议 Stop / 通道被关
+- 修复"存档失败"后必须回归测"存档成功后脚本继续"的路径——修复会「揭开」下一层（此处暴露 QUIT 误处理）
+
+## 无限循环检测对移动端过严——墙钟阈值误杀慢 IO
+
+**场景（2026-07-31）**：SAF 慢 IO（读/写）让脚本合法地连续运行超 5 秒，被 `checkInfiniteLoop`
+当死循环杀掉（HEADLESS 分支直接抛 GameExitException）→ 配合上条的 StepAsync 误处理 → 假死。
+
+**修复**：
+- 行数下限：自上次 yield 起执行行数 <100000 判定为"阻塞在 IO 而非空转"，不触发——
+  卡在 ContentResolver 的脚本行数不涨，永不误报
+- 阈值默认 5000 → 30000ms（`InfiniteLoopAlertTime`）
+- 触发后不再直接杀：MAUI 交互通道推送 `infiniteLoopPrompt` 弹窗，阻塞等玩家选
+  「继续等待 / 结束游戏」，超时默认继续；无交互通道（HTTP/管道）保持"检测即结束"
+- StepAsync 特判 `GameExitException` → 干净 Quit 回合（安全网，任何 QUIT 都不假死）
+
+**教训**：
+- 真死循环（高速跑行）与慢但正常（阻塞 IO）的本质区别是**行速率**，不是墙钟时长；
+  用"行数下限"挡掉 IO 阻塞误报
+- 运行时脚本执行路径的防御性检测，对"慢但会完成"必须给玩家确认，不能直接杀
+
+## StepAsync catch-all 把 GameExitException 当致命错误——QUIT 假死
+
+**场景（2026-07-31）**：游戏脚本合法 `QUIT`（含无限循环检测器触发后的结束），`GameExitException`
+穿透到 `AgentJsonlProtocol.StepAsync` 的 `catch (Exception ex)`，被当致命错误。
+
+**结果**：构造 `state=Running` + `error="script requested exit (QUIT/EXIT)"` 的回合，前端画面不变、
+无错误提示，表现为假死。
+
+**修复**：在 catch-all 之前加 `catch (GameExitException)`，构造 `state=Quit` 的干净回合并 `Stop()` 结束会话。
+
+**教训**：catch-all 异常处理必须区分"正常退出信号"与"真错误"。`Process.RunMainLoop` 早已 I-11
+rethrow `GameExitException`，但协议层 `StepAsync` 的 catch 又把它吞了——**层与层之间的退出语义要贯通**，
+底层修好了不代表上层不会二次误处理。
+
+## 用 logcat 时间线 + DebugView 定位"看起来卡死"的假冻结
+
+**场景（2026-07-31）**：自动存档后游戏冻结，怀疑是存档慢 / 死锁 / IO 挂起 / 会话退出。
+
+**定位步骤**：
+1. **logcat 时间线**：`[SaveTo] begin → defer buffer → flush OK → [SaveTo] ok` 拆出每段耗时，
+   区分"写缓冲慢"vs"ContentResolver 慢"
+2. **前端 DebugView 的 `lastTurnJson`**：直接看到最后一回合的 `state` + `error`——
+   `error="script requested exit (QUIT/EXIT)"` + `state=Running` 直接指向 GameExitException 被误处理
+3. **`[bridge] game loop completed normally`**：游戏循环正常返回 ≠ 没问题——查它是被 Stop / 通道关闭
+   / 超时结束的
+4. **线程 TID 消失 + 进程 CPU≈0%**：async 任务挂起在 await（如等输入），不是死锁也不是忙转；
+   `/proc/<pid>/task/<tid>` 不存在不代表进程死了
+
+**教训**：游戏"卡死"先定性——忙转（CPU 高）/ 阻塞 IO（wchan=binder_thread_read）/ 等输入（TID 消失、
+CPU 低）/ 会话已结束前端没收到通知（game loop completed normally + 前端停在旧帧）。DebugView 的
+`lastTurnJson` 是最快的一手证据，`[bridge]` / `SaveTo` / `OpenWrite` 日志是拆时间线的骨架。
