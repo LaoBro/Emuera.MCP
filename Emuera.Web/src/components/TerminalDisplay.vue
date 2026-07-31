@@ -5,6 +5,7 @@ import { useConnectionStore } from '../stores/connection';
 import { useUiStore } from '../stores/ui';
 import { useVirtualScroll } from '../composables/useVirtualScroll';
 import { isMauiEnvironment } from '../lib/mauiBridge';
+import { shouldSubmitButtonValue, shouldAdvanceOnTerminalClick } from '../lib/inputRouting';
 import type { ButtonValue, PrintSegment, DisplayLine, DisplayEntry } from '../types/protocol';
 
 /**
@@ -177,9 +178,9 @@ function valueToWire(v: ButtonValue): string {
 }
 
 /**
- * 按钮点击处理器——三重守卫防失效点击。
- *
- * 守卫：
+ * 按钮点击处理器——提交判定收敛到纯函数 inputRouting.shouldSubmitButtonValue，四重守卫：
+ * 0. EnterKey/AnyKey 下按钮惰性——不提交 value（点击落到终端推进路径，避免多回显一行；
+ *    与 CLI/WinForms 一致）
  * 1. state !== 'WaitInput' → 非等待态按钮不可点击
  * 2. button.generation !== game.currentTurnGeneration → 旧回合按钮不可点击
  * 3. game.inputInFlight → 同一回合内防重复点击（乐观锁）
@@ -188,37 +189,44 @@ function valueToWire(v: ButtonValue): string {
  * applyTurn 会清锁 + 更新 generation。
  *
  * 按钮点击不受 isStickyToBottom 守卫影响——按钮走自身 @click，受 generation/inputInFlight
- * 三重守卫保护。即使翻看历史时残留按钮仍可点（spec.md 用户故事 9）。
+ * 守卫保护。即使翻看历史时残留按钮仍可点（spec.md 用户故事 9）。
  */
 function onButtonClick(entry: DisplayEntry): void {
   const button = entry.button;
   if (!button) return;
-  if (conn.status !== 'connected') return;
-  if (game.displayState.state !== 'WaitInput') return;         // 守卫 1
-  if (button.generation !== game.currentTurnGeneration) return; // 守卫 2
-  if (game.inputInFlight) return;                                // 守卫 3
+  if (!shouldSubmitButtonValue({
+    connected: conn.status === 'connected',
+    state: game.displayState.state,
+    inputType: game.displayState.inputType,
+    buttonGeneration: button.generation,
+    currentTurnGeneration: game.currentTurnGeneration,
+    inputInFlight: game.inputInFlight,
+  })) return;
   game.setInputInFlight();
   conn.sendInput(valueToWire(button.value));
 }
 
 /**
- * 终端背景点击处理器——非按钮区域点击 = 推进游戏。
+ * 终端点击处理器——推进判定收敛到纯函数 inputRouting.shouldAdvanceOnTerminalClick。
  *
- * 仅 EnterKey/AnyKey 模式生效（匹配 CLI DispatchMouseMiss）。
- * 按钮区域由 button @click 处理，此处用 closest('.term-btn') 跳过。
+ * 仅 EnterKey/AnyKey 模式推进（匹配 CLI DispatchMouseMiss）。
+ * 按钮区域：非 EnterKey/AnyKey 态跳过（按钮有独立 @click 处理）；EnterKey/AnyKey 态
+ * 按钮惰性、点击同样推进——与 onButtonClick 守卫 0 配套，该态下按钮点击既不提交 value
+ * 也不成死区（stale 按钮同样推进）。
  *
  * 虚拟滚动 + sticky 守卫（spec.md决策三）：isStickyToBottom=false 时拒绝推进——
  * 用户翻看历史时点击应视为"继续翻/选中"而非"推进游戏"。滚回底部 = "我看完了，可以继续"。
  */
 function onTerminalClick(e: MouseEvent): void {
   const target = e.target as HTMLElement | null;
-  if (target && target.closest('.term-btn')) return;
-  // sticky 守卫——翻看历史时不推进游戏
-  if (!vs.isStickyToBottom.value) return;
-  if (game.displayState.state !== 'WaitInput') return;
-  if (game.displayState.inputType !== 'EnterKey' && game.displayState.inputType !== 'AnyKey') return;
-  if (conn.status !== 'connected') return;
-  if (game.inputInFlight) return;
+  if (!shouldAdvanceOnTerminalClick({
+    isButton: !!(target && target.closest('.term-btn')),
+    isStickyToBottom: vs.isStickyToBottom.value,
+    state: game.displayState.state,
+    inputType: game.displayState.inputType,
+    connected: conn.status === 'connected',
+    inputInFlight: game.inputInFlight,
+  })) return;
   game.setInputInFlight();
   conn.sendInput('');
 }
