@@ -752,6 +752,16 @@ new FileStream(SavDir + "global.sav", FileMode.Create, FileAccess.Write); // 打
 - `SafCompat` 对写「静默跳过」与 `SaveGlobal` catch 转 CodeEE 表现不同——用户看到的是硬错误  
 - 验收清单应含：标题 → 开局接受/自动存档 → 继续遊戲读档
 
+## SAF 存档已通（2026-07-30）
+
+**场景**：TK SAF 选目录，加载标题/开局，点「接受」触发 `@SYSTEM_AUTOSAVE`。
+
+**结果**：不再卡死，存档在游戏树下，读档成功。
+
+**解决**：`OpenWrite` 内存缓冲 + `CombinePath` / `ResolveSubPath` + `DeferredSafWriteStream`
+
+**教训**：SAF 存档必须统一走 DirAccessor + 缓冲，避免逐字段打 ContentResolver 导致假死。
+
 ## 诊断推进会「揭开」下一层失败，勿误判为回归
 
 **场景**：修掉「只加载 1 个 ERH」后，游戏输出突然变短，出现大量
