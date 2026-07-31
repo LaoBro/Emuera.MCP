@@ -45,9 +45,11 @@ import type { ButtonValue, PrintSegment, DisplayLine, DisplayEntry } from '../ty
  * - clear_screen（全清）行为：重置 isStickyToBottom=true + scrollToBottom——全清视为新画面。
  *
  * 布局策略：`.terminal` 容器填满父宽度（`flex: 1`），内容由 `.terminal-content`
- * （`max-width: windowWidth px; margin: 0 auto`）约束在游戏设计宽度内。
+ * （`width: windowWidth × scale px; margin: 0`）约束在游戏设计宽度内、靠左对齐。
  * 这解决了固定宽度布局导致的一半黑一半灰/滚动条不在窗口边缘的问题，
  * 同时保持居中行在游戏宽度内居中（不受窗口实际宽度影响）。
+ * 靠左对齐为右侧虚拟按键预留空间；窗口宽于屏幕时保持原宽自然溢出到屏幕外，
+ * 由 `.terminal` 的 overflow-x 横向滚动兜底。
  * - `font-size` = `game.fontSize` 像素（默认 18）
  * - `line-height` = `game.lineHeight` 像素（**用绝对像素，不要用 `lineHeight / fontSize` 比例**——Emuera 的 `LineHeight` 是绝对像素行距，WinForms `mainPicBox` 按 `LineHeight` 铺行；用比例会让 inline 元素（按钮等）行距叠加错位。默认 19）
  * - `font-family` 首选 = `game.fontName`（来自 ConfigCode.FontName，默认 "ＭＳ ゴシック"），
@@ -99,24 +101,31 @@ const effectiveRowHeight = computed(() => effectiveLineHeight.value * game.effec
 /** .terminal 容器内联 style——动态绑定 width（ch 单位）/font-size/line-height/font-family + CSS 变量。 */
 const terminalStyle = computed<Record<string, string>>(() => {
   const style: Record<string, string> = {
-    // 宽度用游戏设计像素宽度——居中字符画在游戏宽度内居中，容器靠左不滚动。
-    // 浏览器 monospace 字符宽度（≈0.6em）与 GDI（FontSize/2=0.5em）不同，
-    // 文本溢出由 overflow-x: auto 处理。
+    // 字体缩放随 effectiveScale；窗口宽度由 .terminal-content 的固定 width 同步缩放（见 contentStyle），
+    // 二者等比 → 内容始终铺满游戏窗口。超长行由 overflow-x: auto 水平滚动兜底。
+    // 浏览器 monospace 字符宽度（≈0.6em）与 GDI（FontSize/2=0.5em）不同，文本溢出由 overflow-x 处理。
     fontSize: `${effectiveFontSize.value * game.effectiveScale}px`,
     lineHeight: `${effectiveLineHeight.value * game.effectiveScale}px`,
     // font-family：游戏字体名在前，fallback 链在后——ASCII 字符画对字体宽度敏感，
     // "ＭＳ ゴシック"（GDI 默认）与 Consolas 等字形差异显著。
     fontFamily: effectiveFontFamily.value,
-    // CSS 变量供 .term-line min-height 引用——保持与行距一致，避免行距叠加错位
-    '--term-line-min-height': `${effectiveLineHeight.value}px`,
+    // CSS 变量供 .term-line min-height 引用——必须含 effectiveScale，与缩放后的行高及
+    // 虚拟滚动 rowHeight 严格一致（否则 scale<1 时行被拉高、行排版与滚动漂移错位）
+    '--term-line-min-height': `${effectiveLineHeight.value * game.effectiveScale}px`,
   };
   if (game.displayState.bgColor) style.backgroundColor = game.displayState.bgColor;
   return style;
 });
 
-/** .terminal-content 容器内联 style——约束内容宽度为游戏设计宽度，水平居中。 */
+/**
+ * 游戏窗口（.terminal-content）内联 style——游戏输出存放在与游戏宽度相同的窗口里：
+ * 固定宽 = 游戏设计宽度 × 缩放系数，靠左对齐（margin: 0，为右侧虚拟按键预留空间）。
+ * 窗口比屏幕宽时保持原宽、自然溢出到屏幕外（由 .terminal 的 overflow-x 横向滚动兜底）。
+ * 缩放（effectiveScale）同时作用于字体（terminalStyle）与窗口宽度，内容与窗口等比缩放，
+ * 横线等覆盖整行的元素始终铺满窗口（不会因内容缩小而脱离窗口）。
+ */
 const contentStyle = computed<Record<string, string>>(() => ({
-  maxWidth: `${effectiveWindowWidth.value}px`,
+  width: `${effectiveWindowWidth.value * game.effectiveScale}px`,
   margin: '0',
 }));
 
@@ -366,7 +375,7 @@ watch(() => game.clearScreenTick, () => {
   box-sizing: border-box;
 }
 .terminal-content {
-  /* 约束内容宽度为游戏设计宽度，水平居中；maxWidth/margin 由 inline style 动态绑定 */
+  /* 固定宽 = 游戏设计宽度（× scale），靠左对齐；width/margin 由 inline style 动态绑定 */
 }
 /* 虚拟滚动 spacer——撑总高度（itemCount * rowHeight），position:relative 让子元素 absolute 定位 */
 .term-virtual-spacer {

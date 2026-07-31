@@ -430,6 +430,17 @@ export const useGameStore = defineStore('game', () => {
   let inputInFlightTimerId: ReturnType<typeof setTimeout> | null = null;
 
   /**
+   * 当前回合是否有可用按钮——扫描显示行中 `generation === currentTurnGeneration` 的按钮 entry。
+   * 历史滚动行里的旧回合按钮 generation 不匹配，不计入（复用 v7 三重守卫的同一数据源）。
+   * 供 InputBar 决定是否自动弹出：有可用按钮时按钮即输入手段，输入栏不自动出现。
+   */
+  const hasActiveButtons = computed<boolean>(() =>
+    displayState.value.lines.some((line) =>
+      line.entries.some((entry) => entry.button != null && entry.button.generation === currentTurnGeneration.value),
+    ),
+  );
+
+  /**
    * 置输入乐观锁 + 30s 安全超时。
    * 幂等：多次调用重置超时（双击时第二击刷新 30s 窗口）。
    */
@@ -1256,6 +1267,7 @@ export const useGameStore = defineStore('game', () => {
     // v7：按钮 generation 失效 + 三重守卫
     currentTurnGeneration,
     inputInFlight,
+    hasActiveButtons,
     setInputInFlight,
     // ADR-0016：暴露 TINPUT timer 状态供 UI / 测试访问
     timeoutNotice,

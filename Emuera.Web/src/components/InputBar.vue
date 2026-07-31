@@ -3,7 +3,6 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useGameStore } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
 import { useUiStore } from '../stores/ui';
-import TinputCountdown from './TinputCountdown.vue';
 
 /**
  * InputBar.vue — 输入栏 + 游戏状态显示 + TINPUT 倒计时（issue 04 / ADR-0016 /
@@ -49,6 +48,12 @@ const hasTextInput = computed<boolean>(() => {
   const t = game.displayState.inputType;
   return t === 'IntValue' || t === 'StrValue' || t === 'AnyValue';
 });
+
+/**
+ * 是否显示文本输入框——自动（IntValue/StrValue/AnyValue）或手动（`⌨` 唤出）。
+ * 手动模式在任意 WaitInput 下都显示输入框，覆盖"按钮之外只能键入数字的隐藏选项"。
+ */
+const showTextField = computed<boolean>(() => hasTextInput.value || ui.manualInputVisible);
 
 /** 是否禁止空提交——IntValue/StrValue 在 needValue=true 时禁止空，AnyValue 始终允许空。 */
 const blockEmpty = computed<boolean>(() => {
@@ -247,8 +252,6 @@ const inputTypeLabel = computed<string>(() => {
 
 <template>
   <div class="input-bar">
-    <TinputCountdown />
-
     <!-- TINPUT 超时通知 -->
     <div v-if="game.timeoutNotice" class="tinput-notice">
       <span class="tinput-icon">⏱</span>
@@ -257,8 +260,8 @@ const inputTypeLabel = computed<string>(() => {
 
     <!-- 状态显示：按 displayState.state 分支 -->
     <template v-if="game.displayState.state === 'WaitInput'">
-      <!-- 输入 UI：按 inputType 分支 -->
-      <div v-if="hasTextInput" class="input-row">
+      <!-- 输入 UI：自动（文本/数字输入态）或手动（⌨ 唤出）都显示输入框 -->
+      <div v-if="showTextField" class="input-row">
         <input
           ref="inputEl"
           v-model="inputValue"

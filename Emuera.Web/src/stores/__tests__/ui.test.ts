@@ -121,3 +121,21 @@ describe('useUiStore isStickyToBottom', () => {
     expect(ui.isStickyToBottom).toBe(false);
   });
 });
+
+// ---------- manualInputVisible（⌨ 手动输入开关） ----------
+describe('useUiStore manualInputVisible', () => {
+  beforeEach(() => setActivePinia(createPinia()));
+
+  it('初始隐藏（false）——自动弹出是唯一默认通道', () => {
+    const ui = useUiStore();
+    expect(ui.manualInputVisible).toBe(false);
+  });
+
+  it('toggleManualInput 切换显隐', () => {
+    const ui = useUiStore();
+    ui.toggleManualInput();
+    expect(ui.manualInputVisible).toBe(true);
+    ui.toggleManualInput();
+    expect(ui.manualInputVisible).toBe(false);
+  });
+});

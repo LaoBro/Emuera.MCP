@@ -63,8 +63,19 @@ export const useUiStore = defineStore('ui', () => {
    */
   const isStickyToBottom = ref<boolean>(true);
 
+  /**
+   * 手动输入框可见性——`⌨` 悬浮钮切换。任何 WaitInput 下都能唤出数字/文本输入，
+   * 覆盖"按钮之外只能键入数字才能选择的隐藏选项"。与自动弹出（无按钮时才弹）正交。
+   */
+  const manualInputVisible = ref<boolean>(false);
+
   function switchView(view: UiView): void {
     currentView.value = view;
+  }
+
+  /** 切换手动输入框显隐（⌨ 悬浮钮）。 */
+  function toggleManualInput(): void {
+    manualInputVisible.value = !manualInputVisible.value;
   }
 
   /**
@@ -75,5 +86,13 @@ export const useUiStore = defineStore('ui', () => {
     isStickyToBottom.value = v;
   }
 
-  return { currentView, platform, switchView, isStickyToBottom, setStickyToBottom };
+  return {
+    currentView,
+    platform,
+    switchView,
+    isStickyToBottom,
+    setStickyToBottom,
+    manualInputVisible,
+    toggleManualInput,
+  };
 });

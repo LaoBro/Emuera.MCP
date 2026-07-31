@@ -59,6 +59,9 @@ const isExiting = computed(() => game.exitStatus === 'exiting');
 /** 退出确认对话框可见性。 */
 const showExitConfirm = ref(false);
 
+/** MAUI 全屏浮动菜单（⋮）展开状态。 */
+const showFloatMenu = ref(false);
+
 /**
  * game-library spec ID10：Android 物理返回键——监听 backButtonPressedTick 自增后弹出退出确认。
  * backButtonPressed 消息由 MainPage.OnBackButtonPressed 投递，useAppInit 转发至此计数器。
@@ -134,9 +137,10 @@ function onInfiniteLoopExit(): void {
     <!-- game-library spec layout fix：MAUI 全屏游戏选择界面——游戏未加载时独占整个页面 -->
     <MauiGameList v-if="showMauiGameList" />
 
-    <!-- 游戏运行中或 HTTP 模式：标准 header + main 布局 -->
+    <!-- 游戏运行中或 HTTP 模式：标准 header + main 布局。
+         MAUI 全屏：header 收进右上角浮动 ⋮ 菜单 / ⌨ 手动输入（见下方 float-controls）。 -->
     <template v-else>
-      <header class="app-header">
+      <header v-if="!isMaui" class="app-header">
         <ConnectionPanel v-if="!isMaui" />
         <!-- Issue 05：游戏选择器，按平台条件渲染（MAUI 模式下隐藏——spec ID11） -->
         <GamePickerMobile v-if="!isMaui && ui.platform === 'android'" />
@@ -199,6 +203,46 @@ function onInfiniteLoopExit(): void {
       <SettingsView v-else-if="ui.currentView === 'settings'" />
       <TerminalView v-else />
     </main>
+
+    <!-- MAUI 全屏：浮动 ⌨ 手动输入 + ⋮ 菜单（半透明，不占布局） -->
+    <div v-if="isMaui" class="float-controls">
+      <button
+        class="float-btn"
+        :class="{ active: ui.manualInputVisible }"
+        title="手动输入（隐藏选项）"
+        @click="ui.toggleManualInput()"
+      >⌨</button>
+      <button
+        class="float-btn"
+        :class="{ active: showFloatMenu }"
+        title="菜单"
+        @click="showFloatMenu = !showFloatMenu"
+      >⋮</button>
+    </div>
+    <div v-if="isMaui && showFloatMenu" class="float-menu">
+      <button
+        class="menu-item"
+        :disabled="!canQuickRestart || isRestarting"
+        @click="onQuickRestart(); showFloatMenu = false;"
+      >
+        {{ isRestarting ? '重开中…' : '快速重开' }}
+      </button>
+      <button
+        class="menu-item"
+        :disabled="!canExitGame || isExiting"
+        @click="onExitClick(); showFloatMenu = false;"
+      >
+        {{ isExiting ? '退出中…' : '退出游戏' }}
+      </button>
+      <div class="menu-zoom">
+        <button :disabled="game.isMinScale" title="缩小" @click="game.setScale(game.effectiveScale - 0.1)">−</button>
+        <span>{{ Math.round(game.effectiveScale * 100) }}%</span>
+        <button :disabled="game.isMaxScale" title="放大" @click="game.setScale(game.effectiveScale + 0.1)">+</button>
+      </div>
+      <button class="menu-item" :class="{ active: ui.currentView === 'terminal' }" @click="ui.switchView('terminal'); showFloatMenu = false;">Terminal</button>
+      <button class="menu-item" :class="{ active: ui.currentView === 'debug' }" @click="ui.switchView('debug'); showFloatMenu = false;">Debug</button>
+      <button class="menu-item" :class="{ active: ui.currentView === 'settings' }" @click="ui.switchView('settings'); showFloatMenu = false;">Settings</button>
+    </div>
 
     </template>
 
@@ -399,5 +443,90 @@ function onInfiniteLoopExit(): void {
 }
 .confirm-btn.ok:hover {
   background: #6a2d2d;
+}
+
+/* MAUI 全屏：右上角浮动控制（⌨ 手动输入 / ⋮ 菜单）——半透明不挡内容 */
+.float-controls {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 50;
+}
+.float-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(30, 30, 30, 0.55);
+  color: #e0e0e0;
+  font-size: 18px;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+}
+.float-btn:active {
+  background: rgba(60, 60, 60, 0.7);
+}
+.float-btn.active {
+  border-color: #0e639c;
+  color: #9cdcfe;
+}
+.float-menu {
+  position: fixed;
+  top: 60px;
+  right: 12px;
+  z-index: 50;
+  min-width: 150px;
+  background: rgba(37, 37, 38, 0.92);
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  backdrop-filter: blur(2px);
+}
+.menu-item {
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.menu-item:hover:not(:disabled) {
+  background: #333;
+}
+.menu-item.active {
+  color: #9cdcfe;
+}
+.menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.menu-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  color: #ccc;
+  font-size: 13px;
+}
+.menu-zoom button {
+  background: #333;
+  color: #ccc;
+  border: 1px solid #444;
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.menu-zoom button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

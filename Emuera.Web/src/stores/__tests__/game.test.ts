@@ -824,3 +824,81 @@ describe('useGameStore - 无限循环确认弹窗状态', () => {
     expect(game.infiniteLoopPrompt).toBeNull();
   });
 });
+
+describe('useGameStore - hasActiveButtons（按钮 generation 过滤）', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  function frameWithButtons(generation: number, buttonGens: number[]): string {
+    return JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              {
+                entries: buttonGens.map((bg, i) => ({
+                  segments: [seg(`[btn${i}]`)],
+                  button: { value: i, isInteger: true, col: i * 5, width: 4, generation: bg },
+                })),
+                isLineEnd: true,
+              },
+            ],
+          },
+        ],
+      },
+    });
+  }
+
+  it('当前回合有按钮（generation 匹配 currentTurnGeneration）→ true', () => {
+    const game = useGameStore();
+    game.applyTurn(frameWithButtons(0, [0]));
+
+    expect(game.currentTurnGeneration).toBe(0);
+    expect(game.hasActiveButtons).toBe(true);
+  });
+
+  it('按钮 generation 与当前回合不匹配（历史旧按钮）→ false', () => {
+    const game = useGameStore();
+    // 当前回合 generation=0，按钮来自旧回合 generation=1 → 过期按钮，不算可用
+    game.applyTurn(frameWithButtons(0, [1]));
+
+    expect(game.hasActiveButtons).toBe(false);
+  });
+
+  it('无按钮 entry → false', () => {
+    const game = useGameStore();
+    game.applyTurn(
+      JSON.stringify({
+        state: 'WaitInput',
+        needValue: false,
+        generation: 0,
+        diff: { lineOps: [{ type: 'append', newLines: [diffLine('纯文本')] }] },
+      }),
+    );
+
+    expect(game.hasActiveButtons).toBe(false);
+  });
+
+  it('历史旧按钮 + 当前回合按钮混合：只看 generation 匹配的', () => {
+    const game = useGameStore();
+    // 第一回合：按钮 generation=0
+    game.applyTurn(frameWithButtons(0, [0]));
+    // 第二回合：generation 升到 1，只追加无按钮行——旧按钮仍在历史行，但已过期
+    game.applyTurn(
+      JSON.stringify({
+        state: 'WaitInput',
+        needValue: false,
+        generation: 1,
+        diff: { lineOps: [{ type: 'append', newLines: [diffLine('新内容')] }] },
+      }),
+    );
+
+    expect(game.currentTurnGeneration).toBe(1);
+    expect(game.hasActiveButtons).toBe(false); // 历史按钮 generation=0 ≠ 当前 1
+  });
+});
