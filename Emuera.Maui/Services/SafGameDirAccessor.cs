@@ -32,18 +32,22 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
 
     /// <summary>
     /// Deferred SAF writes are bounded before allocating unbounded memory.
-    /// Advanced deployments may override this with the app preference key above;
-    /// non-positive values fall back to the safe default.
+    /// Read **once** at first use, not per write: calling Preferences.Get on every
+    /// WriteByte of an uncompressed multi-MB save made autosave take ~5s, which
+    /// tripped the script infinite-loop watchdog (InfiniteLoopAlertTime=5000ms) and
+    /// froze the game. Advanced deployments may still override this with the app
+    /// preference key above; it takes effect on next app start.
     /// </summary>
-    internal static long DeferredWriteLimitBytes
+    private static readonly long s_deferredWriteLimit = LoadDeferredWriteLimit();
+
+    private static long LoadDeferredWriteLimit()
     {
-        get
-        {
-            var configured = Microsoft.Maui.Storage.Preferences.Get(
-                DeferredWriteLimitPrefKey, DefaultDeferredWriteLimitBytes);
-            return configured > 0 ? configured : DefaultDeferredWriteLimitBytes;
-        }
+        var configured = Microsoft.Maui.Storage.Preferences.Get(
+            DeferredWriteLimitPrefKey, DefaultDeferredWriteLimitBytes);
+        return configured > 0 ? configured : DefaultDeferredWriteLimitBytes;
     }
+
+    internal static long DeferredWriteLimitBytes => s_deferredWriteLimit;
 
     // ── 辅助 ─────────────────────────────────────
 
