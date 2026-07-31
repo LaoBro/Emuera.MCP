@@ -162,7 +162,7 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
       )
       .map((g) => ({ name: g.name, fullPath: g.fullPath }));
     const rootDir = typeof m.rootDir === 'string' ? m.rootDir : null;
-    // game-library spec ID13：主目录是否存在（C# HandleScanGames 检查 Directory.Exists）
+    // game-library spec ID13：主目录是否存在（C# HandleScanGames 通过 IGameDirAccessor 检查）
     const rootDirExists = typeof m.rootDirExists === 'boolean' ? m.rootDirExists : null;
     console.log(
       `[useAppInit] gamesScanned: ${games.length} games, rootDir=${rootDir}, rootDirExists=${rootDirExists}`,

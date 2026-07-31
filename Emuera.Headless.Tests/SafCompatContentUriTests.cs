@@ -46,6 +46,17 @@ public class SafCompatContentUriTests
     }
 
     [Fact]
+    public void Content_uri_root_directory_exists_uses_accessor_semantics()
+    {
+        var accessor = new InMemoryContentDirAccessor(Root);
+
+        Assert.True(GameScanner.RootDirectoryExists(Root, accessor));
+        Assert.False(GameScanner.RootDirectoryExists(
+            "content://com.android.externalstorage.documents/tree/primary%3Amissing/document/primary%3Amissing",
+            accessor));
+    }
+
+    [Fact]
     public void Content_uri_getfiles_preserves_logical_filenames()
     {
         var accessor = new InMemoryContentDirAccessor(Root);

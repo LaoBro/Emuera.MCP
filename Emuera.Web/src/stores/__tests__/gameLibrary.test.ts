@@ -4,6 +4,7 @@ import {
   useGameStore,
   readMainGameDirFromStorage,
   readLastPlayedGameFromStorage,
+  formatMainGameDirForDisplay,
   type GameEntry,
   type DirectoryListResult,
 } from '../game';
@@ -89,6 +90,23 @@ describe('readLastPlayedGameFromStorage 纯函数', () => {
 
   it('storage=null → null', () => {
     expect(readLastPlayedGameFromStorage(null)).toBeNull();
+  });
+});
+
+describe('formatMainGameDirForDisplay 纯函数', () => {
+  it('隐藏 Android SAF content URI，避免把 provider URL 展示给用户', () => {
+    expect(formatMainGameDirForDisplay(
+      'content://com.android.externalstorage.documents/tree/primary%3Aemuera',
+    )).toBe('Android 存储目录');
+  });
+
+  it('保留传统文件系统路径', () => {
+    expect(formatMainGameDirForDisplay('D:/games/emuera')).toBe('D:/games/emuera');
+  });
+
+  it('空路径显示未设置', () => {
+    expect(formatMainGameDirForDisplay(null)).toBe('(未设置)');
+    expect(formatMainGameDirForDisplay('   ')).toBe('(未设置)');
   });
 });
 

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { useGameStore, mapLoadGameErrorCode } from '../stores/game';
+import {
+  useGameStore,
+  mapLoadGameErrorCode,
+  formatMainGameDirForDisplay,
+} from '../stores/game';
 import {
   isMauiEnvironment,
   pickGameFolder,
@@ -63,7 +67,9 @@ const isAndroidMaui = computed(() => {
 });
 
 /** 主目录展示文案——优先 scanRootDir（最近扫描的目录），fallback mainGameDir。 */
-const mainDirDisplay = computed(() => game.scanRootDir ?? game.mainGameDir ?? '(未设置)');
+const mainDirDisplay = computed(() =>
+  formatMainGameDirForDisplay(game.scanRootDir ?? game.mainGameDir),
+);
 
 /** 列表是否为空——scanStatus='idle' + scannedGames 为空才算空状态。 */
 const isEmpty = computed(

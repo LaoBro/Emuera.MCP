@@ -464,16 +464,9 @@ internal sealed class BridgeHost : IDisposable
     /// </summary>
     private void ScanAndPushGames(string? rootDir)
     {
-        var dirAccessor = rootDir != null && rootDir.StartsWith("content://", StringComparison.Ordinal)
-#if ANDROID
-            ? (IGameDirAccessor?)SafGameDirAccessor.Instance
-#else
-            ? null
-#endif
-            : GamePaths.Current?.DirAccessor;
-        bool rootDirExists = !string.IsNullOrEmpty(rootDir) &&
-            (dirAccessor?.DirectoryExists(rootDir) ?? false);
-        var games = GameScanner.Scan(rootDir, dirAccessor ?? new FileSystemGameDirAccessor());
+        var dirAccessor = ResolveDirAccessor(rootDir);
+        bool rootDirExists = GameScanner.RootDirectoryExists(rootDir, dirAccessor);
+        var games = GameScanner.Scan(rootDir, dirAccessor);
         var gamesPayload = games.Select(g => new { name = g.Name, fullPath = g.FullPath }).ToList();
         var msgJson = JsonSerializer.Serialize(new
         {
@@ -484,6 +477,24 @@ internal sealed class BridgeHost : IDisposable
         });
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
         Console.WriteLine($"[bridge] ScanAndPushGames: {gamesPayload.Count} games, rootDir={rootDir}");
+    }
+
+    /// <summary>
+    /// 按主目录路径选择正确的文件访问器。
+    /// Android SAF 的 <c>content://</c> URI 必须使用持久化的 SAF accessor；
+    /// 传统路径则使用当前游戏 accessor（或本地文件系统 fallback）。
+    /// </summary>
+    private static IGameDirAccessor ResolveDirAccessor(string? rootDir)
+    {
+        if (rootDir?.StartsWith("content://", StringComparison.Ordinal) == true)
+        {
+#if ANDROID
+            if (SafGameDirAccessor.Instance is { } safAccessor)
+                return safAccessor;
+#endif
+        }
+
+        return GamePaths.Current?.DirAccessor ?? new FileSystemGameDirAccessor();
     }
 
     /// <summary>
@@ -522,8 +533,9 @@ internal sealed class BridgeHost : IDisposable
 
         Console.WriteLine($"[bridge] HandleScanGames: rootDir={rootDir}");
         // game-library spec ID13：检查主目录是否存在——Vue 端区分「目录不存在」vs「无游戏」
-        bool rootDirExists = !string.IsNullOrEmpty(rootDir) && Directory.Exists(rootDir);
-        var games = GameScanner.Scan(rootDir, GamePaths.Current.DirAccessor);
+        var dirAccessor = ResolveDirAccessor(rootDir);
+        bool rootDirExists = GameScanner.RootDirectoryExists(rootDir, dirAccessor);
+        var games = GameScanner.Scan(rootDir, dirAccessor);
         var gamesPayload = games.Select(g => new { name = g.Name, fullPath = g.FullPath }).ToList();
         var msgJson = JsonSerializer.Serialize(new
         {
@@ -554,7 +566,7 @@ internal sealed class BridgeHost : IDisposable
             dirPath = _mainGameDir;
 
         Console.WriteLine($"[bridge] HandleListDirectories: dirPath={dirPath}");
-        var result = DirectoryLister.ListDirectories(dirPath, GamePaths.Current.DirAccessor);
+        var result = DirectoryLister.ListDirectories(dirPath, ResolveDirAccessor(dirPath));
         var msgJson = JsonSerializer.Serialize(new
         {
             type = "directoriesListed",

@@ -180,6 +180,17 @@ export function readMainGameDirFromStorage(
   }
 }
 
+/**
+ * 将主目录路径转换为用户可读文案。
+ * Android SAF 的 content URI 是内部句柄，不应直接展示在页面 header 或空状态中。
+ */
+export function formatMainGameDirForDisplay(path: string | null | undefined): string {
+  const trimmed = typeof path === 'string' ? path.trim() : '';
+  if (!trimmed) return '(未设置)';
+  if (trimmed.startsWith('content://')) return 'Android 存储目录';
+  return trimmed;
+}
+
 /** game-library spec ID5：写 mainGameDir 到 localStorage——失败时静默。 */
 function writeMainGameDirToStorage(dir: string): void {
   try {
@@ -277,7 +288,8 @@ export const useGameStore = defineStore('game', () => {
   const scanRootDir = ref<string | null>(null);
   /**
    * game-library spec ID13：最近一次 scanGames 的 rootDir 是否存在——
-   * C# HandleScanGames 检查 Directory.Exists(rootDir) 后通过 gamesScanned 消息携带。
+   * C# HandleScanGames 通过 IGameDirAccessor.DirectoryExists(rootDir) 检查后，
+   * 经 gamesScanned 消息携带。
    * 列表页空状态据此区分「主目录不存在」vs「主目录存在但无游戏」。
    * null 表示尚未扫描。
    */

@@ -11,6 +11,19 @@ namespace MinorShift.Emuera;
 internal static class GameScanner
 {
     /// <summary>
+    /// 判断主目录是否存在。
+    ///
+    /// <para>必须通过 <see cref="IGameDirAccessor"/> 判断；SAF 的 <c>content://</c>
+    /// URI 不是本地文件系统路径，不能调用 <see cref="Directory.Exists(string)"/>。</para>
+    /// </summary>
+    public static bool RootDirectoryExists(string? rootDir, IGameDirAccessor dirAccessor)
+    {
+        if (string.IsNullOrEmpty(rootDir))
+            return false;
+        return dirAccessor.DirectoryExists(rootDir);
+    }
+
+    /// <summary>
     /// 扫描 rootDir 下所有子目录，检出含 <c>csv/</c> + <c>erb/</c> 的有效游戏。
     /// </summary>
     /// <param name="rootDir">主目录路径。null / 空字符串 → 返空列表。</param>
@@ -20,7 +33,7 @@ internal static class GameScanner
     {
         if (string.IsNullOrEmpty(rootDir))
             return Array.Empty<GameEntry>();
-        if (!dirAccessor.DirectoryExists(rootDir))
+        if (!RootDirectoryExists(rootDir, dirAccessor))
             return Array.Empty<GameEntry>();
 
         string[] subDirs;

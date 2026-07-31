@@ -66,9 +66,10 @@ export function postInput(json: string): void {
   if (w.chrome?.webview) {
     w.chrome.webview.postMessage(json);
     console.log('[mauiBridge] postInput via chrome.webview:', json);
-  } else {
-    // ADR-0019：Android 走 bridge:// URL 可靠通道，不再依赖 emueraBridge
-    sendBridgeUrl('post', json);
+  } else if (!sendBridgeUrl('post', json)) {
+    // 无 DOM 时（SSR/Node 测试）保留旧桥接 fallback；Android WebView
+    // 生产环境优先使用上面的 bridge:// URL 通道，避免重复投递消息。
+    w.emueraBridge?.postMessage?.(json);
   }
 }
 
@@ -136,7 +137,9 @@ export function pickSafDirectory(): void {
  * @param action 动作名（如 "pickSafDirectory"），或 "post" 表示附带 JSON 数据
  * @param data 可选的 JSON 字符串数据（action="post" 时作为 msg 参数 URL 编码后附加）
  */
-export function sendBridgeUrl(action: string, data?: string): void {
+export function sendBridgeUrl(action: string, data?: string): boolean {
+  if (typeof document === 'undefined' || !document.body) return false;
+
   let url: string;
   if (data) {
     url = `bridge://post?msg=${encodeURIComponent(data)}`;
@@ -148,6 +151,7 @@ export function sendBridgeUrl(action: string, data?: string): void {
   iframe.src = url;
   document.body.appendChild(iframe);
   setTimeout(() => document.body.removeChild(iframe), 500);
+  return true;
 }
 
 /**
