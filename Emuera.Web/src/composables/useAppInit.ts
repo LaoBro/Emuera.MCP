@@ -225,6 +225,15 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
     return;
   }
 
+  // 无限循环检测确认：C# ScriptProc.checkInfiniteLoop 触发后推送，App.vue 弹模态框询问玩家。
+  // 玩家选择后经 respondInfiniteLoop 投递 infiniteLoopResponse 让 C# 阻塞读取。
+  if (type === 'infiniteLoopPrompt') {
+    const message = typeof m.message === 'string' ? m.message : '';
+    console.log('[useAppInit] infiniteLoopPrompt received');
+    game.setInfiniteLoopPrompt(message);
+    return;
+  }
+
   if (type !== 'folderPicked') {
     console.warn('[useAppInit] handleMauiMessage: unknown message type:', type);
     return;

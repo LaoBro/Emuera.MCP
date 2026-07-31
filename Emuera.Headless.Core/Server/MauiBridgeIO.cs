@@ -22,16 +22,22 @@ internal sealed class MauiBridgeIO : SessionIO
     private readonly Channel<string> _input = Channel.CreateUnbounded<string>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
     private readonly Action<string> _onTurn;
+    private readonly Action<string> _onMessage;
     private volatile bool _closed;
 
     /// <param name="onTurn">
     /// turn 回调——每次 <see cref="WriteLine"/> 在未关闭时同步调用，参数为 turn JSON 字符串。
     /// 在游戏循环线程执行，调用方（MAUI <c>BridgeHost</c>）需在回调内 <c>Dispatcher.Dispatch</c> 切 UI 线程。
     /// </param>
+    /// <param name="onMessage">
+    /// 非 turn 消息回调——每次 <see cref="WriteMessage"/> 在未关闭时同步调用（无限循环提示等）。
+    /// 缺省为空实现。同样在游戏循环线程执行，调用方需切 UI 线程。
+    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="onTurn"/> 为 null。</exception>
-    public MauiBridgeIO(Action<string> onTurn)
+    public MauiBridgeIO(Action<string> onTurn, Action<string>? onMessage = null)
     {
         _onTurn = onTurn ?? throw new ArgumentNullException(nameof(onTurn));
+        _onMessage = onMessage ?? (_ => { });
     }
 
     /// <summary>
@@ -60,6 +66,18 @@ internal sealed class MauiBridgeIO : SessionIO
             return;
         _onTurn(text);
     }
+
+    /// <summary>
+    /// 推送非 turn 消息（无限循环确认弹窗等）——未关闭时调 <c>_onMessage</c>，关闭后丢弃。
+    /// </summary>
+    public override void WriteMessage(string json)
+    {
+        if (_closed)
+            return;
+        _onMessage(json);
+    }
+
+    public override bool SupportsInteractivePrompt => true;
 
     /// <summary>
     /// 关闭 IO。幂等：多次调用安全。

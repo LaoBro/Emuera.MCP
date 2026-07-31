@@ -442,6 +442,13 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView, IButtonDis
     internal AgentProtocolBase? AgentBridge => _state.agentBridge;
     internal void SetAgentBridge(AgentProtocolBase protocol) => _state.agentBridge = protocol;
 
+    /// <summary>
+    /// 无限循环检测确认——委托给协议层（AgentJsonlProtocol 阻塞弹窗询问玩家）。
+    /// 无协议时默认结束（<c>true</c>），延续旧 HEADLESS 行为。
+    /// </summary>
+    internal bool AskInfiniteLoopDecision(string message)
+        => AgentBridge?.AskInfiniteLoopDecision(message) ?? true;
+
     // ========================================
     // Button generation helpers
     // ========================================

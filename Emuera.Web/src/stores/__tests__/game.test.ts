@@ -807,3 +807,20 @@ describe('useGameStore - MAUI 启动不恢复 gameDir', () => {
     expect(localStorage.getItem('emuera.gameDir')).toBe('D:/current/game');
   });
 });
+
+describe('useGameStore - 无限循环确认弹窗状态', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  it('setInfiniteLoopPrompt 写入 message，clearInfiniteLoopPrompt 清空', () => {
+    const game = useGameStore();
+    expect(game.infiniteLoopPrompt).toBeNull();
+
+    game.setInfiniteLoopPrompt('foo.ERB 123 行 5000ms');
+    expect(game.infiniteLoopPrompt).toBe('foo.ERB 123 行 5000ms');
+
+    game.clearInfiniteLoopPrompt();
+    expect(game.infiniteLoopPrompt).toBeNull();
+  });
+});

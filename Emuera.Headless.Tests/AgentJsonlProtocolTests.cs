@@ -224,6 +224,63 @@ public class AgentJsonlProtocolTests : IDisposable
             "非初始帧 protocolVersion 应为 null（WhenWritingNull 不出现）");
     }
 
+    // ---------- AskInfiniteLoopDecision（无限循环检测确认）----------
+
+    [Fact]
+    public void AskInfiniteLoopDecision_nonInteractive_returns_exit()
+    {
+        // FakeSessionIO.SupportsInteractivePrompt = false（基类默认）——非交互会话结束，延续旧 HEADLESS 行为
+        var result = _protocol.AskInfiniteLoopDecision("script too long");
+        Assert.True(result, "non-interactive session must exit on infinite loop (preserve old behavior)");
+    }
+
+    [Fact]
+    public void AskInfiniteLoopDecision_interactive_continue_response_resumes()
+    {
+        var interactive = new InteractiveSessionIO();
+        var protocol = new AgentJsonlProtocol(_console, new HeadlessConsole(), interactive, _displayState);
+        interactive.QueueResponse("continue");
+
+        var result = protocol.AskInfiniteLoopDecision("script too long");
+
+        Assert.False(result, "continue response must resume the script");
+        Assert.NotNull(interactive.PushedMessage);
+        Assert.Contains("infiniteLoopPrompt", interactive.PushedMessage);
+    }
+
+    [Fact]
+    public void AskInfiniteLoopDecision_interactive_exit_response_exits()
+    {
+        var interactive = new InteractiveSessionIO();
+        var protocol = new AgentJsonlProtocol(_console, new HeadlessConsole(), interactive, _displayState);
+        interactive.QueueResponse("exit");
+
+        var result = protocol.AskInfiniteLoopDecision("script too long");
+
+        Assert.True(result, "exit response must end the game");
+    }
+
+    /// <summary>
+    /// 交互式测试 SessionIO：SupportsInteractivePrompt=true，WriteMessage 记录推送，
+    /// ReadLineAsync 返回预置的 infiniteLoopResponse。
+    /// </summary>
+    private sealed class InteractiveSessionIO : SessionIO
+    {
+        private readonly Queue<string?> _responses = new();
+        public string? PushedMessage { get; private set; }
+
+        public override bool SupportsInteractivePrompt => true;
+        public void QueueResponse(string action)
+            => _responses.Enqueue($"{{\"type\":\"infiniteLoopResponse\",\"action\":\"{action}\"}}");
+
+        public override Task<string?> ReadLineAsync(CancellationToken ct)
+            => Task.FromResult(_responses.Count > 0 ? _responses.Dequeue() : null);
+        public override void WriteLine(string text) { }
+        public override void WriteMessage(string json) => PushedMessage = json;
+        public override void Close() { }
+        public override bool IsConnected => true;
+    }
+
     /// <summary>
     /// 测试用 SessionIO：空实现，IsConnected 永远 true，
     /// 不实际读/写——AgentJsonlProtocolTests 不依赖 IO 层交互。

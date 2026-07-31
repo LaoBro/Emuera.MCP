@@ -3,7 +3,7 @@ import { onMounted, ref, computed, watch, defineAsyncComponent } from 'vue';
 import { useUiStore } from './stores/ui';
 import { useGameStore } from './stores/game';
 import { initAppState } from './composables/useAppInit';
-import { isMauiEnvironment, loadGameFromPath, exitGame as exitGameBridge } from './lib/mauiBridge';
+import { isMauiEnvironment, loadGameFromPath, exitGame as exitGameBridge, respondInfiniteLoop } from './lib/mauiBridge';
 import ConnectionPanel from './components/ConnectionPanel.vue';
 import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
@@ -112,6 +112,21 @@ function onExitConfirm(): void {
 function onExitCancel(): void {
   showExitConfirm.value = false;
 }
+
+/**
+ * 无限循环确认弹窗——玩家选「继续等待」：清空提示 + 投递 continue，
+ * C# 重置检测计时器让脚本继续执行。
+ */
+function onInfiniteLoopContinue(): void {
+  game.clearInfiniteLoopPrompt();
+  respondInfiniteLoop('continue');
+}
+
+/** 玩家选「结束游戏」：清空提示 + 投递 exit，C# 抛 GameExitException 干净退出。 */
+function onInfiniteLoopExit(): void {
+  game.clearInfiniteLoopPrompt();
+  respondInfiniteLoop('exit');
+}
 </script>
 
 <template>
@@ -194,6 +209,18 @@ function onExitCancel(): void {
         <div class="confirm-actions">
           <button class="confirm-btn cancel" @click="onExitCancel">取消</button>
           <button class="confirm-btn ok" @click="onExitConfirm">确认退出</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 无限循环检测确认对话框——C# 推送 infiniteLoopPrompt 时展示，阻塞游戏循环等玩家响应 -->
+    <div v-if="game.infiniteLoopPrompt !== null" class="confirm-overlay">
+      <div class="confirm-modal">
+        <div class="confirm-text">脚本运行过久未暂停，可能陷入死循环。继续等待还是结束游戏？</div>
+        <pre class="loop-detail">{{ game.infiniteLoopPrompt }}</pre>
+        <div class="confirm-actions">
+          <button class="confirm-btn" @click="onInfiniteLoopContinue">继续等待</button>
+          <button class="confirm-btn ok" @click="onInfiniteLoopExit">结束游戏</button>
         </div>
       </div>
     </div>
@@ -333,6 +360,19 @@ function onExitCancel(): void {
   font-size: 14px;
   color: #e0e0e0;
   text-align: center;
+}
+.loop-detail {
+  margin: 0;
+  padding: 8px 10px;
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #c5c5c5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 120px;
+  overflow: auto;
 }
 .confirm-actions {
   display: flex;

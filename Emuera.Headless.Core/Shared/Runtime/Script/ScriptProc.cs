@@ -35,6 +35,12 @@ internal sealed class ScriptProc
 	bool saveSkip;
 	bool userDefinedSkip;
 	readonly Stopwatch checkInfiniteLoopStopwatch = new();
+	/// <summary>
+	/// 无限循环提示的行数下限。自上次 yield（RunMainLoop 开始 / AWAIT）起执行行数过少，
+	/// 说明脚本多数时间阻塞在 IO（SAF 慢读/写）而非空转——手机平台慢速属正常，不打扰玩家。
+	/// 只有真正在高速执行行（疑似死循环）才触发确认。
+	/// </summary>
+	private const int InfiniteLoopMinLines = 100000;
 
 	internal ScriptProc(Process process, EmueraConsole console, IVariableEvaluator vEvaluator,
 		ExpressionMediator exm, IdentifierDictionary idDic, ExecutionState executionState,
@@ -134,8 +140,16 @@ internal sealed class ScriptProc
 			trmb.TooLongLoop.Text,
 			currentLine.Position!.Value.Filename, currentLine.Position!.Value.LineNo, state.lineCount, elapsedTime);
 #if HEADLESS
+		// 行数下限：自上次 yield 起执行行数过少 = 阻塞在 IO / 慢速计算，不是死循环，不打扰玩家。
+		if (state.lineCount < InfiniteLoopMinLines)
+			return;
 		Console.Error.WriteLine($"[script-timeout] {text}");
-		throw new GameExitException();
+		// 询问玩家而非直接杀——慢但正常的大型操作可继续等待，真死循环可结束游戏。
+		// 无交互通道（HTTP/管道）时 AskInfiniteLoopDecision 返回 true=结束，延续旧行为。
+		if (console.AskInfiniteLoopDecision(text))
+			throw new GameExitException();
+		state.lineCount = 0;
+		checkInfiniteLoopStopwatch.Restart();
 #else
 		string caption = string.Format(trmb.InfiniteLoop.Text);
 		if (Dialog.ShowPrompt(text, caption))

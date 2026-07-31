@@ -122,8 +122,8 @@ internal sealed class BridgeHost : IDisposable
         // Windows: Documents/emuera；Android: null（待权限引导后设置）
         _mainGameDir = LoadMainGameDir();
 
-        // MauiBridgeIO 的 _onTurn 回调在游戏循环线程执行——Dispatcher.Dispatch 切 UI 线程投递给 WebView。
-        _bridgeIO = new MauiBridgeIO(OnTurnFromGame);
+        // MauiBridgeIO 的 _onTurn / _onMessage 回调在游戏循环线程执行——Dispatcher.Dispatch 切 UI 线程投递给 WebView。
+        _bridgeIO = new MauiBridgeIO(OnTurnFromGame, OnMessageFromGame);
         _jsBridge.InputReceived += OnInputFromJs;
 #if ANDROID
         // ADR-0019：兜底——InputReceived 无订阅者时仍能收到 JS 消息
@@ -201,6 +201,15 @@ internal sealed class BridgeHost : IDisposable
     private void OnTurnFromGame(string turnJson)
     {
         _dispatcher.Dispatch(() => _jsBridge.PostTurn(turnJson));
+    }
+
+    /// <summary>
+    /// 非 turn 消息回调（无限循环确认弹窗等）——<see cref="MauiBridgeIO.WriteMessage"/> 调用。
+    /// 与 <see cref="OnTurnFromGame"/> 同模式：Dispatcher.Dispatch 切 UI 线程投递给 WebView。
+    /// </summary>
+    private void OnMessageFromGame(string msgJson)
+    {
+        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
     }
 
     /// <summary>

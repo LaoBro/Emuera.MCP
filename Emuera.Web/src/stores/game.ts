@@ -345,6 +345,12 @@ export const useGameStore = defineStore('game', () => {
    */
   const mauiError = ref<string | null>(null);
   /**
+   * 无限循环检测确认提示——C# `ScriptProc.checkInfiniteLoop` 触发后经
+   * `{"type":"infiniteLoopPrompt","message":...}` 推送，App.vue 据此弹模态框询问玩家
+   * 「继续等待 / 结束游戏」。非 null 时展示弹窗；玩家响应后清空并投递响应。
+   */
+  const infiniteLoopPrompt = ref<string | null>(null);
+  /**
    * 最近一次 GET /snapshot 拿到的原始快照（调试展示用）。
    *
    * 与 lastTurn/turnHistory 分离——snapshot 不是 WS 帧，不进入 turnHistory；
@@ -1048,6 +1054,16 @@ export const useGameStore = defineStore('game', () => {
     mauiError.value = null;
   }
 
+  /** 设置无限循环确认提示——C# 推送 infiniteLoopPrompt 消息时调用，App.vue 据此弹窗。 */
+  function setInfiniteLoopPrompt(message: string): void {
+    infiniteLoopPrompt.value = message;
+  }
+
+  /** 清空无限循环确认提示——玩家响应弹窗后调用。 */
+  function clearInfiniteLoopPrompt(): void {
+    infiniteLoopPrompt.value = null;
+  }
+
   /**
    * T-025 D14：从 GET /state 响应写入 serverState——App.vue onMounted 调用。
    * 封装外部修改，避免组件直接写 store ref。
@@ -1268,6 +1284,10 @@ export const useGameStore = defineStore('game', () => {
     mauiError,
     setGameDir,
     clearMauiError,
+    // 无限循环检测确认弹窗
+    infiniteLoopPrompt,
+    setInfiniteLoopPrompt,
+    clearInfiniteLoopPrompt,
     // game-library：主目录 + 游戏列表 + 上次玩过 + 退出游戏 + 目录浏览器
     mainGameDir,
     lastPlayedGame,

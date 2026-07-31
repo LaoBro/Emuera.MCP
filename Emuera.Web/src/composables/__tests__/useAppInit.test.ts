@@ -193,3 +193,33 @@ describe('initAppState (T-025 D9 rev)', () => {
     expect(game.maxLog).toBe(5000);
   });
 });
+
+// ---------- handleMauiMessage：无限循环确认弹窗 ----------
+
+describe('handleMauiMessage - infiniteLoopPrompt', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('MAUI 环境收到 infiniteLoopPrompt → 写入 game.infiniteLoopPrompt（App.vue 据此弹窗）', async () => {
+    // 模拟 MAUI unpackaged window（app.local 虚拟主机）+ chrome.webview 让 postInput 可用
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const game = useGameStore();
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    expect(typeof handler).toBe('function');
+
+    handler!({ type: 'infiniteLoopPrompt', message: 'TEST.ERB 123行 5000ms' });
+
+    expect(game.infiniteLoopPrompt).toBe('TEST.ERB 123行 5000ms');
+  });
+});

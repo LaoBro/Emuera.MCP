@@ -277,4 +277,14 @@ export function exitGame(): void {
   postInput(JSON.stringify({ type: 'exitGame' }));
 }
 
+/**
+ * 无限循环确认弹窗响应——玩家在 App.vue 弹窗选择后投递。
+ * C# `AgentJsonlProtocol.AskInfiniteLoopDecision` 阻塞读取此响应：
+ * - continue：重置检测计时器，脚本继续执行
+ * - exit：抛 GameExitException，游戏干净退出
+ */
+export function respondInfiniteLoop(action: 'continue' | 'exit'): void {
+  postInput(JSON.stringify({ type: 'infiniteLoopResponse', action }));
+}
+
 // ---------- game-library spec ID8：Android 目录浏览器 ----------

@@ -51,6 +51,13 @@ namespace MinorShift.Emuera.GameView
 
         internal virtual void Stop() => _cts.Cancel();
 
+        /// <summary>
+        /// 无限循环检测触发时的决策询问。返回 <c>true</c>=结束游戏，<c>false</c>=继续等待。
+        /// 基类默认结束（延续 HEADLESS 旧行为，避免非交互会话因死循环永不终止）；
+        /// MAUI 等交互协议覆盖为实现前端弹窗确认（<see cref="AgentJsonlProtocol.AskInfiniteLoopDecision"/>）。
+        /// </summary>
+        internal virtual bool AskInfiniteLoopDecision(string message) => true;
+
         /// <summary>是否允许以空输入（模拟回车/点击空白）提交。空串在 IntValue/AnyValue 下会被
         /// long.TryParse 拒绝，故仅 EnterKey/AnyKey/StrValue/IntButton/StrButton 返回 true。
         /// 单一真相源，供 DispatchInput 与 DispatchMouseMiss 共用，避免两份 InputType 清单漂移。</summary>
