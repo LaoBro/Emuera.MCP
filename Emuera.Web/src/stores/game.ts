@@ -263,8 +263,17 @@ export const useGameStore = defineStore('game', () => {
   //   失败：reloadStatus='idle'，loadGameError 写入，UI 按错误码映射提示
   //         路径级错误（400）不拆旧 session——server 端 dispose 旧前拦下，前端 connect() 回旧局
   //         加载级错误（500）旧 session 已被 dispose——connect() 时 server 会建新空 session
-  /** 当前游戏目录（持久化到 localStorage）。null 表示尚未加载过任何游戏。 */
-  const gameDir = ref<string | null>(readGameDirFromStorage());
+  /**
+   * 当前游戏目录。null 表示尚未加载过任何游戏。
+   *
+   * HTTP 模式：持久化到 localStorage（Issue 05 重连语义），App.vue 挂载时与 GET /state 比对决定 connect / loadGame。
+   * MAUI 模式：始终为 null 启动——MAUI 进程重启后游戏循环**不会**自动恢复（C# 占位 BridgeHost 不 Start），
+   * 上一进程残留的 localStorage gameDir 是过期状态，恢复它只会让 App.vue 误判「有活跃游戏」、
+   * 隐藏游戏列表页直接进空终端画面（需手动按「快速重开」）。故 MAUI 启动不读 localStorage。
+   */
+  const gameDir = ref<string | null>(
+    isMauiEnvironment() ? null : readGameDirFromStorage(),
+  );
 
   // ---------- game-library spec ID5 / ID7：主目录 + 游戏列表 + 上次玩过 ----------
   //
@@ -907,7 +916,11 @@ export const useGameStore = defineStore('game', () => {
     const trimmed = dir.trim();
     if (!trimmed) return;
     gameDir.value = trimmed;
-    writeGameDirToStorage(trimmed);
+    // MAUI 模式不持久化 gameDir——当前游戏不跨进程恢复（见上方 gameDir 初始化注释），
+    // 写入只会留下过期键。HTTP 模式仍需持久化供重启后与 GET /state 比对。
+    if (!isMauiEnvironment()) {
+      writeGameDirToStorage(trimmed);
+    }
   }
 
   /**

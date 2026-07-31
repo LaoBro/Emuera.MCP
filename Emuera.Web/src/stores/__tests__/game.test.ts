@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useGameStore } from '../game';
 import type { DisplayLine, PrintSegment, DisplaySnapshot } from '../../types/protocol';
@@ -721,5 +721,89 @@ describe('useGameStore - ADR-0016 TINPUT timer 状态', () => {
 
     game.reset();
     expect(game.lastSnapshot).toBeNull();
+  });
+});
+
+// ---------- MAUI 启动不恢复 gameDir ----------
+//
+// MAUI 进程重启后游戏循环不会自动恢复（C# 占位 BridgeHost 不 Start），上一进程残留的
+// localStorage emuera.gameDir 是过期状态。gameDir 初始化在 MAUI 模式下跳过 localStorage，
+// 避免 App.vue 误判「有活跃游戏」而隐藏游戏列表、直接进空终端画面。
+
+/** 最小 localStorage 实现——node 测试环境无 localStorage。 */
+function makeLocalStorage(): Storage {
+  const map = new Map<string, string>();
+  return {
+    getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      map.set(k, v);
+    },
+    removeItem: (k: string) => {
+      map.delete(k);
+    },
+    clear: () => {
+      map.clear();
+    },
+    key: (i: number) => Array.from(map.keys())[i] ?? null,
+    get length() {
+      return map.size;
+    },
+  };
+}
+
+/** 模拟 window.location——mauiBridge.isMauiEnvironment 据此判断环境。 */
+function mockWindowLocation(protocol: string, hostname: string): void {
+  vi.stubGlobal('window', { location: { protocol, hostname } });
+}
+
+describe('useGameStore - MAUI 启动不恢复 gameDir', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.stubGlobal('localStorage', makeLocalStorage());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('MAUI（ms-appx-web:）localStorage 有残留 gameDir → 初始为 null', () => {
+    localStorage.setItem('emuera.gameDir', 'D:/stale/game');
+    mockWindowLocation('ms-appx-web:', 'app');
+
+    const game = useGameStore();
+    expect(game.gameDir).toBeNull();
+  });
+
+  it('MAUI（file: Android）localStorage 有残留 gameDir → 初始为 null', () => {
+    localStorage.setItem('emuera.gameDir', '/stale/game');
+    mockWindowLocation('file:', '');
+
+    const game = useGameStore();
+    expect(game.gameDir).toBeNull();
+  });
+
+  it('HTTP 模式 localStorage 有 gameDir → 仍从 localStorage 恢复（重连语义）', () => {
+    localStorage.setItem('emuera.gameDir', 'D:/old/game');
+    mockWindowLocation('https:', 'localhost');
+
+    const game = useGameStore();
+    expect(game.gameDir).toBe('D:/old/game');
+  });
+
+  it('MAUI 模式 setGameDir 不写 localStorage（不留过期键）', () => {
+    mockWindowLocation('ms-appx-web:', 'app');
+
+    const game = useGameStore();
+    game.setGameDir('D:/current/game');
+    expect(game.gameDir).toBe('D:/current/game');
+    expect(localStorage.getItem('emuera.gameDir')).toBeNull();
+  });
+
+  it('HTTP 模式 setGameDir 写 localStorage', () => {
+    mockWindowLocation('https:', 'localhost');
+
+    const game = useGameStore();
+    game.setGameDir('D:/current/game');
+    expect(localStorage.getItem('emuera.gameDir')).toBe('D:/current/game');
   });
 });
