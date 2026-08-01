@@ -88,6 +88,25 @@ npm run build                    # 生产构建 → dist/
 npm test                         # Vitest 单元测试（12 个文件）
 ```
 
+### Web 字体方案（跨平台固定网格排版）
+
+游戏终端依赖「ASCII 半角 0.5em / CJK 全角 1.0em」的固定网格，与 C# 侧 GDI 的 `FontSize/2`、`FontSize` 字符宽度计算对齐。Windows 上 `ＭＳ ゴシック` 提供该度量；但 Android 等平台没有该字体，系统 fallback 字体宽度不一致会导致字符画、按钮行、整行横线排版错乱。
+
+解决方案是内置两枚 woff2 字体，通过 `TerminalDisplay.vue` 的 font-family 链逐级回退（`游戏字体名 → EmueraMonoJP → EmueraBlock → ui-monospace…`）：
+
+- **`EmueraMonoJP`**（`src/assets/fonts/IPAGothic.woff2`）— 内置 IPA ゴシック，度量与 MS Gothic 兼容。Windows 上 MS Gothic 存在时行为不变；缺失时（Android 等）落到它保证网格一致。
+- **`EmueraBlock`**（`src/assets/fonts/EmueraBlock.woff2`）— 补充字体，覆盖 IPAGothic 缺失的两类字形，避免逐字形回退到宽度随机的系统字体：
+  - Block Elements（`░▒▓█▀▄▌▐` 等 U+2580–U+259F）按游戏设计为**半角**，与 `IsWideChar` 判定一致；
+  - 双线框（`═║╔╗╚╝╠╣╦╩╬` U+2550–U+256C）为**全角**，线宽对齐 IPAGothic 单线框实测厚度。
+
+字体注册见 `src/styles/fonts.css`（`main.ts` 全局引入）。`EmueraBlock` 由 [`scripts/build_emblock_font.py`](Emuera.Web/scripts/build_emblock_font.py) 程序化绘制生成（矩形/阴影点阵/双线框条对，无外部字体源依赖，可复现）：
+
+```bash
+cd Emuera.Web && python scripts/build_emblock_font.py
+```
+
+IPA 字体许可见 `src/assets/fonts/IPA_Font_License_Agreement_v1.0.txt`（IPA Font License v1.0）。
+
 ## MCP 集成
 
 Emuera 通过 Model Context Protocol 被 AI 编程工具（Claude Code、VS Code、Cursor 等）控制。项目使用 Python 网关管理游戏进程生命周期，仅在需要时才启动游戏。
