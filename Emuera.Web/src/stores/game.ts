@@ -345,11 +345,22 @@ export const useGameStore = defineStore('game', () => {
    */
   const mauiError = ref<string | null>(null);
   /**
-   * 无限循环检测确认提示——C# `ScriptProc.checkInfiniteLoop` 触发后经
-   * `{"type":"infiniteLoopPrompt","message":...}` 推送，App.vue 据此弹模态框询问玩家
-   * 「继续等待 / 结束游戏」。非 null 时展示弹窗；玩家响应后清空并投递响应。
+   * 游戏静默状态提示（MAUI）——前端静默监控的结果：
+   * - 'running'：游戏线程存活但长时间无输出（慢计算 / 真死循环），半透明「游戏运行中」提示
+   * - 'stopped'：游戏线程已死而前端未收到退出/错误帧（后台线程假死兜底），提示「游戏已停止」
+   * 任何新 turn / 进入等待输入 / 退出游戏都会清空。null 表示无提示。
    */
-  const infiniteLoopPrompt = ref<string | null>(null);
+  const gameStatusHint = ref<'running' | 'stopped' | null>(null);
+  /** 最近一次收到 turn 帧的时间戳（毫秒）——前端静默监控据此判断游戏是否在产出。 */
+  const lastActivityAt = ref<number>(Date.now());
+  /**
+   * 最近一次提交游戏输入的时间戳（毫秒）。null 表示未提交输入或已收到对应 turn。
+   *
+   * 静默监控据此区分「游戏在等人」（WaitInput 且未提交输入）与「游戏在忙」
+   * （已提交输入但长时间无帧——慢回合计算期间前端 state 停留在旧的 WaitInput，
+   * 只有提交时刻能标记"游戏开始干活了"）。任何 turn 帧到达即清空。
+   */
+  const inputSubmittedAt = ref<number | null>(null);
   /**
    * 最近一次 GET /snapshot 拿到的原始快照（调试展示用）。
    *
@@ -644,6 +655,12 @@ export const useGameStore = defineStore('game', () => {
    * 此时仍需更新 state/inputType/needValue（步骤 5），但不调 applyDiff。
    */
   function applyTurn(rawJson: string): void {
+    // 任何 turn 帧到达都算游戏活动——静默监控据此重新计时，并清空状态提示
+    // （游戏在产出即不在"忙"，提示只存在于静默期间）
+    lastActivityAt.value = Date.now();
+    gameStatusHint.value = null;
+    // turn 到达 = 本次输入的处理已产出结果（或 TINPUT 超时帧）——解除提交忙态
+    inputSubmittedAt.value = null;
     lastTurnJson.value = rawJson;
     turnHistory.value.push(rawJson);
     // 上限保护：超出时丢弃最旧帧（FIFO）
@@ -758,6 +775,10 @@ export const useGameStore = defineStore('game', () => {
     acceptGeneration(0);
     // issue 09：reset 时清空 mauiError——hot-swap reload 前清旧错误
     mauiError.value = null;
+    // 清空游戏状态提示——重开/重置后不残留旧提示
+    gameStatusHint.value = null;
+    // 重置清空提交忙态——无活跃游戏不处于处理中
+    inputSubmittedAt.value = null;
     // game-library：reset 时清退出状态——unloadGame 完成或异常后重置
     exitStatus.value = 'idle';
   }
@@ -1056,6 +1077,10 @@ export const useGameStore = defineStore('game', () => {
       // 静默
     }
     exitStatus.value = 'idle';
+    // 退出游戏清空状态提示——回列表态不残留
+    gameStatusHint.value = null;
+    // 退出清空提交忙态——回列表态不处于处理中
+    inputSubmittedAt.value = null;
     stopTinputTicker();
     acceptGeneration(0);
   }
@@ -1065,14 +1090,22 @@ export const useGameStore = defineStore('game', () => {
     mauiError.value = null;
   }
 
-  /** 设置无限循环确认提示——C# 推送 infiniteLoopPrompt 消息时调用，App.vue 据此弹窗。 */
-  function setInfiniteLoopPrompt(message: string): void {
-    infiniteLoopPrompt.value = message;
+  /** 设置游戏静默状态提示——前端静默监控收到 gameThreadStatus 回复时调用。 */
+  function setGameStatusHint(hint: 'running' | 'stopped'): void {
+    gameStatusHint.value = hint;
   }
 
-  /** 清空无限循环确认提示——玩家响应弹窗后调用。 */
-  function clearInfiniteLoopPrompt(): void {
-    infiniteLoopPrompt.value = null;
+  /** 清空游戏静默状态提示——新 turn / 等待输入 / 退出游戏时调用。 */
+  function clearGameStatusHint(): void {
+    gameStatusHint.value = null;
+  }
+
+  /**
+   * 标记已提交游戏输入——connection store 的 sendInput 唯一入口调用。
+   * 静默监控以此区分「提交后等待处理」与「等待玩家输入」，幂等（重复提交只刷新时间戳）。
+   */
+  function markInputSubmitted(): void {
+    inputSubmittedAt.value = Date.now();
   }
 
   /**
@@ -1296,10 +1329,13 @@ export const useGameStore = defineStore('game', () => {
     mauiError,
     setGameDir,
     clearMauiError,
-    // 无限循环检测确认弹窗
-    infiniteLoopPrompt,
-    setInfiniteLoopPrompt,
-    clearInfiniteLoopPrompt,
+    // 游戏静默状态提示（MAUI）——前端静默监控
+    gameStatusHint,
+    lastActivityAt,
+    inputSubmittedAt,
+    setGameStatusHint,
+    clearGameStatusHint,
+    markInputSubmitted,
     // game-library：主目录 + 游戏列表 + 上次玩过 + 退出游戏 + 目录浏览器
     mainGameDir,
     lastPlayedGame,

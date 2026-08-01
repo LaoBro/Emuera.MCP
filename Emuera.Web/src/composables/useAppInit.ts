@@ -96,6 +96,8 @@ export async function initAppState(): Promise<void> {
  * - `{"type":"gamesScanned","games":[{name,fullPath}],"rootDir":...}`——scanGames 回复，写入 store
  * - `{"type":"directoriesListed","currentPath":...,"parentPath":...|"null","subDirectories":[...]}`——listDirectories 回复
  * - `{"type":"gameExited"}`——exitGame 处理完成，清状态 + 自动重新 scanGames
+ * - `{"type":"gameThreadStatus","alive":true/false}`——前端静默监控的线程存活探测回复，
+ *   写入 gameStatusHint（'running'/'stopped'），App.vue 据此显示半透明状态提示
  *
  * 收到 `folderPicked` 带 path 时的处理（game-library spec ID9 修订）：
  * 1. `game.setMainGameDir(path)`——更新 mainGameDir ref + 持久化到 localStorage
@@ -225,12 +227,13 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
     return;
   }
 
-  // 无限循环检测确认：C# ScriptProc.checkInfiniteLoop 触发后推送，App.vue 弹模态框询问玩家。
-  // 玩家选择后经 respondInfiniteLoop 投递 infiniteLoopResponse 让 C# 阻塞读取。
-  if (type === 'infiniteLoopPrompt') {
-    const message = typeof m.message === 'string' ? m.message : '';
-    console.log('[useAppInit] infiniteLoopPrompt received');
-    game.setInfiniteLoopPrompt(message);
+  // 游戏线程存活探测回复——前端静默监控据此区分「运行中」（慢计算/死循环）
+  // 与「已停止」（线程假死兜底，原无限循环检测的直接杀游戏改为被动提示后
+  // 由 useGameStatusMonitor 发起探测，C# BridgeHost.HandleGetGameThreadStatus 回复）。
+  if (type === 'gameThreadStatus') {
+    const alive = m.alive === true;
+    console.log(`[useAppInit] gameThreadStatus: alive=${alive}`);
+    game.setGameStatusHint(alive ? 'running' : 'stopped');
     return;
   }
 

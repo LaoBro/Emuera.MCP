@@ -55,7 +55,6 @@
     <tr id="UI.ConfigDialog.Environment.UseSaveFolder"><![CDATA[将存档保存到sav文件夹]]></tr>
     <tr id="UI.ConfigDialog.Environment.EnglishConfigOutput"><![CDATA[用英文输出配置文件的设置项目]]></tr>
     <tr id="UI.ConfigDialog.Environment.MaxLog"><![CDATA[历史日志行数]]></tr>
-    <tr id="UI.ConfigDialog.Environment.InfiniteLoopAlertTime"><![CDATA[无限循环警告超时毫秒数]]></tr>
     <tr id="UI.ConfigDialog.Environment.SaveDataPerPage"><![CDATA[每页显示的存档数]]></tr>
     <tr id="UI.ConfigDialog.Environment.TextEditor"><![CDATA[关联的文本编辑器]]></tr>
     <tr id="UI.ConfigDialog.Environment.Browse"><![CDATA[浏览]]></tr>
@@ -685,7 +684,6 @@ Emuera的历史版本有效的内容变得无效等等现象而设置的。
     <tr id="Error.CanNotConvertStrToInt"><![CDATA[不能将"@{0}"的第{1}个参数从字符串型转换为整型]]></tr>
     <tr id="Error.CanNotConvertIntToStr"><![CDATA[不能将"@{0}"的第{1}个参数从整转换为字符串型型(此警告可以用兼容性配置「{2}」来无视)]]></tr>
     <tr id="Error.CalltrainArgMoreThanSelectcom"><![CDATA[CALLTRAIN命令的参数值超过SELECTCOM的元素数]]></tr>
-    <tr id="Error.SelectExitInfiniteLoopMB"><![CDATA[可能进入了无限循环因此选择强制终止]]></tr>
     <tr id="Error.OverflowFuncStack"><![CDATA[函数调用栈溢出(是否发生了无限递归调用？)]]></tr>
     <tr id="Error.FuncEndError"><![CDATA[函数结尾发生错误:{0}]]></tr>
     <tr id="Error.FuncEndEmueraError"><![CDATA[函数结尾发生Emuera错误:{0}]]></tr>
@@ -967,10 +965,6 @@ Emuera的历史版本有效的内容变得无效等等现象而设置的。
     <tr id="MessageBox.ReplaceFileError"><![CDATA[_Replace.csv异常
 终止Emuera吗？]]></tr>
     <tr id="MessageBox.ReplaceError"><![CDATA[_Replace.csv错误]]></tr>
-    <tr id="MessageBox.InfiniteLoop"><![CDATA[可能发生了无限循环]]></tr>
-    <tr id="MessageBox.TooLongLoop"><![CDATA[目前正在执行{0}的第{1}行。
-距离最后的输入经过了{3}毫秒并执行了{2}行。
-中断处理并强制结束吗？]]></tr>
     <tr id="MessageBox.ForceQuitAndRestart"><![CDATA[FORCE_QUIT_AND_RESTART没有经过输入语句而连续执行。取消重启并终止程序吗？]]></tr>
     <tr id="MessageBox.IllegalFontError"><![CDATA[Emuera的显示处理时发现不合适的字体
 无法继续进行渲染处理而强制终止]]></tr>

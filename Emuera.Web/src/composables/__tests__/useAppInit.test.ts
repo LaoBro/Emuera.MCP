@@ -194,9 +194,9 @@ describe('initAppState (T-025 D9 rev)', () => {
   });
 });
 
-// ---------- handleMauiMessage：无限循环确认弹窗 ----------
+// ---------- handleMauiMessage：游戏线程存活探测回复 ----------
 
-describe('handleMauiMessage - infiniteLoopPrompt', () => {
+describe('handleMauiMessage - gameThreadStatus', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
@@ -205,7 +205,7 @@ describe('handleMauiMessage - infiniteLoopPrompt', () => {
     vi.unstubAllGlobals();
   });
 
-  it('MAUI 环境收到 infiniteLoopPrompt → 写入 game.infiniteLoopPrompt（App.vue 据此弹窗）', async () => {
+  it('alive=true → gameStatusHint=running（游戏运行中提示）', async () => {
     // 模拟 MAUI unpackaged window（app.local 虚拟主机）+ chrome.webview 让 postInput 可用
     vi.stubGlobal('window', {
       location: { protocol: 'https:', hostname: 'app.local' },
@@ -218,8 +218,24 @@ describe('handleMauiMessage - infiniteLoopPrompt', () => {
     const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
     expect(typeof handler).toBe('function');
 
-    handler!({ type: 'infiniteLoopPrompt', message: 'TEST.ERB 123行 5000ms' });
+    handler!({ type: 'gameThreadStatus', alive: true });
 
-    expect(game.infiniteLoopPrompt).toBe('TEST.ERB 123行 5000ms');
+    expect(game.gameStatusHint).toBe('running');
+  });
+
+  it('alive=false → gameStatusHint=stopped（游戏已停止提示）', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const game = useGameStore();
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+
+    handler!({ type: 'gameThreadStatus', alive: false });
+
+    expect(game.gameStatusHint).toBe('stopped');
   });
 });

@@ -3,7 +3,8 @@ import { onMounted, ref, computed, watch, defineAsyncComponent } from 'vue';
 import { useUiStore } from './stores/ui';
 import { useGameStore } from './stores/game';
 import { initAppState } from './composables/useAppInit';
-import { isMauiEnvironment, loadGameFromPath, exitGame as exitGameBridge, respondInfiniteLoop } from './lib/mauiBridge';
+import { startGameStatusMonitor } from './composables/useGameStatusMonitor';
+import { isMauiEnvironment, loadGameFromPath, exitGame as exitGameBridge } from './lib/mauiBridge';
 import ConnectionPanel from './components/ConnectionPanel.vue';
 import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
@@ -19,8 +20,13 @@ const game = useGameStore();
 /**
  * T-025 D9 rev：App 挂载初始化——逻辑提取到 initAppState() 便于单测。
  * 见 composables/useAppInit.ts 的详细文档。
+ * MAUI 额外启动游戏静默监控（useGameStatusMonitor）——长时间无输出时探测
+ * C# 游戏线程存活，显示半透明「游戏运行中/已停止」提示。
  */
-onMounted(() => initAppState());
+onMounted(() => {
+  initAppState();
+  startGameStatusMonitor();
+});
 
 /**
  * Issue 07 / spec ID11：MAUI 模式下隐藏 HTTP 模式的连接面板和游戏目录选择器——
@@ -114,21 +120,6 @@ function onExitConfirm(): void {
 /** 用户取消退出——关闭对话框，无副作用。 */
 function onExitCancel(): void {
   showExitConfirm.value = false;
-}
-
-/**
- * 无限循环确认弹窗——玩家选「继续等待」：清空提示 + 投递 continue，
- * C# 重置检测计时器让脚本继续执行。
- */
-function onInfiniteLoopContinue(): void {
-  game.clearInfiniteLoopPrompt();
-  respondInfiniteLoop('continue');
-}
-
-/** 玩家选「结束游戏」：清空提示 + 投递 exit，C# 抛 GameExitException 干净退出。 */
-function onInfiniteLoopExit(): void {
-  game.clearInfiniteLoopPrompt();
-  respondInfiniteLoop('exit');
 }
 </script>
 
@@ -257,16 +248,15 @@ function onInfiniteLoopExit(): void {
       </div>
     </div>
 
-    <!-- 无限循环检测确认对话框——C# 推送 infiniteLoopPrompt 时展示，阻塞游戏循环等玩家响应 -->
-    <div v-if="game.infiniteLoopPrompt !== null" class="confirm-overlay">
-      <div class="confirm-modal">
-        <div class="confirm-text">脚本运行过久未暂停，可能陷入死循环。继续等待还是结束游戏？</div>
-        <pre class="loop-detail">{{ game.infiniteLoopPrompt }}</pre>
-        <div class="confirm-actions">
-          <button class="confirm-btn" @click="onInfiniteLoopContinue">继续等待</button>
-          <button class="confirm-btn ok" @click="onInfiniteLoopExit">结束游戏</button>
-        </div>
-      </div>
+    <!-- 游戏静默状态提示（MAUI）——长时间无输出且不在等待输入时显示。
+         running=游戏线程存活（慢计算/真死循环都是"在忙"）；stopped=线程已死（假死兜底）。
+         纯展示、pointer-events:none 不挡交互；任何新 turn 到达即消失。 -->
+    <div
+      v-if="isMaui && game.gameStatusHint !== null"
+      class="status-hint"
+      :class="game.gameStatusHint"
+    >
+      {{ game.gameStatusHint === 'running' ? '游戏运行中…' : '游戏已停止' }}
     </div>
   </div>
 </template>
@@ -405,19 +395,6 @@ function onInfiniteLoopExit(): void {
   color: #e0e0e0;
   text-align: center;
 }
-.loop-detail {
-  margin: 0;
-  padding: 8px 10px;
-  background: #1e1e1e;
-  border: 1px solid #3c3c3c;
-  border-radius: 4px;
-  font-size: 12px;
-  color: #c5c5c5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 120px;
-  overflow: auto;
-}
 .confirm-actions {
   display: flex;
   justify-content: center;
@@ -443,6 +420,29 @@ function onInfiniteLoopExit(): void {
 }
 .confirm-btn.ok:hover {
   background: #6a2d2d;
+}
+
+/* 游戏静默状态提示（MAUI）——顶部半透明胶囊，pointer-events:none 不挡交互 */
+.status-hint {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #e0e0e0;
+  background: rgba(30, 30, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.status-hint.stopped {
+  color: #f48771;
+  border-color: rgba(244, 135, 113, 0.4);
+  background: rgba(60, 24, 24, 0.6);
 }
 
 /* MAUI 全屏：右上角浮动控制（⌨ 手动输入 / ⋮ 菜单）——半透明不挡内容 */

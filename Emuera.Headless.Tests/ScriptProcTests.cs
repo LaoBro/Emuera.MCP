@@ -159,16 +159,4 @@ public sealed class ScriptProcTests
         Assert.Equal(42, es.CurrentState.lineCount);
         Assert.Equal(SystemStateCode.Title_Begin, ((FakeProcessState)es.CurrentState).SystemState);
     }
-
-    [Fact]
-    public void ResetInfiniteLoopTimer_resets_lineCount()
-    {
-        var es = new ExecutionState();
-        es.CurrentState = new FakeProcessState { lineCount = 99 };
-        var sp = CreateScriptProc(es, new FakeEvaluator());
-
-        sp.ResetInfiniteLoopTimer();
-
-        Assert.Equal(0, es.CurrentState.lineCount);
-    }
 }

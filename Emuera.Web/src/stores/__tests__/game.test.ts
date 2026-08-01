@@ -808,20 +808,84 @@ describe('useGameStore - MAUI 启动不恢复 gameDir', () => {
   });
 });
 
-describe('useGameStore - 无限循环确认弹窗状态', () => {
+describe('useGameStore - 游戏静默状态提示（gameStatusHint / lastActivityAt）', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
-  it('setInfiniteLoopPrompt 写入 message，clearInfiniteLoopPrompt 清空', () => {
+  it('setGameStatusHint 写入 running/stopped，clearGameStatusHint 清空', () => {
     const game = useGameStore();
-    expect(game.infiniteLoopPrompt).toBeNull();
+    expect(game.gameStatusHint).toBeNull();
 
-    game.setInfiniteLoopPrompt('foo.ERB 123 行 5000ms');
-    expect(game.infiniteLoopPrompt).toBe('foo.ERB 123 行 5000ms');
+    game.setGameStatusHint('running');
+    expect(game.gameStatusHint).toBe('running');
 
-    game.clearInfiniteLoopPrompt();
-    expect(game.infiniteLoopPrompt).toBeNull();
+    game.setGameStatusHint('stopped');
+    expect(game.gameStatusHint).toBe('stopped');
+
+    game.clearGameStatusHint();
+    expect(game.gameStatusHint).toBeNull();
+  });
+
+  it('applyTurn 更新 lastActivityAt（静默监控的计时依据）', () => {
+    const game = useGameStore();
+    game.lastActivityAt = Date.now() - 60000;
+
+    game.applyTurn(appendFrameJson(['activity'], { state: 'Running' }));
+
+    expect(Date.now() - game.lastActivityAt).toBeLessThan(1000);
+  });
+
+  it('reset 清空 gameStatusHint', () => {
+    const game = useGameStore();
+    game.setGameStatusHint('stopped');
+
+    game.reset();
+
+    expect(game.gameStatusHint).toBeNull();
+  });
+
+  it('completeExitGame 清空 gameStatusHint', () => {
+    const game = useGameStore();
+    game.setGameStatusHint('stopped');
+
+    game.completeExitGame();
+
+    expect(game.gameStatusHint).toBeNull();
+  });
+
+  it('markInputSubmitted 写入时间戳，applyTurn 清空（提交忙态生命周期）', () => {
+    const game = useGameStore();
+    expect(game.inputSubmittedAt).toBeNull();
+
+    game.markInputSubmitted();
+    expect(game.inputSubmittedAt).not.toBeNull();
+
+    game.applyTurn(appendFrameJson(['activity'], { state: 'WaitInput' }));
+
+    expect(game.inputSubmittedAt).toBeNull();
+  });
+
+  it('markInputSubmitted 幂等——重复提交只刷新时间戳', () => {
+    const game = useGameStore();
+    game.markInputSubmitted();
+    const first = game.inputSubmittedAt;
+
+    game.markInputSubmitted();
+
+    expect(game.inputSubmittedAt).not.toBeNull();
+    expect(game.inputSubmittedAt).toBeGreaterThanOrEqual(first!);
+  });
+
+  it('reset / completeExitGame 清空 inputSubmittedAt', () => {
+    const game = useGameStore();
+    game.markInputSubmitted();
+    game.reset();
+    expect(game.inputSubmittedAt).toBeNull();
+
+    game.markInputSubmitted();
+    game.completeExitGame();
+    expect(game.inputSubmittedAt).toBeNull();
   });
 });
 

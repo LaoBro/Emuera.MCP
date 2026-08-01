@@ -410,7 +410,6 @@ internal sealed class ConsoleStateManager
         }
         _console.RefreshStrings(true);
         _state.State = ConsoleState.Sleep;
-        _state.process!.UpdateCheckInfiniteLoopState();
         _ui.ProcessEvents();
         if (time > 0)
             System.Threading.Thread.Sleep(time);

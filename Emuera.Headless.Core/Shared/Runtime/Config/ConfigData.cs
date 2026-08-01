@@ -98,7 +98,6 @@ internal sealed class ConfigData
 		configArray.Add(new ConfigItem<int>(ConfigCode.FPS, "フレーム毎秒", "FPS", 5));
 		configArray.Add(new ConfigItem<int>(ConfigCode.SkipFrame, "最大スキップフレーム数", "Skip frames", 3));
 		configArray.Add(new ConfigItem<int>(ConfigCode.ScrollHeight, "スクロール行数", "Lines per scroll", 1));
-		configArray.Add(new ConfigItem<int>(ConfigCode.InfiniteLoopAlertTime, "無限ループ警告までのミリ秒数", "Milliseconds for infinite loop warning", 30000));
 		configArray.Add(new ConfigItem<int>(ConfigCode.DisplayWarningLevel, "表示する最低警告レベル", "Minimum warning level", 1));
 		configArray.Add(new ConfigItem<bool>(ConfigCode.DisplayReport, "ロード時にレポートを表示する", "Display loading report", false));
 		configArray.Add(new ConfigItem<ReduceArgumentOnLoadFlag>(ConfigCode.ReduceArgumentOnLoad, "ロード時に引数を解析する", "Reduce argument on load", ReduceArgumentOnLoadFlag.NO));
@@ -259,7 +258,6 @@ internal sealed class ConfigData
 		configArray[i++] = new ConfigItem<int>(ConfigCode.FPS, "フレーム毎秒", 5);
 		configArray[i++] = new ConfigItem<int>(ConfigCode.SkipFrame, "最大スキップフレーム数", 3);
 		configArray[i++] = new ConfigItem<int>(ConfigCode.ScrollHeight, "スクロール行数", 1);
-		configArray[i++] = new ConfigItem<int>(ConfigCode.InfiniteLoopAlertTime, "無限ループ警告までのミリ秒数", 30000);
 		configArray[i++] = new ConfigItem<int>(ConfigCode.DisplayWarningLevel, "表示する最低警告レベル", 1);
 		configArray[i++] = new ConfigItem<bool>(ConfigCode.DisplayReport, "ロード時にレポートを表示する", false);
 		configArray[i++] = new ConfigItem<ReduceArgumentOnLoadFlag>(ConfigCode.ReduceArgumentOnLoad, "ロード時に引数を解析する", ReduceArgumentOnLoadFlag.NO);

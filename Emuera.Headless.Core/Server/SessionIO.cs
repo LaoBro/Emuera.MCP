@@ -17,13 +17,4 @@ internal abstract class SessionIO
     public abstract void WriteLine(string text);
     public abstract void Close();
     public abstract bool IsConnected { get; }
-
-    /// <summary>
-    /// 是否支持交互式提示（如无限循环检测的确认弹窗）。
-    /// MAUI 桥接为 true（有玩家可弹窗）；HTTP/管道为 false（自动化场景无人确认）。
-    /// </summary>
-    public virtual bool SupportsInteractivePrompt => false;
-
-    /// <summary>推送非 turn 消息给交互端（无限循环提示等）。无交互通道时静默 no-op。</summary>
-    public virtual void WriteMessage(string json) { }
 }

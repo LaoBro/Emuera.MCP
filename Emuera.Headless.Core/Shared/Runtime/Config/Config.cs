@@ -85,7 +85,6 @@ internal sealed class Config
 	public static int LineHeight => Current!._data.GetConfigValue<int>(ConfigCode.LineHeight);
 	public static int FPS => Current!._data.GetConfigValue<int>(ConfigCode.FPS);
 	public static int ScrollHeight => Current!._data.GetConfigValue<int>(ConfigCode.ScrollHeight);
-	public static int InfiniteLoopAlertTime => Current!._data.GetConfigValue<int>(ConfigCode.InfiniteLoopAlertTime);
 	public static int SaveDataNos => Current!._data.GetConfigValue<int>(ConfigCode.SaveDataNos);
 	public static bool WarnBackCompatibility => Current!._data.GetConfigValue<bool>(ConfigCode.WarnBackCompatibility);
 	public static bool WindowMaximixed => Current!._data.GetConfigValue<bool>(ConfigCode.WindowMaximixed);

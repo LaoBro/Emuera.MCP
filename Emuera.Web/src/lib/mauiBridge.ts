@@ -278,13 +278,15 @@ export function exitGame(): void {
 }
 
 /**
- * 无限循环确认弹窗响应——玩家在 App.vue 弹窗选择后投递。
- * C# `AgentJsonlProtocol.AskInfiniteLoopDecision` 阻塞读取此响应：
- * - continue：重置检测计时器，脚本继续执行
- * - exit：抛 GameExitException，游戏干净退出
+ * 前端静默监控：请求 C# 探测游戏线程存活状态。
+ *
+ * 前端在「静默超时」（长时间无 turn 帧且不在等待输入）时调用一次，C#
+ * `BridgeHost.HandleGetGameThreadStatus`（JS 桥线程直接查 `_gameTask.IsCompleted`，
+ * 不依赖游戏线程配合）回复 `{"type":"gameThreadStatus","alive":true/false}`——
+ * alive=true → 半透明「游戏运行中」提示；alive=false → 「游戏已停止」提示。
  */
-export function respondInfiniteLoop(action: 'continue' | 'exit'): void {
-  postInput(JSON.stringify({ type: 'infiniteLoopResponse', action }));
+export function getGameThreadStatus(): void {
+  postInput(JSON.stringify({ type: 'getGameThreadStatus' }));
 }
 
 // ---------- game-library spec ID8：Android 目录浏览器 ----------

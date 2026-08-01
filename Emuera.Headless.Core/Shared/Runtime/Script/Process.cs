@@ -293,7 +293,6 @@ internal sealed partial class Process(EmueraConsole view)
 
 	public void DoScript()
 	{
-		_scriptProc.ResetInfiniteLoopTimer();
 		bool systemProcRunning = true;
 		try
 		{
@@ -336,11 +335,6 @@ internal sealed partial class Process(EmueraConsole view)
 		vEvaluator.ResetData();
 		state = originalState;
 		state.Begin(BeginType.TITLE);
-	}
-
-	public void UpdateCheckInfiniteLoopState()
-	{
-		_scriptProc.ResetInfiniteLoopTimer();
 	}
 
 	public void saveCurrentState(bool single) => _scriptProc.SaveCurrentState(single);

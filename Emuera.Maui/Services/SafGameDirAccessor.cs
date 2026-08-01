@@ -33,9 +33,8 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
     /// <summary>
     /// Deferred SAF writes are bounded before allocating unbounded memory.
     /// Read **once** at first use, not per write: calling Preferences.Get on every
-    /// WriteByte of an uncompressed multi-MB save made autosave take ~5s, which
-    /// tripped the script infinite-loop watchdog (InfiniteLoopAlertTime=5000ms) and
-    /// froze the game. Advanced deployments may still override this with the app
+    /// WriteByte of an uncompressed multi-MB save made autosave take ~5s and froze
+    /// the game. Advanced deployments may still override this with the app
     /// preference key above; it takes effect on next app start.
     /// </summary>
     private static readonly long s_deferredWriteLimit = LoadDeferredWriteLimit();

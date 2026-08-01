@@ -451,6 +451,9 @@ export const useConnectionStore = defineStore('connection', () => {
    */
   function sendInput(value: string): void {
     const payload = JSON.stringify({ type: 'input', value });
+    // 提交输入即标记"游戏开始干活"——静默监控据此在长时间无帧时探测线程存活
+    // （慢回合计算期间前端 state 停留在旧 WaitInput，只有提交时刻能区分"在忙"与"在等人"）。
+    game.markInputSubmitted();
     if (isMauiEnvironment()) {
       postInput(payload);
       return;

@@ -159,7 +159,6 @@ internal sealed partial class Lang
 				[Managed] public static TranslatableString UseSaveFolder { get; } = new TranslatableString("セーブデータをsavフォルダ内に作成する");
 				[Managed] public static TranslatableString EnglishConfigOutput { get; } = new TranslatableString("CONFIGファイルの内容を英語で保存する");
 				[Managed] public static TranslatableString MaxLog { get; } = new TranslatableString("履歴ログの行数");
-				[Managed] public static TranslatableString InfiniteLoopAlertTime { get; } = new TranslatableString("無限ループ警告までのミリ秒");
 				[Managed] public static TranslatableString SaveDataPerPage { get; } = new TranslatableString("使用するセーブデータ数");
 				[Managed] public static TranslatableString TextEditor { get; } = new TranslatableString("関連づけるテキストエディタ");
 				[Managed] public static TranslatableString Browse { get; } = new TranslatableString("選択");
@@ -914,7 +913,6 @@ internal sealed partial class Lang
 		[Managed] public static TranslatableString CanNotConvertStrToInt { get; } = new TranslatableString("\"@{0}\"の{1}番目の引数を文字列型から整数型に変換できません");
 		[Managed] public static TranslatableString CanNotConvertIntToStr { get; } = new TranslatableString("\"@{0}\"の{1}番目の引数を整数型から文字列型に変換できません(この警告は互換性オプション「{2}」により無視できます)");
 		[Managed] public static TranslatableString CalltrainArgMoreThanSelectcom { get; } = new TranslatableString("CALLTRAIN命令の引数の値がSELECTCOMの要素数を超えています");
-		[Managed] public static TranslatableString SelectExitInfiniteLoopMB { get; } = new TranslatableString("無限ループの疑いにより強制終了が選択されました");
 		[Managed] public static TranslatableString OverflowFuncStack { get; } = new TranslatableString("関数の呼び出しスタックが溢れました(無限に再帰呼び出しされていませんか？)");
 		[Managed] public static TranslatableString FuncEndError { get; } = new TranslatableString("関数の終端でエラーが発生しました:{0}");
 		[Managed] public static TranslatableString FuncEndEmueraError { get; } = new TranslatableString("関数の終端でEmueraのエラーが発生しました:{0}");
@@ -1229,8 +1227,6 @@ internal sealed partial class Lang
 		[Managed] public static TranslatableString ConfigFileError { get; } = new TranslatableString("コンフィグファイルに異常があります\nEmueraを終了しますか？");
 		[Managed] public static TranslatableString ReplaceFileError { get; } = new TranslatableString("_Replace.csvに異常があります\nEmueraを終了しますか？");
 		[Managed] public static TranslatableString ReplaceError { get; } = new TranslatableString("_Replace.csvエラー");
-		[Managed] public static TranslatableString InfiniteLoop { get; } = new TranslatableString("無限ループの可能性があります");
-		[Managed] public static TranslatableString TooLongLoop { get; } = new TranslatableString("現在、{0}の{1}行目を実行中です。\n最後の入力から{3}ミリ秒経過し{2}行が実行されました。\n処理を中断し強制終了しますか？");
 		[Managed] public static TranslatableString ForceQuitAndRestart { get; } = new TranslatableString("FORCE_QUIT_AND_RESTARTが入力待ちを挟まず連続実行されました。再起動せず終了しますか？");
 		[Managed] public static TranslatableString IllegalFontError { get; } = new TranslatableString("Emueraの表示処理中に不適正なフォントを検出しました\n描画処理を続行できないため強制終了します");
 		[Managed] public static TranslatableString IllegalFont { get; } = new TranslatableString("フォント不適正");

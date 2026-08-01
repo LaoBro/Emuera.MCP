@@ -122,8 +122,8 @@ internal sealed class BridgeHost : IDisposable
         // Windows: Documents/emuera；Android: null（待权限引导后设置）
         _mainGameDir = LoadMainGameDir();
 
-        // MauiBridgeIO 的 _onTurn / _onMessage 回调在游戏循环线程执行——Dispatcher.Dispatch 切 UI 线程投递给 WebView。
-        _bridgeIO = new MauiBridgeIO(OnTurnFromGame, OnMessageFromGame);
+        // MauiBridgeIO 的 _onTurn 回调在游戏循环线程执行——Dispatcher.Dispatch 切 UI 线程投递给 WebView。
+        _bridgeIO = new MauiBridgeIO(OnTurnFromGame);
         _jsBridge.InputReceived += OnInputFromJs;
 #if ANDROID
         // ADR-0019：兜底——InputReceived 无订阅者时仍能收到 JS 消息
@@ -204,15 +204,6 @@ internal sealed class BridgeHost : IDisposable
     }
 
     /// <summary>
-    /// 非 turn 消息回调（无限循环确认弹窗等）——<see cref="MauiBridgeIO.WriteMessage"/> 调用。
-    /// 与 <see cref="OnTurnFromGame"/> 同模式：Dispatcher.Dispatch 切 UI 线程投递给 WebView。
-    /// </summary>
-    private void OnMessageFromGame(string msgJson)
-    {
-        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
-    }
-
-    /// <summary>
     /// JS → C# 消息处理——<see cref="IJsBridge.InputReceived"/> 触发。
     /// <para>
     /// 识别四类消息：
@@ -223,6 +214,7 @@ internal sealed class BridgeHost : IDisposable
     ///   <item>game-library spec ID3：<c>{"type":"scanGames","rootDir":...}</c> /
     ///       <c>{"type":"listDirectories","dirPath":...}</c> / <c>{"type":"exitGame"}</c>——
     ///       分别调 <see cref="HandleScanGames"/> / <see cref="HandleListDirectories"/> / <see cref="HandleExitGame"/></item>
+    ///   <item><c>{"type":"getGameThreadStatus"}</c>——前端静默探测游戏线程存活，调 <see cref="HandleGetGameThreadStatus"/></item>
     ///   <item>其他（如 <c>{"type":"input","value":"..."}</c>）——原样入 <see cref="MauiBridgeIO.EnqueueInput"/>，
     ///       由 <c>AgentJsonlProtocol.RunLoopAsync</c> 反序列化消费</item>
     /// </list>
@@ -309,6 +301,11 @@ internal sealed class BridgeHost : IDisposable
                 if (type == "requestPermission")
                 {
                     HandleRequestPermission();
+                    return;
+                }
+                if (type == "getGameThreadStatus")
+                {
+                    HandleGetGameThreadStatus();
                     return;
                 }
                 // 其他 typed 消息（input 等）原样入队——AgentJsonlProtocol.RunLoopAsync 内
@@ -656,6 +653,28 @@ internal sealed class BridgeHost : IDisposable
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
         Console.WriteLine($"[bridge] HandleCheckPermission: granted={granted}");
         AgentLog.Instance.Write($"[bridge] HandleCheckPermission: granted={granted}");
+    }
+
+    /// <summary>
+    /// 前端探测游戏线程存活状态——<c>{"type":"getGameThreadStatus"}</c> 查询回复。
+    /// <para>
+    /// 前端在「静默超时」（长时间无 turn 帧且不在等待输入）时探测一次，据此区分
+    /// 「游戏运行中」（线程存活，慢计算/死循环）与「游戏已停止」（线程死亡）两种静默。
+    /// 本方法在 JS 桥线程（UI 线程）直接读 <see cref="Task.IsCompleted"/>——不依赖游戏线程
+    /// 配合，脚本卡死时也能准确应答。
+    /// </para>
+    /// <para>
+    /// 回复 <c>{"type":"gameThreadStatus","alive":true/false}</c>。
+    /// 游戏未启动（<c>_gameTask</c> 为 null）时视为不存活——前端无游戏时不探测，不会误显示。
+    /// </para>
+    /// </summary>
+    private void HandleGetGameThreadStatus()
+    {
+        var alive = _gameTask is { IsCompleted: false };
+        var msg = JsonSerializer.Serialize(new { type = "gameThreadStatus", alive });
+        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
+        Console.WriteLine($"[bridge] HandleGetGameThreadStatus: alive={alive}");
+        AgentLog.Instance.Write($"[bridge] HandleGetGameThreadStatus: alive={alive}");
     }
 
     /// <summary>

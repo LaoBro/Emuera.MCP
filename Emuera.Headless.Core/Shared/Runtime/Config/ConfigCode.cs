@@ -65,7 +65,6 @@ internal enum ConfigCode
 	LogColor = 22,
 	FPS = 23,
 	SkipFrame = 24,
-	InfiniteLoopAlertTime = 25,
 	DisplayWarningLevel = 26,
 	DisplayReport = 27,
 	ReduceArgumentOnLoad = 28,

@@ -70,7 +70,7 @@ namespace MinorShift.Emuera.GameView
             }
             catch (GameExitException)
             {
-                // QUIT/EXIT（含无限循环检测后玩家选择结束游戏）：正常退出。
+                // QUIT/EXIT：正常退出。
                 // 不能走下方 catch-all——那会构造 state=Running + error 文本的回合，
                 // 前端画面不变、无可见错误，表现为假死。这里构造干净 Quit 回合并结束会话。
                 var quitTurn = JsonSerializer.Serialize(new TurnRecord(
@@ -100,66 +100,6 @@ namespace MinorShift.Emuera.GameView
                 return errorTurn;
             }
         }
-
-        /// <summary>
-        /// 无限循环检测确认（由 <c>ScriptProc.checkInfiniteLoop</c> 在游戏循环线程同步调用）。
-        /// <para>
-        /// MAUI 交互通道：推送 <c>{"type":"infiniteLoopPrompt","message":...}</c> 给前端弹窗，
-        /// 阻塞读取 <c>{"type":"infiniteLoopResponse","action":"continue"|"exit"}</c> 直到玩家响应；
-        /// 超时（默认 30s）或通道关闭时默认<see cref="Continue"/>，避免弹窗无人点再次假死。
-        /// 无交互通道（HTTP/管道）直接返回 <c>true</c>（结束会话，延续旧行为）。
-        /// </para>
-        /// </summary>
-        internal override bool AskInfiniteLoopDecision(string message)
-        {
-            if (!_io.SupportsInteractivePrompt)
-                return true; // 非交互会话——结束（旧 HEADLESS 行为）
-
-            var payload = JsonSerializer.Serialize(new { type = "infiniteLoopPrompt", message });
-            _io.WriteMessage(payload);
-            try
-            {
-                using var linked = CancellationTokenSource.CreateLinkedTokenSource(StopToken);
-                linked.CancelAfter(InfiniteLoopPromptTimeoutMs);
-                while (true)
-                {
-                    var line = _io.ReadLineAsync(linked.Token).GetAwaiter().GetResult();
-                    if (line == null)
-                        return false; // 通道关闭——会话即将结束，默认继续
-                    if (TryParseInfiniteLoopResponse(line, out var exit))
-                        return exit;
-                    // 非本弹窗响应（正常游戏输入误入）——忽略继续等
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // 玩家未响应超时——默认继续，不假死
-                return false;
-            }
-        }
-
-        /// <summary>解析无限循环弹窗响应。返回 false 表示该输入不是弹窗响应。</summary>
-        private static bool TryParseInfiniteLoopResponse(string line, out bool exit)
-        {
-            exit = false;
-            try
-            {
-                using var doc = JsonDocument.Parse(line);
-                if (doc.RootElement.TryGetProperty("type", out var typeEl)
-                    && typeEl.ValueKind == JsonValueKind.String
-                    && typeEl.GetString() == "infiniteLoopResponse"
-                    && doc.RootElement.TryGetProperty("action", out var actionEl)
-                    && actionEl.ValueKind == JsonValueKind.String)
-                {
-                    exit = actionEl.GetString() == "exit";
-                    return true;
-                }
-            }
-            catch (JsonException) { }
-            return false;
-        }
-
-        private const int InfiniteLoopPromptTimeoutMs = 30000;
 
         /// <summary>
         /// TINPUT 超时专用路径，调用 EmueraConsole.SubmitTimeout() 后等待游戏进入
