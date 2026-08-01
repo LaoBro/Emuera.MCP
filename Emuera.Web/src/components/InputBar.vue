@@ -68,6 +68,10 @@ const blockEmpty = computed<boolean>(() => {
  * - 无输入框（AnyKey/EnterKey）：直接提交空串——server 端 inputType 决定是否接受
  *
  * 提交后清空 inputValue（为下轮输入做准备）。
+ *
+ * 提交前置 inputInFlight 乐观锁——与按钮点击路径（TerminalDisplay.onButtonClick）对称，
+ * 防 Enter 连按/重复点击双提交；同时该锁是 TerminalDisplay 滚回底部 watch 的收口信号
+ * （翻看历史后提交同样回到底部看结果）。
  */
 function submit(): void {
   if (!canSubmit.value) return;
@@ -75,10 +79,12 @@ function submit(): void {
   if (hasTextInput.value) {
     const v = inputValue.value;
     if (v === '' && blockEmpty.value) return; // 禁止空提交
+    game.setInputInFlight();
     conn.sendInput(v);
     inputValue.value = '';
   } else {
     // AnyKey / EnterKey：提交空串
+    game.setInputInFlight();
     conn.sendInput('');
   }
 }

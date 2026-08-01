@@ -192,7 +192,8 @@ function valueToWire(v: ButtonValue): string {
  * applyTurn 会清锁 + 更新 generation。
  *
  * 按钮点击不受 isStickyToBottom 守卫影响——按钮走自身 @click，受 generation/inputInFlight
- * 守卫保护。即使翻看历史时残留按钮仍可点（spec.md 用户故事 9）。
+ * 守卫保护。即使翻看历史时残留按钮仍可点（spec.md 用户故事 9）。点击成功后置锁，
+ * 由底部 inputInFlight watch 滚回底部——小屏幕上翻看历史后点击按钮仍能看到结果。
  */
 function onButtonClick(entry: DisplayEntry): void {
   const button = entry.button;
@@ -281,6 +282,17 @@ watch(() => game.clearScreenTick, () => {
     ui.setStickyToBottom(true);
   }
   vs.scrollToBottom();
+});
+
+// ---------- 提交输入后回到底部 ----------
+//
+// 玩家翻看历史（isStickyToBottom=false）后点击按钮 / 终端推进时，新回合输出不会自动跟随，
+// 小屏幕上无法确认点击是否已生效。提交动作本身是明确意图——置锁（inputInFlight）时立即
+// 滚回底部 + 置 sticky=true，后续新行自然自动跟随。
+// 与 spec.md 用户故事 9 兼容：历史区按钮仍可点击，只是点击后回到底部查看结果。
+// InputBar 的 submit() 同样置锁（TerminalDisplay 无法触达），两条提交路径共享此单一收口。
+watch(() => game.inputInFlight, (inFlight) => {
+  if (inFlight) vs.scrollToBottom();
 });
 </script>
 
