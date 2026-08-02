@@ -34,6 +34,10 @@
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 		<!-- XAGNM7009 workaround: .NET 10 Android SDK 36.1.69 native marshal generation bug -->
 		<AndroidEnableMarshalMethods Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">false</AndroidEnableMarshalMethods>
+		<!-- 2.3 (perf)：Android Release 启用 Full AOT。.NET Android Release 默认仅 Profiled AOT
+		     （AndroidEnableProfiledAot=true），Full AOT 对解释器类指令密集负载收益最大。
+		     Debug 保持 JIT，避免拖慢开发构建。 -->
+		<RunAOTCompilation Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And '$(Configuration)' == 'Release'">true</RunAOTCompilation>
 	</PropertyGroup>
 
 	<!-- Issue 06：本票创建项目骨架承载 IJsBridge 抽象层 + 平台实现。
