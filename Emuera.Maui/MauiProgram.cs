@@ -138,6 +138,9 @@ public static class MauiProgram
             {
                 wv.Settings.JavaScriptEnabled = true;
                 wv.Settings.DomStorageEnabled = true;
+                // 禁用原生捏合缩放——画面缩放统一由前端控制（同 WindowsJsBridge 说明）
+                wv.Settings.SetSupportZoom(false);
+                wv.Settings.BuiltInZoomControls = false;
                 wv.Settings.AllowFileAccess = true;
                 // file:// 协议下允许加载外部 JS/CSS——Vite 构建产物使用 ES Module + 独立 CSS 文件，
                 // 若不加此行会因 CORS 策略被拦截导致白屏

@@ -4,6 +4,7 @@ import { useGameStore } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
 import { useUiStore } from '../stores/ui';
 import { useVirtualScroll } from '../composables/useVirtualScroll';
+import { usePinchZoom } from '../composables/usePinchZoom';
 import { isMauiEnvironment } from '../lib/mauiBridge';
 import { shouldSubmitButtonValue, shouldAdvanceOnTerminalClick } from '../lib/inputRouting';
 import type { ButtonValue, PrintSegment, DisplayLine, DisplayEntry } from '../types/protocol';
@@ -152,6 +153,20 @@ const vs = useVirtualScroll({
   rowHeight: effectiveRowHeight,
   viewportRef: terminalRef,
   onStickyChange: (v) => ui.setStickyToBottom(v),
+});
+
+/**
+ * 双指捏合缩放——手势距离比例 → game.setScale（clamp [0.5, 2.0] + localStorage 持久化）。
+ * 渲染层（terminalStyle/contentStyle/effectiveRowHeight）随 effectiveScale 自动生效，
+ * 虚拟滚动的 scrollTop 补偿由 useVirtualScroll 的 rowHeight watch 完成，此处零渲染改动。
+ * click 抑制（手势结束后 300ms）内置——避免捏合合成的 click 误推进游戏（见 composable 注释）。
+ * 依赖 `.terminal` 的 `touch-action: pan-x pan-y`（见下方 CSS）——
+ * 单指原生滚动保留，双指手势归 JS 接管，浏览器原生页面缩放/双击放大被禁用。
+ */
+usePinchZoom({
+  target: terminalRef,
+  getScale: () => game.effectiveScale,
+  setScale: (v) => game.setScale(v),
 });
 
 /**
@@ -392,6 +407,10 @@ watch(() => game.inputInFlight, (inFlight) => {
      无 padding——与 WinForms mainPicBox / CLI 终端一致，字符画从容器边缘开始渲染。 */
   overflow-y: auto;
   overflow-x: auto;
+  /* 触屏手势仲裁（usePinchZoom 的前置依赖，见其注释）：
+     pan-x pan-y——单指横/纵向滚动保留给浏览器原生（虚拟滚动依赖 scrollTop），
+     双指手势归 JS 接管、浏览器原生页面缩放/双击放大被禁用。 */
+  touch-action: pan-x pan-y;
   flex: 1;
   min-height: 0;
   width: 100%;

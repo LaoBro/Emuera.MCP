@@ -75,6 +75,10 @@ internal sealed class WindowsJsBridge : IJsBridge
 				return;
 			}
 
+			// 禁用 WebView2 原生捏合缩放（触屏双指）——画面缩放统一由前端控制
+			// （Emuera.Web/src/composables/usePinchZoom.ts + 菜单按钮），原生缩放会双重放大。
+			_core.Settings.IsPinchZoomEnabled = false;
+
 			// unpackaged 模式下 ms-appx-web: 协议不可用——用 SetVirtualHostNameToFolderMapping
 			// 把 https://app.local/ 映射到输出目录的 wwwroot/ 文件夹。
 			// VueBuild.targets 的 CopyVueFrontendToWwwroot target 把 Vue 构建产物复制到此目录。

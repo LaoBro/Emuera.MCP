@@ -966,3 +966,55 @@ describe('useGameStore - hasActiveButtons（按钮 generation 过滤）', () => 
     expect(game.hasActiveButtons).toBe(false); // 历史按钮 generation=0 ≠ 当前 1
   });
 });
+
+describe('useGameStore - setScale（缩放 clamp + 持久化）', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('合法值——直接应用并持久化', () => {
+    const game = useGameStore();
+    const store = {} as Record<string, string>;
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+    });
+    game.setScale(1.3);
+    expect(game.effectiveScale).toBe(1.3);
+    expect(store['emuera.scale']).toBe('1.3');
+  });
+
+  it('超上限 2.0——截断为 2.0', () => {
+    const game = useGameStore();
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
+    game.setScale(3.5);
+    expect(game.effectiveScale).toBe(2.0);
+    expect(game.isMaxScale).toBe(true);
+  });
+
+  it('超下限 0.5——截断为 0.5', () => {
+    const game = useGameStore();
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
+    game.setScale(0.1);
+    expect(game.effectiveScale).toBe(0.5);
+    expect(game.isMinScale).toBe(true);
+  });
+
+  it('从 localStorage 恢复初始化值（0.5–2.0 范围内）', () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1.8', setItem: vi.fn() });
+    const game = useGameStore();
+    expect(game.effectiveScale).toBe(1.8);
+  });
+
+  it('localStorage 值非法（超范围/NaN）——回退 1.0', () => {
+    for (const bad of ['3.0', '0.2', 'abc']) {
+      vi.stubGlobal('localStorage', { getItem: () => bad, setItem: vi.fn() });
+      const game = useGameStore();
+      expect(game.effectiveScale).toBe(1.0);
+    }
+  });
+});
