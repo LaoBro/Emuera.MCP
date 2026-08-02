@@ -190,37 +190,53 @@ export function useVirtualScroll(opts: VirtualScrollOptions): VirtualScrollRetur
   }
 
   /**
+   * 渲染完成后写回 scrollTop——watch 默认 pre-flush 触发时 DOM 还是旧尺寸，
+   * 立即写回会被旧内容上限钳制（缩放放大时视口停在旧底，底部内容掉出视口，
+   * 表现为画面向上滚）；等渲染完成（spacer/行高/scrollHeight 已更新）再写。
+   * target 延迟求值——取写回时刻元素的最新状态（如 scrollHeight）。
+   * guard 可选——写回前重检查（如 itemCount 的 sticky 守卫）。
+   */
+  function applyScrollTopAfterRender(target: (el: HTMLElement) => number, guard?: () => boolean): void {
+    void nextTick(() => {
+      if (guard && !guard()) return;
+      const el = opts.viewportRef.value;
+      if (!el) return;
+      applyScrollTop(el, target(el));
+    });
+  }
+
+  /**
    * 缩放补偿——rowHeight 变化时按比例调整 scrollTop 保持视觉位置。
    *
    * 例：行高从 19 → 38（scale 1.0 → 2.0），原 scrollTop=190（看第 10 行）→
    * 新 scrollTop = (190/19) * 38 = 380（仍看第 10 行）。
    *
    * 不补偿会导致视觉位置跳变——行高加倍后 scrollTop 仍 190，看到的是第 5 行而非第 10 行。
+   *
+   * 时序：pre-flush 时 DOM 尚未按新尺寸重渲染，此刻读 el.scrollTop 得到的是缩放前的
+   * 位置（渲染后读可能已被浏览器按新内容上限钳制，丢失锚点）；先换算补偿目标，
+   * 写回延迟到渲染完成（applyScrollTopAfterRender）。
    */
   watch(rowHeight, (newH, oldH) => {
     if (oldH <= 0 || newH === oldH) return;
     const el = opts.viewportRef.value;
     if (!el) return;
     const ratio = newH / oldH;
-    applyScrollTop(el, el.scrollTop * ratio);
+    const target = el.scrollTop * ratio;
+    applyScrollTopAfterRender(() => target);
   });
 
   /**
    * 监听 itemCount 变化——若 isStickyToBottom=true，新行到达时自动滚到底部。
    *
-   * 用 nextTick 等 DOM 更新完（spacer 高度 = 新 itemCount * rowHeight）再读 scrollHeight。
+   * 排到渲染完成后（spacer 高度 = 新 itemCount * rowHeight）再读 scrollHeight；
+   * 写回前重查 sticky——等待期间用户可能向上滚。
    */
   watch(itemCount, () => {
     if (!isStickyToBottom.value) return;
     const el = opts.viewportRef.value;
     if (!el) return;
-    // 排到下一帧——Vue 更新 spacer 高度后再读 scrollHeight
-    void nextTick(() => {
-      if (!isStickyToBottom.value) return;
-      const el2 = opts.viewportRef.value;
-      if (!el2) return;
-      applyScrollTop(el2, el2.scrollHeight);
-    });
+    applyScrollTopAfterRender((el2) => el2.scrollHeight, () => isStickyToBottom.value);
   });
 
   /** 程序化滚到底部 + 置 sticky=true。 */

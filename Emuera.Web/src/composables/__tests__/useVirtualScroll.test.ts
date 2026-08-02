@@ -34,6 +34,29 @@ function makeMockViewport(opts: { clientHeight?: number; scrollHeight?: number; 
 }
 
 /**
+ * 模拟真实浏览器行为的 mock——scrollTop 赋值时钳制到 [0, scrollHeight - clientHeight]，
+ * scrollHeight 变化（模拟 DOM 渲染更新）时同步重钳制 scrollTop。
+ * 普通 makeMockViewport 不做钳制，无法复现"写回被旧内容上限钳制"这一真实浏览器行为
+ * （缩放补偿 bug 的根源）。
+ */
+function makeClampingViewport(opts: { clientHeight: number; scrollHeight: number; scrollTop: number }): MockViewport {
+  let scrollHeight = opts.scrollHeight;
+  let stored = Math.max(0, Math.min(opts.scrollTop, scrollHeight - opts.clientHeight));
+  return {
+    clientHeight: opts.clientHeight,
+    get scrollTop(): number { return stored; },
+    set scrollTop(v: number) { stored = Math.max(0, Math.min(v, scrollHeight - opts.clientHeight)); },
+    get scrollHeight(): number { return scrollHeight; },
+    set scrollHeight(v: number) {
+      scrollHeight = v;
+      stored = Math.max(0, Math.min(stored, scrollHeight - opts.clientHeight));
+    },
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  };
+}
+
+/**
  * 把 mock viewport 注入 composable——composable 用 viewportRef.value 读 scrollTop/clientHeight/scrollHeight。
  * 用 Object.assign 把 mock 字段塞到一个空对象上，cast 为 HTMLElement。
  */
@@ -352,7 +375,10 @@ describe('useVirtualScroll: 缩放补偿', () => {
 
     // 行高加倍 19 → 38（scale 1.0 → 2.0）
     // scrollTop 应 = 190 * (38/19) = 380（仍看第 10 行）
+    // 写回延迟到渲染完成（watch 内 nextTick）——与 itemCount watch 同模式
     rowHeight.value = 38;
+    await nextTick();
+    await Promise.resolve();
     await nextTick();
     expect(mock.scrollTop).toBe(380);
   });
@@ -370,7 +396,75 @@ describe('useVirtualScroll: 缩放补偿', () => {
 
     rowHeight.value = 19; // 同值
     await nextTick();
+    await Promise.resolve();
+    await nextTick();
     expect(mock.scrollTop).toBe(200);
+  });
+
+  it('同 tick 连续多次 rowHeight 变化（捏合连续缩放）——批处理为一次，按最终比例补偿', async () => {
+    const itemCount = ref(1000);
+    const rowHeight = ref(19);
+    const viewportRef = ref<HTMLElement | null>(null);
+    const vs = useVirtualScroll({ itemCount, rowHeight, viewportRef });
+    void vs;
+
+    // 初始 scrollTop = 190（看第 10 行）
+    const mock = makeMockViewport({ clientHeight: 600, scrollHeight: 19000, scrollTop: 190 });
+    attachMockViewport(viewportRef, mock);
+    await nextTick();
+
+    // 同 tick 内 19 → 38 → 57：Vue 把 watcher 批处理为一次（oldH=19, newH=57），
+    // 补偿 = 190 × (57/19) = 570——按最终比例换算，而非中间值逐级累计
+    rowHeight.value = 38;
+    rowHeight.value = 57;
+    await nextTick();
+    await Promise.resolve();
+    await nextTick();
+    expect(mock.scrollTop).toBe(570);
+  });
+
+  it('贴底放大——补偿目标用缩放前的 scrollTop，渲染后写回不被旧内容上限钳制', async () => {
+    const itemCount = ref(1000);
+    const rowHeight = ref(19);
+    const viewportRef = ref<HTMLElement | null>(null);
+    const vs = useVirtualScroll({ itemCount, rowHeight, viewportRef });
+    void vs;
+
+    // 贴底：scrollTop = 19000 - 600 = 18400（浏览器钳制模拟）
+    const mock = makeClampingViewport({ clientHeight: 600, scrollHeight: 19000, scrollTop: 18400 });
+    attachMockViewport(viewportRef, mock);
+    await nextTick();
+
+    // 行高加倍：pre-flush 捕获缩放前 scrollTop=18400 → 目标 36800。
+    // 渲染后（scrollHeight 更新为 38000，上限 37400）写回 36800 不被钳制——
+    // 旧实现在写回时被旧上限 18400 钳制 → 视口停在旧底 → 画面向上滚。
+    rowHeight.value = 38;
+    await nextTick();
+    mock.scrollHeight = 38000;
+    await Promise.resolve();
+    await nextTick();
+    expect(mock.scrollTop).toBe(36800);
+  });
+
+  it('贴底缩小——用渲染前捕获的锚点换算，写回被钳制到新上限（新底部）', async () => {
+    const itemCount = ref(1000);
+    const rowHeight = ref(19);
+    const viewportRef = ref<HTMLElement | null>(null);
+    const vs = useVirtualScroll({ itemCount, rowHeight, viewportRef });
+    void vs;
+
+    const mock = makeClampingViewport({ clientHeight: 600, scrollHeight: 19000, scrollTop: 18400 });
+    attachMockViewport(viewportRef, mock);
+    await nextTick();
+
+    // 行高 19 → 15.2（scale 0.8）：pre-flush 捕获缩放前 scrollTop=18400 → 目标 14720。
+    // 渲染缩小后浏览器先把 scrollTop 钳到新上限 14600，再写 14720 → 钳回新底部 14600。
+    rowHeight.value = 15.2;
+    await nextTick();
+    mock.scrollHeight = 15200;
+    await Promise.resolve();
+    await nextTick();
+    expect(mock.scrollTop).toBe(14600);
   });
 });
 
