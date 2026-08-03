@@ -11,6 +11,7 @@ import shutil
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -198,6 +199,24 @@ def wait_for_port(port, timeout=30):
     raise TimeoutError(f"Server did not listen on port {port}")
 
 
+def _drain_stdout(proc):
+    """持续排空子进程 stdout 管道，防止缓冲写满阻塞。
+
+    I-11 根因：server 的 Console.WriteLine / Console.Out.Flush() 诊断日志（Preload/Initialize
+    阶段）每次加载游戏约 2.5KB（经验值，随游戏规模变化）；Windows PIPE 默认缓冲约 4KB——
+    测试从不读取 stdout 时，第二个 session 的加载日志会把缓冲写满，Flush() 阻塞 → server
+    卡死（GET /turn 超时）。后台线程读掉 stdout 即消除阻塞；诊断日志本身对测试无消费需求，
+    直接丢弃。
+    """
+    try:
+        for _line in iter(proc.stdout.readline, ""):
+            pass
+    except (OSError, ValueError):
+        # 管道已关闭 / 文本解码失败（UnicodeDecodeError 是 ValueError 子类）：
+        # 排空线程属尽力而为，结束即止。其余未预期异常不吞——让 traceback 打印以便诊断。
+        pass
+
+
 def start_server(game_dir=None, project_dir=None, binary=None, port=None):
     """启动 Emuera.Headless server。
 
@@ -225,6 +244,9 @@ def start_server(game_dir=None, project_dir=None, binary=None, port=None):
         encoding="utf-8",
         errors="replace",
     )
+    # 立即启动 stdout 排空线程（早于 wait_for_port）：PIPE 缓冲写满会让 server 的
+    # Console.Out.Flush() 阻塞——第二个 session 加载时必然触发（见 _drain_stdout 注释）。
+    threading.Thread(target=_drain_stdout, args=(proc,), daemon=True).start()
     try:
         wait_for_port(port)
     except Exception:
