@@ -1034,6 +1034,16 @@ internal sealed class BridgeHost : IDisposable
                 async p =>
                 {
                     Console.WriteLine("[bridge] GameLoopAsync starting RunLoopAsync");
+#if ANDROID
+                    // O4：游戏加载完成（console.Initialize 已返回，TITLE 已跑完）→ 后台预热
+                    // sav + 游戏根目录子项缓存，使进存档界面时首查命中（0 次枚举 IPC）。
+                    // 同步取值（纯字符串 getter，无 IPC），全部 IPC 移后台线程——
+                    // 在 scope 内完成路径捕获，避免后台线程重读全局状态（如热重载换目录）
+                    // 导致根/sav 预取目标不一致。
+                    var prefetchExeDir = GamePaths.Current?.ExeDir;
+                    if (!string.IsNullOrEmpty(prefetchExeDir))
+                        _ = Task.Run(() => TryPrefetchSaveDirectories(prefetchExeDir));
+#endif
 					await ((AgentJsonlProtocol)p).RunLoopAsync(enableTimeout: true, _cts.Token);
 					Console.WriteLine("[bridge] GameLoopAsync RunLoopAsync exited");
                 });
@@ -1062,6 +1072,32 @@ internal sealed class BridgeHost : IDisposable
             ShowFatalError(ex);
         }
     }
+
+#if ANDROID
+    /// <summary>
+    /// O4 后台预取：预热 sav + 游戏根目录子项缓存（进存档界面首查命中，0 次枚举 IPC）。
+    /// 游戏加载完成后（runLoop 开头）由 fire-and-forget 后台任务调用；异常全吞——
+    /// 预取失败不影响游戏，仅留痕。SAF 模式专属：<see cref="SafGameDirAccessor.Instance"/>
+    /// 仅 Android + 已选游戏目录时非 null，天然守卫非 SAF 平台。
+    /// </summary>
+    private void TryPrefetchSaveDirectories(string exeDir)
+    {
+        try
+        {
+            var acc = SafGameDirAccessor.Instance;
+            if (acc == null) return; // 非 SAF 模式（Windows / 未选目录）无操作
+            acc.WarmDirectoryCache(exeDir); // 游戏根
+            // sav 理论 document URI：Config.ForceSavDir（= SafCompat.ResolveSubPath(ExeDir, "sav")，
+            // 语义一致；BridgeHost 已 using MinorShift.Emuera.Runtime.Config，零新增 using；
+            // 不依赖 AsyncLocal——后台线程安全）。sav 尚不存在时 Query 得空/null，无害。
+            acc.WarmDirectoryCache(Config.ForceSavDir);
+        }
+        catch (Exception ex)
+        {
+            AgentLog.Instance.Write($"[prefetch] failed: {ex.Message}"); // 静默降级，仅留痕
+        }
+    }
+#endif
 
     /// <summary>
     /// 推致命错误 turn 给 Vue——spec ID10。

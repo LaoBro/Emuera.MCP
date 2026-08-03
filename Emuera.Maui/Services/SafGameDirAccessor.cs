@@ -56,7 +56,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
     /// <summary>父目录 docId（docId 最后一个 '/' 之前；单段 → 树根）。</summary>
     private string ParentDocIdOf(string docId)
         => docId.LastIndexOf('/') is var s && s < 0
-            ? DocumentsContract.GetTreeDocumentId(_treeAndroidUri!)
+            ? DocumentsContract.GetTreeDocumentId(_treeAndroidUri!)! // API 标注 nullable；树根存在时恒非 null
             : docId[..s];
 
     /// <summary>失效 docId 所在父目录。防御性：失效失败不影响写路径结果。</summary>
@@ -81,9 +81,9 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         }
         // 树 URI（.../tree/...不含 /document/）：用标准的 GetTreeDocumentId
         if (uriStr.Contains("/tree/", StringComparison.Ordinal))
-            return DocumentsContract.GetTreeDocumentId(docUri);
+            return DocumentsContract.GetTreeDocumentId(docUri)!; // API 标注 nullable；已解析为树 URI 时恒非 null
         // 回退
-        return DocumentsContract.GetDocumentId(docUri);
+        return DocumentsContract.GetDocumentId(docUri)!; // 同上
     }
 
     // ── A1 取证日志 ────────────────────────────────
@@ -715,6 +715,21 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         return children;
     }
 
+    /// <summary>
+    /// O4 后台预取：预热指定路径目录的子项缓存（内部走 <see cref="GetOrQueryChildren"/>——已缓存则跳过）。
+    /// 减少后续对该目录的枚举/解析 IPC（典型用法：游戏加载完成后后台预热 sav 与游戏根目录）。
+    /// 失败静默（仅损失一次预取，不影响功能）；不写日志（预取产生的 Query 由 QueryChildren 正常记录）。
+    /// </summary>
+    internal void WarmDirectoryCache(string path)
+    {
+        try
+        {
+            if (_treeAndroidUri == null || !TryParseUri(path, out var docUri)) return;
+            GetOrQueryChildren(ResolveDocId(docUri));
+        }
+        catch { /* 预取失败静默 */ }
+    }
+
     /// <summary>唯一的 children Query 点：一次拉全量三列不过滤；null / 异常语义与原 EnumerateUri 一致。</summary>
     private List<ChildEntry>? QueryChildren(string parentDocId)
     {
@@ -1166,9 +1181,15 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                     _buffer.CopyTo(output);
                     output.Flush();
                     sw.Stop();
-                    // O1：写档落盘成功 → 失效文件所在目录（新档名必须立即可枚举/可查）
-                    try { SafGameDirAccessor.Instance?.InvalidateParentOf(ResolveDocId(_docUri)); }
-                    catch { /* 失效失败仅损失一次缓存命中，不影响写路径结果 */ }
+                    // O4 微优化：覆盖写（已存在文件）不改变子项名/mime，父目录缓存无需失效——
+                    // 每次写档清父缓存会抵消 O4 预取收益（写档后 sav 缓存被清，下次进存档界面又重枚举）。
+                    // 仅新建文档需要：OpenWrite created 分支（CreateDocument 后）已失效过父目录，
+                    // 此处保留 createdDocument 失效为双重保险（防 CreateDocument 与 Dispose 间被枚举回填）。
+                    if (_createdDocument)
+                    {
+                        try { SafGameDirAccessor.Instance?.InvalidateParentOf(ResolveDocId(_docUri)); }
+                        catch { /* 失效失败仅损失一次缓存命中，不影响写路径结果 */ }
+                    }
                     LogSaf("WriteDispose", ResolveDocId(_docUri), $"bytes={bytes}", sw.ElapsedMilliseconds);
                     Android.Util.Log.Info("EmueraMaui",
                         $"OpenWrite flush OK path={_pathForLog} bytes={bytes} ms={sw.ElapsedMilliseconds}");
