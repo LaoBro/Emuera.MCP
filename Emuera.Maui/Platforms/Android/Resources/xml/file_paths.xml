@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- A0 补充：分享 agent.log（AppDataPaths.Directory = app files 目录） -->
+    <files-path name="files" path="." />
+</paths>

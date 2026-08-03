@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useGameStore } from '../stores/game';
-import { setAgentLogEnabled, getAgentLog } from '../lib/mauiBridge';
+import { setAgentLogEnabled, getAgentLog, exportAgentLog } from '../lib/mauiBridge';
 
 const game = useGameStore();
 
@@ -25,6 +25,14 @@ function viewLog(): void {
   getAgentLog();
 }
 
+/**
+ * A0 补充（真机无 adb）：导出 agent.log 文件——C# 弹系统分享面板（FileProvider），
+ * 绕开 WebView 剪贴板复制 200K 文字的限制。文件在 app 私有目录，经分享可保存/转发。
+ */
+function exportLog(): void {
+  exportAgentLog();
+}
+
 /** 复制日志全文到剪贴板——navigator.clipboard 不可用时提示手动长按选择。 */
 async function copyLog(): Promise<void> {
   try {
@@ -45,14 +53,14 @@ const logCopied = ref(false);
       <div class="section">
         <h3>基本配置（emuera.config）</h3>
         <div class="setting-row">
-          <span class="setting-label">履歴ログの行数</span>
+          <span class="setting-label">历史日志行数</span>
           <span class="setting-value">{{ game.maxLog ?? '—' }}</span>
         </div>
       </div>
       <div class="section">
-        <h3>その他</h3>
+        <h3>其他</h3>
         <div class="setting-row">
-          <span class="setting-label">ファイルログ (agent.log)</span>
+          <span class="setting-label">文件日志 (agent.log)</span>
           <button
             class="toggle"
             :class="{ on: game.agentLogEnabled }"
@@ -62,29 +70,30 @@ const logCopied = ref(false);
           >
             <span class="toggle-knob" />
           </button>
-          <span class="setting-value">{{ game.agentLogEnabled ? 'ON' : 'OFF' }}</span>
+          <span class="setting-value">{{ game.agentLogEnabled ? '开' : '关' }}</span>
         </div>
         <p class="hint-text">
-          診断用のファイルログ（app プライベート領域の agent.log）を出力します。既定ではオフ。
-          トラブル調査時に一時的にオンにしてください。
+          输出诊断用文件日志（保存在 app 私有目录下的 agent.log）。默认关闭，
+          排查问题时请临时开启。
         </p>
         <div class="setting-row">
-          <span class="setting-label">ログ表示</span>
-          <button class="action-btn" @click="viewLog">最新を表示</button>
+          <span class="setting-label">日志查看</span>
+          <button class="action-btn" @click="viewLog">查看最新</button>
+          <button class="action-btn" @click="exportLog">导出</button>
         </div>
         <div v-if="game.agentLogContent" class="log-view">
           <div class="log-view-head">
             <span class="log-view-title">
-              {{ game.agentLogTruncated ? 'ログ（末尾 200K 文字）' : 'ログ' }}
+              {{ game.agentLogTruncated ? '日志（末尾 200K 字符）' : '日志' }}
             </span>
             <button class="action-btn small" @click="copyLog">
-              {{ logCopied ? 'コピー済み' : 'コピー' }}
+              {{ logCopied ? '已复制' : '复制' }}
             </button>
           </div>
           <pre class="log-view-body">{{ game.agentLogContent }}</pre>
         </div>
         <p v-else class="hint-text">
-          ログがまだありません。ファイルログを ON にして操作した後に「最新を表示」を押してください。
+          暂无日志。请先开启文件日志并进行操作，再点击「查看最新」。
         </p>
       </div>
     </div>

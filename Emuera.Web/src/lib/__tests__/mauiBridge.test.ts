@@ -9,6 +9,7 @@ import {
   loadGameFromPath,
   setAgentLogEnabled,
   getAgentLog,
+  exportAgentLog,
 } from '../mauiBridge';
 
 /**
@@ -362,6 +363,25 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
 
     it('无桥接对象时静默 no-op（不抛错）', () => {
       expect(() => getAgentLog()).not.toThrow();
+    });
+  });
+
+  // ===== exportAgentLog (A0 补充：FileProvider 导出) =====
+
+  describe('exportAgentLog', () => {
+    it('投递 {"type":"exportAgentLog"} 消息（Windows chrome.webview）', () => {
+      const postMessage = vi.fn();
+      mockWindow.chrome = { webview: { postMessage } };
+
+      exportAgentLog();
+
+      expect(postMessage).toHaveBeenCalledOnce();
+      const sent = postMessage.mock.calls[0][0];
+      expect(JSON.parse(sent)).toEqual({ type: 'exportAgentLog' });
+    });
+
+    it('无桥接对象时静默 no-op（不抛错）', () => {
+      expect(() => exportAgentLog()).not.toThrow();
     });
   });
 });

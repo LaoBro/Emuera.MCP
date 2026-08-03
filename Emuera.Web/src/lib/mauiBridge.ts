@@ -315,4 +315,15 @@ export function getAgentLog(): void {
   postInput(JSON.stringify({ type: 'getAgentLog' }));
 }
 
+/**
+ * A0 补充（真机无 adb）：导出 agent.log——请求 C# 用 FileProvider 分享给系统面板。
+ *
+ * C# `BridgeHost.HandleExportAgentLog` 收到后弹系统分享面板（微信/文件应用等），
+ * 用户自行保存/转发——绕开 WebView 剪贴板复制 200K 文字的限制。
+ * 无需处理回复（分享面板由系统接管）。
+ */
+export function exportAgentLog(): void {
+  postInput(JSON.stringify({ type: 'exportAgentLog' }));
+}
+
 // ---------- game-library spec ID8：Android 目录浏览器 ----------

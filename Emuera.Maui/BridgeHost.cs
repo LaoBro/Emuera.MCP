@@ -58,6 +58,9 @@ internal sealed class BridgeHost : IDisposable
     /// </summary>
     internal const string AgentLogEnabledKey = "emuera.agentLogEnabled";
 
+    /// <summary>app 内日志查看器推送 Vue 的内容上限（字符）——超限保留尾部最新（A0 补充，真机无 adb）。</summary>
+    private const int AgentLogViewMaxChars = 200_000;
+
     private readonly IDispatcher _dispatcher;
     private readonly ConfigData _configData;
     private readonly ITerminalSetup _terminalSetup;
@@ -327,6 +330,12 @@ internal sealed class BridgeHost : IDisposable
                     HandleGetAgentLog();
                     return;
                 }
+                // A0 补充：导出 agent.log——FileProvider 分享给系统面板（绕开 WebView 剪贴板限制）
+                if (type == "exportAgentLog")
+                {
+                    HandleExportAgentLog();
+                    return;
+                }
                 // 其他 typed 消息（input 等）原样入队——AgentJsonlProtocol.RunLoopAsync 内
                 // JsonSerializer.Deserialize<JsonlCommand> 校验 type=="input" 后取 value。
                 // 不在此处解 value 字段，避免与 protocol 层重复解析 / 不一致。
@@ -570,6 +579,10 @@ internal sealed class BridgeHost : IDisposable
             rootDirExists,
         });
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
+        // A0 补充（code-review 修复）：Vue 启动必发 scanGames——此处同步推 config，
+        // 让「重启 app 未进游戏」时设置页开关也能显示 Preferences 持久化的权威状态
+        // （Start() 的 PushConfigMessage 仅在进游戏后才触发）。
+        PushConfigMessage();
     }
 
     /// <summary>
@@ -740,7 +753,6 @@ internal sealed class BridgeHost : IDisposable
     /// </summary>
     private void HandleGetAgentLog()
     {
-        const int AgentLogViewMaxChars = 200_000;
         var text = AgentLog.Instance.ReadAllText();
         if (string.IsNullOrEmpty(text))
         {
@@ -753,6 +765,70 @@ internal sealed class BridgeHost : IDisposable
         var msgJson = JsonSerializer.Serialize(new { type = "agentLog", content, truncated });
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
         Console.WriteLine($"[bridge] HandleGetAgentLog: {text.Length} chars, truncated={truncated}");
+    }
+
+    /// <summary>
+    /// A0 补充（真机无 adb）：导出 agent.log——FileProvider + ACTION_SEND 分享给系统面板
+    /// （微信/文件应用等），用户自行保存/转发，绕开 WebView 剪贴板复制 200K 文字的限制。
+    /// <para>
+    /// 接收 <c>{"type":"exportAgentLog"}</c>。agent.log 在 app files 目录
+    /// （<see cref="AgentLog.FilePath"/> = AppDataPaths.Directory/agent.log），FileProvider 已配置
+    /// （AndroidManifest + file_paths.xml，authority=<c>com.emuera.maui.fileprovider</c>）。
+    /// 分享面板经 <see cref="IDispatcher.Dispatch"/> 在 UI 线程启动；Application context 启动
+    /// Activity 需 <see cref="Android.Content.ActivityFlags.NewTask"/>。
+    /// 文件不存在（日志未开启）时静默提示。非 Android 平台 no-op。
+    /// </para>
+    /// </summary>
+    private void HandleExportAgentLog()
+    {
+#if ANDROID
+        try
+        {
+            var path = AgentLog.Instance.FilePath;
+            if (path == null || !File.Exists(path))
+            {
+                Console.WriteLine("[bridge] HandleExportAgentLog: no agent.log (file log not enabled?)");
+                AgentLog.Instance.Write("[bridge] export agent.log skipped: no file");
+                return;
+            }
+            var context = Android.App.Application.Context;
+            var file = new Java.IO.File(path);
+            var uri = AndroidX.Core.Content.FileProvider.GetUriForFile(
+                context, context.PackageName + ".fileprovider", file);
+            var intent = new Android.Content.Intent(Android.Content.Intent.ActionSend);
+            intent.SetType("text/plain");
+            intent.PutExtra(Android.Content.Intent.ExtraStream, uri);
+            intent.PutExtra(Android.Content.Intent.ExtraSubject, "agent.log");
+            intent.AddFlags(Android.Content.ActivityFlags.GrantReadUriPermission);
+            var chooser = Android.Content.Intent.CreateChooser(intent, "导出 agent.log");
+            if (chooser == null)
+            {
+                Console.WriteLine("[bridge] HandleExportAgentLog: CreateChooser null");
+                return;
+            }
+            chooser.AddFlags(Android.Content.ActivityFlags.GrantReadUriPermission
+                             | Android.Content.ActivityFlags.NewTask);
+            _dispatcher.Dispatch(() =>
+            {
+                try
+                {
+                    context.StartActivity(chooser);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[bridge] export chooser failed: {ex.Message}");
+                }
+            });
+            Console.WriteLine("[bridge] HandleExportAgentLog: chooser launched");
+            AgentLog.Instance.Write("[bridge] export agent.log chooser launched");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[bridge] HandleExportAgentLog failed: {ex}");
+        }
+#else
+        Console.WriteLine("[bridge] HandleExportAgentLog: Android only, ignored");
+#endif
     }
 
     /// <summary>
