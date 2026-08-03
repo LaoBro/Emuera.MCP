@@ -49,6 +49,23 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
 
     internal static long DeferredWriteLimitBytes => s_deferredWriteLimit;
 
+    // O1 目录级子项缓存（saf-accel 计划）：目录 docId → 子项列表。
+    // 命中零 IPC；写路径（OpenWrite/Delete/CreateDirectory）精确失效；切换树根全清。
+    private readonly DirectoryChildCache _childCache = new();
+
+    /// <summary>父目录 docId（docId 最后一个 '/' 之前；单段 → 树根）。</summary>
+    private string ParentDocIdOf(string docId)
+        => docId.LastIndexOf('/') is var s && s < 0
+            ? DocumentsContract.GetTreeDocumentId(_treeAndroidUri!)
+            : docId[..s];
+
+    /// <summary>失效 docId 所在父目录。防御性：失效失败不影响写路径结果。</summary>
+    private void InvalidateParentOf(string docId)
+    {
+        try { _childCache.Invalidate(ParentDocIdOf(docId)); }
+        catch { /* 失效失败仅损失一次缓存命中，不改变写操作成败 */ }
+    }
+
     // ── 辅助 ─────────────────────────────────────
 
     /// <summary>根据 URI 类型选择正确的文档 ID 提取方法——树 URI 用 GetTreeDocumentId，文档 URI 手动从路径提取。</summary>
@@ -139,6 +156,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             }
             _treeUri = uri.ToString();
             _treeAndroidUri = uri;
+            _childCache.Clear(); // 树根切换：旧 docId 前缀全部作废，全清缓存
             Microsoft.Maui.Storage.Preferences.Set(PrefKey, _treeUri);
             Android.Util.Log.Info("EmueraMaui",
                 $"PickDirectory: took r/w persistable uri, hasWrite={HasWriteAccess()}, uri={_treeUri}");
@@ -170,6 +188,21 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             }
             // 不调用 EnsureRealDirectoryUri（会 Create）；只做存在性查询
             if (IsTreeRootUri(docUri)) return true;
+
+            // O1 快速路径：父目录已缓存 → 从缓存按名查子目录（0 IPC 确定性判定；
+            // 未命中走原 TryQueryDocument / FindChildDocument 路径，后者会回填缓存）
+            if (TryGetParentAndName(path, out var cacheParentUri, out var cacheName)
+                && cacheParentUri != null && cacheName != null
+                && _childCache.Get(ResolveDocId(cacheParentUri)) is { } cachedChildren)
+            {
+                foreach (var c in cachedChildren)
+                {
+                    if (c.Mime == DocumentsContract.Document.MimeTypeDir && NameMatches(c, cacheName))
+                        return true;
+                }
+                return false; // 父目录已缓存且无此子目录 → 确定性 false
+            }
+
             if (TryQueryDocument(docUri, out var mime) && mime == DocumentsContract.Document.MimeTypeDir)
                 return true;
             if (TryGetParentAndName(path, out var parentUri, out var name) && parentUri != null && name != null)
@@ -242,41 +275,24 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             return basePath;
         }
         var docId = ResolveDocId(docUri);
-        var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri, docId);
-
-        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            using var cursor = _context.ContentResolver!.Query(
-                childrenUri,
-                new[] { DocumentsContract.Document.ColumnDocumentId, DocumentsContract.Document.ColumnDisplayName },
-                null, null, null);
-            if (cursor != null)
+            // O1：父目录缓存命中 → 零 IPC；未命中 QueryChildren（op=EnumerateUri）并回填。
+            // 仅按 Name 匹配（原语义），无 documentId 末段回退。
+            foreach (var child in GetOrQueryChildren(docId))
             {
-                while (cursor.MoveToNext())
-                {
-                    var name = cursor.GetString(1);
-                    if (string.Equals(name, subDir, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var childDocId = cursor.GetString(0);
-                        var result = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, childDocId!).ToString()!;
-                        sw.Stop();
-                        LogSaf("ResolveSubPath", docId, $"hits=1 found={subDir}", sw.ElapsedMilliseconds);
-                        Android.Util.Log.Info("EmueraMaui", $"ResolveSubPath: found {subDir} → {result}");
-                        return result;
-                    }
-                }
+                if (!string.Equals(child.Name, subDir, StringComparison.OrdinalIgnoreCase)) continue;
+                var result = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, child.DocId)!.ToString()!;
+                Android.Util.Log.Info("EmueraMaui", $"ResolveSubPath: found {subDir} → {result}");
+                return result;
             }
         }
         catch (Exception ex)
         {
-            // A1：Query 异常也记录（失败路径同样有取证价值），保持原传播行为（上层有 catch）
-            sw.Stop();
-            LogSaf("ResolveSubPath", docId, "query-ex", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
+            // Query 异常由 QueryChildren 记录（op=EnumerateUri）并重抛；保持原传播行为（上层有 catch）
+            Android.Util.Log.Warn("EmueraMaui", $"ResolveSubPath query-ex: {subDir} → {ex.Message}");
             throw;
         }
-        sw.Stop();
-        LogSaf("ResolveSubPath", docId, "hits=0 not-found", sw.ElapsedMilliseconds);
 
         // 子目录尚不存在时返回理论 document URI，供 CreateDirectory / OpenWrite 按父+名创建
         // （旧实现返回 basePath 会导致 sav/ 永远建在错误层级）
@@ -456,6 +472,8 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                 throw new IOException($"OpenWrite: CreateDocument returned null for {path}");
             docUri = created;
             createdDocument = true;
+            // O1：新文档此刻已存在（空文档），父目录列表立即过期——不能等 Dispose
+            InvalidateParentOf(ResolveDocId(created));
             Android.Util.Log.Info("EmueraMaui", $"OpenWrite: defer buffer → created {path} → {created}");
         }
 
@@ -474,6 +492,12 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             }
             var ok = DocumentsContract.DeleteDocument(_context.ContentResolver!, docUri);
             Android.Util.Log.Info("EmueraMaui", $"Delete: {path} → {ok}");
+            if (ok)
+            {
+                // O1：删除成功 → 失效所在目录（ok=false 仅记录，不失效——文档可能仍存在）
+                try { InvalidateParentOf(ResolveDocId(docUri)); }
+                catch { /* 失效失败仅损失一次缓存命中 */ }
+            }
         }
         catch (Exception ex)
         {
@@ -613,9 +637,10 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         var result = new List<string>();
         if (_treeAndroidUri == null || !TryParseUri(path, out var docUri)) return [];
 
+        // 缓存 key 一律用父文档 URI 的 docId——ResolveDocId 对 children URI（尾带 /children）取到的
+        // 是「父id/children」，与 FindChildDocument/ResolveSubPath 的「父id」不一致，不能作 key。
         var docId = ResolveDocId(docUri);
-        var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri, docId);
-        EnumerateUri(childrenUri, result, isDir, pattern, recursive);
+        EnumerateUri(docId, result, isDir, pattern, recursive);
         return result.ToArray();
     }
 
@@ -629,11 +654,23 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
     private string? GetMimeType(Android.Net.Uri uri)
     {
         // docId 计算放 try 内——ResolveDocId 对异常 URI 可能抛，须保持原 catch-all 语义（返回 null）
-        string? docId = null;
+        string? docId;
+        try { docId = ResolveDocId(uri); }
+        catch { return null; }
+
+        // O1 快速路径：父目录已缓存 → 从缓存查 mime（0 IPC 零分配零日志；与 children Query 同列同源同值）
+        if (docId.LastIndexOf('/') is var slash && slash >= 0
+            && _childCache.Get(docId[..slash]) is { } cachedChildren)
+        {
+            foreach (var child in cachedChildren)
+                if (string.Equals(child.DocId, docId, StringComparison.Ordinal))
+                    return child.Mime;
+            // 父缓存有但无此子项 → 缓存过期，回落原 Query
+        }
+
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            docId = ResolveDocId(uri);
             using var cursor = _context.ContentResolver!.Query(
                 uri, new[] { DocumentsContract.Document.ColumnMimeType }, null, null, null);
             var mime = cursor?.MoveToFirst() == true ? cursor.GetString(0) : null;
@@ -649,15 +686,44 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         }
     }
 
-    private void EnumerateUri(Android.Net.Uri uri, List<string> result, bool isDir, string? pattern, bool recursive)
+    /// <summary>
+    /// 枚举目录子项（O1 缓存优先）：命中缓存零 IPC 零日志；miss 时一次 Query 拉全量子项并回填缓存，
+    /// 再从缓存做 isDir / pattern 过滤。递归时子目录走同一缓存（每目录首访一次 Query）。
+    /// </summary>
+    private void EnumerateUri(string parentDocId, List<string> result, bool isDir, string? pattern, bool recursive)
     {
-        // A1：childrenUri 的 docId 即父目录 docId——日志按「每层一次 Query」记录
-        var docId = ResolveDocId(uri);
+        foreach (var child in GetOrQueryChildren(parentDocId))
+        {
+            var childIsDir = child.Mime == DocumentsContract.Document.MimeTypeDir;
+            if (childIsDir == isDir && (pattern == null || Wildcard.Matches(DisplayNameForMatch(child, pattern), pattern)))
+            {
+                var childDocUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, child.DocId);
+                result.Add(childDocUri.ToString()!);
+            }
+            if (recursive && childIsDir)
+                EnumerateUri(child.DocId, result, isDir, pattern, true);
+        }
+    }
+
+    /// <summary>取目录子项：缓存命中直接返回（零 IPC 零日志零分配）；未命中则 Query 并回填。</summary>
+    private IReadOnlyList<ChildEntry> GetOrQueryChildren(string parentDocId)
+    {
+        if (_childCache.Get(parentDocId) is { } cached) return cached;
+        var children = QueryChildren(parentDocId);
+        if (children == null) return Array.Empty<ChildEntry>(); // cursor null：按空处理，不缓存（防瞬时故障污染）
+        _childCache.Put(parentDocId, children);
+        return children;
+    }
+
+    /// <summary>唯一的 children Query 点：一次拉全量三列不过滤；null / 异常语义与原 EnumerateUri 一致。</summary>
+    private List<ChildEntry>? QueryChildren(string parentDocId)
+    {
+        var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri!, parentDocId);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             using var cursor = _context.ContentResolver!.Query(
-                uri,
+                childrenUri,
                 new[]
                 {
                     DocumentsContract.Document.ColumnDocumentId,
@@ -668,61 +734,40 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             if (cursor == null)
             {
                 sw.Stop();
-                LogSaf("EnumerateUri", docId, "children=0", sw.ElapsedMilliseconds);
-                return;
+                LogSaf("EnumerateUri", parentDocId, "children=0", sw.ElapsedMilliseconds);
+                return null;
             }
-
-            int children = 0;
+            var children = new List<ChildEntry>();
             while (cursor.MoveToNext())
             {
-                children++;
-                var docId2 = cursor.GetString(0);
+                var docId = cursor.GetString(0);
                 var name = cursor.GetString(1);
                 var mime = cursor.GetString(2);
-                var childIsDir = mime == DocumentsContract.Document.MimeTypeDir;
-
-                // 通配优先 match displayName；若 displayName 无扩展名，回退用 documentId 最后一段（部分 Provider 只给短名）
-                var nameForMatch = name;
-                if (pattern != null && !string.IsNullOrEmpty(docId2) &&
-                    (name == null || (pattern.Contains('.') && name.IndexOf('.') < 0)))
-                {
-                    var lastSlash = docId2.LastIndexOf('/');
-                    nameForMatch = lastSlash >= 0 ? docId2[(lastSlash + 1)..] : docId2;
-                }
-                if (childIsDir == isDir && (pattern == null || MatchWildcard(nameForMatch, pattern)))
-                {
-                    var childDocUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, docId2!);
-                    result.Add(childDocUri.ToString()!);
-                }
-
-                if (recursive && childIsDir)
-                {
-                    var childUri = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri!, docId2!);
-                    EnumerateUri(childUri, result, isDir, pattern, true);
-                }
+                children.Add(new ChildEntry(docId!, name!, mime!));
             }
             sw.Stop();
-            LogSaf("EnumerateUri", docId, $"children={children}", sw.ElapsedMilliseconds);
+            LogSaf("EnumerateUri", parentDocId, $"children={children.Count}", sw.ElapsedMilliseconds);
+            return children;
         }
         catch (Exception ex)
         {
             // A1：Query 异常也记录（失败路径同样有取证价值），保持原传播行为（上层有 catch）
             sw.Stop();
-            LogSaf("EnumerateUri", docId, "query-ex", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
+            LogSaf("EnumerateUri", parentDocId, "query-ex", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
             throw;
         }
     }
 
-    /// <summary>简单通配符匹配（支持 * 和 ?）。</summary>
-    private static bool MatchWildcard(string? input, string pattern)
-    {
-        if (input == null) return false;
-        // 委托给 System.Text.RegularExpressions 转义后匹配
-        var regex = new System.Text.RegularExpressions.Regex(
-            "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".") + "$",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        return regex.IsMatch(input);
-    }
+    /// <summary>
+    /// 通配匹配用名：优先 displayName；若 displayName 为 null/空或无扩展名，回退 documentId 最后一段
+    /// （部分 Provider 只给短名/空名）。原 EnumerateUri 内联逻辑（O1 改造原样保留）。
+    /// </summary>
+    private static string DisplayNameForMatch(ChildEntry child, string pattern)
+        => !string.IsNullOrEmpty(child.DocId)
+            && (child.Name == null || child.Name.Length == 0
+                || (pattern.Contains('.') && child.Name.IndexOf('.') < 0))
+                ? (child.DocId.LastIndexOf('/') is var s && s >= 0 ? child.DocId[(s + 1)..] : child.DocId)
+                : child.Name;
 
     private string TreeRootDocumentPath()
     {
@@ -811,6 +856,13 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                     grandReal,
                     DocumentsContract.Document.MimeTypeDir,
                     parentName);
+                if (effectiveParent != null)
+                {
+                    // O1：新目录已创建在 grandReal 下 → 失效 grandReal 自身缓存
+                    // （FindChildDocument 可能刚回填了不含新名的列表，key 错位会留下陈旧视图）
+                    try { _childCache.Invalidate(ResolveDocId(grandReal)); }
+                    catch { /* 失效失败仅损失一次缓存命中 */ }
+                }
             }
         }
 
@@ -825,7 +877,13 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             DocumentsContract.Document.MimeTypeDir,
             name);
         if (created != null)
+        {
             Android.Util.Log.Info("EmueraMaui", $"EnsureRealDirectoryUri created {name} → {created}");
+            // O1：新目录已创建在 effectiveParent 下 → 失效 effectiveParent 自身缓存
+            // （FindChildDocument 可能刚回填了不含新名的列表，key 错位会留下陈旧视图）
+            try { _childCache.Invalidate(ResolveDocId(effectiveParent)); }
+            catch { /* 失效失败仅损失一次缓存命中 */ }
+        }
         return created;
     }
 
@@ -864,71 +922,61 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
     {
         if (_treeAndroidUri == null || !TryParseUri(path, out var docUri)) return null;
 
+        // O1 快速路径：父目录已缓存 → 从缓存按名查文件（0 IPC 确定性判定；
+        // FileExists / OpenRead / OpenWrite / Delete 统一受益：每文件 3 次 IPC → 0 次）
+        var docId = ResolveDocId(docUri);
+        var slash = docId.LastIndexOf('/');
+        var parentId = slash < 0 ? DocumentsContract.GetTreeDocumentId(_treeAndroidUri) : docId[..slash];
+        var name = slash < 0 ? docId : docId[(slash + 1)..];
+        if (_childCache.Get(parentId) is { } children)
+        {
+            foreach (var child in children)
+            {
+                if (child.Mime == DocumentsContract.Document.MimeTypeDir) continue;
+                if (NameMatches(child, name))
+                    return DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri, child.DocId);
+            }
+            return null; // 缓存确认不存在
+        }
+
         if (TryQueryDocument(docUri, out var mime)
             && mime != null
             && mime != DocumentsContract.Document.MimeTypeDir)
             return docUri;
 
-        if (!TryGetParentAndName(path, out var parent, out var name)) return null;
-        return FindChildDocument(parent, name, wantDir: false);
+        if (!TryGetParentAndName(path, out var parent, out var parentName)) return null;
+        return FindChildDocument(parent, parentName, wantDir: false);
     }
 
     private Android.Net.Uri? FindChildDocument(Android.Net.Uri parentUri, string displayName, bool wantDir)
     {
         if (_treeAndroidUri == null) return null;
         var parentId = ResolveDocId(parentUri);
-        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri, parentId);
-            using var cursor = _context.ContentResolver!.Query(
-                childrenUri,
-                new[]
-                {
-                    DocumentsContract.Document.ColumnDocumentId,
-                    DocumentsContract.Document.ColumnDisplayName,
-                    DocumentsContract.Document.ColumnMimeType
-                },
-                null, null, null);
-            if (cursor == null)
+            // O1：父目录缓存命中 → 零 IPC；未命中走 QueryChildren（op=EnumerateUri）并顺手回填缓存。
+            // 命中路径不打 [saf] 日志（零日志原则）；异常由本 catch 吞掉（原语义）。
+            foreach (var child in GetOrQueryChildren(parentId))
             {
-                sw.Stop();
-                LogSaf("FindChildDocument", parentId, $"hit=0 wantDir={wantDir}", sw.ElapsedMilliseconds);
-                return null;
+                if ((child.Mime == DocumentsContract.Document.MimeTypeDir) != wantDir) continue;
+                if (NameMatches(child, displayName))
+                    return DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri, child.DocId);
             }
-
-            while (cursor.MoveToNext())
-            {
-                var name = cursor.GetString(1);
-                var mime = cursor.GetString(2);
-                var isDir = mime == DocumentsContract.Document.MimeTypeDir;
-                if (isDir != wantDir) continue;
-                if (!string.Equals(name, displayName, StringComparison.OrdinalIgnoreCase))
-                {
-                    // displayName 无扩展时回退 documentId 末段
-                    var docId = cursor.GetString(0);
-                    if (docId == null) continue;
-                    var last = docId.LastIndexOf('/');
-                    var tail = last >= 0 ? docId[(last + 1)..] : docId;
-                    if (!string.Equals(tail, displayName, StringComparison.OrdinalIgnoreCase))
-                        continue;
-                }
-                var childId = cursor.GetString(0);
-                sw.Stop();
-                LogSaf("FindChildDocument", parentId, $"hit=1 wantDir={wantDir} name={displayName}", sw.ElapsedMilliseconds);
-                return DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri, childId!);
-            }
-            sw.Stop();
-            LogSaf("FindChildDocument", parentId, $"hit=0 wantDir={wantDir} name={displayName}", sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
-            sw.Stop();
-            LogSaf("FindChildDocument", parentId, $"query-ex wantDir={wantDir} name={displayName}", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
             Android.Util.Log.Warn("EmueraMaui", $"FindChildDocument({displayName}) → {ex.Message}");
         }
         return null;
     }
+
+    /// <summary>子项名两级匹配（原 FindChildDocument 语义）：displayName 未中 → documentId 末段。</summary>
+    private static bool NameMatches(ChildEntry child, string displayName)
+        => string.Equals(child.Name, displayName, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrEmpty(child.DocId)
+                && string.Equals(
+                    child.DocId.LastIndexOf('/') is var s && s >= 0 ? child.DocId[(s + 1)..] : child.DocId,
+                    displayName, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// 从 document/tree 路径拆出父目录 URI 与逻辑短名。
@@ -1118,6 +1166,9 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                     _buffer.CopyTo(output);
                     output.Flush();
                     sw.Stop();
+                    // O1：写档落盘成功 → 失效文件所在目录（新档名必须立即可枚举/可查）
+                    try { SafGameDirAccessor.Instance?.InvalidateParentOf(ResolveDocId(_docUri)); }
+                    catch { /* 失效失败仅损失一次缓存命中，不影响写路径结果 */ }
                     LogSaf("WriteDispose", ResolveDocId(_docUri), $"bytes={bytes}", sw.ElapsedMilliseconds);
                     Android.Util.Log.Info("EmueraMaui",
                         $"OpenWrite flush OK path={_pathForLog} bytes={bytes} ms={sw.ElapsedMilliseconds}");
@@ -1145,6 +1196,9 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             try
             {
                 DocumentsContract.DeleteDocument(_context.ContentResolver!, _docUri);
+                // O1：失败清理删掉了刚建的空文档 → 失效其父目录
+                try { SafGameDirAccessor.Instance?.InvalidateParentOf(ResolveDocId(_docUri)); }
+                catch { /* 失效失败仅损失一次缓存命中 */ }
                 Android.Util.Log.Info("EmueraMaui",
                     $"OpenWrite cleanup removed incomplete document path={_pathForLog}");
             }
