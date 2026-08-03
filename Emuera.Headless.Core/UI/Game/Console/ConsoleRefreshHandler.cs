@@ -47,15 +47,10 @@ internal sealed class ConsoleRefreshHandler
         }
         if (_state.forceTextBoxColor)
         {
-            if (_state._drawStopwatch == null)
-                _state._drawStopwatch = System.Diagnostics.Stopwatch.StartNew();
-            else
-            {
-                while (_state._drawStopwatch.ElapsedMilliseconds < _state.msPerFrame)
-                    _ui.ProcessEvents();
-            }
+            _state.WaitFrameSyncIfEnabled(_ui);
             _ui.TextBox.BackColor = _state.bgColor;
-            _state._drawStopwatch.Restart();
+            // WaitFrameSyncIfEnabled 已保证 _drawStopwatch 非 null（内部 StartNew 兜底）
+            _state._drawStopwatch!.Restart();
         }
 
         // HEADLESS: handle need_settimer transition

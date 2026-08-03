@@ -98,10 +98,35 @@ internal sealed class ConsoleStateData
 
     // --- Draw state ---
     internal Stopwatch _frameDeltaTimer = Stopwatch.StartNew();
-    internal uint msPerFrame = 1000 / 60;
+    /// <summary>
+    /// 帧间隔（ms）。headless/移动端默认 0 = 禁用帧同步：IConsoleUI.ProcessEvents 为 no-op，
+    /// 忙等循环（见 <see cref="WaitFrameSyncIfEnabled"/>）纯空转，每回合最多浪费 16ms。
+    /// 需要帧同步时可显式设为 &gt; 0（例如 1000/FPS）。
+    /// 注意：msPerFrame==0 同时禁用 <see cref="ConsoleRefreshHandler"/> 的帧率节流
+    /// （RefreshStrings 不再因距上次绘制 &lt; 帧间隔而提前 return）——headless 下绘制为 no-op，
+    /// 禁用节流符合「不帧同步」意图，无重绘代价。
+    /// </summary>
+    internal uint msPerFrame = 0;
     internal Stopwatch? _drawStopwatch;
     internal bool forceTextBoxColor;
     internal ConsoleRedraw redraw = ConsoleRedraw.Normal;
+
+    /// <summary>
+    /// 帧同步忙等（SetBgColor / RefreshStrings 共用，ADR 去重）：
+    /// 首次绘制启动计时；此后若 msPerFrame&gt;0 且距上次绘制未达帧间隔，循环调用
+    /// <paramref name="ui"/>.ProcessEvents() 直到到点。headless/移动端 msPerFrame==0 时
+    /// ProcessEvents 为 no-op，直接跳过（每回合最多省 16ms 纯空转）。调用方在返回后自行 Restart。
+    /// </summary>
+    internal void WaitFrameSyncIfEnabled(IConsoleUI ui)
+    {
+        if (_drawStopwatch == null)
+            _drawStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        else if (msPerFrame > 0)
+        {
+            while (_drawStopwatch.ElapsedMilliseconds < msPerFrame)
+                ui.ProcessEvents();
+        }
+    }
 
     // --- Misc ---
     internal bool runningERBfromMemory;

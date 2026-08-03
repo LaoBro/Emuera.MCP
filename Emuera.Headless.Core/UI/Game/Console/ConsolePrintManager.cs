@@ -559,15 +559,10 @@ internal sealed class ConsolePrintManager
         _state.forceTextBoxColor = true;
         if (_state.redraw == ConsoleRedraw.None && _ui.ScrollBar.Value == _ui.ScrollBar.Maximum)
             return;
-        if (_state._drawStopwatch == null)
-            _state._drawStopwatch = System.Diagnostics.Stopwatch.StartNew();
-        else
-        {
-            while (_state._drawStopwatch.ElapsedMilliseconds < _state.msPerFrame)
-                _ui.ProcessEvents();
-        }
+        _state.WaitFrameSyncIfEnabled(_ui);
         _console.RefreshStrings(true);
-        _state._drawStopwatch.Restart();
+        // WaitFrameSyncIfEnabled 已保证 _drawStopwatch 非 null（内部 StartNew 兜底）
+        _state._drawStopwatch!.Restart();
     }
 
     // --- Op emission (v2 turn protocol) ---
