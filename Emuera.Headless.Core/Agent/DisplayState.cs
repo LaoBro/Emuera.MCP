@@ -112,6 +112,25 @@ internal sealed class DisplayState : IDisplayState
     private DisplaySnapshot? _previous;
 
     /// <summary>
+    /// 3.3 增量快照（S0 优化）：引擎行对象 → 已构建 DisplayLine 的引用缓存。
+    /// 键为 <see cref="ConsoleDisplayLine"/> 引用（默认引用相等）——行对象入列后内容不可变
+    /// （步骤 0 审计：LineNo/IsLineEnd/Align/buttons 的写点均在 Add 之前，见 ConsolePrintManager
+    /// 入列路径与 ConsoleButtonString/ConsoleDisplayLine 的字段守卫），同引用必然同值，
+    /// BuildPrintOpsForLine 是纯函数（同输入必同输出），故缓存产物与全量重建值相等。
+    ///
+    /// 值相等性的字体维度：DisplayLine 的 segment fontname 编码取决于 defaultFontName（
+    /// BuildPrintOpsForLine 判断 style.Fontname != defaultFontName 才写入 JSON）。本实例的
+    /// <see cref="_defaultFontName"/> 是构造注入的 readonly 字段（同一值贯穿 Rebuild 每回合的
+    /// miss 构建，亦即与全量重建传入同一值），故字体变更不会让缓存产物与全量重建产生分歧——
+    /// 缓存键只需行对象引用，无需并入字体维度。
+    ///
+    /// 失效靠对象替换天然生效：CLEAR/CLEARLINE/末行编辑/ShiftHead 均以全新对象替换旧对象
+    /// （旧条目成孤儿），孤儿由 <see cref="Rebuild"/> 的兜底阈值清理，绝不误命中。
+    /// 仅 Rebuild（_gate 锁内）访问，无并发。
+    /// </summary>
+    private readonly Dictionary<ConsoleDisplayLine, DisplayLine> _lineCache = new();
+
+    /// <summary>
     /// plan C + shift_head 扩展：本回合从 _pendingOps 分类出的权威清空信号。
     /// ClearAll 主导（CLEAR），ClearLineCount 为累加的清行数，Bg 为最后一次 SetBgOp 颜色（可空）。
     /// ShiftHeadCount 为累加的头部截断行数（MaxLog 滚动）——由 ShiftHeadTurnOp 累加，
@@ -124,6 +143,13 @@ internal sealed class DisplayState : IDisplayState
         public int ShiftHeadCount;
         public string? Bg;
     }
+
+    /// <summary>
+    /// <see cref="Rebuild"/> 兜底清理的孤儿行数上限，当 _lineCache.Count 超过 活跃行 + 该值时全清重建。
+    /// Config.Current 不可用（单测环境 / 启动早期）时的 MaxLog 降级值——与 ConfigData.cs:88
+    /// （ConfigItem.MaxLog 默认 5000）保持一致；正常路径始终读 <see cref="Config.MaxLog"/> 实时值。
+    /// </summary>
+    private const int FallbackMaxLog = 5000;
 
     /// <param name="fullDiffOnFirstTurn">
     /// MAUI 模式传 true——首帧（_previous==null）返回全量 AppendLinesOp 而非 null。
@@ -353,6 +379,7 @@ internal sealed class DisplayState : IDisplayState
 
     private static bool LinesEqual(DisplayLine a, DisplayLine b)
     {
+        if (ReferenceEquals(a, b)) return true; // 3.3（S0）：同引用必然同值（缓存命中行）——短路深比较
         if (a.align != b.align) return false;
         if (a.isLineEnd != b.isLineEnd) return false;
         if (a.entries.Count != b.entries.Count) return false;
@@ -380,6 +407,12 @@ internal sealed class DisplayState : IDisplayState
     /// 注意：游戏线程（ConsolePrintManager）写 displayLineList 不持 _gate，故
     /// new List&lt;T&gt;(source) 的 CopyTo 可能与 Add 竞态（ArgumentException: array not long enough）。
     /// 重试即可——竞态窗口极短，下一次拷贝时数组长度已匹配。Phase 2/3 评估是否需让游戏线程也持 _gate。
+    ///
+    /// 3.3（S0）：经 _lineCache 做增量构建——命中行复用已构建 DisplayLine（含 entries/几何/
+    /// LineNo/SourceLine/AlignOffset），仅新行走 BuildPrintOpsForLine；并把 O(总行数) 深比较
+    /// 降为 O(变更行数)（CommonPrefix 引用短路）。产物与全量重建值相等，diff/协议零改动。
+    /// 兜底清理：孤儿条目（CLEAR/CLEARLINE/ShiftHead/末行编辑移除的行）累积到 MaxLog 量级时
+    /// 全清，下一回合全量重建一次（O(n)）后恢复命中——每 MaxLog 行才触发一次，成本可忽略。
     /// </summary>
     private DisplaySnapshot Rebuild()
     {
@@ -396,7 +429,10 @@ internal sealed class DisplayState : IDisplayState
                 // displayLineList 在 CopyTo 期间被游戏线程修改，重试
             }
         }
-        return BuildSnapshot(linesCopy, _console.bgColor,
+        int maxLog = Config.Current != null ? Config.MaxLog : FallbackMaxLog;
+        if (_lineCache.Count > linesCopy.Count + maxLog)
+            _lineCache.Clear();
+        return BuildSnapshotIncremental(_lineCache, linesCopy, _console.bgColor,
             _console.State, _console.CurrentRequest, _defaultFontName, _console.LastButtonGeneration);
     }
 
@@ -415,8 +451,30 @@ internal sealed class DisplayState : IDisplayState
     ///
     /// defaultFontName 参数：默认字体名，传给 BuildPrintOpsForLine 判断 segment fontname 是否为默认。
     /// 调用方负责传入——DisplayState.Rebuild 从构造函数注入的值传（HTTP 线程由 Session 从 ConfigData 读）。
+    ///
+    /// 3.3（S0）：本方法等价于以空缓存调 <see cref="BuildSnapshotIncremental"/>（每行全 miss 重建），
+    /// 产物与增量路径值相等——供单元测试直测完整映射（不构造 EmueraConsole）以及无缓存降级路径。
     /// </summary>
     internal static DisplaySnapshot BuildSnapshot(
+        List<ConsoleDisplayLine> displayLineList,
+        EmuColor bgColor,
+        ConsoleState state,
+        InputRequest? currentRequest,
+        string defaultFontName,
+        long generation = 0)
+        => BuildSnapshotIncremental(new Dictionary<ConsoleDisplayLine, DisplayLine>(),
+            displayLineList, bgColor, state, currentRequest, defaultFontName, generation);
+
+    /// <summary>
+    /// 3.3 增量快照构建（S0 优化）——BuildSnapshot 的缓存版本。
+    /// lineCache 键为引擎行对象引用：命中行直接复用已构建 DisplayLine（entries/几何/LineNo/
+    /// SourceLine/AlignOffset，含 CLI 渲染三字段），未命中行经 <see cref="BuildDisplayLine"/>
+    /// 构建后入缓存。行对象入列后内容不可变，同引用必然同值；CLEAR/CLEARLINE/ShiftHead/末行编辑
+    /// 均以新行对象替换旧对象（旧条目成孤儿，由调用方兜底清理），不会误命中。
+    /// 提取为 internal static 以便单元测试直测缓存命中/失效/值相等性，无需构造 EmueraConsole。
+    /// </summary>
+    internal static DisplaySnapshot BuildSnapshotIncremental(
+        Dictionary<ConsoleDisplayLine, DisplayLine> lineCache,
         List<ConsoleDisplayLine> displayLineList,
         EmuColor bgColor,
         ConsoleState state,
@@ -427,22 +485,11 @@ internal sealed class DisplayState : IDisplayState
         var lines = new List<DisplayLine>(displayLineList.Count);
         foreach (var line in displayLineList)
         {
-            // 复用 BuildPrintOpsForLine 的 segment 提取 + 几何计算——保证快照与增量 ops 一致
-            var printOps = ConsolePrintManager.BuildPrintOpsForLine(line, defaultFontName);
-            var entries = printOps
-                .Select(op => new DisplayEntry(op.segments, op.button))
-                .ToList();
-
-            // Phase 4-1：填入 CLI 渲染专用字段——LineNo（delta 算法）+ SourceLine（FormatLineForTerminal）
-            // + AlignOffset（绝对列偏移，与 FormatLineForTerminal 的 align 居中/右对齐前导空格一致）
-            var dl = new DisplayLine(
-                entries: entries,
-                align: AlignToString(line.Align),
-                isLineEnd: line.IsLineEnd
-            );
-            dl.LineNo = line.LineNo;
-            dl.SourceLine = line;
-            dl.AlignOffset = ComputeAlignOffset(line);
+            if (!lineCache.TryGetValue(line, out var dl))
+            {
+                dl = BuildDisplayLine(line, defaultFontName);
+                lineCache.Add(line, dl);
+            }
             lines.Add(dl);
         }
 
@@ -464,6 +511,30 @@ internal sealed class DisplayState : IDisplayState
                 ? reqWithMes.TimeUpMes
                 : null
         );
+    }
+
+    /// <summary>
+    /// 单个 ConsoleDisplayLine → DisplayLine 的完整映射（3.3 提取，供增量缓存复用）。
+    /// 复用 BuildPrintOpsForLine 的 segment 提取 + 几何计算——保证快照与增量 ops 一致，
+    /// 并填入 CLI 渲染专用字段（LineNo/SourceLine/AlignOffset）。纯函数：同输入必同输出，
+    /// 是引用缓存值相等性的基础。
+    /// </summary>
+    internal static DisplayLine BuildDisplayLine(ConsoleDisplayLine line, string defaultFontName)
+    {
+        var printOps = ConsolePrintManager.BuildPrintOpsForLine(line, defaultFontName);
+        var entries = printOps
+            .Select(op => new DisplayEntry(op.segments, op.button))
+            .ToList();
+
+        var dl = new DisplayLine(
+            entries: entries,
+            align: AlignToString(line.Align),
+            isLineEnd: line.IsLineEnd
+        );
+        dl.LineNo = line.LineNo;
+        dl.SourceLine = line;
+        dl.AlignOffset = ComputeAlignOffset(line);
+        return dl;
     }
 
     /// <summary>

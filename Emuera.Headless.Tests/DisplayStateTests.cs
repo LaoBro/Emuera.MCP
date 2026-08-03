@@ -620,4 +620,174 @@ public class DisplayStateTests
         Assert.Equal(99L, regions[1].value);
         Assert.True(regions[1].isInteger);
     }
+
+    // ---------- 3.3 增量快照：引用缓存 ----------
+
+    [Fact]
+    public void Incremental_cache_reuses_display_line_across_rebuilds()
+    {
+        // 同引用两回合：DisplayLine 对象整体复用（含 segments/CLI 字段），不重复 BuildPrintOpsForLine
+        var cache = new Dictionary<ConsoleDisplayLine, DisplayLine>();
+        var line = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[OK]", 1), ("[Exit]", 2)),
+            isLogical: true, temporary: false);
+        var list = new List<ConsoleDisplayLine> { line };
+
+        var first = DisplayState.BuildSnapshotIncremental(
+            cache, list, EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+        var second = DisplayState.BuildSnapshotIncremental(
+            cache, list, EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+
+        Assert.Single(cache);
+        Assert.Same(first.lines[0], second.lines[0]);
+        Assert.Same(first.lines[0].entries[0], second.lines[0].entries[0]);
+        Assert.Same(line, second.lines[0].SourceLine);
+        Assert.Equal(first.lines[0].LineNo, second.lines[0].LineNo);
+        Assert.Equal(first.lines[0].AlignOffset, second.lines[0].AlignOffset);
+    }
+
+    [Fact]
+    public void Incremental_cache_builds_only_new_lines()
+    {
+        // 旧行命中缓存，新行 miss 构建并入缓存
+        var cache = new Dictionary<ConsoleDisplayLine, DisplayLine>();
+        var line1 = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[OK]", 1)), isLogical: true, temporary: false);
+        DisplayState.BuildSnapshotIncremental(
+            cache, new List<ConsoleDisplayLine> { line1 }, EmuColor.Black, ConsoleState.WaitInput,
+            currentRequest: null, "TestFont");
+
+        var line2 = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[Cancel]", 2)), isLogical: true, temporary: false);
+        var second = DisplayState.BuildSnapshotIncremental(
+            cache, new List<ConsoleDisplayLine> { line1, line2 }, EmuColor.Black, ConsoleState.WaitInput,
+            currentRequest: null, "TestFont");
+
+        Assert.Equal(2, cache.Count);
+        Assert.Same(cache[line1], second.lines[0]);
+        Assert.Same(cache[line2], second.lines[1]);
+        Assert.Same(line2, second.lines[1].SourceLine);
+    }
+
+    [Fact]
+    public void Incremental_cache_tail_removal_keeps_result_correct()
+    {
+        // CLEARLINE：尾部行被删除——保留行命中，被删行条目成孤儿（由 Rebuild 兜底清理，不影响正确性）
+        var cache = new Dictionary<ConsoleDisplayLine, DisplayLine>();
+        var line1 = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[OK]", 1)), isLogical: true, temporary: false);
+        var line2 = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[Exit]", 2)), isLogical: true, temporary: false);
+        DisplayState.BuildSnapshotIncremental(
+            cache, new List<ConsoleDisplayLine> { line1, line2 }, EmuColor.Black, ConsoleState.WaitInput,
+            currentRequest: null, "TestFont");
+
+        var second = DisplayState.BuildSnapshotIncremental(
+            cache, new List<ConsoleDisplayLine> { line1 }, EmuColor.Black, ConsoleState.WaitInput,
+            currentRequest: null, "TestFont");
+
+        Assert.Single(second.lines);
+        Assert.Same(cache[line1], second.lines[0]);
+        Assert.True(cache.ContainsKey(line2));
+    }
+
+    [Fact]
+    public void Incremental_cache_head_removal_keeps_result_correct()
+    {
+        // MaxLog ShiftHead：头部行被移除——保留行按引用命中（与位置无关）
+        var cache = new Dictionary<ConsoleDisplayLine, DisplayLine>();
+        var line1 = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[A]", 1)), isLogical: true, temporary: false);
+        var line2 = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[B]", 2)), isLogical: true, temporary: false);
+        DisplayState.BuildSnapshotIncremental(
+            cache, new List<ConsoleDisplayLine> { line1, line2 }, EmuColor.Black, ConsoleState.WaitInput,
+            currentRequest: null, "TestFont");
+
+        var second = DisplayState.BuildSnapshotIncremental(
+            cache, new List<ConsoleDisplayLine> { line2 }, EmuColor.Black, ConsoleState.WaitInput,
+            currentRequest: null, "TestFont");
+
+        Assert.Single(second.lines);
+        Assert.Same(cache[line2], second.lines[0]);
+    }
+
+    [Fact]
+    public void Incremental_cache_last_line_edit_rebuilds_replaced_line()
+    {
+        // 末行编辑（PRINTN 续行）：旧末行对象被删，新合并行对象加入 → 新对象 miss 重建，旧条目成孤儿
+        var cache = new Dictionary<ConsoleDisplayLine, DisplayLine>();
+        var oldLast = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[A]", 1)), isLogical: true, temporary: false, lineEnd: false);
+        DisplayState.BuildSnapshotIncremental(
+            cache, new List<ConsoleDisplayLine> { oldLast }, EmuColor.Black, ConsoleState.WaitInput,
+            currentRequest: null, "TestFont");
+
+        var merged = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[A]", 1), ("[B]", 2)), isLogical: true, temporary: false);
+        var second = DisplayState.BuildSnapshotIncremental(
+            cache, new List<ConsoleDisplayLine> { merged }, EmuColor.Black, ConsoleState.WaitInput,
+            currentRequest: null, "TestFont");
+
+        Assert.Single(second.lines);
+        Assert.NotSame(oldLast, second.lines[0].SourceLine);
+        Assert.Same(merged, second.lines[0].SourceLine);
+        Assert.Equal(2, cache.Count);
+    }
+
+    [Fact]
+    public void Incremental_snapshot_values_equal_full_rebuild()
+    {
+        // 值相等性：同一列表经空缓存（全量重建）与经缓存（增量）产物逐字段一致——diff/协议零改动的保证
+        var line0 = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[OK]", 1), ("確定", 2)), isLogical: true, temporary: false);
+        var line1 = new ConsoleDisplayLine(
+            new[] { TestButtonFactory.CreateNonButton("plain") }, isLogical: true, temporary: false);
+        var line2 = new ConsoleDisplayLine(
+            Array.Empty<ConsoleButtonString>(), isLogical: true, temporary: false);
+        var list = new List<ConsoleDisplayLine> { line0, line1, line2 };
+
+        var full = DisplayState.BuildSnapshot(
+            list, EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+        var incr = DisplayState.BuildSnapshotIncremental(
+            new Dictionary<ConsoleDisplayLine, DisplayLine>(), list, EmuColor.Black, ConsoleState.WaitInput,
+            currentRequest: null, "TestFont");
+
+        Assert.Equal(full.lines.Count, incr.lines.Count);
+        for (int i = 0; i < full.lines.Count; i++)
+        {
+            Assert.Equal(full.lines[i].align, incr.lines[i].align);
+            Assert.Equal(full.lines[i].isLineEnd, incr.lines[i].isLineEnd);
+            Assert.Equal(full.lines[i].entries.Count, incr.lines[i].entries.Count);
+            Assert.Equal(full.lines[i].LineNo, incr.lines[i].LineNo);
+            for (int j = 0; j < full.lines[i].entries.Count; j++)
+            {
+                Assert.Equal(full.lines[i].entries[j].segments.Count, incr.lines[i].entries[j].segments.Count);
+                for (int k = 0; k < full.lines[i].entries[j].segments.Count; k++)
+                    Assert.Equal(full.lines[i].entries[j].segments[k], incr.lines[i].entries[j].segments[k]);
+                Assert.Equal(full.lines[i].entries[j].button, incr.lines[i].entries[j].button);
+            }
+        }
+    }
+
+    [Fact]
+    public void CommonPrefix_short_circuits_on_reference_equality()
+    {
+        // 引用短路：相同 DisplayLine 引用（缓存命中）直接判等，跳过深比较
+        var cache = new Dictionary<ConsoleDisplayLine, DisplayLine>();
+        var line = new ConsoleDisplayLine(
+            TestButtonFactory.CreateButtons(("[OK]", 1)), isLogical: true, temporary: false);
+        var list = new List<ConsoleDisplayLine> { line };
+        var s1 = DisplayState.BuildSnapshotIncremental(
+            cache, list, EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+        var s2 = DisplayState.BuildSnapshotIncremental(
+            cache, list, EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
+        Assert.Same(s1.lines[0], s2.lines[0]);
+
+        var method = typeof(DisplayState).GetMethod("CommonPrefix",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+        var k = (int)method!.Invoke(null, new object[] { s1.lines, s2.lines })!;
+        Assert.Equal(1, k);
+    }
 }
