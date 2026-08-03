@@ -5,6 +5,7 @@ using System.Text;
 using Android.Content;
 using Android.Provider;
 using AndroidX.Activity.Result;
+using MinorShift.Emuera.GameView;
 
 namespace MinorShift.Emuera;
 
@@ -66,6 +67,30 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             return DocumentsContract.GetTreeDocumentId(docUri);
         // 回退
         return DocumentsContract.GetDocumentId(docUri);
+    }
+
+    // ── A1 取证日志 ────────────────────────────────
+    /// <summary>
+    /// SAF 操作耗时日志（A1，saf-accel 计划）——每次 ContentResolver IPC 包装点记录
+    /// 操作名 + 逻辑路径 + 结果 + 耗时。走 AgentLog（A0 开关控制，默认关，取证时设置页开启）。
+    /// <para>
+    /// <b>调用约定</b>：调用方必须<b>先 sw.Stop() 再调用本方法</b>——日志写入的微秒级
+    /// 开销不得污染 ms 测量（计划原则：先停表再写日志）。
+    /// </para>
+    /// <para>
+    /// 格式：<c>[saf] &lt;op&gt; &lt;path&gt; &lt;detail&gt; ms=&lt;N&gt;[ FAIL &lt;msg&gt;]</c>。
+    /// path = docId 去 <c>primary:</c> 前缀（如 <c>emuera/TK/sav/global.sav</c>），
+    /// 可读且能区分目录层级。
+    /// </para>
+    /// </summary>
+    private static void LogSaf(string op, string docId, string detail, long ms, bool ok = true, string? failMsg = null)
+    {
+        // 原则 2「常态零成本」：开关关闭（Android 默认）时热路径零分配零加锁——
+        // 必须先查 Enabled 再拼字符串，避免每条 IPC 1~2 次分配。
+        if (!AgentLog.Instance.Enabled) return;
+        var path = docId.StartsWith("primary:", StringComparison.Ordinal) ? docId["primary:".Length..] : docId;
+        var tail = ok ? $"ms={ms}" : $"ms={ms} FAIL {failMsg}";
+        AgentLog.Instance.Write($"[saf] {op} {path} {detail} {tail}");
     }
 
     public SafGameDirAccessor(Context context, ActivityResultLauncher launcher)
@@ -219,24 +244,39 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         var docId = ResolveDocId(docUri);
         var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri, docId);
 
-        using var cursor = _context.ContentResolver!.Query(
-            childrenUri,
-            new[] { DocumentsContract.Document.ColumnDocumentId, DocumentsContract.Document.ColumnDisplayName },
-            null, null, null);
-        if (cursor != null)
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
         {
-            while (cursor.MoveToNext())
+            using var cursor = _context.ContentResolver!.Query(
+                childrenUri,
+                new[] { DocumentsContract.Document.ColumnDocumentId, DocumentsContract.Document.ColumnDisplayName },
+                null, null, null);
+            if (cursor != null)
             {
-                var name = cursor.GetString(1);
-                if (string.Equals(name, subDir, StringComparison.OrdinalIgnoreCase))
+                while (cursor.MoveToNext())
                 {
-                    var childDocId = cursor.GetString(0);
-                    var result = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, childDocId!).ToString()!;
-                    Android.Util.Log.Info("EmueraMaui", $"ResolveSubPath: found {subDir} → {result}");
-                    return result;
+                    var name = cursor.GetString(1);
+                    if (string.Equals(name, subDir, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var childDocId = cursor.GetString(0);
+                        var result = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, childDocId!).ToString()!;
+                        sw.Stop();
+                        LogSaf("ResolveSubPath", docId, $"hits=1 found={subDir}", sw.ElapsedMilliseconds);
+                        Android.Util.Log.Info("EmueraMaui", $"ResolveSubPath: found {subDir} → {result}");
+                        return result;
+                    }
                 }
             }
         }
+        catch (Exception ex)
+        {
+            // A1：Query 异常也记录（失败路径同样有取证价值），保持原传播行为（上层有 catch）
+            sw.Stop();
+            LogSaf("ResolveSubPath", docId, "query-ex", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
+            throw;
+        }
+        sw.Stop();
+        LogSaf("ResolveSubPath", docId, "hits=0 not-found", sw.ElapsedMilliseconds);
 
         // 子目录尚不存在时返回理论 document URI，供 CreateDirectory / OpenWrite 按父+名创建
         // （旧实现返回 basePath 会导致 sav/ 永远建在错误层级）
@@ -275,6 +315,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
 
     public Stream? OpenRead(string path)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             if (_treeAndroidUri == null)
@@ -302,22 +343,29 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             // 1) SAF InputStream 常不可 Seek / Length 不可靠 → EraBinaryDataReader.CreateReader
             //    的 `fs.Length < 16` 会误判为坏档或走文本路径；
             // 2) BinaryReader 对数十万字节存档逐字段读 ContentResolver 极慢（与写假死同因）。
-            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var docId = ResolveDocId(docUri);
             using var input = _context.ContentResolver!.OpenInputStream(docUri);
             if (input == null)
             {
+                sw.Stop();
+                LogSaf("OpenRead", docId, "open-null", sw.ElapsedMilliseconds);
                 Android.Util.Log.Warn("EmueraMaui", $"OpenRead: OpenInputStream null for {path}");
                 return null;
             }
             var ms = new MemoryStream();
             input.CopyTo(ms);
             ms.Position = 0;
+            sw.Stop();
+            LogSaf("OpenRead", docId, $"bytes={ms.Length} mime={mime}", sw.ElapsedMilliseconds);
             Android.Util.Log.Info("EmueraMaui",
                 $"OpenRead buffered OK path={path} bytes={ms.Length} ms={sw.ElapsedMilliseconds} mime={mime}");
             return ms;
         }
         catch (Exception ex)
         {
+            sw.Stop();
+            var failDocId = TryParseUri(path, out var failUri) ? ResolveDocId(failUri) : path;
+            LogSaf("OpenRead", failDocId, "read-ex", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
             Android.Util.Log.Warn("EmueraMaui", $"OpenRead exception: {path} → {ex.Message}");
             return null;
         }
@@ -580,54 +628,88 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
 
     private string? GetMimeType(Android.Net.Uri uri)
     {
+        // docId 计算放 try 内——ResolveDocId 对异常 URI 可能抛，须保持原 catch-all 语义（返回 null）
+        string? docId = null;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
+            docId = ResolveDocId(uri);
             using var cursor = _context.ContentResolver!.Query(
                 uri, new[] { DocumentsContract.Document.ColumnMimeType }, null, null, null);
-            return cursor?.MoveToFirst() == true ? cursor.GetString(0) : null;
+            var mime = cursor?.MoveToFirst() == true ? cursor.GetString(0) : null;
+            sw.Stop();
+            LogSaf("GetMimeType", docId, $"mime={mime ?? "null"}", sw.ElapsedMilliseconds);
+            return mime;
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            LogSaf("GetMimeType", docId ?? uri.ToString() ?? "?", "query-ex", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
+            return null;
+        }
     }
 
     private void EnumerateUri(Android.Net.Uri uri, List<string> result, bool isDir, string? pattern, bool recursive)
     {
-        using var cursor = _context.ContentResolver!.Query(
-            uri,
-            new[]
-            {
-                DocumentsContract.Document.ColumnDocumentId,
-                DocumentsContract.Document.ColumnDisplayName,
-                DocumentsContract.Document.ColumnMimeType
-            },
-            null, null, null);
-        if (cursor == null) return;
-
-        while (cursor.MoveToNext())
+        // A1：childrenUri 的 docId 即父目录 docId——日志按「每层一次 Query」记录
+        var docId = ResolveDocId(uri);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
         {
-            var docId = cursor.GetString(0);
-            var name = cursor.GetString(1);
-            var mime = cursor.GetString(2);
-            var childIsDir = mime == DocumentsContract.Document.MimeTypeDir;
-
-            // 通配优先 match displayName；若 displayName 无扩展名，回退用 documentId 最后一段（部分 Provider 只给短名）
-            var nameForMatch = name;
-            if (pattern != null && !string.IsNullOrEmpty(docId) &&
-                (name == null || (pattern.Contains('.') && name.IndexOf('.') < 0)))
+            using var cursor = _context.ContentResolver!.Query(
+                uri,
+                new[]
+                {
+                    DocumentsContract.Document.ColumnDocumentId,
+                    DocumentsContract.Document.ColumnDisplayName,
+                    DocumentsContract.Document.ColumnMimeType
+                },
+                null, null, null);
+            if (cursor == null)
             {
-                var lastSlash = docId.LastIndexOf('/');
-                nameForMatch = lastSlash >= 0 ? docId[(lastSlash + 1)..] : docId;
-            }
-            if (childIsDir == isDir && (pattern == null || MatchWildcard(nameForMatch, pattern)))
-            {
-                var childDocUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, docId!);
-                result.Add(childDocUri.ToString()!);
+                sw.Stop();
+                LogSaf("EnumerateUri", docId, "children=0", sw.ElapsedMilliseconds);
+                return;
             }
 
-            if (recursive && childIsDir)
+            int children = 0;
+            while (cursor.MoveToNext())
             {
-                var childUri = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri!, docId!);
-                EnumerateUri(childUri, result, isDir, pattern, true);
+                children++;
+                var docId2 = cursor.GetString(0);
+                var name = cursor.GetString(1);
+                var mime = cursor.GetString(2);
+                var childIsDir = mime == DocumentsContract.Document.MimeTypeDir;
+
+                // 通配优先 match displayName；若 displayName 无扩展名，回退用 documentId 最后一段（部分 Provider 只给短名）
+                var nameForMatch = name;
+                if (pattern != null && !string.IsNullOrEmpty(docId2) &&
+                    (name == null || (pattern.Contains('.') && name.IndexOf('.') < 0)))
+                {
+                    var lastSlash = docId2.LastIndexOf('/');
+                    nameForMatch = lastSlash >= 0 ? docId2[(lastSlash + 1)..] : docId2;
+                }
+                if (childIsDir == isDir && (pattern == null || MatchWildcard(nameForMatch, pattern)))
+                {
+                    var childDocUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, docId2!);
+                    result.Add(childDocUri.ToString()!);
+                }
+
+                if (recursive && childIsDir)
+                {
+                    var childUri = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri!, docId2!);
+                    EnumerateUri(childUri, result, isDir, pattern, true);
+                }
             }
+            sw.Stop();
+            LogSaf("EnumerateUri", docId, $"children={children}", sw.ElapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            // A1：Query 异常也记录（失败路径同样有取证价值），保持原传播行为（上层有 catch）
+            sw.Stop();
+            LogSaf("EnumerateUri", docId, "query-ex", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
+            throw;
         }
     }
 
@@ -750,17 +832,31 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
     private bool TryQueryDocument(Android.Net.Uri docUri, out string? mime)
     {
         mime = null;
+        var docId = ResolveDocId(docUri);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             using var cursor = _context.ContentResolver!.Query(
                 docUri,
                 new[] { DocumentsContract.Document.ColumnMimeType },
                 null, null, null);
-            if (cursor?.MoveToFirst() != true) return false;
+            if (cursor?.MoveToFirst() != true)
+            {
+                sw.Stop();
+                LogSaf("TryQueryDocument", docId, "hit=0", sw.ElapsedMilliseconds);
+                return false;
+            }
             mime = cursor.GetString(0);
+            sw.Stop();
+            LogSaf("TryQueryDocument", docId, $"hit=1 mime={mime}", sw.ElapsedMilliseconds);
             return true;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            LogSaf("TryQueryDocument", docId, "query-ex", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
+            return false;
+        }
     }
 
     /// <summary>解析已存在文件的真实 document URI；不存在返回 null。</summary>
@@ -780,9 +876,10 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
     private Android.Net.Uri? FindChildDocument(Android.Net.Uri parentUri, string displayName, bool wantDir)
     {
         if (_treeAndroidUri == null) return null;
+        var parentId = ResolveDocId(parentUri);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            var parentId = ResolveDocId(parentUri);
             var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(_treeAndroidUri, parentId);
             using var cursor = _context.ContentResolver!.Query(
                 childrenUri,
@@ -793,7 +890,12 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                     DocumentsContract.Document.ColumnMimeType
                 },
                 null, null, null);
-            if (cursor == null) return null;
+            if (cursor == null)
+            {
+                sw.Stop();
+                LogSaf("FindChildDocument", parentId, $"hit=0 wantDir={wantDir}", sw.ElapsedMilliseconds);
+                return null;
+            }
 
             while (cursor.MoveToNext())
             {
@@ -812,11 +914,17 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                         continue;
                 }
                 var childId = cursor.GetString(0);
+                sw.Stop();
+                LogSaf("FindChildDocument", parentId, $"hit=1 wantDir={wantDir} name={displayName}", sw.ElapsedMilliseconds);
                 return DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri, childId!);
             }
+            sw.Stop();
+            LogSaf("FindChildDocument", parentId, $"hit=0 wantDir={wantDir} name={displayName}", sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
+            sw.Stop();
+            LogSaf("FindChildDocument", parentId, $"query-ex wantDir={wantDir} name={displayName}", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
             Android.Util.Log.Warn("EmueraMaui", $"FindChildDocument({displayName}) → {ex.Message}");
         }
         return null;
@@ -992,6 +1100,8 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             _disposed = true;
             if (disposing)
             {
+                // sw 声明在 try 外——catch 里也要访问（记 FAIL 耗时）
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
                     if (_writeFailed)
@@ -1001,18 +1111,21 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                         return;
                     }
                     var bytes = _buffer.Length;
-                    var sw = System.Diagnostics.Stopwatch.StartNew();
                     _buffer.Position = 0;
                     using var output = _context.ContentResolver!.OpenOutputStream(_docUri, "wt")
                         ?? _context.ContentResolver.OpenOutputStream(_docUri, "w")
                         ?? throw new IOException($"DeferredSafWriteStream: OpenOutputStream null for {_docUri}");
                     _buffer.CopyTo(output);
                     output.Flush();
+                    sw.Stop();
+                    LogSaf("WriteDispose", ResolveDocId(_docUri), $"bytes={bytes}", sw.ElapsedMilliseconds);
                     Android.Util.Log.Info("EmueraMaui",
                         $"OpenWrite flush OK path={_pathForLog} bytes={bytes} ms={sw.ElapsedMilliseconds}");
                 }
                 catch (Exception ex)
                 {
+                    sw.Stop();
+                    LogSaf("WriteDispose", ResolveDocId(_docUri), "flush-ex", sw.ElapsedMilliseconds, ok: false, failMsg: ex.Message);
                     Android.Util.Log.Error("EmueraMaui",
                         $"OpenWrite flush FAIL path={_pathForLog} ex={ex}");
                     DeleteCreatedDocument();
