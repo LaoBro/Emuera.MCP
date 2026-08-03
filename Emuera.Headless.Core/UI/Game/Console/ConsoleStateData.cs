@@ -69,6 +69,12 @@ internal sealed class ConsoleStateData
     internal List<ConsoleDisplayLine> _htmlElementList = new(10);
 
     // --- Button / selection state ---
+    /// <summary>
+    /// 当前代按钮索引（2.2 按钮匹配改索引，见 <see cref="ButtonIndex"/>）。
+    /// displayLineList 结构变更（ConsolePrintManager）调 Invalidate()；匹配时按
+    /// lastButtonGeneration 惰性重建——代不变 + 行不变时命中 O(1) 零扫描。
+    /// </summary>
+    internal readonly ButtonIndex buttonIndex = new();
     internal ConsoleButtonString? selectingButton;
     internal ConsoleButtonString? lastSelectingButton;
     internal ConsoleButtonString? pointingString;

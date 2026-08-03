@@ -178,7 +178,6 @@ internal sealed class ConsoleInputHandler
         if (_state.State == ConsoleState.WaitInput)
         {
             long inputValue;
-            List<AConsoleDisplayNode> ep;
 
             switch (_state.inputReq!.InputType)
             {
@@ -208,43 +207,9 @@ internal sealed class ConsoleInputHandler
                     }
                     else if (!long.TryParse(str, out inputValue))
                         return false;
-                    foreach (ConsoleDisplayLine line in Enumerable.Reverse(_state.displayLineList).ToList())
-                    {
-                        foreach (ConsoleButtonString button in line.Buttons)
-                        {
-                            if (button.IsInteger && button.Generation == _state.lastButtonGeneration && button.Input == inputValue)
-                            {
-                                _state.process!.InputInteger(inputValue);
-                                goto loopendint;
-                            }
-                            else if (button.Generation != 0 && button.Generation != _state.lastButtonGeneration)
-                                goto loopepint;
-                        }
-                    }
-                loopepint:
-                    foreach (var value in _state.escapedParts!)
-                    {
-                        ep = value.Value;
-                        foreach (var part in ep)
-                        {
-                            if (part is ConsoleDivPart div)
-                            {
-                                foreach (ConsoleDisplayLine line in Enumerable.Reverse(div.Children).ToList())
-                                {
-                                    foreach (ConsoleButtonString button in line.Buttons)
-                                    {
-                                        if (button.IsInteger && button.Input == inputValue)
-                                        {
-                                            _state.process!.InputInteger(inputValue);
-                                            goto loopendint;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    return false;
-                loopendint:
+                    if (!FindIntegerButton(inputValue))
+                        return false;
+                    _state.process!.InputInteger(inputValue);
                     break;
                 case InputType.StrValue:
                     if (string.IsNullOrEmpty(str) && _state.inputReq!.HasDefValue && !_console._timer.IsDisplayTimeActive)
@@ -260,43 +225,9 @@ internal sealed class ConsoleInputHandler
                         str = _state.inputReq!.DefStrValue;
                     if (str == null)
                         str = "";
-                    foreach (ConsoleDisplayLine line in Enumerable.Reverse(_state.displayLineList).ToList())
-                    {
-                        foreach (ConsoleButtonString button in line.Buttons)
-                        {
-                            if (button.Generation == _state.lastButtonGeneration && ((button.IsInteger && button.Input.ToString() == str) || button.Inputs == str))
-                            {
-                                _state.process!.InputString(str);
-                                goto loopendstr;
-                            }
-                            else if (button.Generation != 0 && button.Generation != _state.lastButtonGeneration)
-                                goto loopepstr;
-                        }
-                    }
-                loopepstr:
-                    foreach (var value in _state.escapedParts!)
-                    {
-                        ep = value.Value;
-                        foreach (var part in ep)
-                        {
-                            if (part is ConsoleDivPart div)
-                            {
-                                foreach (ConsoleDisplayLine line in Enumerable.Reverse(div.Children).ToList())
-                                {
-                                    foreach (ConsoleButtonString button in line.Buttons)
-                                    {
-                                        if ((button.IsInteger && button.Input.ToString() == str) || button.Inputs == str)
-                                        {
-                            _state.process!.InputString(str);
-                            goto loopendstr;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    return false;
-                loopendstr:
+                    if (!FindStringButton(str))
+                        return false;
+                    _state.process!.InputString(str);
                     break;
                 case InputType.AnyValue:
                     if (long.TryParse(str, out inputValue))
@@ -318,6 +249,66 @@ internal sealed class ConsoleInputHandler
         if (_ui.TextBoxPosChanged)
             _ui.ResetTextBoxPos();
         return true;
+    }
+
+    /// <summary>
+    /// IntButton 命中：当前代按钮索引 O(1) 命中；未命中回退 escapedParts——
+    /// div 逃逸按钮不在 displayLineList，旧逻辑主扫描 stop（遇旧代或扫完）后同样扫 div。
+    /// 等价性：旧逻辑倒序扫 displayLineList，遇旧代按钮（Gen != 0 && Gen != last）即停；
+    /// Generation 单调递增，旧代行之后不可能再有当前代按钮，故主扫描 = 扫全部当前代按钮，
+    /// 与索引（只收 Gen == last 的按钮）等价；同值多按钮保留最新行（覆盖写入）。
+    /// 唯一差异：ChangeStr 合并的混合代行（数组内旧代按钮在前）旧逻辑提前拒绝，
+    /// 索引按 Gen 过滤后仍接受该行当前代按钮——方向为「新更宽容」，见 ButtonIndex 注释。
+    /// </summary>
+    internal bool FindIntegerButton(long inputValue)
+    {
+        _state.buttonIndex.EnsureSynced(_state.displayLineList, _state.lastButtonGeneration);
+        if (_state.buttonIndex.TryGetInteger(inputValue, out _))
+            return true;
+        return ScanEscapedParts(_state, button => button.IsInteger && button.Input == inputValue);
+    }
+
+    /// <summary>
+    /// StrButton 命中：同上，按字符串匹配（int 按钮按 Input.ToString() 与 Inputs 两种
+    /// 拼写进索引，等价旧条件 <c>(IsInteger &amp;&amp; Input.ToString() == str) || Inputs == str</c>）。
+    /// </summary>
+    internal bool FindStringButton(string str)
+    {
+        _state.buttonIndex.EnsureSynced(_state.displayLineList, _state.lastButtonGeneration);
+        if (_state.buttonIndex.TryGetString(str, out _))
+            return true;
+        return ScanEscapedParts(_state, button =>
+            (button.IsInteger && button.Input.ToString() == str) || button.Inputs == str);
+    }
+
+    /// <summary>
+    /// escapedParts（div 逃逸按钮）回退扫描，IntButton/StrButton 共享。
+    /// 仅在索引未命中时调用（div 按钮不在 displayLineList）；无 Generation 检查，
+    /// 与旧逻辑 loopepint/loopepstr 段一致（该路径按钮少，无需索引化）。
+    /// </summary>
+    private static bool ScanEscapedParts(ConsoleStateData state, Func<ConsoleButtonString, bool> match)
+    {
+        if (state.escapedParts == null)
+            return false;
+        foreach (var value in state.escapedParts)
+        {
+            var ep = value.Value;
+            foreach (var part in ep)
+            {
+                if (part is ConsoleDivPart div)
+                {
+                    foreach (var line in Enumerable.Reverse(div.Children))
+                    {
+                        foreach (var button in line.Buttons)
+                        {
+                            if (match(button))
+                                return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     public void InputMouseKey(int type, int result1, int result2, int result3, int result4, long result5)

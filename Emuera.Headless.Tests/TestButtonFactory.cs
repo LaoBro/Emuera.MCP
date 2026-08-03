@@ -18,6 +18,24 @@ internal static class TestButtonFactory
         return new ConsoleButtonString(null!, nodes, input);
     }
 
+    /// <summary>创建一个字符串按钮（IsInteger=false），Generation=0。</summary>
+    internal static ConsoleButtonString CreateStringButton(string text, string inputs)
+    {
+        var nodes = new AConsoleDisplayNode[] { new TestTextNode(text) };
+        return new ConsoleButtonString(null!, nodes, inputs);
+    }
+
+    /// <summary>
+    /// 创建一个 4 参构造的 int 按钮（IsInteger=true），Generation=0：
+    /// Input 与 Inputs 可不同（HtmlManager HTML 按钮场景，如 Input=5 / Inputs="05"），
+    /// 用于验证 StrButton 匹配对两种拼写都命中。
+    /// </summary>
+    internal static ConsoleButtonString CreateButtonWithInputs(string text, long input, string inputs)
+    {
+        var nodes = new AConsoleDisplayNode[] { new TestTextNode(text) };
+        return new ConsoleButtonString(null!, nodes, input, inputs);
+    }
+
     /// <summary>创建一个非按钮的 ConsoleButtonString（IsButton=false），用于测试 IsButton 过滤。</summary>
     internal static ConsoleButtonString CreateNonButton(string text)
     {

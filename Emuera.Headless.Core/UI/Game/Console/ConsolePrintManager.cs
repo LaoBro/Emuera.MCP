@@ -65,6 +65,7 @@ internal sealed class ConsolePrintManager
         _state._pendingOps.Enqueue(new ClearOp());
         _state.CBProc?.ClearScreen();
         _state.displayLineList.Clear();
+        _state.buttonIndex.Invalidate();
         _state._htmlElementList.Clear();
         ConsoleEscapedParts.Clear();
         _state.logicalLineCount = 0;
@@ -143,6 +144,7 @@ internal sealed class ConsolePrintManager
             line.ChangeStr([.. lastline.Buttons, .. line.Buttons]);
         }
         _state.displayLineList.Add(line);
+        _state.buttonIndex.Invalidate();
 
         EmitPrintOps(line);
         if (line.IsLineEnd)
@@ -175,6 +177,9 @@ internal sealed class ConsolePrintManager
     {
         if (!suppressOp)
             _state._pendingOps.Enqueue(new ClearLineOp(argNum));
+        // 可能移除 / 插入 / 头截断 displayLineList 行——无条件失效按钮索引
+        // （即使本次未删任何行也只是虚高版本号，多一次重建，不影响正确性）。
+        _state.buttonIndex.Invalidate();
 
         if (Config.CBUseClipboard)
             _state.CBProc!.DelLine(Math.Min(argNum, _state.displayLineList.Count));
