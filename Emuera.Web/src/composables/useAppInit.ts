@@ -149,6 +149,15 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
 
   if (type === 'config') {
     if (typeof m.maxLog === 'number') game.maxLog = m.maxLog;
+    // A0：文件日志开关的 C# 权威状态——设置页据此渲染开关初始值
+    if (typeof m.agentLogEnabled === 'boolean') game.agentLogEnabled = m.agentLogEnabled;
+    return;
+  }
+
+  // A0 补充（真机无 adb）：日志查看器回复——写入 store，设置页渲染日志内容
+  if (type === 'agentLog') {
+    game.agentLogContent = typeof m.content === 'string' ? m.content : '';
+    game.agentLogTruncated = m.truncated === true;
     return;
   }
 

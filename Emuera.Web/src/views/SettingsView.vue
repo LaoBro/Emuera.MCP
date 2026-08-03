@@ -1,7 +1,42 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useGameStore } from '../stores/game';
+import { setAgentLogEnabled, getAgentLog } from '../lib/mauiBridge';
 
 const game = useGameStore();
+
+/**
+ * A0（saf-accel 计划）：文件日志开关切换——投递 setAgentLogEnabled 请求 C# 切换 +
+ * 持久化，本地乐观更新。C# 处理完后推回 config 消息（含 agentLogEnabled 字段）
+ * 再次同步——最终显示以 C# 权威状态为准。
+ */
+function toggleAgentLog(): void {
+  const next = !game.agentLogEnabled;
+  setAgentLogEnabled(next);
+  game.agentLogEnabled = next;
+}
+
+/**
+ * A0 补充（真机无 adb）：请求 C# 读取 agent.log 内容——回复异步到达（agentLog 消息
+ * → useAppInit 写入 store），展示区由 store 驱动自动渲染。
+ */
+function viewLog(): void {
+  logCopied.value = false;
+  getAgentLog();
+}
+
+/** 复制日志全文到剪贴板——navigator.clipboard 不可用时提示手动长按选择。 */
+async function copyLog(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(game.agentLogContent);
+    logCopied.value = true;
+    setTimeout(() => (logCopied.value = false), 1500);
+  } catch {
+    logCopied.value = false;
+  }
+}
+
+const logCopied = ref(false);
 </script>
 
 <template>
@@ -16,8 +51,40 @@ const game = useGameStore();
       </div>
       <div class="section">
         <h3>その他</h3>
-        <p class="placeholder-text">
-          この他の設定項目は順次追加予定。
+        <div class="setting-row">
+          <span class="setting-label">ファイルログ (agent.log)</span>
+          <button
+            class="toggle"
+            :class="{ on: game.agentLogEnabled }"
+            role="switch"
+            :aria-checked="game.agentLogEnabled"
+            @click="toggleAgentLog"
+          >
+            <span class="toggle-knob" />
+          </button>
+          <span class="setting-value">{{ game.agentLogEnabled ? 'ON' : 'OFF' }}</span>
+        </div>
+        <p class="hint-text">
+          診断用のファイルログ（app プライベート領域の agent.log）を出力します。既定ではオフ。
+          トラブル調査時に一時的にオンにしてください。
+        </p>
+        <div class="setting-row">
+          <span class="setting-label">ログ表示</span>
+          <button class="action-btn" @click="viewLog">最新を表示</button>
+        </div>
+        <div v-if="game.agentLogContent" class="log-view">
+          <div class="log-view-head">
+            <span class="log-view-title">
+              {{ game.agentLogTruncated ? 'ログ（末尾 200K 文字）' : 'ログ' }}
+            </span>
+            <button class="action-btn small" @click="copyLog">
+              {{ logCopied ? 'コピー済み' : 'コピー' }}
+            </button>
+          </div>
+          <pre class="log-view-body">{{ game.agentLogContent }}</pre>
+        </div>
+        <p v-else class="hint-text">
+          ログがまだありません。ファイルログを ON にして操作した後に「最新を表示」を押してください。
         </p>
       </div>
     </div>
@@ -77,12 +144,81 @@ h3 {
   min-width: 48px;
   text-align: left;
 }
-.placeholder-text {
+.hint-text {
   color: #888;
-  font-size: 13px;
-  padding: 24px 16px;
+  font-size: 12px;
+  padding: 10px 16px 12px;
   margin: 0;
-  text-align: center;
-  font-style: italic;
+}
+/* A0：文件日志开关——暗色主题 toggle，ON 时高亮（蓝） */
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  border: 1px solid #3c3c3c;
+  background: #3a3a3a;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.toggle.on {
+  background: #0e639c;
+  border-color: #1177bb;
+}
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d4d4d4;
+  transition: left 0.2s;
+}
+.toggle.on .toggle-knob {
+  left: 22px;
+}
+/* A0 补充：查看日志按钮 + 日志展示区 */
+.action-btn {
+  background: #0e639c;
+  color: #fff;
+  border: 1px solid #1177bb;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.action-btn.small {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+.log-view {
+  border-top: 1px solid #3c3c3c;
+}
+.log-view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: #2d2d2d;
+}
+.log-view-title {
+  color: #9cdcfe;
+  font-size: 12px;
+}
+.log-view-body {
+  margin: 0;
+  padding: 12px 16px;
+  max-height: 320px;
+  overflow-y: auto;
+  color: #d4d4d4;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #1b1b1b;
 }
 </style>

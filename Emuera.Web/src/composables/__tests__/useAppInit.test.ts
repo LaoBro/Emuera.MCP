@@ -239,3 +239,113 @@ describe('handleMauiMessage - gameThreadStatus', () => {
     expect(game.gameStatusHint).toBe('stopped');
   });
 });
+
+// ---------- handleMauiMessage：config 消息（A0 文件日志开关）----------
+
+describe('handleMauiMessage - config agentLogEnabled (A0)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('config 消息含 agentLogEnabled=true → 写入 store（设置页开关渲染依据）', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const game = useGameStore();
+    expect(game.agentLogEnabled).toBe(false); // 默认 false（Android 默认关闭）
+
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    expect(typeof handler).toBe('function');
+
+    handler!({ type: 'config', maxLog: 1000, agentLogEnabled: true });
+    expect(game.agentLogEnabled).toBe(true);
+    expect(game.maxLog).toBe(1000);
+
+    // 再推 false → 同步关闭
+    handler!({ type: 'config', agentLogEnabled: false });
+    expect(game.agentLogEnabled).toBe(false);
+  });
+
+  it('config 消息缺 agentLogEnabled 字段 → 保持默认值不变', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const game = useGameStore();
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+
+    handler!({ type: 'config', maxLog: 500 });
+    expect(game.agentLogEnabled).toBe(false);
+    expect(game.maxLog).toBe(500);
+  });
+});
+
+// ---------- handleMauiMessage：agentLog 消息（A0 补充：app 内日志查看器）----------
+
+describe('handleMauiMessage - agentLog (A0 日志查看器)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('agentLog 消息 → 写入 store（设置页日志展示区渲染）', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const game = useGameStore();
+    expect(game.agentLogContent).toBe('');
+    expect(game.agentLogTruncated).toBe(false);
+
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    handler!({ type: 'agentLog', content: '17:20:00.123 [saf] Query ok ms=45', truncated: false });
+    expect(game.agentLogContent).toBe('17:20:00.123 [saf] Query ok ms=45');
+    expect(game.agentLogTruncated).toBe(false);
+  });
+
+  it('agentLog 消息 truncated=true → 写入截断标记', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const game = useGameStore();
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    handler!({ type: 'agentLog', content: 'x'.repeat(10), truncated: true });
+    expect(game.agentLogTruncated).toBe(true);
+  });
+
+  it('agentLog 消息缺 content 字段 → 置为空串', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const game = useGameStore();
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    handler!({ type: 'agentLog' });
+    expect(game.agentLogContent).toBe('');
+    expect(game.agentLogTruncated).toBe(false);
+  });
+});

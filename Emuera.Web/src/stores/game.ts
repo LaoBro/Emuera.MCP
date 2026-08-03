@@ -512,6 +512,18 @@ export const useGameStore = defineStore('game', () => {
   const fontName = ref<string | null>(null);
   /** 履歴ログの行数（来自 ConfigCode.MaxLog，默认 5000）。null 表示尚未读取。 */
   const maxLog = ref<number | null>(null);
+  /**
+   * A0（saf-accel 计划）：文件日志（agent.log）开关——C# 权威状态（来自 config 消息的 agentLogEnabled 字段）。
+   * 设置页开关据此渲染初始值；切换时投递 setAgentLogEnabled 请求 C# 切换 + 持久化，
+   * C# 推回 config 消息后同步回此值。默认 false（Android 默认关闭）。
+   */
+  const agentLogEnabled = ref<boolean>(false);
+  /**
+   * A0 补充（真机无 adb）：app 内日志查看器——agent.log 内容（来自 getAgentLog 回复的 agentLog 消息）。
+   * 设置页「查看日志」按钮触发读取；truncated 表示内容因超过 200K 字符被截断为尾部。
+   */
+  const agentLogContent = ref<string>('');
+  const agentLogTruncated = ref<boolean>(false);
 
   // ---------- 缩放比例 ----------
   //
@@ -1364,6 +1376,9 @@ export const useGameStore = defineStore('game', () => {
     gameColumns,
     fontName,
     maxLog,
+    agentLogEnabled,
+    agentLogContent,
+    agentLogTruncated,
     fetchConfig,
     setGameLayout,
     // 缩放比例

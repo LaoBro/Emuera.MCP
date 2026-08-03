@@ -51,6 +51,13 @@ internal sealed class BridgeHost : IDisposable
     /// <summary>Preferences key——主目录路径持久化（spec ID5）。</summary>
     private const string MainGameDirKey = "emuera.mainGameDir";
 
+    /// <summary>
+    /// Preferences key——文件日志（AgentLog）开关（A0，saf-accel 计划）。
+    /// MauiProgram 启动早期读此 key 调 AgentLog.Configure（默认 false）；
+    /// 设置页开关经 HandleSetAgentLogEnabled 写此 key + 运行时切换 AgentLog.Enabled。
+    /// </summary>
+    internal const string AgentLogEnabledKey = "emuera.agentLogEnabled";
+
     private readonly IDispatcher _dispatcher;
     private readonly ConfigData _configData;
     private readonly ITerminalSetup _terminalSetup;
@@ -306,6 +313,18 @@ internal sealed class BridgeHost : IDisposable
                 if (type == "getGameThreadStatus")
                 {
                     HandleGetGameThreadStatus();
+                    return;
+                }
+                // A0：设置页文件日志开关——写 Preferences + 运行时切换 AgentLog.Enabled
+                if (type == "setAgentLogEnabled")
+                {
+                    HandleSetAgentLogEnabled(doc.RootElement);
+                    return;
+                }
+                // A0 补充：app 内日志查看器——读取 agent.log 内容推给 Vue（真机无 adb 场景）
+                if (type == "getAgentLog")
+                {
+                    HandleGetAgentLog();
                     return;
                 }
                 // 其他 typed 消息（input 等）原样入队——AgentJsonlProtocol.RunLoopAsync 内
@@ -678,6 +697,65 @@ internal sealed class BridgeHost : IDisposable
     }
 
     /// <summary>
+    /// A0（saf-accel 计划）：设置页「文件日志」开关——写 Preferences + 运行时切换 AgentLog.Enabled。
+    /// <para>
+    /// 接收 <c>{"type":"setAgentLogEnabled","enabled":true/false}</c>；持久化到 Preferences
+    /// （MauiProgram 启动早期读同一 key 决定 AgentLog 初值），再切换 AgentLog.Enabled 即时生效
+    /// （无需重启）。完成后推回 <c>config</c> 消息（含 agentLogEnabled 字段）让设置页与 C# 权威
+    /// 状态同步——复用 handleMauiMessage 的 <c>type==='config'</c> 消费链。
+    /// </para>
+    /// </summary>
+    private void HandleSetAgentLogEnabled(JsonElement root)
+    {
+        if (!root.TryGetProperty("enabled", out var el)
+            || (el.ValueKind != JsonValueKind.True && el.ValueKind != JsonValueKind.False))
+        {
+            Console.WriteLine("[bridge] HandleSetAgentLogEnabled: missing or non-boolean 'enabled' field");
+            return;
+        }
+        var enabled = el.GetBoolean();
+        try
+        {
+            Preferences.Set(AgentLogEnabledKey, enabled);
+        }
+        catch
+        {
+            // Preferences 不可用——运行时切换仍生效，仅持久化失败（下次启动回默认）
+        }
+        AgentLog.Instance.Enabled = enabled;
+        Console.WriteLine($"[bridge] agentLogEnabled set to {enabled}");
+        // 推回 config 消息同步 UI——设置页开关显示与 C# 权威状态一致
+        PushConfigMessage();
+    }
+
+    /// <summary>
+    /// A0 补充（真机无 adb）：app 内日志查看器——读取 agent.log 内容推给 Vue。
+    /// <para>
+    /// 接收 <c>{"type":"getAgentLog"}</c>；调 <see cref="AgentLog.ReadAllText"/>（内部 flush，
+    /// 无需退出进程即可拿到最新日志）。内容超过 <see cref="AgentLogViewMaxChars"/> 时截断为
+    /// 尾部（保留最新，取证场景最新行最有价值），回复
+    /// <c>{"type":"agentLog","content":...,"truncated":true/false}</c>。未启用/无文件时
+    /// content 为空串、truncated=false。
+    /// </para>
+    /// </summary>
+    private void HandleGetAgentLog()
+    {
+        const int AgentLogViewMaxChars = 200_000;
+        var text = AgentLog.Instance.ReadAllText();
+        if (string.IsNullOrEmpty(text))
+        {
+            var emptyJson = JsonSerializer.Serialize(new { type = "agentLog", content = "", truncated = false });
+            _dispatcher.Dispatch(() => _jsBridge.PostMessage(emptyJson));
+            return;
+        }
+        var truncated = text.Length > AgentLogViewMaxChars;
+        var content = truncated ? text.Substring(text.Length - AgentLogViewMaxChars) : text;
+        var msgJson = JsonSerializer.Serialize(new { type = "agentLog", content, truncated });
+        _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
+        Console.WriteLine($"[bridge] HandleGetAgentLog: {text.Length} chars, truncated={truncated}");
+    }
+
+    /// <summary>
     /// game-library spec ID6：引导用户授权 MANAGE_EXTERNAL_STORAGE——
     /// 启动 Android 系统设置页。
     /// <para>
@@ -802,7 +880,9 @@ internal sealed class BridgeHost : IDisposable
     /// <summary>
     /// 推送 emuera.config 值给 Vue——让设置页显示当前配置。
     /// <para>
-    /// 消息格式：<c>{"type":"config","maxLog":5000}</c>
+    /// 消息格式：<c>{"type":"config","maxLog":5000,"agentLogEnabled":false}</c>
+    /// （A0：agentLogEnabled 为文件日志开关的 C# 权威状态——启动时 Start() 推一次，
+    /// 设置页切换后 HandleSetAgentLogEnabled 推回同步）。
     /// </para>
     /// </summary>
     private void PushConfigMessage()
@@ -812,6 +892,7 @@ internal sealed class BridgeHost : IDisposable
         {
             type = "config",
             maxLog,
+            agentLogEnabled = AgentLog.Instance.Enabled,
         });
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
     }

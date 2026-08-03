@@ -7,6 +7,8 @@ import {
   sendReady,
   pickGameFolder,
   loadGameFromPath,
+  setAgentLogEnabled,
+  getAgentLog,
 } from '../mauiBridge';
 
 /**
@@ -311,6 +313,55 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
 
     it('无桥接对象时静默 no-op（不抛错）', () => {
       expect(() => loadGameFromPath('/any/path')).not.toThrow();
+    });
+  });
+
+  // ===== setAgentLogEnabled (A0) =====
+
+  describe('setAgentLogEnabled', () => {
+    it('true → 投递 {"type":"setAgentLogEnabled","enabled":true} 消息（Windows chrome.webview）', () => {
+      const postMessage = vi.fn();
+      mockWindow.chrome = { webview: { postMessage } };
+
+      setAgentLogEnabled(true);
+
+      expect(postMessage).toHaveBeenCalledOnce();
+      const sent = postMessage.mock.calls[0][0];
+      expect(JSON.parse(sent)).toEqual({ type: 'setAgentLogEnabled', enabled: true });
+    });
+
+    it('false → 投递 {"type":"setAgentLogEnabled","enabled":false} 消息（Android emueraBridge）', () => {
+      const postMessage = vi.fn();
+      mockWindow.emueraBridge = { postMessage };
+
+      setAgentLogEnabled(false);
+
+      expect(postMessage).toHaveBeenCalledOnce();
+      const sent = postMessage.mock.calls[0][0];
+      expect(JSON.parse(sent)).toEqual({ type: 'setAgentLogEnabled', enabled: false });
+    });
+
+    it('无桥接对象时静默 no-op（不抛错）', () => {
+      expect(() => setAgentLogEnabled(true)).not.toThrow();
+    });
+  });
+
+  // ===== getAgentLog (A0 补充：app 内日志查看器) =====
+
+  describe('getAgentLog', () => {
+    it('投递 {"type":"getAgentLog"} 消息（Windows chrome.webview）', () => {
+      const postMessage = vi.fn();
+      mockWindow.chrome = { webview: { postMessage } };
+
+      getAgentLog();
+
+      expect(postMessage).toHaveBeenCalledOnce();
+      const sent = postMessage.mock.calls[0][0];
+      expect(JSON.parse(sent)).toEqual({ type: 'getAgentLog' });
+    });
+
+    it('无桥接对象时静默 no-op（不抛错）', () => {
+      expect(() => getAgentLog()).not.toThrow();
     });
   });
 });

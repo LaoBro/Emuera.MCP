@@ -289,4 +289,30 @@ export function getGameThreadStatus(): void {
   postInput(JSON.stringify({ type: 'getGameThreadStatus' }));
 }
 
+/**
+ * A0（saf-accel 计划）：设置页「文件日志（agent.log）」开关——请求 C# 切换 AgentLog 状态。
+ *
+ * C# `BridgeHost.HandleSetAgentLogEnabled` 收到后：
+ * 1. 写 Preferences（key=`emuera.agentLogEnabled`——MauiProgram 启动早期读同一 key 决定初值）
+ * 2. 运行时切换 `AgentLog.Enabled`（即时生效，无需重启）
+ * 3. 推回 `config` 消息（含 agentLogEnabled 字段）同步设置页开关的权威状态
+ *
+ * @param enabled 是否启用文件日志
+ */
+export function setAgentLogEnabled(enabled: boolean): void {
+  postInput(JSON.stringify({ type: 'setAgentLogEnabled', enabled }));
+}
+
+/**
+ * A0 补充（真机无 adb）：请求 C# 读取 agent.log 内容推给 Vue（设置页日志查看器）。
+ *
+ * C# `BridgeHost.HandleGetAgentLog` 收到后调 `AgentLog.ReadAllText()`（内部先 flush，
+ * 无需退出进程即可拿到最新日志），内容超过 200K 字符时截断为尾部（保留最新），
+ * 回复 `{"type":"agentLog","content":...,"truncated":true/false}`。
+ * 未启用 / 无文件时 content 为空串。
+ */
+export function getAgentLog(): void {
+  postInput(JSON.stringify({ type: 'getAgentLog' }));
+}
+
 // ---------- game-library spec ID8：Android 目录浏览器 ----------

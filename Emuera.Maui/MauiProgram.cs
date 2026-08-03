@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Storage;
 using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
@@ -66,6 +67,16 @@ public static class MauiProgram
 		try
 		{
 			AppDataPaths.Configure(FileSystem.AppDataDirectory);
+			// === A0：AgentLog 默认关闭 + UI 开关（saf-accel 计划）===
+			// 读 Preferences（key 与 BridgeHost 设置页开关共用，默认 false）→ Configure。
+			// 时序要求：Configure 必须在首次 AgentLog.Instance 访问之前（Lazy 单例构造时机）——
+			// BridgeHost 等一切 Instance 访问都晚于此（游戏循环启动后才写日志）。
+			// 运行时开关由设置页经 BridgeHost 处理：写 Preferences + AgentLog.Enabled 即时切换。
+			bool agentLogEnabled = false;
+			try { agentLogEnabled = Preferences.Get(BridgeHost.AgentLogEnabledKey, false); }
+			catch { /* Preferences 不可用（极少见）——保持默认关闭 */ }
+			AgentLog.Configure(agentLogEnabled);
+			Console.WriteLine($"[maui] AgentLog configured: enabled={agentLogEnabled}");
 			// === spec ID8 启动编排 ===
             // 同步等待 EnsureGameDirAsync——见类 remarks。
             Console.WriteLine("[maui] EnsureGameDirAsync starting");
