@@ -107,6 +107,14 @@ internal sealed class LoaderTestHarness : IDisposable
 		return path;
 	}
 
+	/// <summary>写入 CSV 文件。须在 <see cref="InitializeAsync"/> 之前调用（Initialize 内预加载 CSV）。</summary>
+	public string WriteCsv(string name, string content)
+	{
+		var path = Path.Combine(CsvDir, name);
+		File.WriteAllText(path, content);
+		return path;
+	}
+
 	/// <summary>
 	/// 预加载 erb/csv 目录（EraStreamReader.OpenOnCache 经 Preload.GetFileLines 读缓存）。
 	/// 测试在写入 ERH/ERB 文件后、调用 loader 前必须 await 本方法。

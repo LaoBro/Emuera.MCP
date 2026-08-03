@@ -121,6 +121,9 @@ internal sealed class ConstantData
 	public long[] ItemPrice = null!;
 
 	private readonly List<CharacterTemplate> CharacterTmplList;
+	// 3.1 CSV 查找优化：No/csvNo → 模板索引。加载完成后构建一次、运行期只读（CharacterTmplList 运行期零新增）。
+	private Dictionary<long, CharacterTemplate>? _noMap;
+	private Dictionary<long, CharacterTemplate>? _csvNoMap;
 	private EmueraConsole output = null!;
 
 	public ConstantData()
@@ -1199,34 +1202,45 @@ internal sealed class ConstantData
 	}
 	#endregion
 
-	public CharacterTemplate GetCharacterTemplate(long index)
+	/// <summary>构建 No/csvNo → 模板索引字典（幂等）。重复 key 保留列表序第一个；GetCharacterTemplate 与 GetCharacterTemplateFromCsvNo 与原线性扫描"返回第一个匹配"语义一致。</summary>
+	private void EnsureCharacterMaps()
 	{
+		if (_noMap != null)
+			return;
+		Dictionary<long, CharacterTemplate> noMap = new(CharacterTmplList.Count);
+		Dictionary<long, CharacterTemplate> csvNoMap = new(CharacterTmplList.Count);
 		foreach (CharacterTemplate chara in CharacterTmplList)
 		{
-			if (chara.No == index)
-				return chara;
+			noMap.TryAdd(chara.No, chara);
+			csvNoMap.TryAdd(chara.csvNo, chara);
 		}
+		_noMap = noMap;
+		_csvNoMap = csvNoMap;
+	}
+
+	public CharacterTemplate GetCharacterTemplate(long index)
+	{
+		EnsureCharacterMaps();
+		if (_noMap!.TryGetValue(index, out CharacterTemplate? chara))
+			return chara;
 		return null!;
 	}
 
 	public CharacterTemplate GetCharacterTemplate_UseSp(long index, bool sp)
 	{
-		var i = CharacterTmplList.BinarySearch(null!, Comparer<CharacterTemplate>.Create((left, right) => (int)(left.No - index)));
-		if (i < 0)
-		{
-			return null!;
-		}
-		return CharacterTmplList[i];
+		// 注：sp 参数被忽略为既有语义（EXISTCSV/CHRxxx 的 SP 区分未生效），本次不修该语义；
+		// 仅查找机制由 BinarySearch（每次分配 Comparer）改为共享 _noMap 字典索引。
+		EnsureCharacterMaps();
+		if (_noMap!.TryGetValue(index, out CharacterTemplate? chara))
+			return chara;
+		return null!;
 	}
 
 	public CharacterTemplate GetCharacterTemplateFromCsvNo(long index)
 	{
-		foreach (CharacterTemplate chara in CharacterTmplList)
-		{
-			if (chara.csvNo != index)
-				continue;
+		EnsureCharacterMaps();
+		if (_csvNoMap!.TryGetValue(index, out CharacterTemplate? chara))
 			return chara;
-		}
 		return null!;
 	}
 
@@ -1281,6 +1295,9 @@ internal sealed class ConstantData
 			else
 				targetList.Add(tmpl.No, tmpl);
 		}
+
+		// 3.1：加载完成后构建一次 No/csvNo 索引（运行期列表零新增，之后只读查询）。
+		EnsureCharacterMaps();
 	}
 
 	#region EM_私家版_セーブ拡張
