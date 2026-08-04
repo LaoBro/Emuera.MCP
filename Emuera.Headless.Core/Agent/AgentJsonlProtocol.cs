@@ -149,7 +149,11 @@ namespace MinorShift.Emuera.GameView
             if (initialTurn != null)
                 _io.WriteLine(initialTurn);
 
-            while (!externalCt.IsCancellationRequested && !IsStopped && _io.IsConnected)
+            // 退出条件：外部取消 / Stop()（QUIT 经 GameExitException 路径）/ IO 关闭 /
+            // 游戏已进入 Quit/Error 终态（部分 QUIT 路径不抛 GameExitException，StepAsync 正常返回
+            // 而 IsStopped=false——此时若只依赖异常机制，循环会继续阻塞 ReadLineAsync 永不退出）。
+            while (!externalCt.IsCancellationRequested && !IsStopped && _io.IsConnected
+                   && !IsTerminalState(console.State))
             {
                 string? line = null;
                 if (enableTimeout)
@@ -221,6 +225,10 @@ namespace MinorShift.Emuera.GameView
 
         #region Turn helpers
 
+        /// <summary>游戏终态判定：Quit / Error——主循环应退出、输入等待应放行的稳定状态。</summary>
+        private static bool IsTerminalState(ConsoleState state) =>
+            state is ConsoleState.Quit or ConsoleState.Error;
+
         private async Task<bool> WaitForInputAsync()
         {
             var sw = Stopwatch.StartNew();
@@ -228,7 +236,7 @@ namespace MinorShift.Emuera.GameView
             while (!token.IsCancellationRequested)
             {
                 var state = console.State;
-                if (state == ConsoleState.WaitInput || state == ConsoleState.Quit || state == ConsoleState.Error)
+                if (state == ConsoleState.WaitInput || IsTerminalState(state))
                     return true;
                 if (sw.ElapsedMilliseconds > TurnTimeoutMs)
                     return false;

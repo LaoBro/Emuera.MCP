@@ -14,7 +14,15 @@ internal sealed class Session : IDisposable
     public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
     public DateTimeOffset CreatedAt { get; } = DateTimeOffset.UtcNow;
     public bool IsRunning => _gameTask != null && !_gameTask.IsCompleted;
-    public bool HasEnded { get; private set; }
+    /// <summary>
+    /// 游戏循环是否已结束（runLoop 回调 finally 置位）。
+    /// volatile 字段实现：游戏循环 Task 线程写、HTTP 线程读。当前两处读
+    /// （SessionRegistry.CreateNewSessionAsync / TryGetWsSubscriptionAsync）均在 _sessionLock 内，
+    /// SemaphoreSlim 获取/释放自带内存屏障，volatile 在此处非必需——保留为防御性：
+    /// 防止未来出现无锁读路径（如轮询/WS 直读）时被 JIT 提升缓存读到旧值。
+    /// </summary>
+    private volatile bool _hasEnded;
+    public bool HasEnded => _hasEnded;
     public HttpSessionIO IO => _io;
     /// <summary>
     /// Issue 11 D1：当前显示状态字符串。
@@ -144,7 +152,7 @@ internal sealed class Session : IDisposable
                     // 关闭 IO：Complete output Channel 后 TryTakeTurn 仍能 TryRead 已写入数据，
                     // 读完后返回 false；同时 Complete input Channel 防止后续 EnqueueInput。
                     _io.Close();
-                    HasEnded = true;
+                    _hasEnded = true;
                     // scope 在 composer 的 using 块退出时自动 Dispose（Pfc.Dispose + Current 归 null）。
                     // 旧 Reset() 已删除——RAII 单一归属。
                 }

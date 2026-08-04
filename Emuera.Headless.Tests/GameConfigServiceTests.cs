@@ -1,0 +1,146 @@
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Server;
+using Xunit;
+
+namespace MinorShift.Emuera.Tests;
+
+/// <summary>
+/// GameConfigService 单元测试（重构补测）：默认值读取、窗口元信息计算（issue 12）、
+/// Reload 引用替换（issue 05 热替换）。
+/// </summary>
+public class GameConfigServiceTests
+{
+    private static GameConfigService CreateService()
+    {
+        return new GameConfigService(new ConfigData());
+    }
+
+    [Fact]
+    public void GetValue_reads_default_maxlog()
+    {
+        var svc = CreateService();
+        Assert.Equal(5000, svc.GetValue<int>(ConfigCode.MaxLog));
+    }
+
+    [Fact]
+    public void GetValue_reads_default_font_size()
+    {
+        var svc = CreateService();
+        Assert.Equal(18, svc.GetValue<int>(ConfigCode.FontSize));
+    }
+
+    [Fact]
+    public void Window_metrics_matches_cli_derivation()
+    {
+        var svc = CreateService();
+        // 默认配置：WindowX=760, FontSize=18, LineHeight=19, FontName="ＭＳ ゴシック"
+        // shapeShift = Max(2, 18/6=3) = 3；charWidth = Max(18/2=9, 1) = 9
+        // gameColumns = (760 - 3) / 9 = 84
+        var m = svc.GetWindowMetrics();
+
+        Assert.Equal(760, m.WindowWidth);
+        Assert.Equal(18, m.FontSize);
+        Assert.Equal(19, m.LineHeight);
+        Assert.Equal(84, m.GameColumns);
+        Assert.Equal("ＭＳ ゴシック", m.FontName);
+    }
+
+    [Fact]
+    public void Reload_replaces_current_reference()
+    {
+        var svc = CreateService();
+        var before = svc.Current;
+        var gameDir = SessionRegistryTests.FindTestGameDir();
+
+        var reloaded = svc.Reload(gameDir);
+
+        Assert.NotSame(before, reloaded);
+        Assert.Same(reloaded, svc.Current);
+    }
+
+    [Fact]
+    public void Current_is_same_instance_until_reload()
+    {
+        var svc = CreateService();
+        var first = svc.Current;
+        var second = svc.Current;
+        Assert.Same(first, second);
+    }
+}
+
+/// <summary>
+/// OutputHub 单元测试（重构补测）：Subscribe/Publish/Unsubscribe/Complete 行为与幂等性。
+/// </summary>
+public class OutputHubTests
+{
+    [Fact]
+    public async Task Subscribe_receives_published_turns()
+    {
+        var hub = new OutputHub();
+        var reader = hub.Subscribe();
+
+        hub.Publish("a");
+        hub.Publish("b");
+        hub.Complete();
+
+        Assert.Equal("a", await reader.ReadAsync());
+        Assert.Equal("b", await reader.ReadAsync());
+    }
+
+    [Fact]
+    public async Task Unsubscribe_stops_delivery_and_completes_reader()
+    {
+        var hub = new OutputHub();
+        var r1 = hub.Subscribe();
+        var r2 = hub.Subscribe();
+
+        hub.Publish("x");
+        hub.Unsubscribe(r1);
+        hub.Publish("y");
+        hub.Complete();
+
+        // r1 只收到退订前的 x；之后再读抛 ChannelClosedException
+        Assert.Equal("x", await r1.ReadAsync());
+        await Assert.ThrowsAsync<ChannelClosedException>(async () => await r1.ReadAsync());
+
+        // r2 收到全部
+        Assert.Equal("x", await r2.ReadAsync());
+        Assert.Equal("y", await r2.ReadAsync());
+    }
+
+    [Fact]
+    public async Task Subscribe_after_complete_returns_completed_reader()
+    {
+        var hub = new OutputHub();
+        hub.Complete();
+
+        var reader = hub.Subscribe();
+
+        Assert.False(reader.TryRead(out _));
+        await Assert.ThrowsAsync<ChannelClosedException>(async () => await reader.ReadAsync());
+    }
+
+    [Fact]
+    public void Complete_is_idempotent()
+    {
+        var hub = new OutputHub();
+        hub.Subscribe();
+        hub.Complete();
+        hub.Complete(); // 不抛
+    }
+
+    [Fact]
+    public void Unsubscribe_unknown_reader_is_noop()
+    {
+        var hub = new OutputHub();
+        var r1 = hub.Subscribe();
+        var r2 = hub.Subscribe();
+
+        hub.Unsubscribe(r1);
+        hub.Unsubscribe(r1); // 重复退订：安全无操作
+        hub.Complete();
+        hub.Unsubscribe(r2); // 已 Complete 后退订：安全无操作
+    }
+}
