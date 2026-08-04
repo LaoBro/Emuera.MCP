@@ -653,7 +653,8 @@ internal static class HtmlManager
 
 	public static string Html2PlainText(string str)
 	{
-		string ret = Regex.Replace(str, "\\<[^<]*\\>", "");
+		// 走 RegexFactory 静态缓存（Compiled），避免每次调用构造 Regex。
+		string ret = RegexFactory.GetRegex("\\<[^<]*\\>").Replace(str, "");
 		return Unescape(ret);
 	}
 

@@ -276,44 +276,38 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 
 	public static string GetJoinedStr(FixedVariableTerm p, string delimiter, long index1, long length)
 	{
-		string sum = "";
+		if (p.IsString && p.Identifier.IsArray1D)
+		{
+			return string.Join(delimiter, (string[])p.Identifier.GetArray(), (int)index1, (int)length);
+		}
 
-		if (p.IsString)
+		// 2D/3D 与 int 数组：StringBuilder 拼接 + 复用索引缓冲，消除逐元素 += 的 O(n²) 分配与每次迭代的索引数组分配。
+		StringBuilder sb = new();
+		long[] args = new long[p.Identifier.Dimension == 1 ? 1 : p.Identifier.Dimension == 2 ? 2 : 3];
+		for (int i = 0; i < (int)length; i++)
 		{
-			if (p.Identifier.IsArray1D)
+			if (args.Length == 1)
 			{
-				return string.Join(delimiter, (string[])p.Identifier.GetArray(), (int)index1, (int)length);
+				args[0] = index1 + i;
 			}
-			else if (p.Identifier.IsArray2D)
+			else if (args.Length == 2)
 			{
-				for (int i = 0; i < (int)length; i++)
-					sum += p.Identifier.GetStrValue(GlobalStatic.EMediator, [p.Index1, index1 + i]) + (i < (int)length - 1 ? delimiter : "");
+				args[0] = p.Index1;
+				args[1] = index1 + i;
 			}
 			else
 			{
-				for (int i = 0; i < (int)length; i++)
-					sum += p.Identifier.GetStrValue(GlobalStatic.EMediator, [p.Index1, p.Index2, index1 + i]) + (i < (int)length - 1 ? delimiter : "");
+				args[0] = p.Index1;
+				args[1] = p.Index2;
+				args[2] = index1 + i;
 			}
+			sb.Append(p.IsString
+				? p.Identifier.GetStrValue(GlobalStatic.EMediator, args)
+				: p.Identifier.GetIntValue(GlobalStatic.EMediator, args).ToString());
+			if (i < (int)length - 1)
+				sb.Append(delimiter);
 		}
-		else
-		{
-			if (p.Identifier.IsArray1D)
-			{
-				for (int i = 0; i < (int)length; i++)
-					sum += p.Identifier.GetIntValue(GlobalStatic.EMediator, [index1 + i]).ToString() + (i < (int)length - 1 ? delimiter : "");
-			}
-			else if (p.Identifier.IsArray2D)
-			{
-				for (int i = 0; i < (int)length; i++)
-					sum += p.Identifier.GetIntValue(GlobalStatic.EMediator, [p.Index1, index1 + i]).ToString() + (i < (int)length - 1 ? delimiter : "");
-			}
-			else
-			{
-				for (int i = 0; i < (int)length; i++)
-					sum += p.Identifier.GetIntValue(GlobalStatic.EMediator, [p.Index1, p.Index2, index1 + i]).ToString() + (i < (int)length - 1 ? delimiter : "");
-			}
-		}
-		return sum;
+		return sb.ToString();
 	}
 
 	public static long GetMatch(FixedVariableTerm p, long target, long start, long end)

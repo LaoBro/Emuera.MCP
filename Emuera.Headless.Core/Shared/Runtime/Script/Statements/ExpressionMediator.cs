@@ -78,6 +78,13 @@ internal sealed class ExpressionMediator
 
 	public static string CheckEscape(string str)
 	{
+		// 无转义快速路径：免去 CharStream/StringBuilder 分配与逐字符循环（PRINTFORM 热路径）。
+		// null 原行为（new CharStream(null) → source=""）返回 ""，此处显式映射保持等价。
+		if (str == null)
+			return "";
+		if (!str.Contains('\\'))
+			return str;
+
 		CharStream st = new(str);
 		StringBuilder buffer = new();
 
