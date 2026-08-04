@@ -875,3 +875,77 @@ rethrow `GameExitException`，但协议层 `StepAsync` 的 catch 又把它吞了
 **教训**：游戏"卡死"先定性——忙转（CPU 高）/ 阻塞 IO（wchan=binder_thread_read）/ 等输入（TID 消失、
 CPU 低）/ 会话已结束前端没收到通知（game loop completed normally + 前端停在旧帧）。DebugView 的
 `lastTurnJson` 是最快的一手证据，`[bridge]` / `SaveTo` / `OpenWrite` 日志是拆时间线的骨架。
+
+## 跨进程 IPC 被当 syscall 用——SAF 慢的根因是 N+1 + 无缓存（2026-08-03）
+
+**场景**：Android 存档界面打开 5s+，uemuera（本地文件系统）对照瞬时。
+**根因**：SAF 每次 `ContentResolver.Query`/`OpenInputStream` 是跨进程 Binder IPC（单次 50~150ms 常见）。存档界面每槽位 4 次 IPC（TryQueryDocument×2 + GetMimeType + OpenRead），几百槽 ≈ 2~3s；启动加载 ~8000 次 IPC 累计 165s。问题在「把 IPC 当 syscall 用」（N+1 + 无缓存），不在架构——ADR-0019 SAF 迁移不推翻。
+**取证方法（A1）**：给全部 ContentResolver 包装点加耗时日志（`[saf] op path detail ms`，先 `sw.Stop()` 再写，失败记 FAIL），聚合分析脚本统计「次数 × 单次耗时」+ 时间窗口 + N+1 检测，判定「单次慢（Provider 实现）」vs「次数多（调用模式）」——两者优化手段完全不同。
+**解决**：O1 目录级子项缓存（一份枚举喂 GetFiles/GetDirectories/FileExists）+ O4 后台预取。
+**教训**：性能优化前必须先取证量化「总 IPC 次数 × 单次耗时」区分两类根因；命中路径保持零 IPC、零分配、零日志（常态零成本）。优化后同样用日志前后对照验收（agent2/3/4.log）。
+
+## SAF 缓存 key 必须统一由父文档 URI 推导（2026-08-03）
+
+**场景**：O1 缓存 key 用目录 docId。`EnumerateUri` 原实现 `ResolveDocId(childrenUri)` 对 `.../tree/.../document/<id>/children` 取 `/document/` 后整段，得到 `父id/children`（带后缀）；而 `FindChildDocument`/`ResolveSubPath` 用父文档 URI 得到真 `父id`——两个 key 不一致，缓存永不命中。
+**解决**：key 一律由「父文档 URI 的 ResolveDocId」推导，EnumerateUri 改签名收父 docId（不再自推）。
+**教训**：SAF URI 形态多（tree/document/children），docId 提取必须统一口径；缓存 key 的一致性要跨方法核对，不能只看单方法。
+
+## 缓存失效方向陷阱：建目录失效「目录自身」，删文件失效「父目录」（2026-08-04）
+
+**场景**：`EnsureRealDirectoryUri` 创建新目录后，失效写成 `InvalidateParentOf(新目录)`（失效新目录的父），而新目录创建在其父下，应失效**父自身**——key 错位导致新建目录在缓存中持续不可见（FileExists 误报 false）。
+**原因**：建目录（父的子项列表 +1 → 失效父自身）与删文件（父的子项列表 -1 → 失效父自身）失效点其实相同（都失效「子项列表被改动的那层」）；误用「失效新实体的父」方向就反了。
+**教训**：写失效信号前先想清楚「谁的子项列表变了」，而不是「哪个实体变了」。此类 off-by-one 由 code-review 的 Spec 轴对照计划逐行比对抓到。
+
+## 精确失效优先于 TTL——写/删收敛入口拿失效信号（2026-08-03）
+
+**场景**：缓存一致性靠什么保证。
+**解决**：引擎内所有文件写/删收敛在 `OpenWrite`（真正落盘在 `DeferredSafWriteStream.Dispose`）/`Delete`/`CreateDirectory` 三个入口，失效信号从 C# 直接拿到（写档成功→失效父目录、删除成功→失效父目录、建目录成功→失效父自身、切换树根→全清）；TTL 仅兜底进程外修改（文件管理器/USB），可先不设。
+**教训**：能拿到精确失效信号就不要用 TTL；失效是 O(1) 字典操作，命中路径零成本。验证失效是否生效：写档后立即枚举/FileExists 应看到新档（agent.log 时间线实证 +31ms 重枚举即见）。
+
+## 后台预取时机不能早于「游戏加载完成」（2026-08-04）
+
+**场景**：O4 预取 sav/根目录缓存，为什么不在加载早期（Preload 阶段）就做。
+**原因**：
+1. sav 目录由游戏逻辑在启动流程某刻创建（实测删 sav 后 31 秒才重建）——过早预取大概率白跑（目录不存在→Query 空/异常→不缓存）
+2. 加载早期钩子在共享 Core 层（CLI/Server/MAUI 共用），预取是 Android 专属，提前触发要侵入共享层或加事件
+3. 与加载阶段（IPC 密集）并发抢 Provider 资源，可能拖慢启动本身
+**解决**：runLoop 回调开头（`console.Initialize` 完成后 = 游戏状态就绪、sav 已建好），标题画面停留期就是天然预取窗口；异步预取是尽力而为——用户秒点未完成时退回缓存 miss 路径，无正确性问题。
+**教训**：预取/预热类优化，时机选择看「数据是否已就绪 + 是否与主流程抢资源 + 架构是否隔离」，不是越早越好；收益相同前提下选「数据准 + 窗口够 + 零污染」的时机。
+
+## Task.Run 后台线程丢失 AsyncLocal scope——先捕获字符串再传（2026-08-04）
+
+**场景**：runLoop lambda 在 `GlobalStatic.OpenScope` 的 AsyncLocal scope 内（Config.Current 可用），`_ = Task.Run(...)` 启动的后台线程拿不到 scope。
+**解决**：lambda 内先同步取 `GamePaths.Current.ExeDir`（纯字符串 getter，无 IPC），再传进 Task.Run；后台线程里只访问实例字段/已捕获值，不依赖 AsyncLocal 上下文。
+**教训**：fire-and-forget 后台任务若依赖 scope/上下文，必须在进入 Task.Run 之前完成取值捕获；`_ = Task.Run` + 异常全吞 + 日志留痕是项目约定。
+
+## 覆盖写不失效父目录——失效也要分场景（2026-08-04）
+
+**场景**：每次写档（Dispose 落盘）都无条件失效父目录，把 O4 预取的 sav 缓存清掉，下次进存档界面又首枚举。
+**分析**：覆盖写（已存在文件）不改变子项名/mime，子项列表无需更新；只有「新建文档」才需要失效（且 OpenWrite 的 created 分支 `CreateDocument` 成功后已失效过父目录）。
+**解决**：Dispose 成功路径失效改为仅 `_createdDocument` 时执行；Delete/建目录失效保留。
+**教训**：不是所有写操作都改变目录子项集合——过度失效会抵消缓存/预取收益。失效信号与缓存/预取是同一系统的两面，一起设计。
+
+## 增量构建"0 警告"是假象——强制重编译才能看到真实警告（2026-08-04）
+
+**场景**：O1/O4 构建显示"0 警告"，code-review 后 touch 两个改动文件强制重编译，暴露出 41 个既有警告（CS1570 XML 注释格式错误、CA1416、CS8603），其中 3 处 CS8603 还是 O1 引入的隐藏警告（`ParentDocIdOf`/`ResolveDocId` 的 Android API nullable 标注）。
+**原因**：增量构建只重编译改动部分，未重编译文件的警告不显示；`DocumentsContract.GetTreeDocumentId`/`GetDocumentId` 返回 `string?`，未加 `!`。
+**解决**：改动平台文件后 touch 或 Rebuild 强制全量重编译核对警告；nullable API 返回处补 `!`。
+**教训**：验收「0 新增警告」要确认编译是全量还是增量；顺手清理同一文件的历史遗留警告（质量护栏允许，避免下次混淆）。
+
+## Android 构建报 XAFLT7024/XAPRAS7024 多为文件锁——先查环境再改代码（2026-08-04）
+
+**场景**：`dotnet build -f net10.0-android` 报 `XAFLT7024: 文件被"xxx"锁定` / `XAPRAS7024`，错误信息指向 bin 下 dll 被占用；重试或重启系统后成功。
+**原因**：360 安全软件实时防护 / 残留 dotnet/msbuild 测试进程锁住 `bin/Debug` 下程序集；另注意完整首次构建可能很慢（实测 19 分钟 vs 增量 13 秒），不是卡死。
+**教训**：Android 构建失败先看错误信息里有没有"used by another process"/"被锁定"——是环境问题就重试/重启，不是代码问题；后台构建任务长时间无输出先查锁，别干等。
+
+## 游戏无删档/建目录功能时，用「删 sav 文件夹让游戏重建」覆盖建目录路径（2026-08-04）
+
+**场景**：真机验证 O1 建目录失效路径，但目标游戏没有删除存档/新建目录功能。
+**解决**：完全退出 app → 文件管理器删除 sav 文件夹 → 重启 → 游戏自动重建 sav（`EnsureRealDirectoryUri`）→ 验证「重建后立即可枚举/可写」。关键：必须在 app 退出状态删——进程内缓存对进程外修改无感知（TTL 盲区）。
+**教训**：真机验证缺路径时，用「破坏性重建」制造目标场景（确认无重要数据）；验证建目录/删目录路径靠日志时间线（重建后 EnumerateUri 立即可见 + 写档后重枚举即见新档）。
+
+## 两轴 code-review（Standards + Spec）抓单线程审查漏掉的 P0（2026-08-04）
+
+**场景**：O1/O4 提交前跑 code-review skill：Standards 轴（仓库标准 + Fowler 坏味基线）与 Spec 轴（对照已批准计划）并行子代理，各不污染上下文。
+**结果**：Spec 轴对照计划逐行比对抓到「EnsureRealDirectoryUri 失效 key 错位」（off-by-one）+「DisplayNameForMatch null Name NRE」（实现偏离计划伪码，原实现有 null 保护）；Standards 轴抓到 DirectoryExists 快速路径单级匹配与 FindChildDocument 两级回退不一致。
+**教训**：实施后对照「已批准计划」逐行核对（Spec 轴）比泛泛的代码审查更能抓"实现偏离 spec"类 bug；两轴并行避免单轴掩盖。审查发现的问题按严重度分级：正确性 bug 必修（P0），风格类判断性项按用户决定。
