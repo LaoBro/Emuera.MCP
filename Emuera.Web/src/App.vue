@@ -435,7 +435,6 @@ function onExitCancel(): void {
   color: #e0e0e0;
   background: rgba(30, 30, 30, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(2px);
   pointer-events: none;
   white-space: nowrap;
 }
@@ -445,33 +444,7 @@ function onExitCancel(): void {
   background: rgba(60, 24, 24, 0.6);
 }
 
-/* MAUI 全屏：右上角浮动控制（⌨ 手动输入 / ⋮ 菜单）——半透明不挡内容 */
-.float-controls {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  display: flex;
-  gap: 8px;
-  z-index: 50;
-}
-.float-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(30, 30, 30, 0.55);
-  color: #e0e0e0;
-  font-size: 18px;
-  cursor: pointer;
-  backdrop-filter: blur(2px);
-}
-.float-btn:active {
-  background: rgba(60, 60, 60, 0.7);
-}
-.float-btn.active {
-  border-color: #0e639c;
-  color: #9cdcfe;
-}
+/* 悬浮按钮/容器公共样式见 src/styles/float-btn.css（游戏页与选择页共用）。 */
 .float-menu {
   position: fixed;
   top: 60px;
@@ -485,7 +458,6 @@ function onExitCancel(): void {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  backdrop-filter: blur(2px);
 }
 .menu-item {
   background: transparent;
