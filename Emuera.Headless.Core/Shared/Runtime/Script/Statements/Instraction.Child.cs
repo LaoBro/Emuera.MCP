@@ -1585,7 +1585,8 @@ internal sealed partial class FunctionIdentifier
 			{
 				opacity = long.Parse(arg.TermList[2].GetStrValue(exm)) / 255.0f;
 			}
-			// AddBackgroundImage: WinForms-only stub removed in Headless
+			// issue 02：无头落地为真实状态（WinForms 追加语义，前端按 depth 排序渲染）
+			exm.Console.SetBgImage(bgName, bgDepth, opacity);
 		}
 	}
 	private sealed class REMOVEBGIMAGE_Instruction : AInstruction
@@ -1601,7 +1602,8 @@ internal sealed partial class FunctionIdentifier
 			ExpressionArrayArgument arg = (ExpressionArrayArgument)func.Argument;
 			string bgName;
 			bgName = arg.TermList[0].GetStrValue(exm);
-			// RemoveBackground: WinForms-only stub removed in Headless
+			// issue 02：无头落地（WinForms 语义：移除首个同名）
+			exm.Console.RemoveBgImage(bgName);
 		}
 	}
 	private sealed class CLEARBGIMAGE_Instruction : AInstruction
@@ -1614,7 +1616,8 @@ internal sealed partial class FunctionIdentifier
 
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
-			// ClearBackgroundImage: WinForms-only stub removed in Headless
+			// issue 02：无头落地（全清）
+			exm.Console.ClearBgImage();
 		}
 	}
 

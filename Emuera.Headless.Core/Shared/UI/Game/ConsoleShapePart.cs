@@ -104,6 +104,9 @@ abstract class ConsoleShapePart : AConsoleColoredPart
 		get { return false; }
 	}
 
+	/// <summary>issue 02：填充色（协议 shape segment 的 color 字段用）。</summary>
+	internal EmuColor FillColor => Color;
+
 	public override string ToString()
 	{
 		if (AltText == null)

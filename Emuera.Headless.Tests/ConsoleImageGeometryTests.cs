@@ -18,6 +18,7 @@ namespace Emuera.Headless.Tests;
 /// 期望值来自独立来源：PNG 像素尺寸（200×100）+ 参数语义（px/%-fontsize）+ 既有 WinForms 几何公式，
 /// 非实现重算。环境装配沿用 LoaderTestHarness 风格（GamePaths.Resolve + Config scope）。
 /// </summary>
+[Collection("GamePathsIsolated")]
 public class ConsoleImageGeometryTests : IDisposable
 {
     private readonly string _gameDir;

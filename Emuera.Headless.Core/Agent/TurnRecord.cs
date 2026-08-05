@@ -29,8 +29,10 @@ internal record TurnRecord(
     /// ClearLineDiffOp(截断即清行)/ClearScreenOp(全清) 取代，清空语义自描述（ADR-0014 统一真相源）。
     /// ADR-0016（v6）：新增 4 个 TINPUT timer 字段——timeLimit / displayTime / timeUpMessage
     /// （nullable + WhenWritingNull，非 TINPUT 时不出现）+ timedOut（非 nullable bool，默认 false）。
+    /// v8（issue 02）：PrintSegment 加 image?/shape?；DisplaySnapshot/DisplayDiff 加 bgImages?；
+    /// TurnOp 加 set_bg_image/remove_bg_image/clear_bg_image。纯增量，老客户端忽略未知字段自然降级。
     /// </summary>
-    internal const int CurrentProtocolVersion = 7;
+    internal const int CurrentProtocolVersion = 8;
 }
 
 /// <summary>
@@ -42,7 +44,8 @@ internal record TurnRecord(
 /// </summary>
 internal record DisplayDiff(
     List<LineOp> lineOps,
-    string? bgColor
+    string? bgColor,
+    List<BgImageState>? bgImages = null
 );
 
 /// <summary>
@@ -93,6 +96,15 @@ internal record ClearOp() : TurnOp("clear");
 
 internal record SetBgOp(string color) : TurnOp("set_bg");
 
+/// <summary>v8：背景图 set——src 为游戏目录内相对路径；depth 决定 z 序；opacity 0.0-1.0（0-255/255）。</summary>
+internal record SetBgImageOp(string src, long depth, float opacity) : TurnOp("set_bg_image");
+
+/// <summary>v8：背景图 remove——按 src 移除（WinForms 语义：同名多份时移除最前一份）。</summary>
+internal record RemoveBgImageOp(string src) : TurnOp("remove_bg_image");
+
+/// <summary>v8：背景图 clear——全部移除。</summary>
+internal record ClearBgImageOp() : TurnOp("clear_bg_image");
+
 /// <summary>头部截断（MaxLog 滚动）：ConsolePrintManager.RemoveAt(0) 时 enqueue。
 /// DrainAndClassifyClears 累加为 ShiftHeadCount，ComputeDiff 在 lineOps 前置 ShiftHeadLineOp(count)。</summary>
 internal record ShiftHeadTurnOp(int count) : TurnOp("shift_head");
@@ -102,7 +114,46 @@ internal record PrintSegment(
     string? color,
     bool? bold,
     bool? italic,
-    string? fontname
+    string? fontname,
+    SegmentImage? image = null,
+    SegmentShape? shape = null
+);
+
+/// <summary>
+/// v8：图片 segment（issue 02）——src/srcb/srcm 为游戏目录内相对路径，
+/// width/height/ypos 为已解析 px 几何（01 产出，前端零布局数学）。
+/// srcb = 悬停/选中态替换图，srcm = 点击读像素色的映射图。
+/// </summary>
+internal record SegmentImage(
+    string src,
+    string? srcb,
+    string? srcm,
+    int width,
+    int height,
+    int ypos
+);
+
+/// <summary>
+/// v8：形状 segment（issue 02）——type='rect'，x/y/width/height 已解析 px，color 填充色 hex。
+/// 1 参 rect（整行色条）与 4 参（绝对定位）统一为该形态。
+/// </summary>
+internal record SegmentShape(
+    string type,
+    int x,
+    int y,
+    int width,
+    int height,
+    string color
+);
+
+/// <summary>
+/// v8：背景图状态（issue 02）——depth 决定 z 序（WinForms 降序烘焙），opacity 0.0-1.0。
+/// 用于 DisplaySnapshot.bgImages 与 DisplayDiff.bgImages。
+/// </summary>
+internal record BgImageState(
+    string src,
+    long depth,
+    float opacity
 );
 
 internal record ButtonRef(object value, bool isInteger, long generation, int? col = null, int? width = null);

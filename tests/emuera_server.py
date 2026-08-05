@@ -4,7 +4,9 @@ import json
 # ADR-0016 / ADR-0013：Agent 协议版本，与 TurnRecord.CurrentProtocolVersion 一一对应。
 # 升级协议时需手动同步此处——C# 侧改 TurnRecord.cs:CurrentProtocolVersion 后，
 # 将本常量改至同一值。这种「双重确认」确保测试确实感知到协议变化。
-PROTOCOL_VERSION = 7
+# v8（issue 02）：PrintSegment 加 image/shape；DisplaySnapshot/DisplayDiff 加 bgImages；
+# TurnOp 加 set_bg_image/remove_bg_image/clear_bg_image。
+PROTOCOL_VERSION = 8
 
 import os
 import shutil

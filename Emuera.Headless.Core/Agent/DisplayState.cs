@@ -27,7 +27,8 @@ internal record DisplaySnapshot(
     long generation,
     long? timeLimit = null,
     bool? displayTime = null,
-    string? timeUpMessage = null
+    string? timeUpMessage = null,
+    List<BgImageState>? bgImages = null
 );
 
 /// <summary>
@@ -236,7 +237,8 @@ internal sealed class DisplayState : IDisplayState
                 if (_fullDiffOnFirstTurn && current.lines.Count > 0)
                     return new DisplayDiff(
                         new List<LineOp> { new AppendLinesOp(current.lines) },
-                        current.bgColor);
+                        current.bgColor,
+                        current.bgImages);
                 return null;
             }
             if (ReferenceEquals(prev, current)) return null;  // no-op：本回合显示未变
@@ -288,10 +290,12 @@ internal sealed class DisplayState : IDisplayState
                 {
                     // 无权威 ClearLineCount —— 用 effectivePrev 走结构分类，
                     // 避免头部删除被 StructuralDiff 误判为 ClearScreenOp + Append 全量重印。
+                    // bgImages 一并透传（StructuralDiff 目前不读，但保持快照字段语义完整）。
                     var effectivePrev = new DisplaySnapshot(
                         effectivePrevLines, prev.bgColor, prev.state, prev.inputType,
                         prev.needValue, prev.protocolVersion, prev.generation,
-                        prev.timeLimit, prev.displayTime, prev.timeUpMessage);
+                        prev.timeLimit, prev.displayTime, prev.timeUpMessage,
+                        prev.bgImages);
                     tailOps = StructuralDiff(effectivePrev, current);
                 }
 
@@ -308,7 +312,12 @@ internal sealed class DisplayState : IDisplayState
 
             // 3. 背景色：权威 SetBgOp 优先，否则从快照比较推断
             string? bg = signal.Bg ?? (prev.bgColor == current.bgColor ? null : current.bgColor);
-            return new DisplayDiff(lineOps, bg);
+            // 4. 背景图（issue 02）：快照比较推断——与 bgColor 同模式（state 全量字段）。
+            //    清空表达为 []（非 null），与 null（无变更）区分，前端据此清除背景层。
+            List<BgImageState>? bgImages = null;
+            if (!BgImagesEqual(prev.bgImages, current.bgImages))
+                bgImages = current.bgImages ?? [];
+            return new DisplayDiff(lineOps, bg, bgImages);
         }
     }
 
@@ -433,7 +442,8 @@ internal sealed class DisplayState : IDisplayState
         if (_lineCache.Count > linesCopy.Count + maxLog)
             _lineCache.Clear();
         return BuildSnapshotIncremental(_lineCache, linesCopy, _console.bgColor,
-            _console.State, _console.CurrentRequest, _defaultFontName, _console.LastButtonGeneration);
+            _console.State, _console.CurrentRequest, _defaultFontName, _console.LastButtonGeneration,
+            _console.BgImages);
     }
 
     /// <summary>
@@ -461,9 +471,10 @@ internal sealed class DisplayState : IDisplayState
         ConsoleState state,
         InputRequest? currentRequest,
         string defaultFontName,
-        long generation = 0)
+        long generation = 0,
+        List<BgImageState>? bgImages = null)
         => BuildSnapshotIncremental(new Dictionary<ConsoleDisplayLine, DisplayLine>(),
-            displayLineList, bgColor, state, currentRequest, defaultFontName, generation);
+            displayLineList, bgColor, state, currentRequest, defaultFontName, generation, bgImages);
 
     /// <summary>
     /// 3.3 增量快照构建（S0 优化）——BuildSnapshot 的缓存版本。
@@ -480,7 +491,8 @@ internal sealed class DisplayState : IDisplayState
         ConsoleState state,
         InputRequest? currentRequest,
         string defaultFontName,
-        long generation = 0)
+        long generation = 0,
+        List<BgImageState>? bgImages = null)
     {
         var lines = new List<DisplayLine>(displayLineList.Count);
         foreach (var line in displayLineList)
@@ -509,8 +521,20 @@ internal sealed class DisplayState : IDisplayState
             timeUpMessage: currentRequest is { Timelimit: > 0 } reqWithMes
                 && !string.IsNullOrEmpty(reqWithMes.TimeUpMes)
                 ? reqWithMes.TimeUpMes
-                : null
+                : null,
+            // issue 02：背景图（浅拷贝防并发/同引用误判——_console.BgImages 是活引用，
+            // 快照必须持有独立副本，否则连续非空变更时 SequenceEqual 同引用恒真、diff 丢失；
+            // 紧凑归一：空列表不进 JSON，diff 层用 [] 表达清空）
+            bgImages: bgImages is { Count: > 0 } ? new List<BgImageState>(bgImages) : null
         );
+    }
+
+    /// <summary>issue 02：背景图列表值比较（null 与空列表视为等价的无背景）。</summary>
+    private static bool BgImagesEqual(List<BgImageState>? a, List<BgImageState>? b)
+    {
+        if (a == null || b == null)
+            return a == null && b == null;
+        return a.SequenceEqual(b);
     }
 
     /// <summary>

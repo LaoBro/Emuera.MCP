@@ -226,6 +226,11 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView, IButtonDis
     internal void ClearHTMLIsland() => _printManager.ClearHTMLIsland();
     internal void PrintImg(string name, string nameb, string namem, Utils.MixedNum height, Utils.MixedNum width, Utils.MixedNum ypos) => _printManager.PrintImg(name, nameb, namem, height, width, ypos);
     internal void PrintShape(string type, Utils.MixedNum[] param) => _printManager.PrintShape(type, param);
+    // --- 背景图（issue 02） ---
+    internal List<BgImageState> BgImages => _state.bgImages;
+    internal void SetBgImage(string name, long depth, float opacity) => _printManager.SetBgImage(name, depth, opacity);
+    internal void RemoveBgImage(string name) => _printManager.RemoveBgImage(name);
+    internal void ClearBgImage() => _printManager.ClearBgImage();
     internal ConsoleDisplayLine[]? GetDisplayLines(long lineNo) => _printManager.GetDisplayLines(lineNo);
     internal ConsoleDisplayLine[]? PopDisplayingLines() => _printManager.PopDisplayingLines();
     internal ConsoleDisplayLine? PrintPlainwithSingleLine(string str) => _printManager.PrintPlainwithSingleLine(str);

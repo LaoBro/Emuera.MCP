@@ -24,6 +24,8 @@ internal sealed class TestAdapter
 {
     public List<AdapterLine> Lines { get; } = new();
     public string? BgColor { get; private set; }
+    /// <summary>v8（issue 02）：背景图状态。null=无背景；[]=已清空；非空=当前背景层列表。</summary>
+    public List<BgImageState>? BgImages { get; private set; }
     public string State { get; private set; } = "";
     public string? InputType { get; private set; }
     public bool NeedValue { get; private set; }
@@ -49,6 +51,7 @@ internal sealed class TestAdapter
             Lines.Add(new AdapterLine(entries, line.align, line.isLineEnd));
         }
         BgColor = snapshot.bgColor;
+        BgImages = snapshot.bgImages;
         State = snapshot.state;
         InputType = snapshot.inputType;
         NeedValue = snapshot.needValue;
@@ -100,6 +103,9 @@ internal sealed class TestAdapter
         }
         if (diff.bgColor != null)
             BgColor = diff.bgColor;
+        // v8（issue 02）：背景图——非 null 即变更（[] 表达清空），null 无变更不覆盖
+        if (diff.bgImages != null)
+            BgImages = diff.bgImages;
     }
 
     /// <summary>
@@ -143,6 +149,18 @@ internal sealed class TestAdapter
                     break;
                 case SetBgOp setbg:
                     BgColor = setbg.color;
+                    break;
+                case SetBgImageOp setbgimg:
+                    BgImages ??= new List<BgImageState>();
+                    BgImages.Add(new BgImageState(setbgimg.src, setbgimg.depth, setbgimg.opacity));
+                    break;
+                case RemoveBgImageOp removebg:
+                    var bi = BgImages?.FindIndex(b => b.src == removebg.src) ?? -1;
+                    if (bi >= 0)
+                        BgImages!.RemoveAt(bi);
+                    break;
+                case ClearBgImageOp:
+                    BgImages = new List<BgImageState>();
                     break;
                 default:
                     throw new InvalidOperationException($"Unknown op type: {op.type}");

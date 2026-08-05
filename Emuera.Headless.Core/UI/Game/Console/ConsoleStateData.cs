@@ -91,6 +91,11 @@ internal sealed class ConsoleStateData
 	internal StringStyle userStyle = new(Config.ForeColor, EmuFontStyle.Regular, null);
 	internal DisplayLineAlignment alignment = DisplayLineAlignment.LEFT;
 	internal EmuColor bgColor = Config.BackColor;
+	/// <summary>
+	/// issue 02：背景图列表（SETBGIMAGE 落地）。WinForms 追加语义——同 src 可多份，
+	/// depth 决定 z 序（前端按 depth 排序渲染），opacity 0.0-1.0。状态由 DisplayState 读入快照/diff。
+	/// </summary>
+	internal List<BgImageState> bgImages = [];
 	internal bool UseUserStyle;
 	internal bool UseSetColorStyle;
 	internal string? stBar;

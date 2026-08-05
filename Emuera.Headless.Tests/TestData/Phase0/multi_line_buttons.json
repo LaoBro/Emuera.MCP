@@ -63,6 +63,6 @@
   "bgColor": "#000000",
   "state": "WaitInput",
   "needValue": false,
-  "protocolVersion": 7,
+  "protocolVersion": 8,
   "generation": 0
 }

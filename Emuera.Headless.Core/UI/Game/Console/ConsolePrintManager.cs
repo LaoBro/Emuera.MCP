@@ -457,6 +457,30 @@ internal sealed class ConsolePrintManager
         _console.printBuffer.Append(new ConsoleImagePart(name, nameb, namem, height, width, ypos));
     }
 
+    // --- 背景图（issue 02：SETBGIMAGE 落地） ---
+    // WinForms 语义：set=追加（同 src 可多份）、remove=移除首个同名、clear=全清。
+    // 无头不做烘焙——状态进快照/diff，由前端按 depth 排序渲染。
+
+    public void SetBgImage(string name, long depth, float opacity)
+    {
+        _state.bgImages.Add(new BgImageState(name, depth, opacity));
+        _state._pendingOps.Enqueue(new SetBgImageOp(name, depth, opacity));
+    }
+
+    public void RemoveBgImage(string name)
+    {
+        int i = _state.bgImages.FindIndex(b => b.src == name);
+        if (i >= 0)
+            _state.bgImages.RemoveAt(i);
+        _state._pendingOps.Enqueue(new RemoveBgImageOp(name));
+    }
+
+    public void ClearBgImage()
+    {
+        _state.bgImages.Clear();
+        _state._pendingOps.Enqueue(new ClearBgImageOp());
+    }
+
     public void PrintShape(string type, MixedNum[] param)
     {
         ConsoleShapePart part = ConsoleShapePart.CreateShape(type, param, _state.userStyle.Color, _state.userStyle.ButtonColor, false);
@@ -604,6 +628,8 @@ internal sealed class ConsolePrintManager
                 bool? bold = null;
                 bool? italic = null;
                 string? fontname = null;
+                SegmentImage? image = null;
+                SegmentShape? shape = null;
 
                 if (node is ConsoleStyledString css)
                 {
@@ -618,12 +644,38 @@ internal sealed class ConsolePrintManager
                     if (style.Fontname != defaultFontName)
                         fontname = style.Fontname;
                 }
+                else if (node is ConsoleImagePart img)
+                {
+                    // v8（issue 02）：图片 segment——几何来自 01 解耦路径，不再空串丢弃
+                    text = img.Text ?? "";
+                    image = new SegmentImage(
+                        src: img.ResourceName,
+                        srcb: img.ButtonResourceName,
+                        srcm: img.MappingGraphName,
+                        width: img.Width,
+                        height: img.Height,
+                        ypos: img.YPos
+                    );
+                }
+                else if (node is ConsoleRectangleShapePart rect)
+                {
+                    // v8（issue 02）：形状 segment——rect 绝对几何 + 填充色
+                    text = rect.Text ?? "";
+                    shape = new SegmentShape(
+                        type: "rect",
+                        x: rect.Rect.X,
+                        y: rect.Rect.Y,
+                        width: rect.Rect.Width,
+                        height: rect.Rect.Height,
+                        color: rect.FillColor.ToHex()
+                    );
+                }
                 else
                 {
                     text = node.Text ?? "";
                 }
 
-                segments.Add(new PrintSegment(text, color, bold, italic, fontname));
+                segments.Add(new PrintSegment(text, color, bold, italic, fontname, image, shape));
             }
 
             string buttonText = btn.ToString() ?? "";
