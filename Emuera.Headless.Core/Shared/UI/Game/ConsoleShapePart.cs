@@ -138,6 +138,8 @@ abstract class ConsoleShapePart : AConsoleColoredPart
 	private readonly int bottom;
 	public override int Top { get { return top; } }
 	public override int Bottom { get { return bottom; } }
+	/// <summary>issue 01：SetWidth 后的最终绝对几何（含 shape position shift），协议序列化用。</summary>
+	internal EmuRectangle Rect => rect;
 	readonly EmuRectangleF originalRectF;
 	bool visible;
 	EmuRectangle rect;

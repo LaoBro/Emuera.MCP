@@ -1,4 +1,5 @@
 #if HEADLESS
+using MinorShift.Emuera;
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Utils;
@@ -32,6 +33,29 @@ static class AppContents
 	public static void UnloadGraphicList() { foreach (var graph in gList.Values) graph.GDispose(); gList.Clear(); }
 	public static void UnloadTempLoadedConstImageNames() { }
 	public static void UnloadTempLoadedGraphicsImageNames() { }
+
+	/// <summary>
+	/// issue 01：无头下启用文件头尺寸探针。ConsoleImagePart 用它区分两条路径——
+	/// 非无头（false）保持 sprite 缺失时的原文本回退；无头（true）几何无条件计算，
+	/// 探针只服务于缺省宽度的纵横比推算。
+	/// </summary>
+	public static bool ImageProbeEnabled => true;
+
+	/// <summary>
+	/// issue 01：无头下 sprite 表不可用（<see cref="GetSprite"/> 恒 null），
+	/// 图片尺寸经 <see cref="ImageSizeProbe"/> 从游戏目录内文件头解析。
+	/// name 解释为游戏根目录下的相对路径（与 Web 资源通道 /assets 一致）。
+	/// </summary>
+	public static bool TryGetImageSize(string name, out int width, out int height)
+	{
+		width = 0;
+		height = 0;
+		var paths = GamePaths.Current;
+		if (string.IsNullOrEmpty(name) || paths?.DirAccessor == null)
+			return false;
+		var fullPath = paths.DirAccessor.CombinePath(paths.ExeDir, name);
+		return ImageSizeProbe.TryGetPixelSize(paths.DirAccessor, fullPath, out width, out height);
+	}
 }
 #else
 using MinorShift.Emuera.Runtime.Config;
@@ -71,6 +95,23 @@ static class AppContents
 		name = name.ToUpper();
 		if (!imageDictionary.TryGetValue(name, out ASprite value)) return null!;
 		return value;
+	}
+
+	/// <summary>
+	/// issue 01：非无头分支保持原行为——sprite 缺失时走文本回退，
+	/// 不引入探针（避免改变 WinForms 下缺图时的调试信息显示）。
+	/// </summary>
+	public static bool ImageProbeEnabled => false;
+
+	/// <summary>
+	/// issue 01：非无头分支保持原行为——sprite 缺失时走文本回退，
+	/// 不引入探针（避免改变 WinForms 下缺图时的调试信息显示）。
+	/// </summary>
+	static public bool TryGetImageSize(string name, out int width, out int height)
+	{
+		width = 0;
+		height = 0;
+		return false;
 	}
 
 	static public void SpriteDispose(string name)

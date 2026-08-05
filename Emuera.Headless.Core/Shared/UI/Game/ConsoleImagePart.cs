@@ -61,13 +61,28 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 		sb.Append('>');
 		AltText = sb.ToString();
 		cImage = AppContents.GetSprite(ResourceName);
-		//if (cImage != null && !cImage.IsCreated)
-		//	cImage = null;
-		if (cImage == null)
+		// issue 01：几何计算与 sprite 解耦。
+		// 非无头（ImageProbeEnabled=false）保持原行为：sprite 缺失 → 文本回退，几何不产出。
+		// 无头下几何无条件计算：来源尺寸 = sprite → 探针 → 无（缺省宽度回退 0，参数始终生效）；
+		// Text 保留 AltText 供 CLI BuildString 显示调试标记（原 HEADLESS 行为）。
+		if (cImage == null && !AppContents.ImageProbeEnabled)
 		{
 			Text = AltText;
 			return;
 		}
+		int sourceWidth = 0;
+		int sourceHeight = 0;
+		if (cImage != null)
+		{
+			sourceWidth = cImage.DestBaseSize.Width;
+			sourceHeight = cImage.DestBaseSize.Height;
+		}
+		else if (AppContents.TryGetImageSize(ResourceName, out sourceWidth, out sourceHeight))
+		{
+			// HEADLESS：sprite 表不可用，探针读取原图像素尺寸
+		}
+		if (cImage == null)
+			Text = AltText;
 		int height;
 		//if (raw_height == 0)//HTMLで高さが指定されていない又は0が指定された場合、フォントサイズをそのまま高さ(px単位)として使用する。
 		if (raw_height == null || raw_height.num == 0)//HTMLで高さが指定されていない又は0が指定された場合、フォントサイズをそのまま高さ(px単位)として使用する。
@@ -83,8 +98,12 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 		//if (raw_width == 0)
 		if (raw_width == null || raw_width.num == 0)
 		{
-			Width = cImage.DestBaseSize.Width * height / cImage.DestBaseSize.Height;
-			XsubPixel = (float)cImage.DestBaseSize.Width * height / cImage.DestBaseSize.Height - Width;
+			// 缺省宽度：有来源尺寸按纵横比推算；无来源（探针失败）回退 0（ticket 01 验收 2）
+			if (sourceHeight > 0)
+			{
+				Width = sourceWidth * height / sourceHeight;
+				XsubPixel = (float)sourceWidth * height / sourceHeight - Width;
+			}
 		}
 		else if (raw_width.isPx)
 		{
@@ -110,6 +129,7 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 			destRect = destRect with { Y = destRect.Y - destRect.Height };
 			height = -destRect.Height;
 		}
+		_height = height;
 		bottom = top + height;
 		//if(top > 0)
 		//	top = 0;
@@ -134,6 +154,8 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 	private readonly int top;
 	private readonly int bottom;
 	private readonly EmuRectangle destRect;
+	/// <summary>issue 01：修正后的 px 高度（负高输入时取正值）。探针/文本回退失败时为 0。</summary>
+	private readonly int _height = 0;
 	//#pragma warning disable CS0649 // フィールド 'ConsoleImagePart.ia' は割り当てられません。常に既定値 null を使用します。
 	//		private readonly ImageAttributes ia;
 	//#pragma warning restore CS0649 // フィールド 'ConsoleImagePart.ia' は割り当てられません。常に既定値 null を使用します。
@@ -141,6 +163,10 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 	public readonly string ButtonResourceName = null!;
 	public override int Top { get { return top; } }
 	public override int Bottom { get { return bottom; } }
+	/// <summary>issue 01：解析后的 px 高度（修正后正值），协议序列化用。文本回退时为 0。</summary>
+	public int Height { get { return _height; } }
+	/// <summary>issue 01：ypos（可为负/超行高），协议序列化用。</summary>
+	public int YPos { get { return top; } }
 
 	public override bool CanDivide { get { return false; } }
 	public override void SetWidth(StringMeasure sm, float subPixel)
@@ -151,6 +177,9 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 			return;
 		}
 		if (cImage != null)
+			return;
+		// issue 01：探针已定宽（Width 在构造函数期设置）——与 sprite 路径同语义
+		if (_height > 0)
 			return;
 		Width = sm.GetDisplayLength(Text, Config.DefaultFont);
 		XsubPixel = subPixel;
