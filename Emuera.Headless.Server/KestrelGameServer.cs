@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using MinorShift.Emuera.Assets;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
 
@@ -84,6 +85,8 @@ internal sealed class KestrelGameServer : IDisposable
         // issue 05：游戏选择器端点——/load-game 重载游戏目录，/native/pick-directory 安卓 SAF 桩
         _app.MapPost("/load-game", (Delegate)HandleLoadGameAsync);
         _app.MapPost("/native/pick-directory", (Delegate)HandlePickDirectoryAsync);
+        // issue 03：游戏目录图片资源通道（spec Q5 安全决策）——路径消毒 + 扩展名白名单 + 缓存/CORS 头
+        _app.MapGet("/assets/{**path}", (Delegate)HandleGetAssetAsync);
     }
 
     public async Task StartAsync()
@@ -340,6 +343,38 @@ internal sealed class KestrelGameServer : IDisposable
             supported = false,
             message = "Not implemented on this platform",
         });
+    }
+
+    /// <summary>
+    /// GET /assets/{path} —— 游戏目录图片资源通道（issue 03，spec Q3 路线 B / Q5 安全）。
+    ///
+    /// 前端拿协议里的相对路径（如 <c>img/portrait.png</c>）拼 <c>/assets/</c> URL 即得；
+    /// 浏览器原生缓存（Cache-Control）让状态屏每回合重印同一画像零流量。
+    ///
+    /// 安全规则（spec L116-118）：只服务图片扩展名白名单；路径消毒拒绝穿越（统一走
+    /// <see cref="AssetPathValidator"/>，与 05 安卓 PathHandler 共用同一函数）；CORS 头
+    /// 允许 canvas 读像素算 srcm 映射色。任何失败一律 404（不泄露资源是否存在）。
+    /// </summary>
+    internal async Task HandleGetAssetAsync(HttpContext context, string path)
+    {
+        var paths = GamePaths.Current;
+        byte[]? bytes = null;
+        if (paths?.DirAccessor == null
+            || !AssetPathValidator.TryResolve(paths.ExeDir, path, out var fullPath)
+            || !AssetPathValidator.IsAllowedImage(fullPath)
+            || (bytes = paths.DirAccessor.ReadAllBytes(fullPath)) == null)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = AssetPathValidator.GetMimeType(fullPath);
+        // 游戏目录为只读资产：1 天缓存（不用 immutable——/load-game 换目录后同 URL 可能对应新文件）
+        context.Response.Headers.CacheControl = "public, max-age=86400";
+        // canvas 读像素（srcm 映射色）需要 CORS 允许；图片 GET 无凭据，* 安全
+        context.Response.Headers.AccessControlAllowOrigin = "*";
+        await context.Response.Body.WriteAsync(bytes);
     }
 
     private sealed class HttpInput

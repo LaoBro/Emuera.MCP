@@ -9,6 +9,7 @@
 - TINPUT timeout server 场景。
 - fatal turn 脚本异常路径（THROW）。
 - I-11 脚本退出后 server 存活。
+- `/assets` 资源通道（issue 03）：路径消毒、扩展名白名单、缓存/CORS 头、协议帧 image segment 几何。
 
 ## 测试游戏目录
 
@@ -25,6 +26,7 @@
 - `test_server_single_session.py` 通过 `tests/emuera_server.py` 固定使用根目录 `test_game`。
 - `test_tinput_timeout.py` 会从根目录 `test_game` 复制临时副本，再覆盖 `erb/TEST.ERB` 构造 TINPUT 场景。
 - `test_force_quit_survival.py` 通过 `tests/emuera_server.py` 启动 server，分别用根目录 `test_game` 与临时副本覆盖 ERB。
+- `test_assets.py` 依赖 `test_game/img/test.png`（8×4 RGBA 夹具，四角已知色）与 `TEST.ERB` 中的 `PRINT_IMG` 行。
 
 因此，这些测试确实与 `test_game` 强相关；目前没有必要把整个 `test_game` 移进 `tests/`，更适合保持根目录 fixture，并在测试 helper 中集中管理路径。
 
@@ -38,6 +40,7 @@ python tests/test_server_single_session.py
 python tests/test_tinput_timeout.py
 python tests/test_fatal_turn.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 python tests/test_force_quit_survival.py
+python tests/test_assets.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 python tests/test_cli_basic.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
 python tests/test_cli_basic.py --game-dir test_game  # 自动查找 binary
 ```
@@ -55,7 +58,8 @@ python tests/run_all.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headle
 3. TINPUT timeout 测试。
 4. fatal turn 测试（脚本异常路径）。
 5. I-11 exit survival 测试。
-6. CLI 交互模式基础测试（happy path + ConPTY smoke tests）。
+6. `/assets` 资源通道测试（issue 03）。
+7. CLI 交互模式基础测试（happy path + ConPTY smoke tests）。
 
 在 Windows 命令行中，如果相对路径启动失败，请使用绝对路径，例如：
 

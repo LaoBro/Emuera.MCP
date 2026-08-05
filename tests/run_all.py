@@ -325,6 +325,24 @@ def main():
         )
     )
 
+    results.append(
+        (
+            "/assets resource channel",
+            _run_script(
+                "/assets resource channel",
+                [
+                    sys.executable,
+                    str(TESTS_DIR / "test_assets.py"),
+                    "--binary",
+                    str(binary_path),
+                    "--game-dir",
+                    str(game_dir),
+                ],
+                timeout=180,
+            ),
+        )
+    )
+
     print("\n=== Summary ===")
     all_passed = True
     for name, (passed, code, skipped) in results:

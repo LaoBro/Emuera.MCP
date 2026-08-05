@@ -17,15 +17,27 @@ internal static class SafPath
 		path != null && path.StartsWith("content://", StringComparison.Ordinal);
 
 	/// <summary>
-	/// 从 content URI 提取 Unescape 后的 documentId（<c>.../document/</c> 之后整段）。
-	/// 非 content 或无法解析时返回 null。
+	/// 从 content URI 提取 Unescape 后的 documentId（<c>.../document/</c> 之后整段；
+	/// tree URI 无 <c>/document/</c> 段时取 <c>/tree/</c> 之后整段——<c>DocumentsContract.GetTreeDocumentId</c>
+	/// 的纯 C# 等价）。非 content 或无法解析时返回 null。
 	/// </summary>
 	public static string? TryGetDocumentId(string path)
 	{
 		if (!IsContentUri(path)) return null;
 		var posDoc = path.LastIndexOf("/document/", StringComparison.Ordinal);
-		if (posDoc < 0) return null;
-		var encoded = path[(posDoc + "/document/".Length)..];
+		string encoded;
+		if (posDoc >= 0)
+		{
+			encoded = path[(posDoc + "/document/".Length)..];
+		}
+		else
+		{
+			// tree URI（.../tree/...，无 /document/）：取 /tree/ 之后整段。
+			// document URI 因 posDoc 优先不会落此分支。
+			var posTree = path.LastIndexOf("/tree/", StringComparison.Ordinal);
+			if (posTree < 0) return null;
+			encoded = path[(posTree + "/tree/".Length)..];
+		}
 		var q = encoded.IndexOfAny(['?', '#']);
 		if (q >= 0) encoded = encoded[..q];
 		if (encoded.Length == 0) return null;
