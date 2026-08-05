@@ -357,23 +357,21 @@ internal sealed class KestrelGameServer : IDisposable
     /// </summary>
     internal async Task HandleGetAssetAsync(HttpContext context, string path)
     {
+        // issue 05：四步（消毒/白名单/读字节/MIME）收敛到 AssetChannel——与 MAUI 双平台
+        // （Windows 拦截 + 安卓 PathHandler）共用同一函数，spec Q5「单点实现」真正成立。
         var paths = GamePaths.Current;
-        byte[]? bytes = null;
         if (paths?.DirAccessor == null
-            || !AssetPathValidator.TryResolve(paths.ExeDir, path, out var fullPath)
-            || !AssetPathValidator.IsAllowedImage(fullPath)
-            || (bytes = paths.DirAccessor.ReadAllBytes(fullPath)) == null)
+            || !AssetChannel.TryGetImage(paths.DirAccessor, paths.ExeDir, path, out var bytes, out var mime))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
         }
 
         context.Response.StatusCode = StatusCodes.Status200OK;
-        context.Response.ContentType = AssetPathValidator.GetMimeType(fullPath);
-        // 游戏目录为只读资产：1 天缓存（不用 immutable——/load-game 换目录后同 URL 可能对应新文件）
-        context.Response.Headers.CacheControl = "public, max-age=86400";
-        // canvas 读像素（srcm 映射色）需要 CORS 允许；图片 GET 无凭据，* 安全
-        context.Response.Headers.AccessControlAllowOrigin = "*";
+        context.Response.ContentType = mime;
+        // 头策略与 MAUI 双平台共用（AssetChannel 常量单点）——改缓存/CORS 只动 Core
+        context.Response.Headers.CacheControl = AssetChannel.CacheControlHeader;
+        context.Response.Headers.AccessControlAllowOrigin = AssetChannel.CorsAllowOriginHeader;
         await context.Response.Body.WriteAsync(bytes);
     }
 

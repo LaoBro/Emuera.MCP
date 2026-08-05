@@ -4,6 +4,21 @@ using Microsoft.Maui.Controls;
 namespace Emuera.Maui.JsBridge;
 
 /// <summary>
+/// 游戏资源虚拟主机（issue 05，spec Q3 路线 B）——Windows 与安卓共用同一域名，
+/// 前端 <c>resolveResource</c> 的 MAUI 分支统一返回 <c>https://game.local/{path}</c>，
+/// 平台实现各自拦截：
+/// <list type="bullet">
+///   <item>Windows：<c>WindowsJsBridge</c> 用 <c>WebResourceRequested</c> 拦截手动构造响应</item>
+///   <item>Android：<c>AndroidJsBridge</c> 用 <c>WebViewAssetLoader</c> PathHandler</item>
+/// </list>
+/// 两平台共用 <see cref="MinorShift.Emuera.Assets.AssetChannel"/>（消毒/白名单/读字节/MIME 单点）。
+/// </summary>
+internal static class GameAssetConstants
+{
+	internal const string VirtualHostName = "game.local";
+}
+
+/// <summary>
 /// C# ↔ JS 桥接抽象层——issue 06 / spec ID5。
 /// 屏蔽 Windows CoreWebView2 与 Android Webkit WebView 的平台差异，让 <c>BridgeHost</c> 不平台分叉。
 /// </summary>

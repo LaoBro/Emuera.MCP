@@ -1,10 +1,15 @@
 #if ANDROID
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using Android.Webkit;
+using AndroidX.WebKit;
 using Java.Interop;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
+using MinorShift.Emuera;
+using MinorShift.Emuera.Assets;
 using AWebView = Android.Webkit.WebView;
 
 namespace Emuera.Maui.JsBridge;
@@ -39,6 +44,7 @@ internal sealed class AndroidJsBridge : IJsBridge
 {
 	private AWebView? _androidWebView;
 	private Bridge? _bridge;
+	private WebViewAssetLoader? _assetLoader;
 	private bool _attached;
 
 	/// <inheritdoc />
@@ -72,7 +78,13 @@ internal sealed class AndroidJsBridge : IJsBridge
 		platformView.AddJavascriptInterface(_bridge, "emueraBridge");
 
 		// ADR-0019：WebViewClient 拦截 bridge:// URL——可靠 JS→C# 通道，不依赖 emueraBridge
-		platformView.SetWebViewClient(new BridgeClient(this));
+		// issue 05：同一 client 内接 WebViewAssetLoader（ShouldInterceptRequest 委托）——
+		// https://game.local/* 的图片请求走 PathHandler（SAF 读字节），bridge:// 仍走原 URL 拦截。
+		_assetLoader = new WebViewAssetLoader.Builder()
+			.SetDomain(GameAssetConstants.VirtualHostName)
+			.AddPathHandler("/", new GameAssetPathHandler())
+			.Build();
+		platformView.SetWebViewClient(new BridgeClient(this, _assetLoader));
 
 		_attached = true;
 		Android.Util.Log.Info("EmueraMaui", "AndroidJsBridge.Attach completed: emueraBridge registered");
@@ -154,7 +166,30 @@ internal sealed class AndroidJsBridge : IJsBridge
 	private sealed class BridgeClient : WebViewClient
 	{
 		private readonly AndroidJsBridge _bridge;
-		public BridgeClient(AndroidJsBridge bridge) => _bridge = bridge;
+		private readonly WebViewAssetLoader _assetLoader;
+
+		public BridgeClient(AndroidJsBridge bridge, WebViewAssetLoader assetLoader)
+		{
+			_bridge = bridge;
+			_assetLoader = assetLoader;
+		}
+
+		/// <summary>
+		/// issue 05：拦截 <c>https://game.local/*</c> 图片请求——委托 WebViewAssetLoader
+		/// 到 <see cref="GameAssetPathHandler"/>（SAF 读字节 + CORS/缓存头）。
+		/// 非 assetLoader 域返回 null 走默认加载（不影响 bridge:// 拦截）。
+		/// </summary>
+		public override WebResourceResponse? ShouldInterceptRequest(AWebView? view, IWebResourceRequest? request)
+		{
+			// .NET 绑定：WebViewAssetLoader.ShouldInterceptRequest(Android.Net.Uri)
+			var response = request?.Url != null ? _assetLoader.ShouldInterceptRequest(request.Url) : null;
+			if (response != null)
+			{
+				Android.Util.Log.Info("EmueraMaui", $"AssetLoader intercepted: {request?.Url}");
+				return response;
+			}
+			return base.ShouldInterceptRequest(view, request);
+		}
 
 		public override bool ShouldOverrideUrlLoading(AWebView? view, IWebResourceRequest? request)
 		{
@@ -180,6 +215,42 @@ internal sealed class AndroidJsBridge : IJsBridge
 				}
 			}
 			return base.ShouldOverrideUrlLoading(view, request);
+		}
+	}
+
+	/// <summary>
+	/// issue 05：game.local PathHandler——游戏图片资源通道（spec Q3 路线 B / Q5 安全）。
+	/// 消毒/白名单/读字节/MIME 全部收敛在 <see cref="AssetChannel"/>（与 Windows/Kestrel 共用单点）；
+	/// 此处只做平台胶水：相对路径 → AssetChannel → <see cref="WebResourceResponse"/>（带缓存/CORS 头）。
+	/// 失败返回 null（WebView 按默认处理，不泄露资源存在性）。
+	/// </summary>
+	/// <remarks>
+	/// 必须继承 <see cref="Java.Lang.Object"/>（WebViewAssetLoader.PathHandler 是 Java 接口，
+	/// IJavaObject 是绑定实现的前提，与 <see cref="Bridge"/> 同模式）。
+	/// </remarks>
+	internal sealed class GameAssetPathHandler : Java.Lang.Object, WebViewAssetLoader.IPathHandler
+	{
+		public WebResourceResponse? Handle(string? path)
+		{
+			if (string.IsNullOrEmpty(path))
+				return null;
+			var paths = GamePaths.Current;
+			if (paths?.DirAccessor == null
+				|| !AssetChannel.TryGetImage(paths.DirAccessor, paths.ExeDir, path, out var bytes, out var mime))
+			{
+				Android.Util.Log.Warn("EmueraMaui", $"GameAssetPathHandler: reject {path}");
+				return null;
+			}
+			// 显式缓存头——否则无浏览器级缓存，状态屏每回合重印画像每次走 SAF IPC（性能）。
+			// 头策略与 Kestrel/Windows 共用 AssetChannel 常量（改缓存/CORS 只动 Core）
+			var headers = new Dictionary<string, string>
+			{
+				["Cache-Control"] = AssetChannel.CacheControlHeader,
+				// srcm canvas 读像素需要 CORS 允许；图片 GET 无凭据，* 安全
+				["Access-Control-Allow-Origin"] = AssetChannel.CorsAllowOriginHeader,
+			};
+			Android.Util.Log.Info("EmueraMaui", $"GameAssetPathHandler: serve {path} ({bytes.Length}B {mime})");
+			return new WebResourceResponse(mime, null, 200, "OK", headers, new MemoryStream(bytes));
 		}
 	}
 }

@@ -6,6 +6,9 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
+using MinorShift.Emuera;
+using MinorShift.Emuera.Assets;
+using Windows.Storage.Streams;
 using WinRT.Interop;
 
 namespace Emuera.Maui.JsBridge;
@@ -92,6 +95,14 @@ internal sealed class WindowsJsBridge : IJsBridge
 					wwwrootFolder,
 					CoreWebView2HostResourceAccessKind.Allow);
 			}
+
+			// issue 05：游戏图片资源通道——拦截 https://game.local/* 手动构造响应。
+			// 不能复用上面的虚拟主机映射（静态映射带不了 CORS 头，srcm canvas 读像素会失败），
+			// 改为与安卓 PathHandler 对称的拦截：AssetChannel 消毒/白名单/读字节/MIME 四步收敛。
+			_core.AddWebResourceRequestedFilter(
+				$"https://{GameAssetConstants.VirtualHostName}/*",
+				CoreWebView2WebResourceContext.All);
+			_core.WebResourceRequested += OnWebResourceRequested;
 
 			_core.WebMessageReceived += OnWebMessageReceived;
 			_attached = true;
@@ -182,6 +193,78 @@ internal sealed class WindowsJsBridge : IJsBridge
 			Console.WriteLine($"WindowsJsBridge.PickFolderAsync failed: {ex}");
 			return null;
 		}
+	}
+
+	// ── issue 05：游戏图片资源通道（game.local 拦截） ─────────────────────────
+
+	/// <summary>
+	/// <c>https://game.local/{path}</c> 请求拦截（<see cref="GameAssetConstants.VirtualHostName"/>）。
+	/// 消毒/白名单/读字节/MIME 全部收敛在 <see cref="AssetChannel"/>（spec Q5 单点实现）；
+	/// 此处只做平台胶水：URL → 相对路径 → AssetChannel → <see cref="CoreWebView2WebResourceResponse"/>。
+	/// 失败一律 404（不泄露资源是否存在），与 Kestrel /assets 同语义。
+	/// </summary>
+	private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
+	{
+		try
+		{
+			var uri = e.Request?.Uri;
+			if (string.IsNullOrEmpty(uri) || _core == null)
+				return;
+			var path = GetRelativePath(uri);
+			if (path == null)
+			{
+				e.Response = CreateAssetResponse(null, null);
+				return;
+			}
+
+			var paths = GamePaths.Current;
+			if (paths?.DirAccessor == null
+				|| !AssetChannel.TryGetImage(paths.DirAccessor, paths.ExeDir, path, out var bytes, out var mime))
+			{
+				e.Response = CreateAssetResponse(null, null);
+				return;
+			}
+			e.Response = CreateAssetResponse(bytes, mime);
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"WindowsJsBridge.OnWebResourceRequested failed: {ex.Message}");
+			e.Response = CreateAssetResponse(null, null);
+		}
+	}
+
+	/// <summary>从 game.local URL 提取相对路径（如 <c>https://game.local/img/x.png</c> → <c>img/x.png</c>）。</summary>
+	private static string? GetRelativePath(string url)
+	{
+		if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+			return null;
+		var path = uri.AbsolutePath.TrimStart('/');
+		return path.Length == 0 ? null : path;
+	}
+
+	/// <summary>构造资源响应——字节 → InMemoryRandomAccessStream（CoreWebView2 要求 WinRT 流）。</summary>
+	private CoreWebView2WebResourceResponse CreateAssetResponse(byte[]? bytes, string? mime)
+	{
+		if (_core == null) throw new InvalidOperationException("CoreWebView2 not attached");
+		var status = bytes != null ? 200 : 404;
+		var reason = bytes != null ? "OK" : "Not Found";
+		IRandomAccessStream? content = null;
+		if (bytes != null)
+		{
+			// WinRT InMemoryRandomAccessStream + DataWriter：CoreWebView2 响应体必须是 WinRT 流，
+			// 不能用 MemoryStream。
+			var ras = new InMemoryRandomAccessStream();
+			var writer = new DataWriter(ras);
+			writer.WriteBytes(bytes);
+			writer.StoreAsync().GetAwaiter().GetResult();
+			writer.DetachStream();
+			content = ras;
+		}
+		// 响应头字符串：Content-Type + 缓存 + CORS（srcm canvas 读像素必需，与 Kestrel/安卓同策略）
+		var headers = status == 200
+			? $"Content-Type: {mime}\r\nCache-Control: {AssetChannel.CacheControlHeader}\r\nAccess-Control-Allow-Origin: {AssetChannel.CorsAllowOriginHeader}\r\n"
+			: string.Empty;
+		return _core.Environment.CreateWebResourceResponse(content, status, reason, headers);
 	}
 
 	private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)

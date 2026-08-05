@@ -65,6 +65,8 @@
 		<!-- MauiProgram.cs 的 builder.Logging.AddDebug() 依赖此包（DEBUG 配置）。
 		     与 .NET MAUI 模板默认配置对齐。-->
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+		<!-- issue 05：WebViewAssetLoader（安卓游戏图片资源通道）。Android-only 包——
+		     必须按 TFM 条件引用，否则 Windows target 的 restore 报 NU1202。-->
 	</ItemGroup>
 
 	<!-- 引用 Emuera.Headless.Core（issue 01 已就位，InternalsVisibleTo("Emuera.Maui") 已配置）。
@@ -83,6 +85,9 @@
 		<MauiAsset Include="wwwroot\**\*" />
 		<!-- 内置游戏资源（test_game/ → 打包路径 game/...） -->
 		<MauiAsset Include="..\test_game\**\*" Link="game\%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+	  <PackageReference Include="Xamarin.AndroidX.WebKit" Version="1.9.0" />
 	</ItemGroup>
 
 	<!-- ===== Issue 07 / spec ID13：Vue 前端构建集成 =====
