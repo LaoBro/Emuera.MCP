@@ -20,6 +20,8 @@ export function applySnapshot(_state: DisplayState, snapshot: DisplaySnapshot): 
   return {
     lines: snapshot.lines.map(copyLine),
     bgColor: snapshot.bgColor ?? null,
+    // v8：背景图全量重建（C# 紧凑归一——空列表在 JSON 中省略，缺失即空）
+    bgImages: (snapshot.bgImages ?? []).map((bg) => ({ ...bg })),
     state: snapshot.state,
     inputType: snapshot.inputType ?? null,
     needValue: snapshot.needValue,

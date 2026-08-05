@@ -7,7 +7,10 @@ import { useVirtualScroll } from '../composables/useVirtualScroll';
 import { usePinchZoom } from '../composables/usePinchZoom';
 import { isMauiEnvironment } from '../lib/mauiBridge';
 import { shouldSubmitButtonValue, shouldAdvanceOnTerminalClick } from '../lib/inputRouting';
-import type { ButtonValue, PrintSegment, DisplayLine, DisplayEntry } from '../types/protocol';
+import { resolveResource } from '../lib/resourceResolver';
+import { clickToImagePixel, loadImageAndReadPixel, sortBgImages } from '../lib/imageLayout';
+import SegmentRenderer from './SegmentRenderer.vue';
+import type { ButtonValue, SegmentImage, DisplayLine, DisplayEntry } from '../types/protocol';
 
 /**
  * TerminalDisplay.vue — Emuera 终端渲染器（issue 03 / issue 12 固定宽度布局 /
@@ -258,12 +261,75 @@ function onTerminalClick(e: MouseEvent): void {
  * `bold` / `italic` 是 boolean，映射 fontWeight / fontStyle。
  * `fontname` 暂忽略——见组件头注释。
  */
-function segmentStyle(s: PrintSegment): Record<string, string> {
-  const style: Record<string, string> = {};
-  if (s.color) style.color = s.color;
-  if (s.bold) style.fontWeight = 'bold';
-  if (s.italic) style.fontStyle = 'italic';
-  return style;
+// ---------- 背景图层（issue 04，spec Q6） ----------
+//
+// .terminal 内 fixed 定位层：滚动不随内容动（WinForms 主画布语义）；z-index 低于文本层。
+// sortBgImages 升序 → 渲染顺序小 depth 在前、大 depth 在后（CSS 后者在上）=
+// WinForms 降序烘焙（大 depth 最终在上）。opacity 逐张应用。
+// 掩膜渲染（image/rect 三态）已下沉到 SegmentRenderer.vue（review 2026-08-06 抽重复）。
+const sortedBgImages = computed(() => sortBgImages(game.displayState.bgImages));
+
+/** 背景层内联样式——fixed 相对视口，宽度对齐游戏窗口（contentStyle 同款宽度）。
+    z-index:-1：在 .terminal-content 的 stacking context 内沉到文本之下（文本 z-index auto），
+    任何静态内容（含 terminal-empty）都浮在背景之上。 */
+const bgLayerStyle = computed<Record<string, string>>(() => ({
+  position: 'fixed',
+  top: '0',
+  left: '0',
+  width: `${effectiveWindowWidth.value * game.effectiveScale}px`,
+  height: '100%',
+  zIndex: '-1',
+  pointerEvents: 'none',
+  overflow: 'hidden',
+}));
+
+// ---------- srcm 热区点击（issue 04，spec Q6） ----------
+//
+// 含 srcm 映射图的图片是按钮热区：点击取映射图对应像素色（0xRRGGBB）作为按钮输入值
+// （WinForms ConsoleButtonString 语义）。提交十进制（C# 按 inputType 解析整数）。
+// 非 srcm 图片不阻止冒泡——按钮内图片点击自然走既有按钮路径。
+//
+// 像素数学用 img 元素自身 rect（非掩膜 rect）：img 有 margin-top:ypos 且高=seg.height，
+// 与掩膜（高=行高）不等——img rect 反映实际绘制位置，点击偏移自然补偿 ypos，
+// 且"点击在图片外返回 null"的语义才准确。
+//
+// 连点竞态：读像素是异步的（await 前无法置 inputInFlight——读失败时置锁会卡死，
+// 游戏没收到输入就没有新 turn 清锁）。用本地 busy 标志防重入；成功提交才置锁。
+const imageClickBusy = ref(false);
+
+async function onImageClick(e: MouseEvent, img: SegmentImage, entry: DisplayEntry): Promise<void> {
+  if (!img.srcm) return;
+  const button = entry.button;
+  if (!button) return;
+  if (!shouldSubmitButtonValue({
+    connected: conn.status === 'connected',
+    state: game.displayState.state,
+    inputType: game.displayState.inputType,
+    buttonGeneration: button.generation,
+    currentTurnGeneration: game.currentTurnGeneration,
+    inputInFlight: game.inputInFlight,
+  })) return;
+  if (imageClickBusy.value) return;
+
+  e.stopPropagation(); // 热区阻断：不提交按钮原值，改提交映射色（失败路径同样阻断——语义是"热区接管"）
+
+  const maskEl = e.currentTarget as HTMLElement;
+  const imgEl = maskEl.querySelector('img');
+  if (!imgEl) return;
+  const rect = imgEl.getBoundingClientRect();
+  const natural = { width: imgEl.naturalWidth, height: imgEl.naturalHeight };
+  const pixel = clickToImagePixel(rect, natural, e.clientX, e.clientY);
+  if (!pixel) return;
+
+  imageClickBusy.value = true;
+  try {
+    const rgb = await loadImageAndReadPixel(resolveResource(img.srcm), pixel.x, pixel.y);
+    if (rgb == null) return; // 映射图加载失败/无 CORS——热区静默失效（已阻断冒泡）
+    game.setInputInFlight();
+    conn.sendInput(String(rgb)); // 十进制（0xRRGGBB 的数值）
+  } finally {
+    imageClickBusy.value = false;
+  }
 }
 
 /** 行 align 映射 CSS text-align。null / undefined 默认 'left'。 */
@@ -319,6 +385,17 @@ watch(() => game.inputInFlight, (inFlight) => {
     @click="onTerminalClick"
   >
     <div class="terminal-content" :style="contentStyle">
+    <!-- v8 背景图层：fixed 定位、z-index 低于文本（见 bgLayerStyle/sortedBgImages 注释） -->
+    <div v-if="sortedBgImages.length > 0" class="term-bg-layer" :style="bgLayerStyle">
+      <img
+        v-for="bg in sortedBgImages"
+        :key="`${bg.src}:${bg.depth}`"
+        class="term-bg-img"
+        :src="resolveResource(bg.src)"
+        :style="{ opacity: bg.opacity }"
+        draggable="false"
+      />
+    </div>
     <div v-if="game.displayState.lines.length === 0" class="terminal-empty">
       <template v-if="isMaui">
         <!-- MAUI 模式：无 HTTP/WS，提示文案按 gameDir + 游戏状态分流 -->
@@ -360,20 +437,16 @@ watch(() => game.inputInFlight, (inFlight) => {
               :disabled="conn.status !== 'connected' || game.displayState.state !== 'WaitInput'"
               @click="onButtonClick(entry)"
             >
-              <span
-                v-for="(seg, segIdx) in entry.segments"
-                :key="segIdx"
-                class="term-seg"
-                :style="segmentStyle(seg)"
-              >{{ seg.text }}</span>
+              <SegmentRenderer
+                :segments="entry.segments"
+                @img-click="(e, img) => onImageClick(e, img, entry)"
+              />
             </button>
             <span v-else class="term-entry">
-              <span
-                v-for="(seg, segIdx) in entry.segments"
-                :key="segIdx"
-                class="term-seg"
-                :style="segmentStyle(seg)"
-              >{{ seg.text }}</span>
+              <SegmentRenderer
+                :segments="entry.segments"
+                @img-click="(e, img) => onImageClick(e, img, entry)"
+              />
             </span>
           </template>
         </div>
@@ -418,6 +491,20 @@ watch(() => game.inputInFlight, (inFlight) => {
 }
 .terminal-content {
   /* 固定宽 = 游戏设计宽度（× scale），靠左对齐；width/margin 由 inline style 动态绑定 */
+  /* v8：相对定位 + z-index 1——浮在背景图层（z-index 0）之上 */
+  position: relative;
+  z-index: 1;
+}
+/* v8 背景图层——fixed 相对视口（滚动不随内容动，WinForms 主画布语义）；
+   z-index 0 低于文本层；pointer-events:none 不拦截任何点击 */
+.term-bg-layer {
+  pointer-events: none;
+}
+.term-bg-img {
+  /* 原图尺寸渲染，左上对齐；opacity 由 inline style 逐张应用 */
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 /* 虚拟滚动 spacer——撑总高度（itemCount * rowHeight），position:relative 让子元素 absolute 定位 */
 .term-virtual-spacer {

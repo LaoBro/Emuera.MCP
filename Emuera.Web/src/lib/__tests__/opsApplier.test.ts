@@ -46,7 +46,7 @@ function snapshot(partial: Partial<DisplaySnapshot> & Pick<DisplaySnapshot, 'sta
     state: partial.state,
     inputType: partial.inputType ?? null,
     needValue: partial.needValue,
-    protocolVersion: partial.protocolVersion ?? 7,
+    protocolVersion: partial.protocolVersion ?? 8,
     generation: partial.generation ?? 0,
   };
 }
@@ -55,6 +55,7 @@ function makeState(partial: Partial<DisplayState> = {}): DisplayState {
   return {
     lines: partial.lines ?? [],
     bgColor: partial.bgColor ?? null,
+    bgImages: partial.bgImages ?? [],
     state: partial.state ?? '',
     inputType: partial.inputType ?? null,
     needValue: partial.needValue ?? false,
@@ -219,6 +220,58 @@ describe('applyOps: set_bg', () => {
   });
 });
 
+// ---------- v8：背景图 ops ----------
+
+describe('applyOps: bg images (v8)', () => {
+  it('set_bg_image 追加背景图（WinForms 追加语义）', () => {
+    const state = applyOps(EMPTY_DISPLAY_STATE, [
+      { type: 'set_bg_image', src: 'bg/forest.png', depth: 0, opacity: 1 },
+    ]);
+    expect(state.bgImages).toEqual([{ src: 'bg/forest.png', depth: 0, opacity: 1 }]);
+  });
+
+  it('连续 set_bg_image 按序追加（depth 不排序——排序是渲染层职责）', () => {
+    const state = applyOps(EMPTY_DISPLAY_STATE, [
+      { type: 'set_bg_image', src: 'bg/a.png', depth: 2, opacity: 1 },
+      { type: 'set_bg_image', src: 'bg/b.png', depth: 1, opacity: 0.5 },
+    ]);
+    expect(state.bgImages.map((b) => b.src)).toEqual(['bg/a.png', 'bg/b.png']);
+  });
+
+  it('remove_bg_image 移除首个同名（WinForms 语义）', () => {
+    const state = applyOps(EMPTY_DISPLAY_STATE, [
+      { type: 'set_bg_image', src: 'bg/forest.png', depth: 0, opacity: 1 },
+      { type: 'set_bg_image', src: 'bg/forest.png', depth: 2, opacity: 1 },
+      { type: 'set_bg_image', src: 'bg/sea.png', depth: 1, opacity: 1 },
+      { type: 'remove_bg_image', src: 'bg/forest.png' },
+    ]);
+    expect(state.bgImages.map((b) => b.depth)).toEqual([2, 1]);
+  });
+
+  it('remove_bg_image 不存在时 no-op', () => {
+    const state = applyOps(EMPTY_DISPLAY_STATE, [
+      { type: 'set_bg_image', src: 'bg/a.png', depth: 0, opacity: 1 },
+      { type: 'remove_bg_image', src: 'bg/nope.png' },
+    ]);
+    expect(state.bgImages).toHaveLength(1);
+  });
+
+  it('clear_bg_image 清空全部', () => {
+    const state = applyOps(EMPTY_DISPLAY_STATE, [
+      { type: 'set_bg_image', src: 'bg/a.png', depth: 0, opacity: 1 },
+      { type: 'clear_bg_image' },
+    ]);
+    expect(state.bgImages).toEqual([]);
+  });
+
+  it('纯度：applyOps 不修改入参 bgImages 数组', () => {
+    const st = makeState({ bgImages: [{ src: 'bg/a.png', depth: 0, opacity: 1 }] });
+    const state = applyOps(st, [{ type: 'clear_bg_image' }]);
+    expect(state.bgImages).toEqual([]);
+    expect(st.bgImages).toHaveLength(1); // 入参未被修改
+  });
+});
+
 // ---------- 几何透传 ----------
 
 describe('applyOps: 几何透传', () => {
@@ -375,6 +428,7 @@ describe('applyDiff', () => {
     return {
       lineOps: partial.lineOps ?? [],
       bgColor: partial.bgColor ?? null,
+      bgImages: partial.bgImages ?? undefined,
     };
   }
 
@@ -453,6 +507,50 @@ describe('applyDiff', () => {
     const updated = applyDiff(state, d);
     expect(updated.bgColor).toBe('#FF0000');
     expect(updated.lines).toHaveLength(2);
+  });
+
+  it('T_diff_bgimages 对称：diff.bgImages 整体替换（与 C# DisplayDiff.bgImages 对称）', () => {
+    const state = makeState({ bgImages: [{ src: 'bg/old.png', depth: 0, opacity: 1 }] });
+    const updated = applyDiff(state, diff({
+      lineOps: [],
+      bgImages: [{ src: 'bg/new.png', depth: 2, opacity: 0.5 }],
+    }));
+    expect(updated.bgImages).toEqual([{ src: 'bg/new.png', depth: 2, opacity: 0.5 }]);
+  });
+
+  it('T_diff_bgimages_clear 对称：[] 表达清空（与 bgColor null=未变区分）', () => {
+    const state = makeState({ bgImages: [{ src: 'bg/a.png', depth: 0, opacity: 1 }] });
+    const updated = applyDiff(state, diff({ lineOps: [], bgImages: [] }));
+    expect(updated.bgImages).toEqual([]);
+  });
+
+  it('T_diff_bgimages_omitted 对称：bgImages 缺省（null）保留原状态', () => {
+    const state = makeState({ bgImages: [{ src: 'bg/a.png', depth: 0, opacity: 1 }] });
+    const updated = applyDiff(state, diff({ lineOps: [] }));
+    expect(updated.bgImages).toEqual([{ src: 'bg/a.png', depth: 0, opacity: 1 }]);
+  });
+
+  it('applySnapshot 重建 bgImages（C# 紧凑归一：省略即空）', () => {
+    const snap: DisplaySnapshot = {
+      lines: [],
+      bgColor: null,
+      state: 'WaitInput',
+      needValue: false,
+      protocolVersion: 8,
+      generation: 0,
+      bgImages: [{ src: 'bg/a.png', depth: 1, opacity: 0.5 }],
+    };
+    expect(applySnapshot(EMPTY_DISPLAY_STATE, snap).bgImages).toEqual([{ src: 'bg/a.png', depth: 1, opacity: 0.5 }]);
+
+    const emptySnap: DisplaySnapshot = {
+      lines: [],
+      bgColor: null,
+      state: 'WaitInput',
+      needValue: false,
+      protocolVersion: 8,
+      generation: 0,
+    };
+    expect(applySnapshot(EMPTY_DISPLAY_STATE, emptySnap).bgImages).toEqual([]);
   });
 
   it('未知 LineOp 类型抛 Error', () => {

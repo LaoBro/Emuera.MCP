@@ -1,4 +1,4 @@
-import type { DisplayState, DisplayLine, DisplayEntry, TurnOp, DisplayDiff } from '../types/protocol';
+import type { DisplayState, DisplayLine, DisplayEntry, TurnOp, DisplayDiff, BgImageState } from '../types/protocol';
 
 /**
  * 应用增量 ops 更新状态（issue 02）。
@@ -9,6 +9,8 @@ import type { DisplayState, DisplayLine, DisplayEntry, TurnOp, DisplayDiff } fro
  * - `clearline` (n) → 从末尾删除 min(n, length) 行
  * - `clear` → 清空全部行 + 重置 bgColor=null
  * - `set_bg` → 更新 bgColor
+ * - `set_bg_image` / `remove_bg_image` / `clear_bg_image`（v8）→ 更新 bgImages
+ *   （WinForms 语义：set 追加、remove 移除首个同名、clear 全清）
  *
  * 关键状态机：PrintOp 总是追加到"当前行"——最后一行且 isLineEnd=false。
  * NewLineOp 终止当前行。这与 ConsolePrintManager 的 EmitPrintOps + NewLine 行为对齐。
@@ -27,6 +29,7 @@ export function applyOps(state: DisplayState, ops: TurnOp[]): DisplayState {
   // 可变影子数组——只在本函数内修改，不影响外部 state.lines
   const lines: DisplayLine[] = state.lines.slice();
   let bgColor: string | null = state.bgColor;
+  const bgImages: BgImageState[] = state.bgImages.slice();
 
   for (const op of ops) {
     switch (op.type) {
@@ -69,6 +72,18 @@ export function applyOps(state: DisplayState, ops: TurnOp[]): DisplayState {
       case 'set_bg':
         bgColor = op.color;
         break;
+      case 'set_bg_image':
+        bgImages.push({ src: op.src, depth: op.depth, opacity: op.opacity });
+        break;
+      case 'remove_bg_image': {
+        // WinForms 语义：同名多份时移除最前一份（与 C# ConsoleStateData 对称）
+        const idx = bgImages.findIndex((bg) => bg.src === op.src);
+        if (idx >= 0) bgImages.splice(idx, 1);
+        break;
+      }
+      case 'clear_bg_image':
+        bgImages.length = 0;
+        break;
       default:
         throw new Error(`Unknown op type: ${(op as { type: string }).type}`);
     }
@@ -77,6 +92,7 @@ export function applyOps(state: DisplayState, ops: TurnOp[]): DisplayState {
   return {
     lines,
     bgColor,
+    bgImages,
     state: state.state,
     inputType: state.inputType,
     needValue: state.needValue,
@@ -151,9 +167,16 @@ export function applyDiff(state: DisplayState, diff: DisplayDiff): DisplayState 
     bgColor = diff.bgColor;
   }
 
+  // v8：diff.bgImages 非 null 即有变更（[]=清空，非空列表=新状态）——整体替换
+  let bgImages = state.bgImages;
+  if (diff.bgImages != null) {
+    bgImages = diff.bgImages.map((bg) => ({ ...bg }));
+  }
+
   return {
     lines,
     bgColor,
+    bgImages,
     state: state.state,
     inputType: state.inputType,
     needValue: state.needValue,

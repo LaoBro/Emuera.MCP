@@ -25,6 +25,9 @@ export type ButtonValue = number | string;
 /**
  * 文本片段（C# `PrintSegment`）。一段带样式的字符序列。
  * `text` 永远存在；其余字段 nullable，C# WhenWritingNull 时省略。
+ *
+ * v8（issue 02）：新增 `image?` / `shape?`——图片与矩形色块的类型化承载。
+ * 老客户端忽略未知字段自然降级（纯增量）。
  */
 export interface PrintSegment {
   text: string;
@@ -32,6 +35,52 @@ export interface PrintSegment {
   bold?: boolean | null;
   italic?: boolean | null;
   fontname?: string | null;
+  /** v8：图片 segment（C# `SegmentImage`）。有值则前端按 image 渲染，忽略 text（text 为 CLI 调试标记）。 */
+  image?: SegmentImage | null;
+  /** v8：形状 segment（C# `SegmentShape`）。type='rect'，几何已解析 px。 */
+  shape?: SegmentShape | null;
+}
+
+/**
+ * v8：图片 segment 几何（C# `SegmentImage`，issue 02）。
+ * - `src`：游戏根相对路径（协议只传路径，前端经 `resolveResource` 拼 URL）
+ * - `srcb`：悬停/选中态替换图（相对路径）
+ * - `srcm`：映射图（点击热区——取点击点像素色 0xRRGGBB 作为按钮输入值）
+ * - `width` / `height` / `ypos`：已解析 px 几何（C# 尺寸探针产出，缺省宽高已按纵横比推算）
+ */
+export interface SegmentImage {
+  src: string;
+  srcb?: string | null;
+  srcm?: string | null;
+  width: number;
+  height: number;
+  ypos: number;
+}
+
+/**
+ * v8：形状 segment（C# `SegmentShape`，issue 02）。
+ * type='rect'：彩色填充矩形。1 参 rect（整行色条）与 4 参（绝对定位）统一为该形态。
+ * 已知偏差：4 参 rect 的绝对 x 前端按"流位置=0"处理（真实游戏只用 1 参整行色条）。
+ */
+export interface SegmentShape {
+  type: 'rect';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+}
+
+/**
+ * v8：背景图状态（C# `BgImageState`，issue 02）。
+ * - `src`：游戏根相对路径
+ * - `depth`：z 序（WinForms 降序烘焙——depth 大的在上）
+ * - `opacity`：0.0-1.0
+ */
+export interface BgImageState {
+  src: string;
+  depth: number;
+  opacity: number;
 }
 
 /**
@@ -84,6 +133,7 @@ export interface DisplayLine {
  *
  * - `lines`：当前所有显示行
  * - `bgColor`：当前背景色（CSS hex 形如 "#FF0000"，可能为 null）
+ * - `bgImages`：v8——当前背景图列表（depth 降序应用；空/省略 = 无背景图）
  * - `state`：游戏状态字符串（C# `ConsoleState.ToString()`，如 "WaitInput"/"Quit"/"Error"）
  * - `inputType`：当前输入请求类型（C# `InputType.ToString()`，如 "IntValue"/"StrValue"/"AnyKey"/"EnterKey"）
  * - `needValue`：是否需要值输入（inputType=IntValue/StrValue 时 true）
@@ -99,6 +149,8 @@ export interface DisplayLine {
 export interface DisplaySnapshot {
   lines: DisplayLine[];
   bgColor?: string | null;
+  /** v8：背景图列表。depth 降序应用；省略/空 = 无背景图（C# 紧凑归一：空列表不进 JSON）。 */
+  bgImages?: BgImageState[] | null;
   state: string;
   inputType?: string | null;
   needValue: boolean;
@@ -138,12 +190,15 @@ export type LineOp =
  *
  * - `lineOps`：行级操作序列（按顺序应用）
  * - `bgColor`：背景色变化（null 表示未变；非空表示设置为新值）
+ * - `bgImages`：v8——背景图整体替换（非 null 即有变更：`[]`=清空，非空列表=新状态；
+ *   null=未变）——与 `bgColor` 同模式
  *
  * state/inputType/needValue/protocolVersion 由外层 `TurnRecord` 携带，不在此重复。
  */
 export interface DisplayDiff {
   lineOps: LineOp[];
   bgColor?: string | null;
+  bgImages?: BgImageState[] | null;
 }
 
 // ---------- TurnOp：增量 ops（v5 之前 / 内部流） ----------
@@ -161,13 +216,18 @@ export interface DisplayDiff {
  * - `clearline`：从行列表末尾删除 n 行（n=0 时无操作）
  * - `clear`：清空全部行 + 重置 bgColor
  * - `set_bg`：更新 bgColor
+ * - `set_bg_image` / `remove_bg_image` / `clear_bg_image`：v8——背景图增删清
+ *   （C# 内部脏信号；对外增量面由 `DisplayDiff.bgImages` 整体替换承载）
  */
 export type TurnOp =
   | { type: 'print'; segments: PrintSegment[]; button?: ButtonRef | null }
   | { type: 'newline'; align?: 'left' | 'center' | 'right' | null }
   | { type: 'clearline'; n: number }
   | { type: 'clear' }
-  | { type: 'set_bg'; color: string };
+  | { type: 'set_bg'; color: string }
+  | { type: 'set_bg_image'; src: string; depth: number; opacity: number }
+  | { type: 'remove_bg_image'; src: string }
+  | { type: 'clear_bg_image' };
 
 // ---------- TurnRecord：单回合 WS 帧 ----------
 
@@ -209,11 +269,11 @@ export interface TurnRecord {
 }
 
 /**
- * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 7` 对称，v6→v7 加 generation）。
+ * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 8` 对称，v7→v8 加 image/shape/bgImages）。
  *
  * 用于前端校验：WS 帧 protocolVersion 与本常量不匹配时给出降级提示。
  */
-export const CURRENT_PROTOCOL_VERSION = 7;
+export const CURRENT_PROTOCOL_VERSION = 8;
 
 // ---------- DisplayState：前端内部可变状态 ----------
 //
@@ -230,6 +290,8 @@ export const CURRENT_PROTOCOL_VERSION = 7;
 export interface DisplayState {
   lines: DisplayLine[];
   bgColor: string | null;
+  /** v8：当前背景图（空数组 = 无背景图）。applySnapshot 全量重建 / applyDiff 整体替换。 */
+  bgImages: BgImageState[];
   state: string;
   inputType: string | null;
   needValue: boolean;
@@ -242,6 +304,7 @@ export interface DisplayState {
 export const EMPTY_DISPLAY_STATE: DisplayState = {
   lines: [],
   bgColor: null,
+  bgImages: [],
   state: '',
   inputType: null,
   needValue: false,
