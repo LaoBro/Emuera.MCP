@@ -1,5 +1,6 @@
 using MinorShift.Emuera.Terminal.Platform;
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.UI.Game.Image;
 
 namespace MinorShift.Emuera.Assets;
 
@@ -39,6 +40,31 @@ internal static class AssetChannel
         mimeType = null!;
         if (dirAccessor == null || string.IsNullOrEmpty(gameRoot) || string.IsNullOrEmpty(urlPath))
             return false;
+
+        // 1. 直接相对路径（test_game 的 img/test.png 形态）
+        if (TryReadImage(dirAccessor, gameRoot, urlPath, out bytes, out mimeType))
+            return true;
+
+        // 2. sprite 名表回退（era 的 <img src='Face_1'>：src 是 sprite 名，
+        //    映射在 resources/*.csv，真实文件如 resources/1_Face.png）
+        if (ImageNameTable.TryResolve(dirAccessor, gameRoot, urlPath, out var rel)
+            && rel != null
+            && TryReadImage(dirAccessor, gameRoot, rel, out bytes, out mimeType))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>按相对路径执行完整四步：消毒 → 白名单 → CombinePath 重建读取 → MIME。</summary>
+    private static bool TryReadImage(
+        IGameDirAccessor dirAccessor,
+        string gameRoot,
+        string urlPath,
+        out byte[] bytes,
+        out string mimeType)
+    {
+        bytes = null!;
+        mimeType = null!;
 
         // 1. 路径消毒：TryResolve 产出 fullPath 只用于校验（落根内 + 白名单）。
         //    注意：content 分支的 fullPath 是裸拼接形态（content://.../tree/<id>/img/x.png），

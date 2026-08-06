@@ -3,12 +3,16 @@
 验证 spec Q5 安全决策端到端（HTTP seam，tests/ 既有套件风格）：
 
 1. GET /assets/img/test.png → 200 + image/png + Cache-Control + CORS 头
-2. 白名单外扩展名（csv/ERB/config）→ 404（游戏源文件永不泄出）
-3. 路径穿越（%2e%2e / %2e%2e%2f / %5c 反斜杠变体）→ 4xx
+2. GET /assets/Face_1（sprite 名，无扩展名）→ 200——经 resources/Face.csv 映射到
+   1_Face.png（era 的 <img src='Face_1'> 引用 sprite 名而非文件路径）
+3. 白名单外扩展名（csv/ERB/config）→ 404（游戏源文件永不泄出）
+4. 路径穿越（%2e%2e / %2e%2e%2f / %5c 反斜杠变体）→ 4xx
    （Kestrel PathNormalization 或 AssetPathValidator 消毒拒绝，二者皆满足安全目标）
-4. 不存在文件 / 目录请求 → 404
-5. GET /snapshot 协议帧 image segment：src=img/test.png、width=36、height=18、ypos=0
+5. 不存在文件 / 目录请求 → 404
+6. GET /snapshot 协议帧 image segment：src=img/test.png、width=36、height=18、ypos=0
    —— 8×4 PNG 缺省高度=FontSize(18) → 纵横比 width = 8*18/4 = 36（探针端到端验证）
+7. 协议帧 sprite 图片：src=Face_1、width=36、height=18——探针经 ImageNameTable
+   （resources csv）定位 1_Face.png 读 8×4 推算（sprite 名解析端到端验证）
 
 Usage:
     python test_assets.py --binary <path> --game-dir test_game
@@ -60,6 +64,17 @@ def find_image_segment(snapshot):
     return None
 
 
+def find_all_image_segments(snapshot):
+    """按出现顺序收集全部含 image 的 segment（sprite 名断言用）。"""
+    out = []
+    for line in snapshot.get("lines", []):
+        for entry in line.get("entries", []):
+            for seg in entry.get("segments", []):
+                if seg.get("image") is not None:
+                    out.append(seg["image"])
+    return out
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", required=True)
@@ -82,13 +97,23 @@ def main():
         status, snap_body = server.get_snapshot()
         check(status == 200, f"GET /snapshot -> {status}")
         snap = json.loads(snap_body)
-        img = find_image_segment(snap)
+        imgs = find_all_image_segments(snap)
+        check(len(imgs) >= 2, f"snapshot contains 2 image segments (direct + sprite, got {len(imgs)})")
+        img = imgs[0] if imgs else None
         check(img is not None, "snapshot contains an image segment")
         if img is not None:
             check(img["src"] == "img/test.png", f"image.src == 'img/test.png' (got '{img['src']}')")
             check(img["width"] == 36, f"image.width == 36 (8x4 aspect @ h=18, got {img['width']})")
             check(img["height"] == 18, f"image.height == 18 (FontSize, got {img['height']})")
             check(img["ypos"] == 0, f"image.ypos == 0 (got {img['ypos']})")
+
+        # ---------- 协议帧：sprite 名图片（era 的 <img src='Face_1'>） ----------
+        # src 是 sprite 名（无扩展名），几何经 ImageNameTable → resources/1_Face.png 探针
+        if len(imgs) >= 2:
+            spr = imgs[1]
+            check(spr["src"] == "Face_1", f"sprite image.src == 'Face_1' (got '{spr['src']}')")
+            check(spr["width"] == 36, f"sprite image.width == 36 (8x4 aspect @ h=18, got {spr['width']})")
+            check(spr["height"] == 18, f"sprite image.height == 18 (FontSize, got {spr['height']})")
 
         # ---------- /assets 正常加载 ----------
         status, body, headers = raw_get(server, "/assets/img/test.png")
@@ -100,6 +125,13 @@ def main():
         check("max-age" in cc, f"Cache-Control carries max-age (got '{cc}')")
         check(headers.get("Access-Control-Allow-Origin") == "*",
               "CORS Access-Control-Allow-Origin == *")
+
+        # ---------- /assets sprite 名解析（无扩展名 → resources csv 映射） ----------
+        status, body, headers = raw_get(server, "/assets/Face_1")
+        check(status == 200, f"GET /assets/Face_1 (sprite name) -> {status}")
+        check(body[:8] == b"\x89PNG\r\n\x1a\n", "sprite body is a PNG signature")
+        check(headers.get("Content-Type") == "image/png",
+              f"sprite Content-Type == image/png (got {headers.get('Content-Type')})")
 
         # ---------- 白名单外扩展名 404 ----------
         for path, name in [

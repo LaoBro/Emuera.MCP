@@ -45,6 +45,8 @@ static class AppContents
 	/// issue 01：无头下 sprite 表不可用（<see cref="GetSprite"/> 恒 null），
 	/// 图片尺寸经 <see cref="ImageSizeProbe"/> 从游戏目录内文件头解析。
 	/// name 解释为游戏根目录下的相对路径（与 Web 资源通道 /assets 一致）。
+	/// sprite 名回退（issue）：era 的 <c>&lt;img src='Face_1'&gt;</c> 引用 sprite 名，
+	/// 映射在 resources/*.csv（<see cref="ImageNameTable"/>）——直接路径失败后查表。
 	/// </summary>
 	public static bool TryGetImageSize(string name, out int width, out int height)
 	{
@@ -53,7 +55,20 @@ static class AppContents
 		var paths = GamePaths.Current;
 		if (string.IsNullOrEmpty(name) || paths?.DirAccessor == null)
 			return false;
-		var fullPath = paths.DirAccessor.CombinePath(paths.ExeDir, name);
+		// 1. 直接相对路径（test_game 的 img/test.png 形态）
+		if (ProbeFile(paths, name, out width, out height))
+			return true;
+		// 2. sprite 名表（era 的 Face_1 → resources/1_Face.png）
+		if (ImageNameTable.TryResolve(paths.DirAccessor, paths.ExeDir, name, out var rel)
+			&& rel != null
+			&& ProbeFile(paths, rel, out width, out height))
+			return true;
+		return false;
+	}
+
+	private static bool ProbeFile(GamePaths paths, string relativePath, out int width, out int height)
+	{
+		var fullPath = paths.DirAccessor!.CombinePath(paths.ExeDir, relativePath);
 		return ImageSizeProbe.TryGetPixelSize(paths.DirAccessor, fullPath, out width, out height);
 	}
 }

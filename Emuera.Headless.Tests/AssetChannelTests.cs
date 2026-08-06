@@ -23,9 +23,13 @@ public class AssetChannelTests : IDisposable
         _root = Path.Combine(Path.GetTempPath(), "emuera_asset_channel_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(_root, "img"));
         Directory.CreateDirectory(Path.Combine(_root, "csv"));
+        Directory.CreateDirectory(Path.Combine(_root, "resources"));
         // 手工构造最小 PNG（签名 + IHDR + IEND，尺寸 8×4）——与探针测试同款字节
         File.WriteAllBytes(Path.Combine(_root, "img", "test.png"), MiniPng());
         File.WriteAllText(Path.Combine(_root, "csv", "GameBase.csv"), "dummy");
+        // sprite 表（era 的 Face_1 → resources/1_Face.png）
+        File.WriteAllText(Path.Combine(_root, "resources", "Face.csv"), "FACE_1,1_Face.png,0,0,180,180\n");
+        File.WriteAllBytes(Path.Combine(_root, "resources", "1_Face.png"), MiniPng());
     }
 
     public void Dispose()
@@ -40,6 +44,27 @@ public class AssetChannelTests : IDisposable
         Assert.True(AssetChannel.TryGetImage(_accessor, _root, "img/test.png", out var bytes, out var mime));
         Assert.Equal(expected, bytes); // 原样返回文件内容（TryGetImage 不解析内容，仅文件名+扩展名白名单）
         Assert.Equal("image/png", mime);
+    }
+
+    [Fact]
+    public void Sprite_name_resolves_via_resources_csv()
+    {
+        // era：<img src='Face_1'> 的 src 是 sprite 名（无扩展名）→ 资源通道经 resources csv 映射
+        Assert.True(AssetChannel.TryGetImage(_accessor, _root, "Face_1", out var bytes, out var mime));
+        Assert.Equal(MiniPng(), bytes);
+        Assert.Equal("image/png", mime);
+    }
+
+    [Fact]
+    public void Sprite_name_case_insensitive()
+    {
+        Assert.True(AssetChannel.TryGetImage(_accessor, _root, "face_1", out _, out _));
+    }
+
+    [Fact]
+    public void Unknown_sprite_name_rejected()
+    {
+        Assert.False(AssetChannel.TryGetImage(_accessor, _root, "nope", out _, out _));
     }
 
     [Fact]
