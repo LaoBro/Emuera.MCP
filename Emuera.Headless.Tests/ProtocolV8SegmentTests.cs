@@ -74,8 +74,10 @@ public class ProtocolV8SegmentTests : IDisposable
         var ops = ConsolePrintManager.BuildPrintOpsForLine(LineOf(img), "TestFont");
         var seg = Assert.Single(Assert.Single(ops).segments);
 
-        // 01 设计：Text 保留 AltText 调试标记（CLI BuildString 用）；前端按 image 字段渲染
-        Assert.StartsWith("<img", seg.text);
+        // 01 设计：Text 保留 AltText 调试标记（CLI BuildString 用）；前端按 image 字段渲染。
+        // B 之后（GetSprite 替身）：文件存在 → cImage!=null → Text 空（正常 sprite 语义）；
+        // 仅当 GetSprite 未命中（缺文件）才保留 AltText。前端一律按 image 字段渲染。
+        Assert.Equal("", seg.text);
         Assert.Null(seg.shape);
         Assert.NotNull(seg.image);
         Assert.Equal("img/portrait.png", seg.image!.src);

@@ -14,6 +14,11 @@ static class AppContents
 {
 	static ConcurrentDictionary<int, GraphicsImage> gList = [];
 
+	/// <summary>GetSprite 替身缓存（按游戏根隔离——切目录时重建）。</summary>
+	static readonly object _stubSync = new();
+	static string? _stubRoot;
+	static ConcurrentDictionary<string, ASprite> _stubs = new(StringComparer.OrdinalIgnoreCase);
+
 	public static GraphicsImage GetGraphics(int i)
 	{
 		if (gList.TryGetValue(i, out GraphicsImage? value))
@@ -23,7 +28,35 @@ static class AppContents
 		return g;
 	}
 
-	public static ASprite GetSprite(string name) => null!;
+	/// <summary>
+	/// 无头下 sprite 表不可用（LoadContents stub），但 <see cref="ImageNameTable"/> 提供
+	/// 「sprite 名 → 文件」映射——命中时返回轻量替身（IsCreated=true、DestBaseSize=探针
+	/// 整图尺寸），让 <c>SPRITECREATED</c>/<c>SPRITEWIDTH</c>/<c>SPRITEHEIGHT</c> 及
+	/// <see cref="ConsoleImagePart"/> 几何分支正常工作（真实游戏立绘选择逻辑依赖）。
+	/// 未命中（表无此名 / 文件读不到）返回 null——调用方按"未创建"处理。
+	/// </summary>
+	public static ASprite GetSprite(string name)
+	{
+		var paths = GamePaths.Current;
+		if (string.IsNullOrEmpty(name) || paths?.DirAccessor == null)
+			return null!;
+		lock (_stubSync)
+		{
+			// 缓存按游戏根隔离：/load-game 切目录后同名 sprite 可能是新文件
+			if (_stubRoot != paths.ExeDir)
+			{
+				_stubRoot = paths.ExeDir;
+				_stubs = new ConcurrentDictionary<string, ASprite>(StringComparer.OrdinalIgnoreCase);
+			}
+			if (_stubs.TryGetValue(name, out var cached))
+				return cached;
+		}
+		if (!TryGetImageSize(name, out var w, out var h) || w <= 0 || h <= 0)
+			return null!;
+		var stub = new HeadlessSprite(name, new EmuSize(w, h));
+		_stubs[name] = stub;
+		return stub;
+	}
 	public static void SpriteDispose(string name) { }
 	public static long SpriteDisposeAll(bool delCsvImage) => 0;
 	public static void CreateSpriteG(string imgName, GraphicsImage parent, EmuRectangle rect) { }
@@ -71,6 +104,19 @@ static class AppContents
 		var fullPath = paths.DirAccessor!.CombinePath(paths.ExeDir, relativePath);
 		return ImageSizeProbe.TryGetPixelSize(paths.DirAccessor, fullPath, out width, out height);
 	}
+}
+
+/// <summary>
+/// 无头轻量 sprite 替身——无位图，仅携带「存在 + 尺寸」。
+/// 供 <c>SPRITECREATED</c>/<c>SPRITEWIDTH</c>/<c>SPRITEHEIGHT</c> 及
+/// <see cref="ConsoleImagePart"/> 的 <c>cImage != null</c> 几何分支使用。
+/// DestBaseSize 为探针整图尺寸（裁切矩形在 A 阶段扩展）。
+/// </summary>
+internal sealed class HeadlessSprite : ASprite
+{
+	public HeadlessSprite(string name, EmuSize size) : base(name, size) { }
+	public override bool IsCreated => true;
+	public override void Dispose() { }
 }
 #else
 using MinorShift.Emuera.Runtime.Config;
