@@ -177,22 +177,40 @@ describe('TerminalDisplay: image 掩膜渲染（Q6）', () => {
     expect(rect.attributes('style')).toContain('left: 6px');
   });
 
-  it('underline 文本段映射为 CSS 下划线（PRINT_SLIDER 横线）', async () => {
+  it('underline 空格段使用显式背景线，保留 PRINT_SLIDER 横线宽度', async () => {
     const { wrapper } = await mountWith([line([{
       text: '  ',
       color: '#40C040',
       underline: true,
     }])]);
     const segment = wrapper.find('.term-seg');
+    const style = segment.attributes('style') ?? '';
 
-    expect(segment.attributes('style')).toContain('text-decoration: underline');
+    expect(style).toContain('display: inline-block');
+    expect(style).toContain('white-space: pre');
+    expect(style).toContain('background-image: linear-gradient(currentColor, currentColor)');
+    expect(style).toContain('background-position: left calc(100% - 2px)');
+    expect(style).toContain('background-size: 100% 1px');
+    expect(style).not.toContain('text-decoration: underline');
+  });
+
+  it('underline 普通文本仍使用 CSS 下划线', async () => {
+    const { wrapper } = await mountWith([line([{
+      text: 'text',
+      underline: true,
+    }])]);
+
+    expect(wrapper.find('.term-seg').attributes('style')).toContain('text-decoration: underline');
   });
 
   // ---------- issue 09：缩放（effectiveScale 作用于图片几何） ----------
 
   it('缩放 1.5 倍：掩膜/图片/crop 全部几何等比放大', async () => {
     const { wrapper } = await mountWith(
-      [line([imgSeg({ ypos: -8, crop: { x: -36, y: 0, imgWidth: 72, imgHeight: 36 } })])],
+      [line([
+        imgSeg({ ypos: -8, crop: { x: -36, y: 0, imgWidth: 72, imgHeight: 36 } }),
+        { text: '  ', underline: true },
+      ])],
       [],
       1.5,
     );
@@ -207,6 +225,12 @@ describe('TerminalDisplay: image 掩膜渲染（Q6）', () => {
     expect(img.attributes('style')).toContain('width: 108px');
     expect(img.attributes('style')).toContain('height: 54px');
     expect(img.attributes('style')).toContain('margin-left: -54px');
+    const rail = wrapper.findAll('.term-seg').find((s) =>
+      (s.attributes('style') ?? '').includes('background-image'),
+    );
+    expect(rail).toBeDefined();
+    expect(rail!.attributes('style')).toContain('background-position: left calc(100% - 3px)');
+    expect(rail!.attributes('style')).toContain('background-size: 100% 2px');
   });
 
   // ---------- 掩膜静态定位（不进入定位层，DOM 序"后行盖先行"） ----------

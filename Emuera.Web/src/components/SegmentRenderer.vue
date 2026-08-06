@@ -13,7 +13,7 @@ import type { PrintSegment, SegmentImage } from '../types/protocol';
  *
  * 职责：
  * - 三态渲染：image → 掩膜 span + img（srcb hover 切换）；shape → 掩膜 span + 色块；
- *   文本 → 普通 span（含 v10 underline 样式）
+ *   文本 → 普通 span（含 v10 underline 样式；空格横线用显式背景线）
  * - srcm 热区：img 点击 emit('img-click') 给父组件（父持有 entry.button 上下文做
  *   守卫与提交）；非 srcm 图片不 emit——点击自然冒泡到按钮走既有路径
  * - 掩膜样式：inline-block + height: var(--term-line-min-height)（含 effectiveScale，
@@ -43,6 +43,35 @@ const hoveredIdx = ref<number | null>(null);
 /** px 几何 × effectiveScale（四舍五入；负值正常）。 */
 function scaled(px: number): string {
   return `${Math.round(px * game.effectiveScale)}px`;
+}
+
+/** 文本段样式（保持与 TerminalDisplay.segmentStyle 同款——color/bold/italic/underline 映射）。
+ *  静态定位（无 position/z-index）——按 DOM 序参与"后行盖先行"（issue 09 曾加
+ *  position:relative，用户实测非 WinForms 语义已回退）。
+ *
+ *  全空格 segment 是 PRINT_SLIDER 的轨道。浏览器不会可靠地为只含空格的文本
+ *  绘制 text-decoration，因此改为 inline-block 的背景线；这样既保留空格的流宽，
+ *  又确保横线有实际可绘制的盒子。 */
+function segmentStyle(s: PrintSegment): Record<string, string> {
+  const style: Record<string, string> = {};
+  if (s.color) style.color = s.color;
+  if (s.bold) style.fontWeight = 'bold';
+  if (s.italic) style.fontStyle = 'italic';
+  if (s.underline) {
+    const whitespaceOnly = s.text.length > 0 && s.text.trim().length === 0;
+    if (whitespaceOnly) {
+      style.display = 'inline-block';
+      style.whiteSpace = 'pre';
+      style.verticalAlign = 'baseline';
+      style.backgroundImage = 'linear-gradient(currentColor, currentColor)';
+      style.backgroundRepeat = 'no-repeat';
+      style.backgroundPosition = `left calc(100% - ${scaled(2)})`;
+      style.backgroundSize = `100% ${scaled(1)}`;
+    } else {
+      style.textDecoration = 'underline';
+    }
+  }
+  return style;
 }
 
 /** 掩膜 span 样式——image 与 rect 共用（height 钉死=行高，宽度=段宽×缩放推进流式 x）。 */
@@ -144,22 +173,6 @@ function rectStyle(shape: NonNullable<PrintSegment['shape']>): Record<string, st
     <span v-else class="term-seg" :style="segmentStyle(seg)">{{ seg.text }}</span>
   </template>
 </template>
-
-<script lang="ts">
-import type { PrintSegment as PS } from '../types/protocol';
-
-/** 文本段样式（保持与 TerminalDisplay.segmentStyle 同款——color/bold/italic/underline 映射）。
- *  静态定位（无 position/z-index）——按 DOM 序参与"后行盖先行"（issue 09 曾加
- *  position:relative，用户实测非 WinForms 语义已回退）。 */
-function segmentStyle(s: PS): Record<string, string> {
-  const style: Record<string, string> = {};
-  if (s.color) style.color = s.color;
-  if (s.bold) style.fontWeight = 'bold';
-  if (s.italic) style.fontStyle = 'italic';
-  if (s.underline) style.textDecoration = 'underline';
-  return style;
-}
-</script>
 
 <style scoped>
 /* v8 图片/矩形掩膜——inline-block 混入流式布局：
