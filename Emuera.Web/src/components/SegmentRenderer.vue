@@ -23,10 +23,10 @@ import type { PrintSegment, SegmentImage } from '../types/protocol';
  *   "后行盖先行"语义；容器 overflow:hidden 只裁剪图集横向/纵向溢出（单层 static 定位，
  *   不产生 stacking context，后续行文字仍按 DOM 序覆盖）。
  * - issue 09：缩放——所有 px 几何 × effectiveScale（SegmentRenderer 从 store 读，
- *   JS 计算；不用 CSS calc/var——happy-dom 测试环境丢弃 calc(var()) 值）；
- *   文本段 `position:relative` 强制进入定位层绘制（CSS 附录 E 步骤 6，晚于非定位
- *   inline 内容）——图片跨行溢出时文本必然覆盖其上（对齐 WinForms 用户可见行为；
- *   实测纯静态 DOM 序下图片会反盖文本）。
+ *   JS 计算；不用 CSS calc/var——happy-dom 测试环境丢弃 calc(var()) 值）。
+ *   文本段保持静态定位（issue 09 曾临时加 position:relative 强制定位层绘制，
+ *   用户实测非 WinForms 语义——WinForms 是文本被图片挤到右侧——已回退，
+ *   恢复纯 DOM 序"后行盖先行"）。
  *
  * 已知偏差（spec L132）：4 参 rect 绝对 x 按流位置 0（rectStyle left:0）。
  */
@@ -139,8 +139,7 @@ function rectStyle(shape: NonNullable<PrintSegment['shape']>): Record<string, st
     <span v-else-if="seg.shape" class="term-seg term-mask" :style="maskStyle(seg.shape)">
       <span class="term-rect" :style="rectStyle(seg.shape)" />
     </span>
-    <!-- issue 09：文本段 position:relative——强制进入定位层（CSS 附录 E 步骤 6）绘制，
-         图片跨行溢出时文本必然覆盖其上（对齐 WinForms 后行文本盖先行溢出图） -->
+    <!-- 文本段：静态定位（无 position/z-index）——按 DOM 序"后行盖先行"绘制 -->
     <span v-else class="term-seg" :style="segmentStyle(seg)">{{ seg.text }}</span>
   </template>
 </template>
@@ -149,11 +148,10 @@ function rectStyle(shape: NonNullable<PrintSegment['shape']>): Record<string, st
 import type { PrintSegment as PS } from '../types/protocol';
 
 /** 文本段样式（保持与 TerminalDisplay.segmentStyle 同款——color/bold/italic 映射）。
- *  issue 09：position:relative——文本段进入定位层绘制（CSS 附录 E 步骤 6，晚于所有
- *  非定位 inline 内容，含图片掩膜及其跨行溢出），保证文本覆盖图片（WinForms 用户可见
- *  行为；纯静态 DOM 序实测被图片反盖）。relative 不改变布局（无 top/left 偏移）。 */
+ *  静态定位（无 position/z-index）——按 DOM 序参与"后行盖先行"（issue 09 曾加
+ *  position:relative，用户实测非 WinForms 语义已回退）。 */
 function segmentStyle(s: PS): Record<string, string> {
-  const style: Record<string, string> = { position: 'relative' };
+  const style: Record<string, string> = {};
   if (s.color) style.color = s.color;
   if (s.bold) style.fontWeight = 'bold';
   if (s.italic) style.fontStyle = 'italic';

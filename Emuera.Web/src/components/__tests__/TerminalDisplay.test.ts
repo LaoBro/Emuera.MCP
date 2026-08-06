@@ -186,17 +186,17 @@ describe('TerminalDisplay: image 掩膜渲染（Q6）', () => {
     expect(img.attributes('style')).toContain('margin-left: -54px');
   });
 
-  // ---------- issue 09：文本段绘制序（position:relative 盖图片溢出） ----------
+  // ---------- 掩膜静态定位（不进入定位层，DOM 序"后行盖先行"） ----------
 
-  it('文本段 position:relative——强制定位层绘制（图片跨行溢出时文本覆盖其上）', async () => {
-    // 图片行 + 后行纯文本：文本段必须带 position:relative
+  it('文本段不设 position（静态定位——issue 09 曾加 relative 已回退）', async () => {
     const { wrapper } = await mountWith([
       line([imgSeg()]),
       line([{ text: '后行文本', color: null, bold: null, italic: null, fontname: null }]),
     ]);
     const textSeg = wrapper.findAll('.term-seg').find((s) => s.text() === '后行文本');
     expect(textSeg).toBeDefined();
-    expect(textSeg!.attributes('style')).toContain('position: relative');
+    // 回退后文本段无任何 style（Vue 不渲染空 style 属性）——不含 position
+    expect((textSeg!.attributes('style') ?? '')).not.toContain('position:');
   });
 
   it('图片/矩形掩膜不设 position（保持静态，不进入定位层盖文本）', async () => {
