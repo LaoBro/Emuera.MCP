@@ -188,7 +188,7 @@ function parseDisplayEntry(raw: unknown, path: string): DisplayEntry {
 
 /**
  * 解析 `PrintSegment`。`text` 必填；`color`/`bold`/`italic`/`fontname` 可空；
- * `image`/`shape` 可选（v8，issue 02）。
+ * `image`/`shape` 可选（v8，issue 02）；`underline` 可选（v10，PRINT_SLIDER 横线）。
  *
  * 2026-08-06 修复：此前只按 v7 五字段解析，image/shape 在 JSON→对象转换时被丢弃——
  * SegmentRenderer 的 `v-if="seg.image"` 恒 false，图片/背景「降级为文本」
@@ -208,6 +208,7 @@ function parsePrintSegment(raw: unknown, path: string): PrintSegment {
     bold: readBoolOrNull(obj.bold, `${path}.bold`),
     italic: readBoolOrNull(obj.italic, `${path}.italic`),
     fontname: readStringOrNull(obj.fontname, `${path}.fontname`),
+    underline: readBoolOrNull(obj.underline, `${path}.underline`),
     image: obj.image === undefined || obj.image === null
       ? undefined
       : parseSegmentImage(obj.image, `${path}.image`),

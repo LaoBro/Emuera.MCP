@@ -13,7 +13,7 @@ import type { PrintSegment, SegmentImage } from '../types/protocol';
  *
  * 职责：
  * - 三态渲染：image → 掩膜 span + img（srcb hover 切换）；shape → 掩膜 span + 色块；
- *   文本 → 普通 span
+ *   文本 → 普通 span（含 v10 underline 样式）
  * - srcm 热区：img 点击 emit('img-click') 给父组件（父持有 entry.button 上下文做
  *   守卫与提交）；非 srcm 图片不 emit——点击自然冒泡到按钮走既有路径
  * - 掩膜样式：inline-block + height: var(--term-line-min-height)（含 effectiveScale，
@@ -148,7 +148,7 @@ function rectStyle(shape: NonNullable<PrintSegment['shape']>): Record<string, st
 <script lang="ts">
 import type { PrintSegment as PS } from '../types/protocol';
 
-/** 文本段样式（保持与 TerminalDisplay.segmentStyle 同款——color/bold/italic 映射）。
+/** 文本段样式（保持与 TerminalDisplay.segmentStyle 同款——color/bold/italic/underline 映射）。
  *  静态定位（无 position/z-index）——按 DOM 序参与"后行盖先行"（issue 09 曾加
  *  position:relative，用户实测非 WinForms 语义已回退）。 */
 function segmentStyle(s: PS): Record<string, string> {
@@ -156,6 +156,7 @@ function segmentStyle(s: PS): Record<string, string> {
   if (s.color) style.color = s.color;
   if (s.bold) style.fontWeight = 'bold';
   if (s.italic) style.fontStyle = 'italic';
+  if (s.underline) style.textDecoration = 'underline';
   return style;
 }
 </script>

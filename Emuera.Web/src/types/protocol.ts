@@ -27,6 +27,7 @@ export type ButtonValue = number | string;
  * `text` 永远存在；其余字段 nullable，C# WhenWritingNull 时省略。
  *
  * v8（issue 02）：新增 `image?` / `shape?`——图片与矩形色块的类型化承载。
+ * v10：新增 `underline?`——保留彩色下划线空格，用于 PRINT_SLIDER 横线。
  * 老客户端忽略未知字段自然降级（纯增量）。
  */
 export interface PrintSegment {
@@ -35,6 +36,8 @@ export interface PrintSegment {
   bold?: boolean | null;
   italic?: boolean | null;
   fontname?: string | null;
+  /** v10：文本下划线；PRINT_SLIDER 用彩色下划线空格绘制滑条横线。 */
+  underline?: boolean | null;
   /** v8：图片 segment（C# `SegmentImage`）。有值则前端按 image 渲染，忽略 text（text 为 CLI 调试标记）。 */
   image?: SegmentImage | null;
   /** v8：形状 segment（C# `SegmentShape`）。type='rect'，几何已解析 px。 */
@@ -290,11 +293,11 @@ export interface TurnRecord {
 }
 
 /**
- * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 9` 对称，v8→v9 加 SegmentImage.crop）。
+ * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 10` 对称，v10 加 PrintSegment.underline）。
  *
  * 用于前端校验：WS 帧 protocolVersion 与本常量不匹配时给出降级提示。
  */
-export const CURRENT_PROTOCOL_VERSION = 9;
+export const CURRENT_PROTOCOL_VERSION = 10;
 
 // ---------- DisplayState：前端内部可变状态 ----------
 //

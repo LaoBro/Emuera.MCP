@@ -33,8 +33,9 @@ internal record TurnRecord(
     /// TurnOp 加 set_bg_image/remove_bg_image/clear_bg_image。纯增量，老客户端忽略未知字段自然降级。
     /// v9（issue 07）：SegmentImage 加 crop?（裁切矩形几何）——图集 sprite（resources/*.csv
     /// 第 3-6 列）只显示裁切区。crop 携带已缩放几何（img 负偏移 + 元素尺寸），前端零布局数学。
+    /// v10：PrintSegment 加 underline?，保留 PRINT_SLIDER 用于绘制彩色横线的下划线空格样式。
     /// </summary>
-    internal const int CurrentProtocolVersion = 9;
+    internal const int CurrentProtocolVersion = 10;
 }
 
 /// <summary>
@@ -118,7 +119,8 @@ internal record PrintSegment(
     bool? italic,
     string? fontname,
     SegmentImage? image = null,
-    SegmentShape? shape = null
+    SegmentShape? shape = null,
+    bool? underline = null
 );
 
 /// <summary>

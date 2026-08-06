@@ -177,6 +177,17 @@ describe('TerminalDisplay: image 掩膜渲染（Q6）', () => {
     expect(rect.attributes('style')).toContain('left: 6px');
   });
 
+  it('underline 文本段映射为 CSS 下划线（PRINT_SLIDER 横线）', async () => {
+    const { wrapper } = await mountWith([line([{
+      text: '  ',
+      color: '#40C040',
+      underline: true,
+    }])]);
+    const segment = wrapper.find('.term-seg');
+
+    expect(segment.attributes('style')).toContain('text-decoration: underline');
+  });
+
   // ---------- issue 09：缩放（effectiveScale 作用于图片几何） ----------
 
   it('缩放 1.5 倍：掩膜/图片/crop 全部几何等比放大', async () => {

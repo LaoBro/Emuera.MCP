@@ -124,4 +124,18 @@ public class ProtocolV8SegmentTests : IDisposable
         Assert.Null(seg.image);
         Assert.Null(seg.shape);
     }
+
+    [Fact]
+    public void Underline_style_is_preserved_for_slider_space_segments()
+    {
+        var style = new StringStyle(new EmuColor(64, 192, 64), colorChanged: true,
+            buttonColor: EmuColor.Black, EmuFontStyle.Underline, fontname: "TestFont");
+
+        var ops = ConsolePrintManager.BuildPrintOpsForLine(
+            LineOf(new ConsoleStyledString(" ", style)),
+            "TestFont");
+        var seg = Assert.Single(Assert.Single(ops).segments);
+
+        Assert.True(seg.underline);
+    }
 }

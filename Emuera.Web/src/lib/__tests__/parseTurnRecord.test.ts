@@ -503,6 +503,30 @@ describe('parseTurnRecord - v8 image/shape/bgImages', () => {
     expect(seg.shape!.color).toBe('#FF0000');
   });
 
+  it('underline 文本样式透传（PRINT_SLIDER 横线）', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              { entries: [{ segments: [{ text: '  ', color: '#40C040', underline: true }] }], isLineEnd: true },
+            ],
+          },
+        ],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    const op0 = turn.diff!.lineOps[0];
+    if (op0.type !== 'append') throw new Error('unreachable');
+    const seg = op0.newLines[0].entries[0].segments[0];
+
+    expect(seg.underline).toBe(true);
+  });
+
   it('diff.bgImages：src/depth/opacity 数组透传', () => {
     const json = JSON.stringify({
       state: 'WaitInput',
