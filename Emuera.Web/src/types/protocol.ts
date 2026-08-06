@@ -81,7 +81,7 @@ export interface SegmentCrop {
 /**
  * v8：形状 segment（C# `SegmentShape`，issue 02）。
  * type='rect'：彩色填充矩形。1 参 rect（整行色条）与 4 参（绝对定位）统一为该形态。
- * 已知偏差：4 参 rect 的绝对 x 前端按"流位置=0"处理（真实游戏只用 1 参整行色条）。
+ * x/width 同时决定矩形绘制位置和该 segment 的流式占位宽度。
  */
 export interface SegmentShape {
   type: 'rect';

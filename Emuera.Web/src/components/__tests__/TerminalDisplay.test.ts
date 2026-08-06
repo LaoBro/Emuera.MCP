@@ -165,6 +165,18 @@ describe('TerminalDisplay: image 掩膜渲染（Q6）', () => {
     expect(rect.attributes('style')).toContain('width: 18px');
   });
 
+  it('rect segment 保留 x 偏移并为完整几何预留流宽', async () => {
+    const { wrapper } = await mountWith([line([{
+      text: '<rect>',
+      shape: { type: 'rect', x: 6, y: 0, width: 18, height: 2, color: '#00FF00' },
+    }])]);
+    const mask = wrapper.find('.term-mask');
+    const rect = wrapper.find('.term-rect');
+
+    expect(mask.attributes('style')).toContain('width: 24px');
+    expect(rect.attributes('style')).toContain('left: 6px');
+  });
+
   // ---------- issue 09：缩放（effectiveScale 作用于图片几何） ----------
 
   it('缩放 1.5 倍：掩膜/图片/crop 全部几何等比放大', async () => {

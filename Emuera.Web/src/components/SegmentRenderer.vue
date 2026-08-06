@@ -28,7 +28,7 @@ import type { PrintSegment, SegmentImage } from '../types/protocol';
  *   用户实测非 WinForms 语义——WinForms 是文本被图片挤到右侧——已回退，
  *   恢复纯 DOM 序"后行盖先行"）。
  *
- * 已知偏差（spec L132）：4 参 rect 绝对 x 按流位置 0（rectStyle left:0）。
+ * rect 几何：掩膜宽度包含 x + width，矩形本身按协议 x 偏移绘制。
  */
 const props = defineProps<{ segments: PrintSegment[] }>();
 const emit = defineEmits<{ imgClick: [e: MouseEvent, img: SegmentImage] }>();
@@ -46,10 +46,11 @@ function scaled(px: number): string {
 }
 
 /** 掩膜 span 样式——image 与 rect 共用（height 钉死=行高，宽度=段宽×缩放推进流式 x）。 */
-function maskStyle(seg: SegmentImage | PrintSegment['shape']): Record<string, string> {
+function maskStyle(seg: SegmentImage | NonNullable<PrintSegment['shape']>): Record<string, string> {
+  const width = 'type' in seg ? seg.x + seg.width : seg.width;
   return {
     display: 'inline-block',
-    width: scaled(seg!.width),
+    width: scaled(width),
     // 高度钉死=行高（含 effectiveScale，与虚拟滚动 rowHeight 严格一致）。
     // 变量由 .terminal inline style 恒注入（terminalStyle），无需 fallback——
     // 且带 fallback 逗号的 var() 会在 happy-dom 测试环境被解析器丢弃。
@@ -93,13 +94,13 @@ function cropImageStyle(img: SegmentImage): Record<string, string> {
   };
 }
 
-/** 掩膜内矩形样式——4 参 rect 绝对 x 按流位置 0（已知偏差）；y 透传（×缩放）。 */
+/** 掩膜内矩形样式——x/y/width/height 均按协议几何缩放。 */
 function rectStyle(shape: NonNullable<PrintSegment['shape']>): Record<string, string> {
   return {
     display: 'block',
     position: 'relative',
     top: scaled(shape.y),
-    left: '0',
+    left: scaled(shape.x),
     width: scaled(shape.width),
     height: scaled(shape.height),
     backgroundColor: shape.color,

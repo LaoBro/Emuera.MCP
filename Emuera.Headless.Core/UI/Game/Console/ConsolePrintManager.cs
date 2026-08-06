@@ -661,6 +661,14 @@ internal sealed class ConsolePrintManager
                             : null
                     );
                 }
+                else if (node is ConsoleSpacePart space)
+                {
+                    // ConsoleSpacePart.Text 固定为空；若直接走通用分支，协议会丢失
+                    // HTML_PRINT 的横向占位（例如立绘前的 <shape type='space'>）。
+                    // 与 TerminalLineFormatter 保持相同的像素→半角列换算。
+                    int charWidth = Math.Max(Config.FontSize / 2, 1);
+                    text = new string(' ', Math.Max(space.Width / charWidth, 0));
+                }
                 else if (node is ConsoleRectangleShapePart rect)
                 {
                     // v8（issue 02）：形状 segment——rect 绝对几何 + 填充色

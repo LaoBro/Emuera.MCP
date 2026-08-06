@@ -268,8 +268,7 @@ namespace MinorShift.Emuera.GameView
                 int lineIndex = startLine + i;
                 int viewportRow = i;
                 var dl = lines[lineIndex];
-                // Phase 4-1：经 SourceLine 调 FormatLineForTerminal
-                //（PrintSegment 丢失 ConsoleSpacePart 几何，无法重建，故保留原引用）
+                // Phase 4-1：经 SourceLine 调 FormatLineForTerminal；CLI 仍跳过图片/矩形视觉节点。
                 var sourceLine = dl.SourceLine;
                 string formatted = sourceLine != null
                     ? TerminalLineFormatter.FormatLineForTerminal(

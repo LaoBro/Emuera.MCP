@@ -1,5 +1,8 @@
 using System;
 using MinorShift.Emuera.GameView;
+using MinorShift.Emuera;
+using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.UI.Game;
 using Xunit;
 
@@ -129,6 +132,21 @@ public class OpGeometryTests
 
         Assert.Single(ops);
         Assert.Null(ops[0].button);
+    }
+
+    [Fact]
+    public void Space_shape_is_serialized_as_display_padding()
+    {
+        using var scope = GlobalStatic.OpenScope(new ConfigData());
+        var space = new ConsoleSpacePart(new MinorShift.Emuera.Primitives.EmuRectangleF(0, 0, 18, 18));
+        space.SetWidth(new StringMeasure(), 0);
+        var button = new ConsoleButtonString(null!, new AConsoleDisplayNode[] { space });
+        var line = new ConsoleDisplayLine(new[] { button }, isLogical: true, temporary: false);
+
+        var ops = ConsolePrintManager.BuildPrintOpsForLine(line, "TestFont");
+
+        Assert.Single(ops);
+        Assert.Equal("  ", ops[0].segments[0].text); // 100% font size = 18px = 2 ASCII columns
     }
 
     [Fact]

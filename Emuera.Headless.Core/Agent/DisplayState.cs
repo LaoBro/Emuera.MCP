@@ -40,7 +40,7 @@ internal record DisplaySnapshot(
 /// 二者均标 <c>[JsonIgnore]</c> 不进入 JSON 序列化——Web 契约保持 ADR-0013 形态。
 /// <see cref="LineNo"/> 用于 CLI delta 算法（<c>_lastRenderedLineNo</c> 比较）；
 /// <see cref="SourceLine"/> 持原 <see cref="ConsoleDisplayLine"/> 引用，供 <see cref="TerminalLineFormatter.FormatLineForTerminal"/>
-/// 格式化（PrintSegment 丢失 ConsoleSpacePart 几何，无法重建，故保留原引用）。
+/// 格式化（PrintSegment 不承载图片/矩形等 CLI 不绘制的视觉节点，故保留原引用）。
 /// record 默认 Equals 会纳入这两个字段——Phase 2 的 <see cref="DisplayState.LinesEqual"/> 已手写深度值比较
 /// 绕过 record.Equals，故 diff 正确性不受影响。
 /// </summary>
@@ -58,7 +58,7 @@ internal record DisplayLine(
 
     /// <summary>
     /// CLI 渲染专用：原 ConsoleDisplayLine 引用（R3 扩展）。
-    /// TerminalRenderer 经此调 FormatLineForTerminal（PrintSegment 丢失 ConsoleSpacePart 几何，无法重建）。
+    /// TerminalRenderer 经此调 FormatLineForTerminal，保留 CLI 对非文本视觉节点的跳过语义。
     /// Web 路径不访问此字段。不进入 JSON。
     /// </summary>
     [JsonIgnore] internal ConsoleDisplayLine? SourceLine { get; set; }
