@@ -234,11 +234,17 @@ internal sealed class WindowsJsBridge : IJsBridge
 	}
 
 	/// <summary>从 game.local URL 提取相对路径（如 <c>https://game.local/img/x.png</c> → <c>img/x.png</c>）。</summary>
+	/// <remarks>
+	/// 必须 <see cref="Uri.UnescapeDataString"/> 解码：浏览器对非 ASCII 路径自动百分号编码
+	/// （日文 sprite 名 <c>ダミー</c> → <c>%E3%83%80%E3%83%9F%E3%83%BC</c>），
+	/// <see cref="Uri.AbsolutePath"/> 保持编码形态——不解码则按字面名找文件恒 404（破图）。
+	/// 解码后的路径照常经 AssetChannel 消毒（%2e%2e 等穿越编码解码为 .. 后仍被拒）。
+	/// </remarks>
 	private static string? GetRelativePath(string url)
 	{
 		if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
 			return null;
-		var path = uri.AbsolutePath.TrimStart('/');
+		var path = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'));
 		return path.Length == 0 ? null : path;
 	}
 
