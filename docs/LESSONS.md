@@ -949,3 +949,28 @@ CPU 低）/ 会话已结束前端没收到通知（game loop completed normally 
 **场景**：O1/O4 提交前跑 code-review skill：Standards 轴（仓库标准 + Fowler 坏味基线）与 Spec 轴（对照已批准计划）并行子代理，各不污染上下文。
 **结果**：Spec 轴对照计划逐行比对抓到「EnsureRealDirectoryUri 失效 key 错位」（off-by-one）+「DisplayNameForMatch null Name NRE」（实现偏离计划伪码，原实现有 null 保护）；Standards 轴抓到 DirectoryExists 快速路径单级匹配与 FindChildDocument 两级回退不一致。
 **教训**：实施后对照「已批准计划」逐行核对（Spec 轴）比泛泛的代码审查更能抓"实现偏离 spec"类 bug；两轴并行避免单轴掩盖。审查发现的问题按严重度分级：正确性 bug 必修（P0），风格类判断性项按用户决定。
+
+## ERB FONTSTYLE 位契约与内部枚举值域相反——重构"魔法数字→枚举引用"翻转 4/8 语义（2026-08-07）
+
+**场景**：PRINT_SLIDER 滑条（昼主導度 等）在 headless/前端"下划线缺失"，连发三个提交：v10 协议加 `underline?` 传输渲染、空格段改背景线、最后把 FONTSTYLE 解析"重构"成引用枚举值后"下划线终于出现"。
+
+**根因链**：
+1. **ERB 契约 ≠ .NET 枚举**。原版 Emuera（EvilMask/emuera.em `Process.ScriptProc.cs`）FONTSTYLE 位契约是 `位1=粗体、位2=斜体、位4=删除线、位8=下划线`；而仓库内部 `EmuFontStyle` 枚举按 System.Drawing.FontStyle（.NET）定义 `Underline=4、Strikeout=8`——**恰好相反**。原版代码用魔法数字 4/8 做边界转换（正确），本仓库旧代码照搬（仍正确）。
+2. **提交 3 重构翻车**：把魔法数字替换成 `EmuFontStyle.Underline.Value`（=4）后，`value&4 → Underline`，恰好与原版语义（4=删除线）相反，setter 与 `GGETFONTSTYLE` getter（`GraphicsImage.cs`：Strikeout→4、Underline→8）不再互逆。
+3. **协议字段与真实语义错位**：PRINT_SLIDER 实际用 `FONTSTYLE 4`（**删除线**），而 v10 协议只加了 `underline?`。提交 3 靠"把删除线伪装成下划线传输"让前端出现了横线——位置/粗细自然与 winforms 有差（删除线在字符 ~60% 高度，下划线在底部）。
+
+**取证方法**：
+- **原版源码对照**：直接拉 `gitlab.com/EvilMask/emuera.em` 的 ScriptProc.cs / GraphicsImage.cs / ConsoleStyledString.cs / Config.cs，逐行确认契约与渲染路径。
+- **GDI 渲染实测（winforms）**：用户 config 是 `描画インターフェース:TEXTRENDERER`。写临时 C# 程序用 TextRenderer/GDI+ 渲染空格+Strikeout/Underline + 像素扫描，得到线位置：GDI+ 对**空格不画任何装饰线**，TextRenderer 才画（Strikeout 在 60%、Underline 在 93%）。
+- **Chromium headless 截图**：Edge `--headless --screenshot` 渲染 11 种空格/文本装饰线场景，全部画线。
+
+**解决**：`ParseFontStyle` 恢复 ERB 位字面量（4→Strikeout、8→Underline），协议 v11 加 `strikeout?` 字段（对称 underline），前端统一 `text-decoration: underline line-through`。
+
+**教训**：
+- **重构"魔法数字→枚举引用"前必须确认两套值域是否一致**。此例 ERB 契约与 .NET 枚举恰好相反，引用枚举 = 翻转语义。位契约转换应使用独立常量（如 `ERB_FONT_STRIKEOUT = 4`），不要引用值域可能相反的枚举。
+- **协议字段必须对齐真实脚本语义，不能凭函数名/注释猜**。PRINT_SLIDER 名字里有"slider"、注释写"下划线空格"，实际脚本用的是删除线。先读 ERB 源码确认 `FONTSTYLE 4` 的契约，再定协议字段。
+- **setter/getter 互逆是契约自洽的最低检验**：`FONTSTYLE 4; GGETFONTSTYLE` 往返应得 4。改 setter 不动 getter 是隐蔽回归源。
+- **恒等式单元测试固化错误**：`InlineData(4,4)/(8,8)` 只验证"位直通"，测不出 4/8 翻转；正确断言应含跨值域映射 `(4,8)/(8,4)`。测试名宣称 "preserves the ERB bit values" 与实际行为相反。
+- **像素级渲染结论必须实测，肉眼不可靠**：第一版深底渲染图肉眼误判"GDI+ 删除线画在底部"，像素扫描证明 GDI+ 对空格**根本不画**。视觉问题先做"参考实现怎么渲染"的实测（含渲染模式配置），再下结论。
+- **hack 前先验证**：提交 2 的"空格段背景线"假设浏览器不为纯空格画 text-decoration，Chromium/WebView2 实测可靠（11 场景全画线），该 hack 不必要，已简化回 text-decoration。为旧版 WebView 假设写的兼容代码，要在当前内核上重新验证后再保留。
+- **修复方向的正确性独立于"现象是否消失"**：提交 3 让横线"出现"了，但方向是错的（把删除线当下划线）。"最后一个提交才成功"是碰巧对症（脚本用 4、解析变 Underline），不是正确性的证明。
