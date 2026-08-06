@@ -13,6 +13,9 @@
    —— 8×4 PNG 缺省高度=FontSize(18) → 纵横比 width = 8*18/4 = 36（探针端到端验证）
 7. 协议帧 sprite 图片：src=Face_1、width=36、height=18——探针经 ImageNameTable
    （resources csv）定位 1_Face.png 读 8×4 推算（sprite 名解析端到端验证）
+8. 协议帧裁切（issue 07，协议 v9）：Face_1（左格 (0,0,8,4)）/ Face_2（右格 (8,0,8,4)）
+   显示尺寸均 36×18（8×4 纵横比 @ h=18）；crop 已缩放几何——Face_1 {x:0,y:0,imgWidth:72,imgHeight:36}
+   （缩放 36/8=4.5：整图 16×4.5=72）、Face_2 {x:-36,y:0,imgWidth:72,imgHeight:36}（原点 (8,0) → -8×4.5=-36）
 
 Usage:
     python test_assets.py --binary <path> --game-dir test_game
@@ -98,7 +101,7 @@ def main():
         check(status == 200, f"GET /snapshot -> {status}")
         snap = json.loads(snap_body)
         imgs = find_all_image_segments(snap)
-        check(len(imgs) >= 2, f"snapshot contains 2 image segments (direct + sprite, got {len(imgs)})")
+        check(len(imgs) >= 3, f"snapshot contains 3 image segments (direct + Face_1 + Face_2, got {len(imgs)})")
         img = imgs[0] if imgs else None
         check(img is not None, "snapshot contains an image segment")
         if img is not None:
@@ -108,12 +111,40 @@ def main():
             check(img["ypos"] == 0, f"image.ypos == 0 (got {img['ypos']})")
 
         # ---------- 协议帧：sprite 名图片（era 的 <img src='Face_1'>） ----------
-        # src 是 sprite 名（无扩展名），几何经 ImageNameTable → resources/1_Face.png 探针
+        # src 是 sprite 名（无扩展名），几何经 ImageNameTable → resources/1_Face.png 探针。
+        # issue 07（协议 v9）：Face.csv 现为图集裁切——FACE_1=(0,0,8,4)、FACE_2=(8,0,8,4) @ 整图 16×8；
+        # 显示尺寸 36×18（8×4 纵横比 @ h=18），crop 为已缩放几何（缩放 36/8=4.5）。
         if len(imgs) >= 2:
             spr = imgs[1]
             check(spr["src"] == "Face_1", f"sprite image.src == 'Face_1' (got '{spr['src']}')")
-            check(spr["width"] == 36, f"sprite image.width == 36 (8x4 aspect @ h=18, got {spr['width']})")
+            check(spr["width"] == 36, f"sprite image.width == 36 (crop 8x4 aspect @ h=18, got {spr['width']})")
             check(spr["height"] == 18, f"sprite image.height == 18 (FontSize, got {spr['height']})")
+            crop1 = spr.get("crop")
+            check(crop1 is not None, "Face_1 carries crop (图集裁切)")
+            if crop1 is not None:
+                check(crop1["x"] == 0, f"Face_1 crop.x == 0 (origin (0,0), got {crop1['x']})")
+                check(crop1["y"] == 0, f"Face_1 crop.y == 0 (got {crop1['y']})")
+                check(crop1["imgWidth"] == 72, f"Face_1 crop.imgWidth == 72 (16*36/8, got {crop1['imgWidth']})")
+                check(crop1["imgHeight"] == 36, f"Face_1 crop.imgHeight == 36 (8*18/4, got {crop1['imgHeight']})")
+
+        # ---------- 协议帧：右格裁切（FACE_2，原点 (8,0)） ----------
+        if len(imgs) >= 3:
+            spr2 = imgs[2]
+            check(spr2["src"] == "Face_2", f"sprite image.src == 'Face_2' (got '{spr2['src']}')")
+            check(spr2["width"] == 36, f"Face_2 width == 36 (got {spr2['width']})")
+            check(spr2["height"] == 18, f"Face_2 height == 18 (got {spr2['height']})")
+            crop2 = spr2.get("crop")
+            check(crop2 is not None, "Face_2 carries crop (图集裁切)")
+            if crop2 is not None:
+                check(crop2["x"] == -36, f"Face_2 crop.x == -36 (origin 8*4.5, got {crop2['x']})")
+                check(crop2["y"] == 0, f"Face_2 crop.y == 0 (got {crop2['y']})")
+                check(crop2["imgWidth"] == 72, f"Face_2 crop.imgWidth == 72 (got {crop2['imgWidth']})")
+                check(crop2["imgHeight"] == 36, f"Face_2 crop.imgHeight == 36 (got {crop2['imgHeight']})")
+
+        # ---------- 直连相对路径图片（无裁切）不含 crop 字段 ----------
+        # imgs[0] = PRINT_IMG "img/test.png"——直接相对路径，crop 应缺省
+        if imgs:
+            check("crop" not in imgs[0], "direct-path image has no crop field (v8 兼容)")
 
         # ---------- /assets 正常加载 ----------
         status, body, headers = raw_get(server, "/assets/img/test.png")
@@ -132,6 +163,10 @@ def main():
         check(body[:8] == b"\x89PNG\r\n\x1a\n", "sprite body is a PNG signature")
         check(headers.get("Content-Type") == "image/png",
               f"sprite Content-Type == image/png (got {headers.get('Content-Type')})")
+
+        status, body, headers = raw_get(server, "/assets/Face_2")
+        check(status == 200, f"GET /assets/Face_2 (sprite name, right cell) -> {status}")
+        check(body[:8] == b"\x89PNG\r\n\x1a\n", "Face_2 body is a PNG signature")
 
         # ---------- 白名单外扩展名 404 ----------
         for path, name in [

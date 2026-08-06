@@ -17,6 +17,10 @@ import type { PrintSegment, SegmentImage } from '../types/protocol';
  *   守卫与提交）；非 srcm 图片不 emit——点击自然冒泡到按钮走既有路径
  * - 掩膜样式：inline-block + height: var(--term-line-min-height)（含 effectiveScale，
  *   由 .terminal 注入）——行盒恒定、虚拟滚动零改动
+ * - issue 07（协议 v9）：裁切——掩膜内嵌 `.term-crop`（overflow:hidden 定尺寸容器）+ img
+ *   负偏移（margin-left/top = crop.x/y）。**外层掩膜保持 overflow:visible**——不破坏
+ *   "后行盖先行"语义；容器 overflow:hidden 只裁剪图集横向/纵向溢出（单层 static 定位，
+ *   不产生 stacking context，后续行文字仍按 DOM 序覆盖）。
  *
  * 已知偏差（spec L132）：4 参 rect 绝对 x 按流位置 0（rectStyle left:0）。
  */
@@ -45,6 +49,28 @@ function imageStyle(img: SegmentImage): Record<string, string> {
   return { marginTop: `${img.ypos}px` };
 }
 
+/**
+ * issue 07：裁切容器样式——定尺寸（裁切后显示尺寸）+ overflow:hidden 裁剪图集溢出；
+ * ypos 从 img 转移到容器（容器即可见区）。
+ */
+function cropStyle(img: SegmentImage): Record<string, string> {
+  return {
+    display: 'block',
+    width: `${img.width}px`,
+    height: `${img.height}px`,
+    overflow: 'hidden',
+    marginTop: `${img.ypos}px`,
+  };
+}
+
+/** issue 07：裁切内 img 样式——负偏移（margin-left/top = 已缩放裁切原点取负）。 */
+function cropImageStyle(img: SegmentImage): Record<string, string> {
+  return {
+    marginLeft: `${img.crop!.x}px`,
+    marginTop: `${img.crop!.y}px`,
+  };
+}
+
 /** 掩膜内矩形样式——4 参 rect 绝对 x 按流位置 0（已知偏差）；y 透传。 */
 function rectStyle(shape: NonNullable<PrintSegment['shape']>): Record<string, string> {
   return {
@@ -69,7 +95,21 @@ function rectStyle(shape: NonNullable<PrintSegment['shape']>): Record<string, st
       @mouseenter="hoveredIdx = seg.image!.srcb ? segIdx : null"
       @mouseleave="hoveredIdx = null"
     >
+      <!-- issue 07（协议 v9）：裁切（图集 sprite）——掩膜内嵌 overflow:hidden 定尺寸容器
+           + img 负偏移；外层掩膜保持 overflow:visible（不破坏"后行盖先行"语义）。
+           无裁切走既有 img 路径（width/height = 显示尺寸）。 -->
+      <span v-if="seg.image.crop" class="term-crop" :style="cropStyle(seg.image)">
+        <img
+          class="term-img"
+          :src="resolveResource(hoveredIdx === segIdx && seg.image!.srcb ? seg.image!.srcb : seg.image!.src)"
+          :width="seg.image.crop.imgWidth"
+          :height="seg.image.crop.imgHeight"
+          :style="cropImageStyle(seg.image)"
+          draggable="false"
+        />
+      </span>
       <img
+        v-else
         class="term-img"
         :src="resolveResource(hoveredIdx === segIdx && seg.image!.srcb ? seg.image!.srcb : seg.image!.src)"
         :width="seg.image.width"
@@ -112,6 +152,14 @@ function segmentStyle(s: PS): Record<string, string> {
 }
 .term-img {
   display: block;
+}
+/* issue 07（协议 v9）：裁切容器——overflow:hidden 只裁剪图集溢出；
+   静态定位（无 position/z-index/transform），不产生 stacking context，
+   后续行静态文字仍按 DOM 序覆盖（"后行盖先行"忠实语义）。 */
+.term-crop {
+  display: block;
+  overflow: hidden;
+  line-height: 0;
 }
 .term-rect {
   display: block;

@@ -1,4 +1,4 @@
-import type { TurnRecord, DisplayDiff, LineOp, DisplayLine, DisplayEntry, ButtonRef, PrintSegment, SegmentImage, SegmentShape, BgImageState } from '../types/protocol';
+import type { TurnRecord, DisplayDiff, LineOp, DisplayLine, DisplayEntry, ButtonRef, PrintSegment, SegmentImage, SegmentShape, SegmentCrop, BgImageState } from '../types/protocol';
 
 /**
  * 解析 WS 帧 JSON 字符串为 `TurnRecord`（issue 02）。
@@ -219,6 +219,7 @@ function parsePrintSegment(raw: unknown, path: string): PrintSegment {
 
 /**
  * v8：解析图片 segment——src 必填 string；srcb/srcm 可空 string；width/height/ypos 必填 int。
+ * v9（issue 07）：crop 可选——{x,y,imgWidth,imgHeight} 全必填 int。
  */
 function parseSegmentImage(raw: unknown, path: string): SegmentImage {
   if (typeof raw !== 'object' || raw === null) {
@@ -235,6 +236,25 @@ function parseSegmentImage(raw: unknown, path: string): SegmentImage {
     width: readIntRequired(obj.width, `${path}.width`),
     height: readIntRequired(obj.height, `${path}.height`),
     ypos: readIntRequired(obj.ypos, `${path}.ypos`),
+    crop: obj.crop === undefined || obj.crop === null
+      ? undefined
+      : parseSegmentCrop(obj.crop, `${path}.crop`),
+  };
+}
+
+/**
+ * v9：解析裁切几何——x/y/imgWidth/imgHeight 全必填 int（C# SegmentCrop 非 nullable）。
+ */
+function parseSegmentCrop(raw: unknown, path: string): SegmentCrop {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new ParseTurnRecordError(`${path} 期望对象，得到 ${typeof raw}`);
+  }
+  const obj = raw as Record<string, unknown>;
+  return {
+    x: readIntRequired(obj.x, `${path}.x`),
+    y: readIntRequired(obj.y, `${path}.y`),
+    imgWidth: readIntRequired(obj.imgWidth, `${path}.imgWidth`),
+    imgHeight: readIntRequired(obj.imgHeight, `${path}.imgHeight`),
   };
 }
 

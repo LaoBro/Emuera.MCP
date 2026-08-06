@@ -569,4 +569,93 @@ describe('parseTurnRecord - v8 image/shape/bgImages', () => {
     });
     expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
   });
+
+  // ---------- v9（issue 07）：crop 裁切字段 ----------
+
+  it('image crop：x/y/imgWidth/imgHeight 全字段透传', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              {
+                entries: [{
+                  segments: [{
+                    text: '<img>',
+                    image: { src: 'Face_2', width: 36, height: 18, ypos: 0, crop: { x: -36, y: 0, imgWidth: 72, imgHeight: 36 } },
+                  }],
+                }],
+                isLineEnd: true,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    const op0 = turn.diff!.lineOps[0];
+    if (op0.type !== 'append') throw new Error('unreachable');
+    const seg = op0.newLines[0].entries[0].segments[0];
+    expect(seg.image!.crop).toEqual({ x: -36, y: 0, imgWidth: 72, imgHeight: 36 });
+    // width/height 仍是裁切后显示尺寸（容器尺寸），与 crop.imgWidth/imgHeight 语义区分
+    expect(seg.image!.width).toBe(36);
+    expect(seg.image!.height).toBe(18);
+  });
+
+  it('image 无 crop 字段时解析为 undefined（老客户端帧兼容）', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              {
+                entries: [{ segments: [{ text: '<img>', image: { src: 'img/test.png', width: 36, height: 18, ypos: 0 } }] }],
+                isLineEnd: true,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    const op0 = turn.diff!.lineOps[0];
+    if (op0.type !== 'append') throw new Error('unreachable');
+    const seg = op0.newLines[0].entries[0].segments[0];
+    expect(seg.image!.crop).toBeUndefined();
+  });
+
+  it('image crop 缺字段（非 int）抛 ParseTurnRecordError', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              {
+                entries: [{
+                  segments: [{
+                    text: '<img>',
+                    image: { src: 'Face_2', width: 36, height: 18, ypos: 0, crop: { x: -36, y: 0, imgWidth: 72 } },
+                  }],
+                }],
+                isLineEnd: true,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
+  });
 });

@@ -112,6 +112,45 @@ describe('TerminalDisplay: image 掩膜渲染（Q6）', () => {
     expect(img.attributes('style')).toContain('margin-top: -8px');
   });
 
+  // ---------- issue 07（协议 v9）：crop 裁切渲染 ----------
+
+  it('crop 裁切：掩膜内嵌 overflow:hidden 定尺寸容器 + img 负偏移', async () => {
+    const { wrapper } = await mountWith([line([imgSeg({ crop: { x: -36, y: 0, imgWidth: 72, imgHeight: 36 } })])]);
+    // 外层掩膜保持 overflow:visible（"后行盖先行"语义不破坏）
+    const mask = wrapper.find('.term-mask');
+    expect(mask.attributes('style')).toContain('overflow: visible');
+    // 容器：定尺寸（裁切后显示尺寸）+ overflow:hidden
+    const crop = wrapper.find('.term-crop');
+    expect(crop.exists()).toBe(true);
+    const style = crop.attributes('style') ?? '';
+    expect(style).toContain('overflow: hidden');
+    expect(style).toContain('width: 36px');
+    expect(style).toContain('height: 18px');
+    // img：元素尺寸 = 整图×缩放（72×36），负偏移 margin-left
+    const img = wrapper.find('.term-img');
+    expect(img.attributes('width')).toBe('72');
+    expect(img.attributes('height')).toBe('36');
+    expect(img.attributes('style')).toContain('margin-left: -36px');
+    expect(img.attributes('style')).toContain('margin-top: 0px');
+  });
+
+  it('crop 裁切：ypos 转移到容器（img 不再带 margin-top）', async () => {
+    const { wrapper } = await mountWith([line([imgSeg({ ypos: -8, crop: { x: 0, y: -4, imgWidth: 72, imgHeight: 36 } })])]);
+    const crop = wrapper.find('.term-crop');
+    expect(crop.attributes('style')).toContain('margin-top: -8px');
+    const img = wrapper.find('.term-img');
+    expect(img.attributes('style')).toContain('margin-top: -4px'); // crop.y 在 img 上
+    expect(img.attributes('style')).not.toContain('margin-top: -8px');
+  });
+
+  it('无 crop 图片不渲染 term-crop 容器（v8 行为锁定）', async () => {
+    const { wrapper } = await mountWith([line([imgSeg()])]);
+    expect(wrapper.find('.term-crop').exists()).toBe(false);
+    const img = wrapper.find('.term-img');
+    expect(img.attributes('width')).toBe('36');
+    expect(img.attributes('height')).toBe('18');
+  });
+
   it('rect segment 渲染掩膜 + 色块（background 颜色）', async () => {
     const { wrapper } = await mountWith([line([rectSeg()])]);
     const rect = wrapper.find('.term-rect');

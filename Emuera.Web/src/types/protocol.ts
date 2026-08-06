@@ -47,6 +47,10 @@ export interface PrintSegment {
  * - `srcb`：悬停/选中态替换图（相对路径）
  * - `srcm`：映射图（点击热区——取点击点像素色 0xRRGGBB 作为按钮输入值）
  * - `width` / `height` / `ypos`：已解析 px 几何（C# 尺寸探针产出，缺省宽高已按纵横比推算）
+ *
+ * v9（issue 07）：`crop`——图集 sprite 裁切几何（resources/*.csv 第 3-6 列裁切矩形，
+ * 已按显示尺寸缩放）。有值则前端渲染「overflow:hidden 定尺寸容器 + img 负偏移」，
+ * `width`/`height` 是容器（裁切后显示）尺寸。
  */
 export interface SegmentImage {
   src: string;
@@ -55,6 +59,23 @@ export interface SegmentImage {
   width: number;
   height: number;
   ypos: number;
+  /** v9：裁切几何——img 元素负偏移 + 元素渲染尺寸（整图×缩放）。null/省略 = 无裁切（整图）。 */
+  crop?: SegmentCrop | null;
+}
+
+/**
+ * v9：图片裁切几何（C# `SegmentCrop`，issue 07）。
+ * - `x` / `y`：img 元素负偏移（margin-left / margin-top，≤0，已按显示尺寸缩放）
+ * - `imgWidth` / `imgHeight`：img 元素渲染尺寸（整图 × 缩放系数；缩放系数 = 显示尺寸 / 裁切尺寸）
+ *
+ * 渲染：掩膜（overflow:visible 不变）→ `.term-crop` 容器（width/height + overflow:hidden）→
+ * img（负 margin）——前端零布局数学（协议携带已解析几何原则）。
+ */
+export interface SegmentCrop {
+  x: number;
+  y: number;
+  imgWidth: number;
+  imgHeight: number;
 }
 
 /**
@@ -269,11 +290,11 @@ export interface TurnRecord {
 }
 
 /**
- * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 8` 对称，v7→v8 加 image/shape/bgImages）。
+ * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 9` 对称，v8→v9 加 SegmentImage.crop）。
  *
  * 用于前端校验：WS 帧 protocolVersion 与本常量不匹配时给出降级提示。
  */
-export const CURRENT_PROTOCOL_VERSION = 8;
+export const CURRENT_PROTOCOL_VERSION = 9;
 
 // ---------- DisplayState：前端内部可变状态 ----------
 //
