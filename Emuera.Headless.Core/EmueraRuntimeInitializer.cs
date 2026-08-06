@@ -98,7 +98,12 @@ internal static class EmueraRuntimeInitializer
         return (configData, terminalSetup);
     }
 
-    private static ITerminalSetup CreateTerminalSetup()
+    /// <summary>
+    /// 创建平台终端 setup 实例。internal 暴露给 MAUI（经 InternalsVisibleTo）——
+    /// 无游戏启动模式下 MauiProgram 用它创建占位 <see cref="ITerminalSetup"/>
+    /// （无游戏时不消费，用户选游戏后 <see cref="Initialize"/> 内重建真实实例）。
+    /// </summary>
+    internal static ITerminalSetup CreateTerminalSetup()
     {
         if (OperatingSystem.IsWindows())
             return new WindowsTerminalSetup();

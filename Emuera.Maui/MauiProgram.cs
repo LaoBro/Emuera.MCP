@@ -1,11 +1,10 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Storage;
 using MinorShift.Emuera;
-using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.GameView; // AgentLog（Configure 在启动期调用）
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
 #if ANDROID
@@ -18,24 +17,18 @@ namespace Emuera.Maui;
 /// <summary>
 /// MAUI 应用入口工厂——issue 07 / spec ID8。
 /// <para>
-/// 编排启动序列（与 <c>HeadlessEntry.Main</c> 共享 <see cref="EmueraRuntimeInitializer"/>）：
-/// <list type="number">
-///   <item><see cref="GameResourceExtractor.EnsureGameDirAsync"/>——解压 <c>test_game/</c> 到 <c>FileSystem.AppDataDirectory/emuera/</c>（marker 文件避免重复解压）</item>
-///   <item><see cref="MinorShift.Emuera.GamePaths.Resolve"/>——绑定 <c>GamePaths.Current</c> 给共享源码读</item>
-///   <item><see cref="EmueraRuntimeInitializer.Initialize"/>——共享 bootstrap（encoding/culture/ConfigData/Lang 等）</item>
-///   <item>MAUI DI 注册 <see cref="ConfigData"/> / <see cref="ITerminalSetup"/> 单例——<see cref="MainPage"/> 重建时不重新初始化运行时</item>
-/// </list>
+/// <b>无游戏启动（2026-08-06 移除 test_game 打包后）</b>：
+/// 启动期不 Resolve 游戏目录、不 <see cref="EmueraRuntimeInitializer.Initialize"/>——
+/// <c>GamePaths.Current</c> 保持 null（<c>BridgeHost.HandleReady</c> 据此跳过 Start），
+/// DI 注册占位 <see cref="ConfigData"/> / <see cref="ITerminalSetup"/>（无游戏时不消费）。
+/// 用户经游戏列表 / 目录选择器选游戏后，<c>MainPage.OnReloadGame</c> 才
+/// <see cref="EmueraRuntimeInitializer.Initialize"/> 重建真实实例并 Start 游戏循环。
 /// </para>
 /// <para>
-/// <see cref="GamePaths.Validate"/> 不在此处调——MAUI 内置资源解压后路径必有效；
-/// 若解压失败（IO 错误等），<see cref="GameResourceExtractor.EnsureGameDirAsync"/> 抛异常让 MAUI 弹崩溃对话框。
+/// 历史（已移除）：<c>GameResourceExtractor.EnsureGameDirAsync</c> 曾解压内置 <c>test_game/</c>
+/// 到 <c>FileSystem.AppDataDirectory/emuera/</c> 后启动期直接初始化并自动进入游戏——
+/// 该机制随 test_game 打包移除而退役（用户可选任意游戏目录，无需内置示例）。
 /// </para>
-/// <remarks>
-/// <see cref="CreateMauiApp"/> 是同步入口（MAUI <c>MauiWinUIApplication</c> 调用），
-/// 但 <see cref="GameResourceExtractor.EnsureGameDirAsync"/> 是 async（MAUI <c>FileSystem.OpenAppPackageFileAsync</c> 异步）。
-/// 用 <c>Task.Run(...).GetAwaiter().GetResult()</c> 同步等待——MAUI 启动期同步等 IO 可接受
-/// （解压仅在首启动发生，二次启动 marker 文件存在直接返回）。
-/// </remarks>
 /// <para>
 /// <b>调试 Console</b>：MAUI Windows app 是 WinUI 进程（OutputType=WinExe），默认无 console 窗口——
 /// <c>Console.WriteLine</c> 输出丢失。DEBUG 构建下用 <see cref="AllocConsole"/> 创建 console 窗口，
@@ -77,26 +70,18 @@ public static class MauiProgram
 			catch { /* Preferences 不可用（极少见）——保持默认关闭 */ }
 			AgentLog.Configure(agentLogEnabled);
 			Console.WriteLine($"[maui] AgentLog configured: enabled={agentLogEnabled}");
-			// === spec ID8 启动编排 ===
-            // 同步等待 EnsureGameDirAsync——见类 remarks。
-            Console.WriteLine("[maui] EnsureGameDirAsync starting");
+			// === spec ID8 启动编排（2026-08-06 改为无游戏启动） ===
+            // test_game 内置打包已移除（见 csproj MauiAsset 注释）——启动期不再解压/Resolve/Initialize：
+            // - GamePaths.Current 保持 null——BridgeHost.HandleReady 据此跳过 Start（无游戏可跑），
+            //   等用户经游戏列表 / 目录选择器选游戏（loadGame → MainPage.OnReloadGame 重建 host + Start）
+            // - configData/terminalSetup 用占位实例注册 DI——无游戏时不消费（BridgeHost 不 Start）；
+            //   用户选游戏后 MainPage.OnReloadGame 经 EmueraRuntimeInitializer.Initialize
+            //   重建真实实例（含 LoadConfig）并替换字段
+            var configData = new ConfigData();
+            var terminalSetup = EmueraRuntimeInitializer.CreateTerminalSetup();
+            Console.WriteLine("[maui] no-game-start: placeholder ConfigData/TerminalSetup registered, waiting for loadGame");
 #if ANDROID
-            Android.Util.Log.Info("EmueraMaui", "EnsureGameDirAsync starting");
-#endif
-            var gameDir = Task.Run(GameResourceExtractor.EnsureGameDirAsync).GetAwaiter().GetResult();
-            Console.WriteLine($"[maui] EnsureGameDirAsync completed: gameDir={gameDir}");
-#if ANDROID
-            Android.Util.Log.Info("EmueraMaui", $"EnsureGameDirAsync completed: gameDir={gameDir}");
-#endif
-            var paths = GamePaths.Resolve(gameDir, new FileSystemGameDirAccessor());
-            Console.WriteLine($"[maui] GamePaths.Resolve completed: ExeDir={paths.ExeDir}");
-#if ANDROID
-            Android.Util.Log.Info("EmueraMaui", $"GamePaths.Resolve completed: ExeDir={paths.ExeDir}");
-#endif
-            var (configData, terminalSetup) = EmueraRuntimeInitializer.Initialize(paths, new FileSystemGameDirAccessor());
-            Console.WriteLine("[maui] EmueraRuntimeInitializer.Initialize completed");
-#if ANDROID
-            Android.Util.Log.Info("EmueraMaui", "EmueraRuntimeInitializer.Initialize completed");
+            Android.Util.Log.Info("EmueraMaui", "no-game-start: placeholder ConfigData/TerminalSetup registered");
 #endif
 
             // DI 注册单例——MainPage 经 DI 注入，重建时不重新初始化运行时

@@ -1,4 +1,4 @@
-import type { TurnRecord, DisplayDiff, LineOp, DisplayLine, DisplayEntry, ButtonRef, PrintSegment } from '../types/protocol';
+import type { TurnRecord, DisplayDiff, LineOp, DisplayLine, DisplayEntry, ButtonRef, PrintSegment, SegmentImage, SegmentShape, BgImageState } from '../types/protocol';
 
 /**
  * 解析 WS 帧 JSON 字符串为 `TurnRecord`（issue 02）。
@@ -72,7 +72,7 @@ export function parseTurnRecord(rawJson: string): TurnRecord {
 }
 
 /**
- * 解析 `DisplayDiff`。`lineOps` 必填且必须为数组；`bgColor` optional。
+ * 解析 `DisplayDiff`。`lineOps` 必填且必须为数组；`bgColor` / `bgImages` optional。
  */
 function parseDiff(raw: unknown): DisplayDiff {
   if (typeof raw !== 'object' || raw === null) {
@@ -85,6 +85,38 @@ function parseDiff(raw: unknown): DisplayDiff {
   return {
     lineOps: obj.lineOps.map((op, i) => parseLineOp(op, i)),
     bgColor: readStringOrNull(obj.bgColor, 'diff.bgColor'),
+    // v8：背景图增量（C# 紧凑归一——空列表省略，缺失即无变更）。null/undefined 均视为未提供。
+    bgImages: obj.bgImages === undefined || obj.bgImages === null
+      ? undefined
+      : parseBgImages(obj.bgImages),
+  };
+}
+
+/**
+ * v8：解析 `bgImages` 数组。元素必须为对象且含 src/depth/opacity。
+ */
+function parseBgImages(raw: unknown): BgImageState[] {
+  if (!Array.isArray(raw)) {
+    throw new ParseTurnRecordError(`diff.bgImages 期望数组，得到 ${typeof raw}`);
+  }
+  return raw.map((item, i) => parseBgImageState(item, `diff.bgImages[${i}]`));
+}
+
+/**
+ * v8：解析单个背景图状态——src 必填 string；depth 必填 int；opacity 必填 number。
+ */
+function parseBgImageState(raw: unknown, path: string): BgImageState {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new ParseTurnRecordError(`${path} 期望对象，得到 ${typeof raw}`);
+  }
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.src !== 'string') {
+    throw new ParseTurnRecordError(`${path}.src 缺失或非 string`);
+  }
+  return {
+    src: obj.src,
+    depth: readIntRequired(obj.depth, `${path}.depth`),
+    opacity: readNumberRequired(obj.opacity, `${path}.opacity`),
   };
 }
 
@@ -155,7 +187,12 @@ function parseDisplayEntry(raw: unknown, path: string): DisplayEntry {
 }
 
 /**
- * 解析 `PrintSegment`。`text` 必填；`color`/`bold`/`italic`/`fontname` 可空。
+ * 解析 `PrintSegment`。`text` 必填；`color`/`bold`/`italic`/`fontname` 可空；
+ * `image`/`shape` 可选（v8，issue 02）。
+ *
+ * 2026-08-06 修复：此前只按 v7 五字段解析，image/shape 在 JSON→对象转换时被丢弃——
+ * SegmentRenderer 的 `v-if="seg.image"` 恒 false，图片/背景「降级为文本」
+ * （渲染 C# 侧保留的 AltText markup 字符串）。此处补全两个字段的解析与形状校验。
  */
 function parsePrintSegment(raw: unknown, path: string): PrintSegment {
   if (typeof raw !== 'object' || raw === null) {
@@ -171,6 +208,55 @@ function parsePrintSegment(raw: unknown, path: string): PrintSegment {
     bold: readBoolOrNull(obj.bold, `${path}.bold`),
     italic: readBoolOrNull(obj.italic, `${path}.italic`),
     fontname: readStringOrNull(obj.fontname, `${path}.fontname`),
+    image: obj.image === undefined || obj.image === null
+      ? undefined
+      : parseSegmentImage(obj.image, `${path}.image`),
+    shape: obj.shape === undefined || obj.shape === null
+      ? undefined
+      : parseSegmentShape(obj.shape, `${path}.shape`),
+  };
+}
+
+/**
+ * v8：解析图片 segment——src 必填 string；srcb/srcm 可空 string；width/height/ypos 必填 int。
+ */
+function parseSegmentImage(raw: unknown, path: string): SegmentImage {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new ParseTurnRecordError(`${path} 期望对象，得到 ${typeof raw}`);
+  }
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.src !== 'string') {
+    throw new ParseTurnRecordError(`${path}.src 缺失或非 string`);
+  }
+  return {
+    src: obj.src,
+    srcb: readStringOrNull(obj.srcb, `${path}.srcb`),
+    srcm: readStringOrNull(obj.srcm, `${path}.srcm`),
+    width: readIntRequired(obj.width, `${path}.width`),
+    height: readIntRequired(obj.height, `${path}.height`),
+    ypos: readIntRequired(obj.ypos, `${path}.ypos`),
+  };
+}
+
+/**
+ * v8：解析形状 segment——type 必填且必须为 'rect'（C# 当前仅 rect 一种）；
+ * x/y/width/height 必填 int；color 必填 string。
+ */
+function parseSegmentShape(raw: unknown, path: string): SegmentShape {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new ParseTurnRecordError(`${path} 期望对象，得到 ${typeof raw}`);
+  }
+  const obj = raw as Record<string, unknown>;
+  if (obj.type !== 'rect') {
+    throw new ParseTurnRecordError(`${path}.type 期望 "rect"，得到 ${JSON.stringify(obj.type)}`);
+  }
+  return {
+    type: 'rect',
+    x: readIntRequired(obj.x, `${path}.x`),
+    y: readIntRequired(obj.y, `${path}.y`),
+    width: readIntRequired(obj.width, `${path}.width`),
+    height: readIntRequired(obj.height, `${path}.height`),
+    color: readStringRequired(obj.color, `${path}.color`),
   };
 }
 
@@ -204,6 +290,20 @@ function readStringOrNull(v: unknown, path: string): string | null {
   if (v === undefined || v === null) return null;
   if (typeof v !== 'string') {
     throw new ParseTurnRecordError(`${path} 期望 string|null，得到 ${typeof v}`);
+  }
+  return v;
+}
+
+function readStringRequired(v: unknown, path: string): string {
+  if (typeof v !== 'string') {
+    throw new ParseTurnRecordError(`${path} 缺失或非 string（得到 ${typeof v}）`);
+  }
+  return v;
+}
+
+function readNumberRequired(v: unknown, path: string): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) {
+    throw new ParseTurnRecordError(`${path} 缺失或非 number（得到 ${typeof v}）`);
   }
   return v;
 }

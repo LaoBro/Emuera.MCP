@@ -407,3 +407,166 @@ describe('parseTurnRecord - shift_head LineOp', () => {
     expect(op0.count).toBe(0);
   });
 });
+
+// ---------- v8：image / shape / bgImages 字段 ----------
+//
+// 与 C# ProtocolV8SegmentTests / AdapterV8Tests 对称——验证前端解析器能正确反序列化
+// C# 端产出的 v8 新字段。2026-08-06 修复：此前 parsePrintSegment/parseDiff 只按 v7 字段
+// 解析，image/shape/bgImages 在 JSON→对象转换时被丢弃——SegmentRenderer 的 v-if="seg.image"
+// 恒 false，图片/背景「降级为文本」（渲染 AltText 字符串）。本组用例锁住透传行为。
+describe('parseTurnRecord - v8 image/shape/bgImages', () => {
+  it('image segment：src/srcb/srcm/width/height/ypos 全字段透传', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              {
+                entries: [{ segments: [{ text: '<img>', image: { src: 'img/test.png', srcb: 'img/hover.png', srcm: 'img/map.png', width: 36, height: 18, ypos: 3 } }] }],
+                isLineEnd: true,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    const op0 = turn.diff!.lineOps[0];
+    if (op0.type !== 'append') throw new Error('unreachable');
+    const seg = op0.newLines[0].entries[0].segments[0];
+    expect(seg.image).not.toBeUndefined();
+    expect(seg.image!.src).toBe('img/test.png');
+    expect(seg.image!.srcb).toBe('img/hover.png');
+    expect(seg.image!.srcm).toBe('img/map.png');
+    expect(seg.image!.width).toBe(36);
+    expect(seg.image!.height).toBe(18);
+    expect(seg.image!.ypos).toBe(3);
+  });
+
+  it('image segment：srcb/srcm 省略时解析为 null（WhenWritingNull 对称）', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              { entries: [{ segments: [{ text: '<img>', image: { src: 'img/x.png', width: 10, height: 10, ypos: 0 } }] }], isLineEnd: true },
+            ],
+          },
+        ],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    const op0 = turn.diff!.lineOps[0];
+    if (op0.type !== 'append') throw new Error('unreachable');
+    const seg = op0.newLines[0].entries[0].segments[0];
+    expect(seg.image!.srcb).toBeNull();
+    expect(seg.image!.srcm).toBeNull();
+  });
+
+  it('shape segment：type/x/y/width/height/color 全字段透传', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              {
+                entries: [{ segments: [{ text: '', shape: { type: 'rect', x: 13, y: 0, width: 18, height: 18, color: '#FF0000' } }] }],
+                isLineEnd: true,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    const op0 = turn.diff!.lineOps[0];
+    if (op0.type !== 'append') throw new Error('unreachable');
+    const seg = op0.newLines[0].entries[0].segments[0];
+    expect(seg.shape).not.toBeUndefined();
+    expect(seg.shape!.type).toBe('rect');
+    expect(seg.shape!.x).toBe(13);
+    expect(seg.shape!.y).toBe(0);
+    expect(seg.shape!.width).toBe(18);
+    expect(seg.shape!.height).toBe(18);
+    expect(seg.shape!.color).toBe('#FF0000');
+  });
+
+  it('diff.bgImages：src/depth/opacity 数组透传', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [],
+        bgImages: [
+          { src: 'bg/forest.png', depth: 0, opacity: 1 },
+          { src: 'bg/overlay.png', depth: 1, opacity: 0.5 },
+        ],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    expect(turn.diff!.bgImages).not.toBeUndefined();
+    expect(turn.diff!.bgImages).toHaveLength(2);
+    expect(turn.diff!.bgImages![0].src).toBe('bg/forest.png');
+    expect(turn.diff!.bgImages![0].depth).toBe(0);
+    expect(turn.diff!.bgImages![0].opacity).toBe(1);
+    expect(turn.diff!.bgImages![1].src).toBe('bg/overlay.png');
+    expect(turn.diff!.bgImages![1].depth).toBe(1);
+    expect(turn.diff!.bgImages![1].opacity).toBe(0.5);
+  });
+
+  it('纯文本段：image/shape 为 undefined（v7 行为锁定）', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              { entries: [{ segments: [{ text: 'Hello' }] }], isLineEnd: true },
+            ],
+          },
+        ],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    const op0 = turn.diff!.lineOps[0];
+    if (op0.type !== 'append') throw new Error('unreachable');
+    const seg = op0.newLines[0].entries[0].segments[0];
+    expect(seg.image).toBeUndefined();
+    expect(seg.shape).toBeUndefined();
+  });
+
+  it('image 缺 src 抛 ParseTurnRecordError', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              { entries: [{ segments: [{ text: '<img>', image: { width: 36, height: 18, ypos: 0 } }] }], isLineEnd: true },
+            ],
+          },
+        ],
+      },
+    });
+    expect(() => parseTurnRecord(json)).toThrow(ParseTurnRecordError);
+  });
+});

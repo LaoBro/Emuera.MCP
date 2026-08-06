@@ -354,6 +354,12 @@ internal sealed class BridgeHost : IDisposable
 
     /// <summary>
     /// 处理 Vue ready 信号——首帧时调 <see cref="Start"/>，重复 ready 幂等忽略。
+    /// <para>
+    /// <b>无游戏启动（2026-08-06 移除 test_game 打包后）</b>：启动期不再 Resolve 游戏目录，
+    /// <see cref="GamePaths.Current"/> 为 null——ready 后不 Start（无游戏可跑），
+    /// 等用户经游戏列表 / 目录选择器选游戏（<c>loadGame</c> → <c>MainPage.OnReloadGame</c>
+    /// 重建 host + Start）。若未来恢复「默认游戏自动启动」，把 null 守卫改为对默认目录 Resolve。
+    /// </para>
     /// </summary>
     private void HandleReady()
     {
@@ -366,6 +372,11 @@ internal sealed class BridgeHost : IDisposable
         Console.WriteLine("[bridge] Vue ready signal received");
         AgentLog.Instance.Write("[bridge] Vue ready signal received");
         System.Diagnostics.Debug.WriteLine("[bridge] Vue ready signal received");
+        if (GamePaths.Current == null)
+        {
+            Console.WriteLine("[bridge] no game loaded at startup (no-game-start), waiting for loadGame");
+            return;
+        }
         Start();
     }
 
