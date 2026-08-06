@@ -47,6 +47,24 @@ internal sealed class ScriptProc
 		this.trainName = trainName;
 	}
 
+	/// <summary>
+	/// 将 ERB FONTSTYLE 的 System.Drawing.FontStyle 位掩码转换为无头核心样式。
+	/// 数值契约是 Bold=1、Italic=2、Underline=4、Strikeout=8。
+	/// </summary>
+	internal static EmuFontStyle ParseFontStyle(long value)
+	{
+		var style = EmuFontStyle.Regular;
+		if ((value & EmuFontStyle.Bold.Value) != 0)
+			style |= EmuFontStyle.Bold;
+		if ((value & EmuFontStyle.Italic.Value) != 0)
+			style |= EmuFontStyle.Italic;
+		if ((value & EmuFontStyle.Underline.Value) != 0)
+			style |= EmuFontStyle.Underline;
+		if ((value & EmuFontStyle.Strikeout.Value) != 0)
+			style |= EmuFontStyle.Strikeout;
+		return style;
+	}
+
 	public void Run()
 	{
 		while (true)
@@ -486,20 +504,11 @@ internal sealed class ScriptProc
 				break;
 			case FunctionCode.FONTSTYLE:
 				{
-					EmuFontStyle fs = EmuFontStyle.Regular;
 					if (func.Argument.IsConst)
 						iValue = func.Argument.ConstInt;
 					else
 						iValue = ((ExpressionArgument)func.Argument).Term.GetIntValue(exm);
-					if ((iValue & 1) != 0)
-						fs |= EmuFontStyle.Bold;
-					if ((iValue & 2) != 0)
-						fs |= EmuFontStyle.Italic;
-					if ((iValue & 4) != 0)
-						fs |= EmuFontStyle.Strikeout;
-					if ((iValue & 8) != 0)
-						fs |= EmuFontStyle.Underline;
-					exm.Console.SetStringStyle(fs);
+					exm.Console.SetStringStyle(ParseFontStyle(iValue));
 				}
 				break;
 			case FunctionCode.SETFONT:

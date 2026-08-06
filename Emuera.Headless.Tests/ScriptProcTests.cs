@@ -2,6 +2,7 @@ using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
@@ -158,5 +159,17 @@ public sealed class ScriptProcTests
 
         Assert.Equal(42, es.CurrentState.lineCount);
         Assert.Equal(SystemStateCode.Title_Begin, ((FakeProcessState)es.CurrentState).SystemState);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(4, 4)]
+    [InlineData(8, 8)]
+    [InlineData(12, 12)]
+    public void ParseFontStyle_preserves_the_ERB_font_style_bit_values(long value, int expectedValue)
+    {
+        EmuFontStyle style = ScriptProc.ParseFontStyle(value);
+
+        Assert.Equal(expectedValue, style.Value);
     }
 }
