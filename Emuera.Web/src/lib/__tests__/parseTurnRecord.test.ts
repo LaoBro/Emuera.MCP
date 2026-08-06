@@ -527,6 +527,31 @@ describe('parseTurnRecord - v8 image/shape/bgImages', () => {
     expect(seg.underline).toBe(true);
   });
 
+  it('strikeout 文本样式透传（PRINT_SLIDER 轨道，ERB 位4=删除线）', () => {
+    const json = JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [
+          {
+            type: 'append',
+            newLines: [
+              { entries: [{ segments: [{ text: '  ', color: '#40C040', strikeout: true }] }], isLineEnd: true },
+            ],
+          },
+        ],
+      },
+    });
+    const turn = parseTurnRecord(json);
+    const op0 = turn.diff!.lineOps[0];
+    if (op0.type !== 'append') throw new Error('unreachable');
+    const seg = op0.newLines[0].entries[0].segments[0];
+
+    expect(seg.strikeout).toBe(true);
+    expect(seg.underline).toBeFalsy();
+  });
+
   it('diff.bgImages：src/depth/opacity 数组透传', () => {
     const json = JSON.stringify({
       state: 'WaitInput',

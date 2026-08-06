@@ -27,7 +27,9 @@ export type ButtonValue = number | string;
  * `text` 永远存在；其余字段 nullable，C# WhenWritingNull 时省略。
  *
  * v8（issue 02）：新增 `image?` / `shape?`——图片与矩形色块的类型化承载。
- * v10：新增 `underline?`——保留彩色下划线空格，用于 PRINT_SLIDER 横线。
+ * v10：新增 `underline?`——保留彩色下划线空格。
+ * v11：新增 `strikeout?`——PRINT_SLIDER 实际用 ERB FONTSTYLE 位4（删除线）绘制滑条轨道，
+ *      v10 只实现 underline 导致删除线缺失；现按 ERB 位契约（位4=删除线、位8=下划线）对称补齐。
  * 老客户端忽略未知字段自然降级（纯增量）。
  */
 export interface PrintSegment {
@@ -36,8 +38,10 @@ export interface PrintSegment {
   bold?: boolean | null;
   italic?: boolean | null;
   fontname?: string | null;
-  /** v10：文本下划线；PRINT_SLIDER 用彩色下划线空格绘制滑条横线。 */
+  /** v10：文本下划线（ERB FONTSTYLE 位8）。 */
   underline?: boolean | null;
+  /** v11：文本删除线（ERB FONTSTYLE 位4）。PRINT_SLIDER 用彩色删除线空格绘制滑条横线。 */
+  strikeout?: boolean | null;
   /** v8：图片 segment（C# `SegmentImage`）。有值则前端按 image 渲染，忽略 text（text 为 CLI 调试标记）。 */
   image?: SegmentImage | null;
   /** v8：形状 segment（C# `SegmentShape`）。type='rect'，几何已解析 px。 */
@@ -293,11 +297,11 @@ export interface TurnRecord {
 }
 
 /**
- * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 10` 对称，v10 加 PrintSegment.underline）。
+ * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 11` 对称，v11 加 PrintSegment.strikeout）。
  *
  * 用于前端校验：WS 帧 protocolVersion 与本常量不匹配时给出降级提示。
  */
-export const CURRENT_PROTOCOL_VERSION = 10;
+export const CURRENT_PROTOCOL_VERSION = 11;
 
 // ---------- DisplayState：前端内部可变状态 ----------
 //

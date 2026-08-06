@@ -7,8 +7,8 @@ import json
 # v8（issue 02）：PrintSegment 加 image/shape；DisplaySnapshot/DisplayDiff 加 bgImages；
 # TurnOp 加 set_bg_image/remove_bg_image/clear_bg_image。
 # v9（issue 07）：SegmentImage 加 crop?（裁切矩形几何）。
-# v10：PrintSegment 加 underline?，保留 PRINT_SLIDER 的彩色下划线空格。
-PROTOCOL_VERSION = 10
+# v10：PrintSegment 加 underline?；v11：PrintSegment 加 strikeout?（PRINT_SLIDER 实际用删除线）。
+PROTOCOL_VERSION = 11
 
 import os
 import shutil

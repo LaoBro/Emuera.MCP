@@ -629,6 +629,7 @@ internal sealed class ConsolePrintManager
                 bool? italic = null;
                 string? fontname = null;
                 bool? underline = null;
+                bool? strikeout = null;
                 SegmentImage? image = null;
                 SegmentShape? shape = null;
 
@@ -644,6 +645,8 @@ internal sealed class ConsolePrintManager
                         italic = true;
                     if ((style.FontStyle & EmuFontStyle.Underline) != 0)
                         underline = true;
+                    if ((style.FontStyle & EmuFontStyle.Strikeout) != 0)
+                        strikeout = true;
                     if (style.Fontname != defaultFontName)
                         fontname = style.Fontname;
                 }
@@ -690,7 +693,7 @@ internal sealed class ConsolePrintManager
                     text = node.Text ?? "";
                 }
 
-                segments.Add(new PrintSegment(text, color, bold, italic, fontname, image, shape, underline));
+                segments.Add(new PrintSegment(text, color, bold, italic, fontname, image, shape, underline, strikeout));
             }
 
             string buttonText = btn.ToString() ?? "";

@@ -24,7 +24,7 @@ namespace Emuera.Headless.Tests;
 /// </summary>
 public class DisplayStateTests
 {
-    private const int ExpectedProtocolVersion = 10; // v10：PrintSegment.underline
+    private const int ExpectedProtocolVersion = 11; // v11：PrintSegment.strikeout
 
     /// <summary>
     /// 通过反射直接设置 ConsoleDisplayLine 的私有 align 字段，绕过 SetAlignment 对 Config.DrawableWidth 的依赖。
@@ -326,13 +326,13 @@ public class DisplayStateTests
     }
 
     [Fact]
-    public void ProtocolVersion_is_ten()
+    public void ProtocolVersion_is_eleven()
     {
-        // v10：PrintSegment.underline 保留 PRINT_SLIDER 的彩色下划线空格
+        // v11：PrintSegment.strikeout 保留 PRINT_SLIDER 的彩色删除线空格
         var snapshot = DisplayState.BuildSnapshot(
             new List<ConsoleDisplayLine>(), EmuColor.Black, ConsoleState.WaitInput, currentRequest: null, "TestFont");
 
-        Assert.Equal(10, snapshot.protocolVersion);
+        Assert.Equal(11, snapshot.protocolVersion);
     }
 
     // ---------- ADR-0016：TINPUT timer 元数据填充 ----------

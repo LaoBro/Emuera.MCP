@@ -177,7 +177,7 @@ describe('TerminalDisplay: image 掩膜渲染（Q6）', () => {
     expect(rect.attributes('style')).toContain('left: 6px');
   });
 
-  it('underline 空格段使用显式背景线，保留 PRINT_SLIDER 横线宽度', async () => {
+  it('underline 空格段使用 text-decoration（Chromium/WebView2 实测可靠）', async () => {
     const { wrapper } = await mountWith([line([{
       text: '  ',
       color: '#40C040',
@@ -186,21 +186,51 @@ describe('TerminalDisplay: image 掩膜渲染（Q6）', () => {
     const segment = wrapper.find('.term-seg');
     const style = segment.attributes('style') ?? '';
 
-    expect(style).toContain('display: inline-block');
-    expect(style).toContain('white-space: pre');
-    expect(style).toContain('background-image: linear-gradient(currentColor, currentColor)');
-    expect(style).toContain('background-position: left calc(100% - 2px)');
-    expect(style).toContain('background-size: 100% 1px');
-    expect(style).not.toContain('text-decoration: underline');
+    expect(style).toContain('text-decoration: underline');
+    expect(style).not.toContain('background-image');
+    expect(style).not.toContain('display: inline-block');
   });
 
-  it('underline 普通文本仍使用 CSS 下划线', async () => {
+  it('underline 普通文本使用 CSS 下划线', async () => {
     const { wrapper } = await mountWith([line([{
       text: 'text',
       underline: true,
     }])]);
 
     expect(wrapper.find('.term-seg').attributes('style')).toContain('text-decoration: underline');
+  });
+
+  it('strikeout 空格段使用 text-decoration: line-through（Chromium 对纯空格可靠）', async () => {
+    const { wrapper } = await mountWith([line([{
+      text: '  ',
+      color: '#40C040',
+      strikeout: true,
+    }])]);
+    const segment = wrapper.find('.term-seg');
+    const style = segment.attributes('style') ?? '';
+
+    expect(style).toContain('text-decoration: line-through');
+    expect(style).not.toContain('background-image');
+    expect(style).not.toContain('display: inline-block');
+  });
+
+  it('strikeout 普通文本使用 CSS 删除线', async () => {
+    const { wrapper } = await mountWith([line([{
+      text: 'text',
+      strikeout: true,
+    }])]);
+
+    expect(wrapper.find('.term-seg').attributes('style')).toContain('text-decoration: line-through');
+  });
+
+  it('underline+strikeout 叠加为 "underline line-through"', async () => {
+    const { wrapper } = await mountWith([line([{
+      text: '  ',
+      underline: true,
+      strikeout: true,
+    }])]);
+
+    expect(wrapper.find('.term-seg').attributes('style')).toContain('text-decoration: underline line-through');
   });
 
   // ---------- issue 09：缩放（effectiveScale 作用于图片几何） ----------
@@ -226,11 +256,9 @@ describe('TerminalDisplay: image 掩膜渲染（Q6）', () => {
     expect(img.attributes('style')).toContain('height: 54px');
     expect(img.attributes('style')).toContain('margin-left: -54px');
     const rail = wrapper.findAll('.term-seg').find((s) =>
-      (s.attributes('style') ?? '').includes('background-image'),
+      (s.attributes('style') ?? '').includes('text-decoration: underline'),
     );
     expect(rail).toBeDefined();
-    expect(rail!.attributes('style')).toContain('background-position: left calc(100% - 3px)');
-    expect(rail!.attributes('style')).toContain('background-size: 100% 2px');
   });
 
   // ---------- 掩膜静态定位（不进入定位层，DOM 序"后行盖先行"） ----------

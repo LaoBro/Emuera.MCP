@@ -48,20 +48,23 @@ internal sealed class ScriptProc
 	}
 
 	/// <summary>
-	/// 将 ERB FONTSTYLE 的 System.Drawing.FontStyle 位掩码转换为无头核心样式。
-	/// 数值契约是 Bold=1、Italic=2、Underline=4、Strikeout=8。
+	/// 将 ERB FONTSTYLE 位掩码转换为无头核心样式。
+	/// ERB 位契约（与原版 Emuera 一致，见 emuera.em Process.ScriptProc.cs）：
+	/// 位1=加粗、位2=斜体、位4=删除线（取消線）、位8=下划线（下線）。
+	/// 注意：与内部 EmuFontStyle 枚举（.NET 契约 Underline=4、Strikeout=8）恰好相反，
+	/// 因此 4/8 必须用 ERB 位字面量做转换，不能引用 EmuFontStyle.Underline/Strikeout.Value。
 	/// </summary>
 	internal static EmuFontStyle ParseFontStyle(long value)
 	{
 		var style = EmuFontStyle.Regular;
-		if ((value & EmuFontStyle.Bold.Value) != 0)
+		if ((value & 1) != 0)
 			style |= EmuFontStyle.Bold;
-		if ((value & EmuFontStyle.Italic.Value) != 0)
+		if ((value & 2) != 0)
 			style |= EmuFontStyle.Italic;
-		if ((value & EmuFontStyle.Underline.Value) != 0)
-			style |= EmuFontStyle.Underline;
-		if ((value & EmuFontStyle.Strikeout.Value) != 0)
+		if ((value & 4) != 0)
 			style |= EmuFontStyle.Strikeout;
+		if ((value & 8) != 0)
+			style |= EmuFontStyle.Underline;
 		return style;
 	}
 

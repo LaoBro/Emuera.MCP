@@ -34,8 +34,11 @@ internal record TurnRecord(
     /// v9（issue 07）：SegmentImage 加 crop?（裁切矩形几何）——图集 sprite（resources/*.csv
     /// 第 3-6 列）只显示裁切区。crop 携带已缩放几何（img 负偏移 + 元素尺寸），前端零布局数学。
     /// v10：PrintSegment 加 underline?，保留 PRINT_SLIDER 用于绘制彩色横线的下划线空格样式。
+    /// v11：PrintSegment 加 strikeout?——PRINT_SLIDER 实际用 ERB FONTSTYLE 位4（删除线，取消線）
+    /// 绘制滑条轨道，v10 只实现 underline 导致删除线缺失、被 v10 修复提交误映射为 underline；
+    /// 现按 ERB 位契约（位4=删除线、位8=下划线）对称补齐 strikeout 字段。
     /// </summary>
-    internal const int CurrentProtocolVersion = 10;
+    internal const int CurrentProtocolVersion = 11;
 }
 
 /// <summary>
@@ -120,7 +123,8 @@ internal record PrintSegment(
     string? fontname,
     SegmentImage? image = null,
     SegmentShape? shape = null,
-    bool? underline = null
+    bool? underline = null,
+    bool? strikeout = null
 );
 
 /// <summary>

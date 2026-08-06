@@ -163,10 +163,12 @@ public sealed class ScriptProcTests
 
     [Theory]
     [InlineData(0, 0)]
-    [InlineData(4, 4)]
-    [InlineData(8, 8)]
-    [InlineData(12, 12)]
-    public void ParseFontStyle_preserves_the_ERB_font_style_bit_values(long value, int expectedValue)
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    [InlineData(4, 8)]   // ERB 位4 = 删除线 → 内部 Strikeout(8)
+    [InlineData(8, 4)]   // ERB 位8 = 下划线 → 内部 Underline(4)
+    [InlineData(12, 12)] // 4|8 组合对称，两种映射结果相同
+    public void ParseFontStyle_maps_ERB_bit_contract_to_internal_values(long value, int expectedValue)
     {
         EmuFontStyle style = ScriptProc.ParseFontStyle(value);
 

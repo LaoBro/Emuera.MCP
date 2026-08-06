@@ -138,4 +138,20 @@ public class ProtocolV8SegmentTests : IDisposable
 
         Assert.True(seg.underline);
     }
+
+    [Fact]
+    public void Strikeout_style_is_preserved_for_slider_space_segments()
+    {
+        // v11：PRINT_SLIDER 实际用 ERB FONTSTYLE 位4（删除线）画轨道——
+        // 前端靠 strikeout 标志绘制，与 underline 对称。
+        var style = new StringStyle(new EmuColor(64, 192, 64), colorChanged: true,
+            buttonColor: EmuColor.Black, EmuFontStyle.Strikeout, fontname: "TestFont");
+
+        var ops = ConsolePrintManager.BuildPrintOpsForLine(
+            LineOf(new ConsoleStyledString(" ", style)),
+            "TestFont");
+        var seg = Assert.Single(Assert.Single(ops).segments);
+
+        Assert.True(seg.strikeout);
+    }
 }
