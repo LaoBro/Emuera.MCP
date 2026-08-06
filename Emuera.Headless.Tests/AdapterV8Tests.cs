@@ -33,6 +33,11 @@ public class AdapterV8Tests : IDisposable
         GamePaths.Resolve(_gameDir, new FileSystemGameDirAccessor());
         _scope = GlobalStatic.OpenScope(new ConfigData());
         File.WriteAllBytes(Path.Combine(_gameDir, "img", "portrait.png"), Png(200, 100));
+        // issue 07：图集夹具——atlas.png 16×8（2×1 网格）；FACE_2=右格 (8,0,8,4)
+        Directory.CreateDirectory(Path.Combine(_gameDir, "resources"));
+        File.WriteAllText(Path.Combine(_gameDir, "resources", "Face.csv"),
+            "FACE_1,atlas.png,0,0,8,4\nFACE_2,atlas.png,8,0,8,4\n");
+        File.WriteAllBytes(Path.Combine(_gameDir, "resources", "atlas.png"), Png(16, 8));
     }
 
     public void Dispose()
@@ -100,6 +105,54 @@ public class AdapterV8Tests : IDisposable
         Assert.Equal("bg/forest.png", adapter.BgImages[0].src);
         Assert.Equal(1, adapter.BgImages[0].depth);
         Assert.Equal(0.5f, adapter.BgImages[0].opacity);
+    }
+
+    // ---------- issue 07：裁切矩形 segment 往返 ----------
+
+    [Fact]
+    public void T_snapshot_reconstructs_cropped_image_segment()
+    {
+        // 图集 sprite（FACE_2 裁切 (8,0,8,4) @ 整图 16×8）→ 快照 → TestAdapter 往返，
+        // crop 字段（已缩放几何）完整保留——前端能做到的任何重建，TestAdapter 都能。
+        var img = new ConsoleImagePart("Face_2", null, null,
+            new Utils.MixedNum { num = 18, isPx = true }, null, null);
+        var btn = new ConsoleButtonString(null!, new AConsoleDisplayNode[] { img });
+        var line = new ConsoleDisplayLine(new[] { btn }, isLogical: true, temporary: false);
+
+        var snapshot = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine> { line }, EmuColor.Black, ConsoleState.WaitInput, null, "TestFont");
+
+        var adapter = new TestAdapter();
+        adapter.ApplySnapshot(snapshot);
+
+        var imageSeg = adapter.Lines[0].Entries[0].Segments[0].image!;
+        Assert.Equal("Face_2", imageSeg.src);
+        Assert.Equal(36, imageSeg.width);
+        Assert.Equal(18, imageSeg.height);
+        Assert.NotNull(imageSeg.crop);
+        // 缩放 36/8=4.5：原点 (8,0) → margin-left -36；img 元素 16×4.5=72 × 8×4.5=36
+        Assert.Equal(-36, imageSeg.crop!.x);
+        Assert.Equal(0, imageSeg.crop.y);
+        Assert.Equal(72, imageSeg.crop.imgWidth);
+        Assert.Equal(36, imageSeg.crop.imgHeight);
+    }
+
+    [Fact]
+    public void T_snapshot_uncropped_image_has_null_crop()
+    {
+        // 直接相对路径（无裁切）→ crop 缺省 null，JSON 省略（WhenWritingNull）
+        var img = new ConsoleImagePart("img/portrait.png", null, null,
+            new Utils.MixedNum { num = 50, isPx = true }, null, null);
+        var btn = new ConsoleButtonString(null!, new AConsoleDisplayNode[] { img });
+        var line = new ConsoleDisplayLine(new[] { btn }, isLogical: true, temporary: false);
+
+        var snapshot = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine> { line }, EmuColor.Black, ConsoleState.WaitInput, null, "TestFont");
+        var adapter = new TestAdapter();
+        adapter.ApplySnapshot(snapshot);
+
+        var imageSeg = adapter.Lines[0].Entries[0].Segments[0].image!;
+        Assert.Null(imageSeg.crop);
     }
 
     // ---------- diff：bgImages 变更 ----------
@@ -189,7 +242,7 @@ public class AdapterV8Tests : IDisposable
         Assert.Equal("bg/forest.png", bg.GetProperty("src").GetString());
         Assert.Equal(1, bg.GetProperty("depth").GetInt32());
         Assert.Equal(0.5, bg.GetProperty("opacity").GetDouble());
-        Assert.Equal(8, doc.RootElement.GetProperty("protocolVersion").GetInt32());
+        Assert.Equal(9, doc.RootElement.GetProperty("protocolVersion").GetInt32());
 
         // v7 已知字段仍在——老客户端按 v7 解析不炸、忽略未知字段自然降级
         Assert.Equal("#000000", doc.RootElement.GetProperty("bgColor").GetString());
@@ -205,5 +258,32 @@ public class AdapterV8Tests : IDisposable
         Assert.Equal("bg/forest.png", back.bgImages![0].src);
         Assert.Equal("img/portrait.png", back.lines[0].entries[0].segments[0].image!.src);
         Assert.Equal("rect", back.lines[0].entries[0].segments[1].shape!.type);
+    }
+
+    [Fact]
+    public void T_json_wire_carries_crop_fields()
+    {
+        // issue 07：裁切图 sprite → wire 上 crop 以 {x,y,imgWidth,imgHeight} 形状出现
+        var img = new ConsoleImagePart("Face_2", null, null,
+            new Utils.MixedNum { num = 18, isPx = true }, null, null);
+        var btn = new ConsoleButtonString(null!, new AConsoleDisplayNode[] { img });
+        var line = new ConsoleDisplayLine(new[] { btn }, isLogical: true, temporary: false);
+        var snapshot = DisplayState.BuildSnapshot(
+            new List<ConsoleDisplayLine> { line }, EmuColor.Black, ConsoleState.WaitInput, null, "TestFont");
+
+        var json = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        });
+        using var doc = JsonDocument.Parse(json);
+
+        var image = doc.RootElement.GetProperty("lines")[0].GetProperty("entries")[0]
+            .GetProperty("segments")[0].GetProperty("image");
+        var crop = image.GetProperty("crop");
+        Assert.Equal(-36, crop.GetProperty("x").GetInt32());
+        Assert.Equal(0, crop.GetProperty("y").GetInt32());
+        Assert.Equal(72, crop.GetProperty("imgWidth").GetInt32());
+        Assert.Equal(36, crop.GetProperty("imgHeight").GetInt32());
+        Assert.Equal(9, doc.RootElement.GetProperty("protocolVersion").GetInt32());
     }
 }

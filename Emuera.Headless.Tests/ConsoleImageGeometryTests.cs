@@ -32,6 +32,11 @@ public class ConsoleImageGeometryTests : IDisposable
         _scope = GlobalStatic.OpenScope(new ConfigData()); // FontSize 默认 18
         // 200×100 PNG —— 纵横比推算的独立已知来源
         File.WriteAllBytes(Path.Combine(_gameDir, "img", "portrait.png"), Png(200, 100));
+        // issue 07：图集夹具——atlas.png 16×8（2×1 网格，每格 8×4）；FACE_1=左格、FACE_2=右格
+        Directory.CreateDirectory(Path.Combine(_gameDir, "resources"));
+        File.WriteAllText(Path.Combine(_gameDir, "resources", "Face.csv"),
+            "FACE_1,atlas.png,0,0,8,4\nFACE_2,atlas.png,8,0,8,4\n");
+        File.WriteAllBytes(Path.Combine(_gameDir, "resources", "atlas.png"), Png(16, 8));
     }
 
     public void Dispose()
@@ -138,6 +143,64 @@ public class ConsoleImageGeometryTests : IDisposable
         Assert.Equal(0, part.Width);
         Assert.Equal(50, part.Height);
         Assert.Equal(0, part.YPos);
+    }
+
+    // ---------- issue 07：裁切矩形几何（协议 v9） ----------
+    // 期望值独立推导：裁切 (x,y,w,h) 缩放绘制到显示尺寸 (W,H)——缩放系数 = 显示/裁切，
+    // img 元素尺寸 = 整图×缩放，img 偏移 = -原点×缩放（WinForms SpriteF.GraphicsDraw 语义）。
+
+    [Fact]
+    public void Cropped_sprite_reports_scaled_crop_geometry()
+    {
+        // FACE_1 裁切 (0,0,8,4) @ 整图 16×8，height=18px → 显示 36×18；
+        // 缩放 36/8=4.5、18/4=4.5：img 元素 16×4.5=72 × 8×4.5=36，原点 (0,0) → 偏移 0
+        var part = new ConsoleImagePart("Face_1", null, null, Px(18), null, null);
+
+        Assert.True(part.HasCrop);
+        Assert.Equal(36, part.Width);
+        Assert.Equal(18, part.Height);
+        Assert.Equal(0, part.CropX);
+        Assert.Equal(0, part.CropY);
+        Assert.Equal(72, part.CropImgWidth);
+        Assert.Equal(36, part.CropImgHeight);
+    }
+
+    [Fact]
+    public void Cropped_sprite_with_offset_origin_scales_margins_negative()
+    {
+        // FACE_2 裁切原点 (8,0)：img 左移 8×4.5 = 36 → margin-left = -36
+        var part = new ConsoleImagePart("Face_2", null, null, Px(18), null, null);
+
+        Assert.True(part.HasCrop);
+        Assert.Equal(36, part.Width);
+        Assert.Equal(-36, part.CropX);
+        Assert.Equal(0, part.CropY);
+        Assert.Equal(72, part.CropImgWidth);
+        Assert.Equal(36, part.CropImgHeight);
+    }
+
+    [Fact]
+    public void Cropped_sprite_with_explicit_display_size_scales_geometry()
+    {
+        // FACE_1 + height=90px → 显示 180×90（8×4 纵横比）；缩放 180/8=22.5、90/4=22.5：
+        // img 元素 16×22.5=360 × 8×22.5=180
+        var part = new ConsoleImagePart("Face_1", null, null, Px(90), null, null);
+
+        Assert.True(part.HasCrop);
+        Assert.Equal(180, part.Width);
+        Assert.Equal(90, part.Height);
+        Assert.Equal(360, part.CropImgWidth);
+        Assert.Equal(180, part.CropImgHeight);
+    }
+
+    [Fact]
+    public void Direct_path_image_has_no_crop()
+    {
+        // 直接相对路径（无 csv 裁切）→ HasCrop false
+        var part = new ConsoleImagePart("img/portrait.png", null, null, Px(50), null, null);
+
+        Assert.False(part.HasCrop);
+        Assert.Equal(0, part.CropImgWidth);
     }
 
     [Fact]

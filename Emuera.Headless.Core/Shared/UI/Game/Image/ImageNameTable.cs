@@ -7,12 +7,13 @@ using MinorShift.Emuera.Runtime.Utils;
 namespace MinorShift.Emuera.UI.Game.Image;
 
 /// <summary>
-/// sprite 名 → 相对游戏根文件路径 映射表。
+/// sprite 名 → 相对游戏根文件路径 + 可选裁切矩形 映射表。
 /// <para>
 /// era 游戏 HTML <c>&lt;img src='Face_1'&gt;</c> 的 src 是 sprite 名（如 <c>FACE_1</c>），真实文件是
-/// <c>resources/1_Face.png</c>——映射在 <c>resources/*.csv</c> 第一、二列（<c>FACE_1,1_Face.png,0,0,180,180</c>）。
-/// WinForms 的 <see cref="AppContents.LoadContents"/> 扫描 resources csv 构建 sprite 表，无头下该函数是 stub——
-/// 本表只解析「名→文件路径」（不加载位图），供尺寸探针与资源通道复用。
+/// <c>resources/1_Face.png</c>——映射在 <c>resources/*.csv</c> 第一、二列，第 3-6 列（<c>tokens[2..5]</c>）是
+/// 裁切矩形 <c>FACE_1,1_Face.png,0,0,180,180</c>（从图集裁切 (0,0,180,180)）。WinForms 的
+/// <see cref="AppContents.LoadContents"/> 扫描 resources csv 构建 sprite 表，无头下该函数是 stub——
+/// 本表只解析「名→文件路径 + 裁切矩形」（不加载位图），供尺寸探针、GetSprite 替身与资源通道复用。
 /// </para>
 /// <para>
 /// 懒加载 + 按游戏根缓存：<c>TryResolve</c> 首次调用（或游戏根变化）时扫描重建。
@@ -25,18 +26,33 @@ internal static class ImageNameTable
 {
     private static readonly object _sync = new();
     private static string? _loadedRoot;
-    private static Dictionary<string, string> _map = new(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, SpriteEntry> _map = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>解析 sprite 名 → 相对游戏根的文件路径（正斜杠分隔）。失败返回 false。</summary>
     public static bool TryResolve(IGameDirAccessor accessor, string gameRoot, string name, out string? relativePath)
     {
+        if (TryResolveEntry(accessor, gameRoot, name, out var entry) && entry != null)
+        {
+            relativePath = entry.RelativePath;
+            return true;
+        }
         relativePath = null;
+        return false;
+    }
+
+    /// <summary>
+    /// 解析 sprite 名 → 完整条目（文件路径 + 可选裁切矩形）。失败返回 false。
+    /// issue 07：裁切矩形来自 csv 第 3-6 列（tokens[2..5]）——无矩形（列不足/非整数/宽高≤0）= 全图。
+    /// </summary>
+    public static bool TryResolveEntry(IGameDirAccessor accessor, string gameRoot, string name, out SpriteEntry? entry)
+    {
+        entry = null;
         if (accessor == null || string.IsNullOrEmpty(gameRoot) || string.IsNullOrEmpty(name))
             return false;
         EnsureLoaded(accessor, gameRoot);
         lock (_sync)
         {
-            return _map.TryGetValue(name, out relativePath) && relativePath != null;
+            return _map.TryGetValue(name, out entry) && entry != null;
         }
     }
 
@@ -46,7 +62,7 @@ internal static class ImageNameTable
         {
             if (_loadedRoot == gameRoot)
                 return; // 已为当前游戏根加载（空表也缓存，避免每请求重扫）
-            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var map = new Dictionary<string, SpriteEntry>(StringComparer.OrdinalIgnoreCase);
             try
             {
                 // ContentDir = <root>/resources（与 GamePaths.ContentDir 同规则）
@@ -77,9 +93,21 @@ internal static class ImageNameTable
                             continue;
                         if (file.Equals("ANIME", StringComparison.OrdinalIgnoreCase))
                             continue;
+                        // issue 07：第 3-6 列（tokens[2..5]）裁切矩形 (x,y,w,h)——全部可解析且 w/h>0
+                        // 才视为裁切（WinForms CreateFromCsv 同款列位与正性校验；OoR 越界由调用方宽容处理）
+                        SpriteCrop? crop = null;
+                        if (tokens.Length >= 6
+                            && int.TryParse(tokens[2].Trim(), out var cropX)
+                            && int.TryParse(tokens[3].Trim(), out var cropY)
+                            && int.TryParse(tokens[4].Trim(), out var cropW)
+                            && int.TryParse(tokens[5].Trim(), out var cropH)
+                            && cropW > 0 && cropH > 0)
+                        {
+                            crop = new SpriteCrop(cropX, cropY, cropW, cropH);
+                        }
                         var rel = csvDirRel.Length == 0 ? file : csvDirRel + "/" + file;
                         if (!map.ContainsKey(name))
-                            map[name] = rel; // 重复名 first-wins（WinForms 打 SpriteNameAlreadyUsed 告警，无头静默）
+                            map[name] = new SpriteEntry(rel, crop); // 重复名 first-wins（WinForms 打 SpriteNameAlreadyUsed 告警，无头静默）
                     }
                 }
             }
@@ -103,3 +131,14 @@ internal static class ImageNameTable
         return rel == "." ? "" : rel.Replace('\\', '/');
     }
 }
+
+/// <summary>
+/// issue 07：sprite 裁切矩形——csv 第 3-6 列 (x,y,w,h)，图集内像素坐标。
+/// 无头不加载位图，越界（x+w&gt;整图宽等）由调用方（GetSprite 替身）按探测尺寸宽容处理。
+/// </summary>
+internal readonly record struct SpriteCrop(int X, int Y, int Width, int Height);
+
+/// <summary>
+/// issue 07：sprite 名解析条目——相对游戏根文件路径 + 可选裁切矩形（无裁切 = 全图）。
+/// </summary>
+internal sealed record SpriteEntry(string RelativePath, SpriteCrop? Crop);

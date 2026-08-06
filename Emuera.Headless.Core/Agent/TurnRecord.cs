@@ -31,8 +31,10 @@ internal record TurnRecord(
     /// （nullable + WhenWritingNull，非 TINPUT 时不出现）+ timedOut（非 nullable bool，默认 false）。
     /// v8（issue 02）：PrintSegment 加 image?/shape?；DisplaySnapshot/DisplayDiff 加 bgImages?；
     /// TurnOp 加 set_bg_image/remove_bg_image/clear_bg_image。纯增量，老客户端忽略未知字段自然降级。
+    /// v9（issue 07）：SegmentImage 加 crop?（裁切矩形几何）——图集 sprite（resources/*.csv
+    /// 第 3-6 列）只显示裁切区。crop 携带已缩放几何（img 负偏移 + 元素尺寸），前端零布局数学。
     /// </summary>
-    internal const int CurrentProtocolVersion = 8;
+    internal const int CurrentProtocolVersion = 9;
 }
 
 /// <summary>
@@ -123,6 +125,7 @@ internal record PrintSegment(
 /// v8：图片 segment（issue 02）——src/srcb/srcm 为游戏目录内相对路径，
 /// width/height/ypos 为已解析 px 几何（01 产出，前端零布局数学）。
 /// srcb = 悬停/选中态替换图，srcm = 点击读像素色的映射图。
+/// v9（issue 07）：crop 为可选裁切几何——图集 sprite 只显示裁切区。
 /// </summary>
 internal record SegmentImage(
     string src,
@@ -130,7 +133,21 @@ internal record SegmentImage(
     string? srcm,
     int width,
     int height,
-    int ypos
+    int ypos,
+    SegmentCrop? crop = null
+);
+
+/// <summary>
+/// v9：图片裁切几何（issue 07）——resources/*.csv 第 3-6 列裁切矩形已按显示尺寸缩放。
+/// x/y = img 元素负偏移（margin-left/margin-top，≤0）；imgWidth/imgHeight = img 元素渲染尺寸
+/// （整图×缩放系数，缩放系数 = 显示尺寸/裁切尺寸）。
+/// 前端渲染：掩膜 → overflow:hidden 定尺寸容器（width/height）→ img 负 margin——零布局数学。
+/// </summary>
+internal record SegmentCrop(
+    int x,
+    int y,
+    int imgWidth,
+    int imgHeight
 );
 
 /// <summary>

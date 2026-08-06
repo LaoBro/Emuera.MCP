@@ -6,7 +6,8 @@ import json
 # 将本常量改至同一值。这种「双重确认」确保测试确实感知到协议变化。
 # v8（issue 02）：PrintSegment 加 image/shape；DisplaySnapshot/DisplayDiff 加 bgImages；
 # TurnOp 加 set_bg_image/remove_bg_image/clear_bg_image。
-PROTOCOL_VERSION = 8
+# v9（issue 07）：SegmentImage 加 crop?（裁切矩形几何）。
+PROTOCOL_VERSION = 9
 
 import os
 import shutil

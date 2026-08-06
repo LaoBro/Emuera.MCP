@@ -172,4 +172,78 @@ public class ImageNameTableTests : IDisposable
         // resources/ 存在但无 csv：表空（已缓存），任何查询 false
         Assert.False(ImageNameTable.TryResolve(_accessor, _root, "Face_1", out _));
     }
+
+    // ---------- issue 07：裁切矩形（csv 第 3-6 列 tokens[2..5]） ----------
+
+    [Fact]
+    public void Crop_rect_parsed_from_columns_3_to_6()
+    {
+        WriteFile(Path.Combine("resources", "Face.csv"), "FACE_1,1_Face.png,0,0,180,180\n");
+
+        Assert.True(ImageNameTable.TryResolveEntry(_accessor, _root, "Face_1", out var entry));
+        Assert.NotNull(entry);
+        Assert.Equal("resources/1_Face.png", entry!.RelativePath);
+        Assert.Equal(new SpriteCrop(0, 0, 180, 180), entry.Crop);
+    }
+
+    [Fact]
+    public void Crop_rect_with_offset_origin_parsed()
+    {
+        // 图集右格：原点 (8,0)，裁切 8×4
+        WriteFile(Path.Combine("resources", "Atlas.csv"), "FACE_2,1_Face.png,8,0,8,4\n");
+
+        Assert.True(ImageNameTable.TryResolveEntry(_accessor, _root, "Face_2", out var entry));
+        Assert.Equal(new SpriteCrop(8, 0, 8, 4), entry!.Crop);
+    }
+
+    [Fact]
+    public void Row_without_crop_columns_has_null_crop()
+    {
+        // 仅 name,file 两列（无裁切）→ Crop null（全图）
+        WriteFile(Path.Combine("resources", "Simple.csv"), "FACE_1,1_Face.png\n");
+
+        Assert.True(ImageNameTable.TryResolveEntry(_accessor, _root, "Face_1", out var entry));
+        Assert.Null(entry!.Crop);
+    }
+
+    [Fact]
+    public void Row_with_partial_crop_columns_has_null_crop()
+    {
+        // 4 列（name,file,x,y）不足 6 列 → WinForms tokens.Length>=6 才解析矩形 → Crop null
+        WriteFile(Path.Combine("resources", "Partial.csv"), "FACE_1,1_Face.png,0,0\n");
+
+        Assert.True(ImageNameTable.TryResolveEntry(_accessor, _root, "Face_1", out var entry));
+        Assert.Null(entry!.Crop);
+    }
+
+    [Fact]
+    public void Row_with_non_numeric_crop_has_null_crop()
+    {
+        WriteFile(Path.Combine("resources", "Bad.csv"), "FACE_1,1_Face.png,a,b,180,180\n");
+
+        Assert.True(ImageNameTable.TryResolveEntry(_accessor, _root, "Face_1", out var entry));
+        Assert.Null(entry!.Crop);
+    }
+
+    [Fact]
+    public void Row_with_zero_size_crop_has_null_crop()
+    {
+        // w 或 h ≤ 0 → 非合法裁切（WinForms 正性校验）→ Crop null
+        WriteFile(Path.Combine("resources", "Zero.csv"), "FACE_1,1_Face.png,0,0,0,180\nFACE_2,1_Face.png,0,0,180,0\n");
+
+        Assert.True(ImageNameTable.TryResolveEntry(_accessor, _root, "Face_1", out var e1));
+        Assert.Null(e1!.Crop);
+        Assert.True(ImageNameTable.TryResolveEntry(_accessor, _root, "Face_2", out var e2));
+        Assert.Null(e2!.Crop);
+    }
+
+    [Fact]
+    public void TryResolve_still_returns_path_only()
+    {
+        // 兼容既有调用方：TryResolve 只出路径，裁切经 TryResolveEntry
+        WriteFile(Path.Combine("resources", "Face.csv"), "FACE_1,1_Face.png,0,0,180,180\n");
+
+        Assert.True(ImageNameTable.TryResolve(_accessor, _root, "Face_1", out var path));
+        Assert.Equal("resources/1_Face.png", path);
+    }
 }

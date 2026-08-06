@@ -647,6 +647,7 @@ internal sealed class ConsolePrintManager
                 else if (node is ConsoleImagePart img)
                 {
                     // v8（issue 02）：图片 segment——几何来自 01 解耦路径，不再空串丢弃
+                    // v9（issue 07）：裁切矩形几何（图集 sprite）进入协议
                     text = img.Text ?? "";
                     image = new SegmentImage(
                         src: img.ResourceName,
@@ -654,7 +655,10 @@ internal sealed class ConsolePrintManager
                         srcm: img.MappingGraphName,
                         width: img.Width,
                         height: img.Height,
-                        ypos: img.YPos
+                        ypos: img.YPos,
+                        crop: img.HasCrop
+                            ? new SegmentCrop(img.CropX, img.CropY, img.CropImgWidth, img.CropImgHeight)
+                            : null
                     );
                 }
                 else if (node is ConsoleRectangleShapePart rect)

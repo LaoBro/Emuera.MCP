@@ -131,6 +131,25 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 		}
 		_height = height;
 		bottom = top + height;
+		// issue 07（协议 v9）：裁切矩形几何——HeadlessSprite 携带 SourceSize（整图）/CropOrigin（原点）。
+		// 按显示尺寸缩放：img 负偏移（margin-left/top，≤0）+ img 元素渲染尺寸（整图×缩放系数）——
+		// 前端只做 overflow:hidden 容器 + 负 margin，零布局数学（协议携带已解析 px 几何原则）。
+		// 缩放系数 = 显示尺寸 / 裁切尺寸（WinForms SpriteF.GraphicsDraw 把裁切源区域缩放绘制到 destRect 的语义）。
+		if (cImage is HeadlessSprite hs && hs.HasCrop)
+		{
+			var cropW = hs.DestBaseSize.Width;
+			var cropH = hs.DestBaseSize.Height;
+			if (cropW > 0 && cropH > 0 && Width > 0 && height > 0)
+			{
+				var scaleX = (double)Width / cropW;
+				var scaleY = (double)height / cropH;
+				HasCrop = true;
+				CropX = -(int)Math.Round(hs.CropOrigin.X * scaleX);
+				CropY = -(int)Math.Round(hs.CropOrigin.Y * scaleY);
+				CropImgWidth = (int)Math.Round(hs.SourceSize.Width * scaleX);
+				CropImgHeight = (int)Math.Round(hs.SourceSize.Height * scaleY);
+			}
+		}
 		//if(top > 0)
 		//	top = 0;
 		//if(bottom < Config.Config.FontSize)
@@ -167,6 +186,19 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 	public int Height { get { return _height; } }
 	/// <summary>issue 01：ypos（可为负/超行高），协议序列化用。</summary>
 	public int YPos { get { return top; } }
+
+	// ---------- issue 07（协议 v9）：裁切矩形几何（已缩放，协议序列化用） ----------
+
+	/// <summary>是否携带裁切（图集 sprite 且显示尺寸 > 0）。</summary>
+	public bool HasCrop { get; private set; }
+	/// <summary>img 元素 margin-left（≤0，已按显示尺寸缩放）。</summary>
+	public int CropX { get; private set; }
+	/// <summary>img 元素 margin-top（≤0，已按显示尺寸缩放）。</summary>
+	public int CropY { get; private set; }
+	/// <summary>img 元素渲染宽度（整图×缩放系数）。</summary>
+	public int CropImgWidth { get; private set; }
+	/// <summary>img 元素渲染高度（整图×缩放系数）。</summary>
+	public int CropImgHeight { get; private set; }
 
 	public override bool CanDivide { get { return false; } }
 	public override void SetWidth(StringMeasure sm, float subPixel)
