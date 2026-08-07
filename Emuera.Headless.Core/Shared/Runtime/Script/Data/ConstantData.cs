@@ -627,9 +627,9 @@ internal sealed class ConstantData
 
 	public void LoadData(string csvDir, IGameDirAccessor dirAccessor, EmueraConsole console, bool disp)
 	{
-		string sep1 = "【DIAG-LD】Step0";
+		// T-027 降级：SAF 排障哨兵改走门面 Debug（画面不再显示，agent.log 全量可查）
+		EmueraLog.Debug("diag-ld", $"Step0 {csvDir}");
 		output = console;
-		output.PrintError(sep1 + csvDir);
 		loadVariableSizeData(dirAccessor.CombinePath(csvDir, "VariableSize.CSV"), disp, dirAccessor);
 		for (int i = 0; i < countNameCsv; i++)
 		{
@@ -638,10 +638,9 @@ internal sealed class ConstantData
 		}
 		ItemPrice = new long[MaxDataList[itemIndex]];
 		#region EE_ERD
-		string sep2 = "【DIAG-LD】Step1 ABL", sep3 = "【DIAG-LD】Step2 EXP";
 		loadDataTo(dirAccessor.CombinePath(csvDir, "ABL.CSV"), ablIndex, null!, disp, dirAccessor);
-		output.PrintError(sep2);
-		output.PrintError(sep3);
+		EmueraLog.Debug("diag-ld", "Step1 ABL");
+		EmueraLog.Debug("diag-ld", "Step2 EXP");
 		loadDataTo(dirAccessor.CombinePath(csvDir, "EXP.CSV"), expIndex, null!, disp, dirAccessor);
 		loadDataTo(dirAccessor.CombinePath(csvDir, "TALENT.CSV"), talentIndex, null!, disp, dirAccessor);
 		loadDataTo(dirAccessor.CombinePath(csvDir, "PALAM.CSV"), paramIndex, null!, disp, dirAccessor);
@@ -703,9 +702,8 @@ internal sealed class ConstantData
 			}
 		}
 		//if (!Program.AnalysisMode)
-		string sepLast = "【DIAG-LD】StepLast loadCharacterData";
 		loadCharacterData(csvDir, dirAccessor, disp);
-		output.PrintError(sepLast);
+		EmueraLog.Debug("diag-ld", "StepLast loadCharacterData");
 
 		#region EM_私家版_セーブ拡張
 		loadGlobalVarExSetting(csvDir, dirAccessor, disp);
