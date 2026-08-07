@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime;
@@ -25,6 +26,20 @@ namespace MinorShift.Emuera.GameView
             Converters = { new TurnOpConverter(), new LineOpConverter() },
             TypeInfoResolver = EmueraJsonContext.Default,
         };
+
+        /// <summary>
+        /// TurnRecord 序列化（converter 多态 + 源生成 resolver 的完整形态）。
+        /// 用 JsonTypeInfo 重载而非 options 重载：`Serialize(T, JsonSerializerOptions)` 标了
+        /// RequiresUnreferencedCode/RequiresDynamicCode（IL2026/IL3050），即使运行时经
+        /// TurnJsonOptions.TypeInfoResolver 走源生成也报静态警告；JsonTypeInfo 重载无标注。
+        /// <see cref="JsonSerializerOptions.GetTypeInfo"/> 从 TurnJsonOptions 解析——converter 链
+        /// （TurnOpConverter/LineOpConverter 的多态装箱 Write）完整保留，wire 与 options 重载一致。
+        /// 注意：不可改用 <c>EmueraJsonContext.Default.TurnRecord</c>（context 无 Converters）——
+        /// LineOp/TurnOp 抽象基类直接序列化只输出 type 鉴别符，diff 内容丢失
+        /// （test_snapshot 抓到的 {"lineOps":[{"type":"append"}]} 空壳回归，2026.8.7）。
+        /// </summary>
+        private static string SerializeTurn(TurnRecord turn)
+            => JsonSerializer.Serialize(turn, (JsonTypeInfo<TurnRecord>)TurnJsonOptions.GetTypeInfo(typeof(TurnRecord)));
 
         private readonly SessionIO _io;
         private readonly DisplayState _displayState;
@@ -76,12 +91,12 @@ namespace MinorShift.Emuera.GameView
                 // QUIT/EXIT：正常退出。
                 // 不能走下方 catch-all——那会构造 state=Running + error 文本的回合，
                 // 前端画面不变、无可见错误，表现为假死。这里构造干净 Quit 回合并结束会话。
-                var quitTurn = JsonSerializer.Serialize(new TurnRecord(
+                var quitTurn = SerializeTurn(new TurnRecord(
                     state: "Quit",
                     inputType: null,
                     needValue: false,
                     diff: null
-                ), EmueraJsonContext.Default.TurnRecord);
+                ));
                 Stop();
                 return quitTurn;
             }
@@ -90,13 +105,13 @@ namespace MinorShift.Emuera.GameView
                 // I-08：脚本运行期异常一律 fatal。
                 var msg = $"StepAsync fatal: {ex}";
                 EmueraLog.Error("jsonl", msg);
-                var errorTurn = JsonSerializer.Serialize(new TurnRecord(
+                var errorTurn = SerializeTurn(new TurnRecord(
                     state: console.State.ToString(),
                     inputType: null,
                     needValue: false,
                     diff: null,
                     error: ex.Message
-                ), EmueraJsonContext.Default.TurnRecord);
+                ));
                 Stop();
                 return errorTurn;
             }
@@ -272,7 +287,7 @@ namespace MinorShift.Emuera.GameView
                 ? reqWithMes.TimeUpMes
                 : null;
 
-            return JsonSerializer.Serialize(new TurnRecord(
+            return SerializeTurn(new TurnRecord(
                 state: console.State.ToString(),
                 inputType: req?.InputType.ToString(),
                 needValue: req?.NeedValue ?? false,
@@ -284,7 +299,7 @@ namespace MinorShift.Emuera.GameView
                 timeUpMessage: timeUpMessage,
                 timedOut: timedOut,
                 generation: console.LastButtonGeneration
-            ), EmueraJsonContext.Default.TurnRecord);
+            ));
         }
 
         #endregion

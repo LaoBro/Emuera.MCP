@@ -69,8 +69,8 @@ dotnet publish Emuera.Headless.Cli -c Release -r win-x64 \
 
 | 来源 | 位置 | 警告 | 处理 |
 |---|---|---|---|
-| `Serialize<TurnRecord>(TurnRecord, JsonSerializerOptions)` | `AgentJsonlProtocol.cs:79/93`（L76/90 调用点） | IL2026/IL3050 | 运行时安全（`TurnJsonOptions.TypeInfoResolver` 已指向 context）；静态分析器只见重载签名——**收尾改显式 `Serialize(turn, EmueraJsonContext.Default.TurnRecord)` 消除** |
-| `System.Data.DataTable` 反射 | `EraBinaryDataWriter.cs:181/184`、`EraBinaryDataReader.cs:274/276`、`Creator.Method.cs:1389/1559/1694/1695/1732/1735/1758/1762` | IL2026/IL3050/IL2072 | 3.3 子集验证（建表/读值/改值实际用到的 API）后按结论处理 |
+| ~~`Serialize<TurnRecord>(TurnRecord, JsonSerializerOptions)`~~ | ~~`AgentJsonlProtocol.cs:79/93/275`~~ | ~~IL2026/IL3050~~ | ✅ **已清零（2026.8.7）**：改为 `SerializeTurn` 辅助——`Serialize(turn, (JsonTypeInfo<TurnRecord>)TurnJsonOptions.GetTypeInfo(typeof(TurnRecord)))`（JsonTypeInfo 重载无 RUC/RDC 标注，converter 链完整保留）。**教训**：此前的显式 context（`EmueraJsonContext.Default.TurnRecord`）消了警告却丢了 Converters——LineOp/TurnOp 抽象基类序列化只输出 type 鉴别符，diff 内容全丢（test_snapshot 抓到的 `{"lineOps":[{"type":"append"}]}` 空壳回归）。`DisplayState.GetSnapshotJson` 同方案一并清零 |
+| `System.Data.DataTable` 反射 | `EraBinaryDataWriter.cs:181/184`、`EraBinaryDataReader.cs:274/276`、`Creator.Method.cs:1389/1559/1694/1695/1732/1735/1758/1762` | IL2026/IL3050/IL2072 | ✅ **已验证可用（2026.8.7）**：`tests/test_datatable_aot.py` 托管+AOT 双跑 13/13 全绿——WriteXmlSchema/WriteXml/ReadXmlSchema/ReadXml 在 NativeAOT 下运行时可用（ILC 警告为静态分析器保守标记，豁免附实测证据） |
 | PluginManager 动态加载 | `PluginManager.cs:292/293/305` | IL2026/IL2072 | **豁免**：Android/SAF 路径直接禁用（抛 ExeEE）；桌面路径无 Plugins 目录即 return（test_game 已验证） |
 | `Results.Json` 反射重载 | Server `WarningsNotAsErrors` 豁免 | IL2026/IL3050 | **豁免（理由已注释）**：运行时经 `ConfigureHttpJsonOptions` resolver chain（ServerJsonContext）解析，无反射；TypeInfo 显式注入会破坏 wire（转义 `'` → `\u0027`），故保留 options 重载 + resolver |
 
@@ -96,7 +96,7 @@ dotnet publish Emuera.Headless.Cli -c Release -r win-x64 \
   → **已保留的基础**：`Emuera.Headless.Cli` 的 android RID 条件编译（排除 Server/Kestrel 引用 + `ANDROID_NO_SERVER` 符号 + `obj-aot/**` glob 排除修复 CS0579）——真实 Android 形态本就不含 Kestrel，将来壳层集成引擎时直接可用。
 - [ ] **ILC 警告清零收尾**（§5.2）：AgentJsonlProtocol 显式 context 调用（已完成）+ DataTable 子集验证（已完成，见 `tests/test_datatable_aot.py`）
 - [ ] **壳层门控（3.4）**：维持 .NET 11 GA 后实验分支结论（见 `android-perf-2-net11-eval.md`）
-- [ ] **测试遗留（与本次无关，stash 证明为既有问题）**：`test_snapshot.py` 稳定 1 failed（`post-input turn diff contains 'You entered: 0'`——turn2 diff 序列化为 `{"lineOps":[{"type":"append"}]}`，`AppendLinesOp.newLines` 为 null；托管/AOT 均复现；xUnit 685 全绿但未覆盖该路径）。待查：test_game input 回合 diff 生成为何 newLines 为空。
+- [ ] **测试遗留（2026.8.7 已修复）**：~~`test_snapshot.py` 稳定 1 failed~~ → ✅ 全绿。根因 = 显式 context 序列化丢失 `LineOpConverter` 多态（详见 §5.2 首行教训）。修复后托管 286/286、AOT 241/0、run_all 14/14 全 PASS。
 - [ ] 验证期产物 `publish/nativeaot-win-x64/` 与 `bin-aot/obj-aot` 已 gitignore，不入库
 
 ---
