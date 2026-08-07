@@ -207,3 +207,17 @@
   - **联动测试补缺**：RIGHT 对齐、ComputeAlignOffset（经 BuildSnapshot，锁"与 FormatLineForTerminal 一致"契约）、中段样式 reset 三个用例，把"单一宽度源"从结构保证升级为测试保证。
   - **中段样式继承修复**：`FormatLineWithAnsi` 图片/矩形分支在有活动样式时先 `\x1b[0m` 并清空 last 镜像（保留选中反显 `\x1b[7m`），占位空格不再继承前段 4m/9m，且后续样式段能正确重开样式码。
   - **过时注释同步**：`TerminalRenderer.cs`（"CLI 仍跳过图片/矩形"）与 `DisplayState.cs`（"保留跳过语义"）更新为占位语义。
+
+### T-027：统一日志门面 EmueraLog（Phase 1：存档类迁移）
+
+- 状态：已实现（2026-08-07，Phase 1）
+- 背景：CLI 交互模式每次点击按钮，备用屏底部出现 `[SaveGlobal]`/`[SaveTo]` 等调试日志后被下回合刷新覆盖。排查确认是 VariableEvaluator 存档/读档指令在 `#if HEADLESS` 下无条件 `Console.Error.WriteLine`。更广的乱象：日志散落 4 条通道（游戏画面 127 处、agent.log 13 处、stderr 70 处、stdout 43 处、Debug.WriteLine 10 处），无分级、无统一开关。
+- 方案（用户确认）：统一门面 + CLI 终端只显 Warn+ + Phase 分步实施。
+- 实现：
+  - 新增 `Emuera.Headless.Core/Agent/EmueraLog.cs`：级别 Debug<Info<Warn<Error；三 Sink（File→AgentLog 写 agent.log / Terminal→stderr / Debugger→Debug.WriteLine）；环境变量 `EMUERA_LOG_LEVEL`（默认 debug，控制全局下限，agent.log 全量保留）与 `EMUERA_LOG_TERMINAL`（默认 warn，终端独立阈值）；兼容旧 `EMUERA_AGENT_LOG`；输出保留 `[category]` 前缀格式。
+  - 迁移 VariableEvaluator 存档类 12 处（SaveGlobal/LoadGlobal/SaveTo/LoadFrom 的 begin/ok/fail/ex）`Console.Error.WriteLine` → `EmueraLog.Debug("SaveGlobal", ...)` 等——CLI 点击按钮不再刷屏，agent.log 仍可查全量。
+- 验收：
+  - 新增 `EmueraLogTests` 18 用例（默认配置 Debug 进文件不进终端、Warn/Error 终端可见、Off 全关、环境变量映射/回退），纯逻辑不碰 Console/文件，可并行。
+  - 完整 C# 套件 685/685 全绿（667 + 18）。
+  - `test_vt_only.py` 4/4 通过——stderr 关键断言（`[headless]` 致命错误、VT 失败、`--server`/`交互式终端` 提示）未受影响。
+- 后续 Phase（未做，按用户节奏推进）：Phase 2 加载诊断 43 处 stdout 迁移；Phase 3 terminal/server/config 等剩余 stderr 迁移；Phase 4 `Debug.WriteLine` 10 处并入。游戏画面 127 处（PrintSystemLine/PrintError）属 UX 不纳入门面，仅 handleException 双写待 Phase 3 评估。
