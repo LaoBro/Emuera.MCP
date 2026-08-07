@@ -11,6 +11,15 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <PublishSingleFile>true</PublishSingleFile>
+    <!-- ===== NativeAOT 验证（分支 nativeaot-verify，3.2 实验，不并入主分支） =====
+         仅 Release 触发，避免干扰 Debug 开发构建与 Tests 引用链。
+         验证目标：引擎（Core）AOT 编译闭环 + ILC 警告记录 + 行为等价回归。
+         输出目录重定向见同目录 Directory.Build.props（bin-aot/obj-aot，
+         须在 Common.props 导入前设置，故不放这里）。 -->
+    <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot>
+    <!-- Base*OutputPath 改到 bin-aot/obj-aot 后，SDK 默认 ItemExcludes 不再覆盖旧 bin/obj 字面目录；
+         历史遗留 AssemblyInfo.cs 会被 glob 收进编译（CS0579 重复特性）——显式恢复排除。 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin/**;obj/**</DefaultItemExcludes>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisMode>Minimum</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>

@@ -74,3 +74,7 @@ CONTEXT.md
 
 *.log
 docs/HANDOFF.md
+
+# NativeAOT 验证分支产物（nativeaot-verify，3.2 实验）
+bin-aot/
+obj-aot/

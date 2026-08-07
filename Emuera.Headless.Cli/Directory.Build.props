@@ -1,0 +1,13 @@
+<Project>
+  <!-- ===== NativeAOT 验证专用（分支 nativeaot-verify，3.2 实验，不并入主分支） =====
+       放在 Directory.Build.props：须在 Microsoft.Common.props 导入前设置 Base*OutputPath
+       （在 csproj 里设会触发 MSB3539 + CS0579 双份 AssemblyInfo）。
+       输出重定向到 bin-aot/obj-aot：本机 bin\Release\net10.0\win-x64 存在历史文件锁定，
+       与旧产物隔离；仅 Release 生效，Debug 开发构建不受影响。
+       SDK 默认 ItemExcludes 含 $(BaseOutputPath)/** 与 $(BaseIntermediateOutputPath)/**，
+       新目录自动排除于编译 glob。 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <BaseOutputPath>bin-aot\</BaseOutputPath>
+    <BaseIntermediateOutputPath>obj-aot\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

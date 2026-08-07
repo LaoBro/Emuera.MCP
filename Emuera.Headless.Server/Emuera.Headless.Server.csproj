@@ -12,6 +12,18 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisMode>Minimum</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- 3.3（NativeAOT）：minimal API 请求委托生成器——PublishAot 时 SDK 只对 web 项目
+         自动启用；Server 是库项目，Map* 调用须显式开生成器，否则 AOT 下走 RequestDelegateFactory
+         反射路径，所有请求 500（RequestDelegateFactory 静态生成 + AOT 兼容性分析）。 -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <!-- 3.3 豁免（非静默 suppress，理由固定）：Results.Json(JsonObject, statusCode) 的
+         JsonSerializerOptions 重载标 RequiresDynamicCode（IL2026/IL3050 分析器误报）——
+         运行时经 ConfigureHttpJsonOptions 的 TypeInfoResolverChain(ServerJsonContext) 解析
+         JsonObject，无反射；且 HttpJsonOptions 默认 UnsafeRelaxedJsonEscaping 保证 wire
+         与托管时代逐字节一致（TypeInfo 显式注入方案会转义单引号为 \u0027，违反 wire 契约）。
+         禁止再引入新 IL2xxx 豁免——新增需重新论证。 -->
+    <WarningsNotAsErrors>IL2026;IL3050</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

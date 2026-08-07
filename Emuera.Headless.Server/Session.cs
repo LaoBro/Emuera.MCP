@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera;
@@ -127,7 +128,8 @@ internal sealed class Session : IDisposable
                 catch (Exception ex)
                 {
                     AgentLog.Instance.Write("session game loop exception: " + ex);
-                    _io.WriteLine(JsonSerializer.Serialize(new { error = ex.ToString(), state = _console!.State.ToString() }));
+                    // 3.3（NativeAOT）：JsonObject.ToJsonString()——匿名类型在 AOT 下反射序列化被禁用
+                    _io.WriteLine(new JsonObject { ["error"] = ex.ToString(), ["state"] = _console!.State.ToString() }.ToJsonString());
                 }
                 finally
                 {

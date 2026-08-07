@@ -17,10 +17,13 @@ namespace MinorShift.Emuera.GameView
         // Issue 08：internal（原 private）—— BridgeHost.ShowFatalError 序列化 error turn 时复用，
         // 保证与 AgentJsonlProtocol.StepAsync 的 error turn 完全一致（同 converters + ignore condition）。
         // MAUI 项目经 InternalsVisibleTo("Emuera.Maui") 可访问。
+        // 3.3（NativeAOT）：TypeInfoResolver 指向源生成上下文——AOT 下反射序列化被禁用，
+        // TurnOpConverter/LineOpConverter 的装箱 Write 经此 resolver 按运行时类型解析，wire 不变。
         internal static readonly JsonSerializerOptions TurnJsonOptions = new()
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             Converters = { new TurnOpConverter(), new LineOpConverter() },
+            TypeInfoResolver = EmueraJsonContext.Default,
         };
 
         private readonly SessionIO _io;
@@ -78,7 +81,7 @@ namespace MinorShift.Emuera.GameView
                     inputType: null,
                     needValue: false,
                     diff: null
-                ), TurnJsonOptions);
+                ), EmueraJsonContext.Default.TurnRecord);
                 Stop();
                 return quitTurn;
             }
@@ -93,7 +96,7 @@ namespace MinorShift.Emuera.GameView
                     needValue: false,
                     diff: null,
                     error: ex.Message
-                ), TurnJsonOptions);
+                ), EmueraJsonContext.Default.TurnRecord);
                 Stop();
                 return errorTurn;
             }
@@ -202,7 +205,7 @@ namespace MinorShift.Emuera.GameView
                 }
 
                 JsonlCommand? cmd;
-                try { cmd = JsonSerializer.Deserialize<JsonlCommand>(line); }
+                try { cmd = JsonSerializer.Deserialize(line, EmueraJsonContext.Default.JsonlCommand); }
                 catch (Exception ex) { AgentLog.Instance.Write("invalid jsonl input ignored: " + ex.Message); continue; }
 
                 if (cmd?.type != "input")
@@ -281,7 +284,7 @@ namespace MinorShift.Emuera.GameView
                 timeUpMessage: timeUpMessage,
                 timedOut: timedOut,
                 generation: console.LastButtonGeneration
-            ), TurnJsonOptions);
+            ), EmueraJsonContext.Default.TurnRecord);
         }
 
         #endregion

@@ -100,10 +100,12 @@ internal sealed class DisplayState : IDisplayState
     /// DisplaySnapshot 的 JSON 序列化选项（ADR-0013 决策二）。
     /// 与 TurnRecord 一致使用 WhenWritingNull——nullable 字段（bgColor/inputType/align/button/col/width 等）
     /// 在为 null 时不写入 JSON，保持响应体紧凑。
+    /// 3.3（NativeAOT）：TypeInfoResolver 指向源生成上下文，AOT 下反射序列化被禁用。
     /// </summary>
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        TypeInfoResolver = EmueraJsonContext.Default,
     };
 
     private readonly EmueraConsole _console;

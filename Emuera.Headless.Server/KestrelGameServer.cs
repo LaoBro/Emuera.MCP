@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MinorShift.Emuera.Assets;
@@ -58,6 +59,11 @@ internal sealed class KestrelGameServer : IDisposable
         builder.WebHost.UseKestrel();
         builder.WebHost.UseUrls($"http://localhost:{port}");
         builder.Logging.ClearProviders();
+        // 3.3（NativeAOT）：minimal API 响应序列化走 HttpJsonOptions 的 resolver chain，
+        // AOT 下默认反射 resolver 被禁用——把 Server 的源生成上下文插到链首，
+        // 否则 Results.Json(JsonObject) 抛 JsonTypeInfo metadata not provided（全端点 500）。
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default));
         _app = builder.Build();
 
         // P0-2 为 WebSocket 铺路：启用 WS 中间件（仅启用，未实现端点前无副作用）。
@@ -114,9 +120,11 @@ internal sealed class KestrelGameServer : IDisposable
         var result = await _sessions.CreateNewSessionAsync();
         return result.Status switch
         {
-            SessionCreateStatus.NoGameLoaded => Results.Json(new { error = "No game loaded" }, statusCode: 503),
-            SessionCreateStatus.Conflict => Results.Json(new { error = "A session is already active" }, statusCode: 409),
-            _ => Results.Json(new { sessionId = result.SessionId, createdAt = result.CreatedAt, state = result.State }, statusCode: 201),
+            // 3.3（NativeAOT）：响应统一 JsonObject——JsonNode 系走内建 converter，
+            // 匿名类型在 AOT 下反射序列化被禁用（JsonSerializerIsReflectionDisabled）。
+            SessionCreateStatus.NoGameLoaded => Results.Json(new JsonObject { ["error"] = "No game loaded" }, statusCode: 503),
+            SessionCreateStatus.Conflict => Results.Json(new JsonObject { ["error"] = "A session is already active" }, statusCode: 409),
+            _ => Results.Json(new JsonObject { ["sessionId"] = result.SessionId, ["createdAt"] = result.CreatedAt, ["state"] = result.State }, statusCode: 201),
         };
     }
 
@@ -130,10 +138,10 @@ internal sealed class KestrelGameServer : IDisposable
         var session = _sessions.CurrentSession;
 
         if (session == null)
-            return Results.Json(new { error = "No active session" }, statusCode: 404);
+            return Results.Json(new JsonObject { ["error"] = "No active session" }, statusCode: 404);
 
         if (session.IsFinalTurnDelivered)
-            return Results.Json(new { error = "Session ended" }, statusCode: 404);
+            return Results.Json(new JsonObject { ["error"] = "Session ended" }, statusCode: 404);
 
         var result = await session.WaitForTurnAsync(TurnWaitTimeoutMs, context.RequestAborted);
         switch (result.Status)
@@ -143,9 +151,9 @@ internal sealed class KestrelGameServer : IDisposable
             case TurnWaitStatus.Timeout:
                 return Results.NoContent();
             case TurnWaitStatus.Closed:
-                return Results.Json(new { error = "Session ended" }, statusCode: 404);
+                return Results.Json(new JsonObject { ["error"] = "Session ended" }, statusCode: 404);
             default:
-                return Results.Json(new { error = "unexpected turn wait status" }, statusCode: 500);
+                return Results.Json(new JsonObject { ["error"] = "unexpected turn wait status" }, statusCode: 500);
         }
     }
 
@@ -159,7 +167,7 @@ internal sealed class KestrelGameServer : IDisposable
         var session = _sessions.CurrentSession;
 
         if (session == null)
-            return Results.Json(new { error = "No active session" }, statusCode: 404);
+            return Results.Json(new JsonObject { ["error"] = "No active session" }, statusCode: 404);
 
         string? value;
         using (var reader = new StreamReader(context.Request.Body))
@@ -167,26 +175,27 @@ internal sealed class KestrelGameServer : IDisposable
             var body = await reader.ReadToEndAsync();
             try
             {
-                var input = JsonSerializer.Deserialize<HttpInput>(body);
+                var input = JsonSerializer.Deserialize(body, ServerJsonContext.Default.HttpInput);
                 value = input?.value;
             }
             catch
             {
-                return Results.Json(new { error = "Invalid JSON, expected {\"value\":\"...\"}" }, statusCode: 400);
+                return Results.Json(new JsonObject { ["error"] = "Invalid JSON, expected {\"value\":\"...\"}" }, statusCode: 400);
             }
         }
 
         if (value == null)
-            return Results.Json(new { error = "Missing 'value' field" }, statusCode: 400);
+            return Results.Json(new JsonObject { ["error"] = "Missing 'value' field" }, statusCode: 400);
 
         session.IO.EnqueueInput(BuildInputJsonl(value));
-        return Results.Json(new { received = true });
+        return Results.Json(new JsonObject { ["received"] = true });
     }
 
-    /// <summary>把输入值构造成协议循环消费的 input jsonl（与 WS 输入帧同源，保证 HTTP/WS 输入格式对称）。</summary>
+    /// <summary>把输入值构造成协议循环消费的 input jsonl（与 WS 输入帧同源，保证 HTTP/WS 输入格式对称）。
+    /// 3.3（NativeAOT）：JsonObject.ToJsonString()——JsonNode 系内建序列化，AOT 安全。</summary>
     private static string BuildInputJsonl(string value)
     {
-        return JsonSerializer.Serialize(new { type = "input", value });
+        return new JsonObject { ["type"] = "input", ["value"] = value }.ToJsonString();
     }
 
     /// <summary>
@@ -234,7 +243,7 @@ internal sealed class KestrelGameServer : IDisposable
     internal IResult HandleGetConfigAsync()
     {
         var maxLog = _config.GetValue<int>(ConfigCode.MaxLog);
-        return Results.Json(new { maxLog });
+        return Results.Json(new JsonObject { ["maxLog"] = maxLog });
     }
 
     /// <summary>
@@ -252,11 +261,11 @@ internal sealed class KestrelGameServer : IDisposable
         var session = _sessions.CurrentSession;
 
         if (session == null)
-            return Results.Json(new { error = "No active session" }, statusCode: 404);
+            return Results.Json(new JsonObject { ["error"] = "No active session" }, statusCode: 404);
 
         var json = session.GetDisplaySnapshot();
         if (json == null)
-            return Results.Json(new { error = "Session not yet initialized" }, statusCode: 503);
+            return Results.Json(new JsonObject { ["error"] = "Session not yet initialized" }, statusCode: 503);
 
         return Results.Text(json, "application/json", Encoding.UTF8, 200);
     }
@@ -266,8 +275,8 @@ internal sealed class KestrelGameServer : IDisposable
     {
         var result = await _sessions.DeleteSessionAsync();
         return result.Status == SessionDeleteStatus.Removed
-            ? Results.Json(new { removed = true }, statusCode: 200)
-            : Results.Json(new { removed = false }, statusCode: 404);
+            ? Results.Json(new JsonObject { ["removed"] = true }, statusCode: 200)
+            : Results.Json(new JsonObject { ["removed"] = false }, statusCode: 404);
     }
 
     /// <summary>
@@ -295,36 +304,36 @@ internal sealed class KestrelGameServer : IDisposable
             var body = await reader.ReadToEndAsync();
             try
             {
-                var payload = JsonSerializer.Deserialize<LoadGameRequest>(body);
+                var payload = JsonSerializer.Deserialize(body, ServerJsonContext.Default.LoadGameRequest);
                 gameDir = payload?.gameDir;
             }
             catch
             {
                 return Results.Json(
-                    new { error = new { code = "INVALID_JSON", message = "Invalid JSON, expected {\"gameDir\":\"...\"}" } },
+                    new JsonObject { ["error"] = new JsonObject { ["code"] = "INVALID_JSON", ["message"] = "Invalid JSON, expected {\"gameDir\":\"...\"}" } },
                     statusCode: 400);
             }
         }
 
         if (string.IsNullOrWhiteSpace(gameDir))
             return Results.Json(
-                new { error = new { code = "MISSING_GAME_DIR", message = "Missing or empty 'gameDir' field" } },
+                new JsonObject { ["error"] = new JsonObject { ["code"] = "MISSING_GAME_DIR", ["message"] = "Missing or empty 'gameDir' field" } },
                 statusCode: 400);
 
         var result = await _sessions.ReplaceForLoadGameAsync(gameDir);
         return result.Status switch
         {
             LoadGameStatus.PathError => Results.Json(
-                new { error = new { code = result.Code, message = result.Message } },
+                new JsonObject { ["error"] = new JsonObject { ["code"] = result.Code, ["message"] = result.Message } },
                 statusCode: 400),
             LoadGameStatus.LoadFailed => Results.Json(
-                new { error = new { code = "LOAD_FAILED", message = result.Message } },
+                new JsonObject { ["error"] = new JsonObject { ["code"] = "LOAD_FAILED", ["message"] = result.Message } },
                 statusCode: 500),
-            _ => Results.Json(new
+            _ => Results.Json(new JsonObject
             {
-                sessionId = result.SessionId,
-                state = result.State,
-                gameDir = result.GameDir,
+                ["sessionId"] = result.SessionId,
+                ["state"] = result.State,
+                ["gameDir"] = result.GameDir,
             }),
         };
     }
@@ -338,11 +347,11 @@ internal sealed class KestrelGameServer : IDisposable
     /// </summary>
     private IResult HandlePickDirectoryAsync()
     {
-        return Results.Json(new
+        return Results.Json(new JsonObject
         {
-            platform = "web",
-            supported = false,
-            message = "Not implemented on this platform",
+            ["platform"] = "web",
+            ["supported"] = false,
+            ["message"] = "Not implemented on this platform",
         });
     }
 
@@ -376,12 +385,12 @@ internal sealed class KestrelGameServer : IDisposable
         await context.Response.Body.WriteAsync(bytes);
     }
 
-    private sealed class HttpInput
+    internal sealed class HttpInput
     {
         public string? value { get; set; }
     }
 
-    private sealed class LoadGameRequest
+    internal sealed class LoadGameRequest
     {
         public string? gameDir { get; set; }
     }

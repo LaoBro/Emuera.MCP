@@ -1,6 +1,7 @@
 //新設したコンフィグ設定のロード、セーブ、公開を担当する。
 using System.IO;
 using System.Text.Json;
+using MinorShift.Emuera.GameView;
 
 
 namespace MinorShift.Emuera.Runtime.Config.JSON;
@@ -25,7 +26,7 @@ static class JSONConfig
 		if (!File.Exists(configFilePath))
 		{
 			var defaultData = new JSONConfigData();
-			var defaultJson = JsonSerializer.Serialize(defaultData);
+			var defaultJson = JsonSerializer.Serialize(defaultData, EmueraJsonContext.Default.JSONConfigData);
 			try { File.WriteAllText(configFilePath, defaultJson); }
 			catch { /* ignore write failure in headless mode */ }
 		}
@@ -33,7 +34,7 @@ static class JSONConfig
 		if (File.Exists(configFilePath))
 		{
 			var json = File.ReadAllText(configFilePath);
-			Data = JsonSerializer.Deserialize<JSONConfigData>(json) ?? new JSONConfigData();
+			Data = JsonSerializer.Deserialize(json, EmueraJsonContext.Default.JSONConfigData) ?? new JSONConfigData();
 		}
 		else
 		{
@@ -43,7 +44,7 @@ static class JSONConfig
 
 	public static void Save()
 	{
-		var json = JsonSerializer.Serialize(Data);
+		var json = JsonSerializer.Serialize(Data, EmueraJsonContext.Default.JSONConfigData);
 		Directory.CreateDirectory(AppDataPaths.Directory);
 		File.WriteAllText(ConfigFilePath, json);
 	}
