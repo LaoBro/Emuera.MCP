@@ -52,11 +52,8 @@ internal sealed partial class EraStreamReader : IDisposable
 			_fileLines = cached;
 			return true;
 		}
-		EmueraLog.Debug("EraStreamReader", $"cache MISS: {path}");
-#if ANDROID
-		Android.Util.Log.Info("EmueraMaui", $"[ESR] MISS: {path}");
-#endif
 		// 缓存未命中：走 DirAccessor（SAF content URI 无需 ContentResolver，不抛 FileNotFoundException）
+		// （成功回退路径不记录——SAF 排障已闭环，避免每次 MISS 的高频噪音；仅失败路径以 Warn 记录）
 		var dirAccessor = GamePaths.Current?.DirAccessor;
 		if (dirAccessor != null)
 		{
@@ -64,20 +61,18 @@ internal sealed partial class EraStreamReader : IDisposable
 			if (bytes != null)
 			{
 				_fileLines = EncodingHandler.ReadAllLinesFromBytes(bytes);
-				EmueraLog.Debug("EraStreamReader", $"fallback OK: {path} ({bytes.Length} bytes)");
 				return true;
 			}
-			EmueraLog.Debug("EraStreamReader", $"fallback FAILED: {path}");
+			EmueraLog.Warn("EraStreamReader", $"fallback FAILED: {path}");
 		}
 		try
 		{
 			_fileLines = EncodingHandler.ReadAllLinesWithDetection(filepath);
-			EmueraLog.Debug("EraStreamReader", $"file I/O fallback: {path}");
 			return true;
 		}
 		catch
 		{
-			EmueraLog.Debug("EraStreamReader", $"ALL fallbacks FAILED: {path}");
+			EmueraLog.Warn("EraStreamReader", $"ALL fallbacks FAILED: {path}");
 			Dispose();
 			return false;
 		}

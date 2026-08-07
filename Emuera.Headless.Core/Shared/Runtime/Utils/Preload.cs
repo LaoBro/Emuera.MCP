@@ -34,9 +34,7 @@ static partial class Preload
 
         if (dirAccessor.DirectoryExists(path))
         {
-            EmueraLog.Info("preload", $"DirExists OK: {path}");
             var allFiles = dirAccessor.GetFiles(path, "*", SearchOption.AllDirectories);
-            EmueraLog.Info("preload", $"GetFiles returned {allFiles.Length} files from {path}");
             var targetFiles = allFiles.Where(f =>
             {
                 // SAF content URI 不能对整段 path 用 Path.GetExtension（应取逻辑短名）

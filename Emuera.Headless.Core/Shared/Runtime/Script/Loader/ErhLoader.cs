@@ -425,9 +425,9 @@ internal sealed class ErhLoader
 		foreach (var path in env.DirAccessor.GetFiles(env.CsvDir, "*.csv", SearchOption.TopDirectoryOnly))
 			AddErdPath(path);
 
-		// 验收日志：Android SAF 下必须能看到 hasDVAR=True
+		// SAF 排障期验收日志（hasDVAR 检查），现已过时——降 Debug 保留排障价值，不污染启动画面
 		var sample = string.Join(", ", erdFileNames.Keys.Take(20));
-		EmueraLog.Info("ErhLoader", $"PrepareERDFileNames: count={erdFileNames.Count}, hasDVAR={erdFileNames.ContainsKey("DVAR")}, fromCacheErd={fromCache}, fromEnumErd={fromEnum}, sample=[{sample}]");
+		EmueraLog.Debug("ErhLoader", $"PrepareERDFileNames: count={erdFileNames.Count}, hasDVAR={erdFileNames.ContainsKey("DVAR")}, fromCacheErd={fromCache}, fromEnumErd={fromEnum}, sample=[{sample}]");
 	}
 	#endregion
 	private static void analyzeSharpFunction(CharStream st, ScriptPosition? position, bool funcs)

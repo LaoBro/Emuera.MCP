@@ -150,9 +150,6 @@ internal static class HeadlessRunner
             EmueraLog.Info("terminal", "  若补空格后出现线条空缺，选字形本身为全角的字体（如 MS Gothic）。");
             EmueraLog.Info("terminal", "  理想字体：各字符组的字形宽度恰好等于终端的占位列数。");
         }
-        if (!anySymbolHalf && !blockReplaced)
-        {
-            EmueraLog.Info("terminal", "字符宽度检测正常，无需额外补偿。");
-        }
+        // 正常路径不记录（从上面是否有异常行即可推断），避免每次启动的零价值噪音
     }
 }

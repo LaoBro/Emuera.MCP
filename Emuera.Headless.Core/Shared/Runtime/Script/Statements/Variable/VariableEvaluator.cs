@@ -2240,8 +2240,8 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		{
 			Config.Config.CreateSavDir();
 #if HEADLESS
+			// T-027 清理：begin 与 ok 合并为单条（ok 含 ms），避免每次存档 2 条噪音
 			var sw = System.Diagnostics.Stopwatch.StartNew();
-			EmueraLog.Debug("SaveGlobal", $"begin path={filepath}");
 #endif
 			using var fs = SafCompat.OpenWrite(filepath);
 			if (Config.Config.SystemSaveInBinary)
@@ -2313,7 +2313,6 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		{
 #if HEADLESS
 			var sw = System.Diagnostics.Stopwatch.StartNew();
-			EmueraLog.Debug("LoadGlobal", $"begin path={filepath}");
 #endif
 			fs = SafCompat.OpenRead(filepath)
 				?? throw new FileNotFoundException(filepath);
@@ -2435,7 +2434,6 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 			Config.Config.CreateSavDir();
 #if HEADLESS
 			var sw = System.Diagnostics.Stopwatch.StartNew();
-			EmueraLog.Debug("SaveTo", $"begin index={saveIndex} path={filepath}");
 #endif
 			fs = SafCompat.OpenWrite(filepath);
 			if (Config.Config.SystemSaveInBinary)
@@ -2483,7 +2481,6 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 
 #if HEADLESS
 		var sw = System.Diagnostics.Stopwatch.StartNew();
-		EmueraLog.Debug("LoadFrom", $"begin index={dataIndex} path={filepath}");
 #endif
 		try
 		{
