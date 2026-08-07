@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0-android</TargetFramework>
+		<OutputType>Exe</OutputType>
+		<RootNamespace>Emuera.AndroidNativeAot</RootNamespace>
+		<AssemblyName>Emuera.AndroidNativeAot</AssemblyName>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<ApplicationTitle>Emuera Android NativeAOT Probe</ApplicationTitle>
+		<ApplicationId>com.emuera.androidnativeaot</ApplicationId>
+		<ApplicationDisplayVersion>0.1</ApplicationDisplayVersion>
+		<ApplicationVersion>1</ApplicationVersion>
+
+		<!-- This is a disposable experiment. Keep the build going so the AOT output can be inspected. -->
+		<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+		<MauiXamlInflator>SourceGen</MauiXamlInflator>
+
+		<SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+
+		<!-- Native AOT, not Mono Full AOT. RunAOTCompilation must remain false. -->
+		<PublishAot>true</PublishAot>
+		<RunAOTCompilation>false</RunAOTCompilation>
+
+		<!-- .NET 10 Android SDK 36.1.69 workaround, shared with the production shell. -->
+		<AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" />
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#1E1E1E" BaseSize="128,128" />
+		<MauiAsset Include="Resources\Raw\**\*" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+	</ItemGroup>
+
+	<!-- Keep one real engine assembly in the experiment so trimming/AOT is not tested in an empty app. -->
+	<ItemGroup>
+		<ProjectReference Include="..\..\Emuera.Headless.Core\Emuera.Headless.Core.csproj"
+						  AdditionalProperties="TreatWarningsAsErrors=false" />
+	</ItemGroup>
+
+</Project>

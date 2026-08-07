@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+						 xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+						 x:Class="Emuera.AndroidNativeAot.App">
+		<Application.Resources>
+				<ResourceDictionary>
+						<Color x:Key="PageBackground">#101114</Color>
+						<Color x:Key="PrimaryText">#F2F4F8</Color>
+						<Color x:Key="SecondaryText">#A9B0BC</Color>
+						<Color x:Key="Accent">#65B7FF</Color>
+				</ResourceDictionary>
+		</Application.Resources>
+</Application>
