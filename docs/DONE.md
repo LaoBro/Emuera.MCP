@@ -264,3 +264,14 @@
   - 完整 C# 套件 685/685（连续 2 次全绿，flake 修复后稳定）。
   - `test_vt_only.py` 4/4、`test_server_single_session.py` 35/35。
 - 至此 T-027 四个 Phase 全部完成：Phase 1 存档类 12 处 → Phase 2 加载诊断 46 处 → Phase 3 剩余 stderr/stdout ~44 处 → Phase 4 Debug.WriteLine 6 处 + handleException 双写。日志统一管理闭环。
+
+### T-027 补充：DIAG-LD 画面哨兵降级到门面 Debug
+
+- 状态：已实现（2026-08-07）
+- 背景：实测确认点击按钮刷屏已消失后，用户发现启动时仍输出 4 行 `【DIAG-LD】Step0/Step1 ABL/Step2 EXP/StepLast`。排查定位：`ConstantData.cs` `LoadData`（SAF 排障期加的 CSV 加载进度哨兵）走 `console.PrintError` → 游戏画面 UX 通道——与 T-027 迁移的 Console/Debug 通道是两条独立通道，**未纳入统一门面**（此前盘点把游戏画面 127 处归为 UX 不纳入）。
+- 方案（用户确认）：降级到 `EmueraLog.Debug("diag-ld", ...)` 4 处——CLI 终端不再显示（Debug < Warn），agent.log 全量可查，将来 CSV 加载卡住仍能定位到具体步骤；保留 SAF 排障哨兵用途。
+- 连带修正：DIAG 降级使 ConstantData.cs 净减 2 行，`SafIoPolicyTests.KnownDirectIoCallSites` 行号基线 1716→1714（该测试设计意图即"修改含裸 I/O 的代码须重新确认 SAF 归属"，行号基线有意严格）。
+- 验收：
+  - 完整 C# 套件 685/685（`BuildSnapshot_1000_lines` 为已知性能护栏 flake，单独重跑 37ms 即绿）。
+  - `test_vt_only.py` 4/4、`test_server_single_session.py` 35/35。
+  - 实测 CLI 启动 stderr 零 DIAG 行（画面不再输出）。
