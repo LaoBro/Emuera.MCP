@@ -2241,7 +2241,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 			Config.Config.CreateSavDir();
 #if HEADLESS
 			var sw = System.Diagnostics.Stopwatch.StartNew();
-			Console.Error.WriteLine($"[SaveGlobal] begin path={filepath}");
+			EmueraLog.Debug("SaveGlobal", $"begin path={filepath}");
 #endif
 			using var fs = SafCompat.OpenWrite(filepath);
 			if (Config.Config.SystemSaveInBinary)
@@ -2272,13 +2272,13 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 				writer.Close();
 			}
 #if HEADLESS
-			Console.Error.WriteLine($"[SaveGlobal] ok path={filepath} ms={sw.ElapsedMilliseconds}");
+			EmueraLog.Debug("SaveGlobal", $"ok path={filepath} ms={sw.ElapsedMilliseconds}");
 #endif
 		}
 		catch (SystemException ex)
 		{
 #if HEADLESS
-			Console.Error.WriteLine($"[SaveGlobal] path={filepath} ex={ex}");
+			EmueraLog.Debug("SaveGlobal", $"path={filepath} ex={ex}");
 #endif
 			throw new CodeEE(trerror.ErrorSavingGlobalData.Text);
 			//console.PrintError(
@@ -2313,7 +2313,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		{
 #if HEADLESS
 			var sw = System.Diagnostics.Stopwatch.StartNew();
-			Console.Error.WriteLine($"[LoadGlobal] begin path={filepath}");
+			EmueraLog.Debug("LoadGlobal", $"begin path={filepath}");
 #endif
 			fs = SafCompat.OpenRead(filepath)
 				?? throw new FileNotFoundException(filepath);
@@ -2350,14 +2350,14 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 				}
 			}
 #if HEADLESS
-			Console.Error.WriteLine($"[LoadGlobal] ok path={filepath} ms={sw.ElapsedMilliseconds}");
+			EmueraLog.Debug("LoadGlobal", $"ok path={filepath} ms={sw.ElapsedMilliseconds}");
 #endif
 			return true;
 		}
 		catch (Exception ex)
 		{
 #if HEADLESS
-			Console.Error.WriteLine($"[LoadGlobal] fail path={filepath} ex={ex}");
+			EmueraLog.Debug("LoadGlobal", $"fail path={filepath} ex={ex}");
 #endif
 			return false;
 		}
@@ -2435,7 +2435,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 			Config.Config.CreateSavDir();
 #if HEADLESS
 			var sw = System.Diagnostics.Stopwatch.StartNew();
-			Console.Error.WriteLine($"[SaveTo] begin index={saveIndex} path={filepath}");
+			EmueraLog.Debug("SaveTo", $"begin index={saveIndex} path={filepath}");
 #endif
 			fs = SafCompat.OpenWrite(filepath);
 			if (Config.Config.SystemSaveInBinary)
@@ -2453,14 +2453,14 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 			if (writer != null) { writer.Close(); writer = null!; }
 			else if (bWriter != null) { bWriter.Close(); bWriter = null!; }
 			else if (fs != null) { fs.Close(); fs = null!; }
-			Console.Error.WriteLine($"[SaveTo] ok index={saveIndex} ms={sw.ElapsedMilliseconds}");
+			EmueraLog.Debug("SaveTo", $"ok index={saveIndex} ms={sw.ElapsedMilliseconds}");
 #endif
 			return true;
 		}
 		catch (Exception ex)
 		{
 #if HEADLESS
-			Console.Error.WriteLine($"[SaveTo] fail index={saveIndex} path={filepath} ex={ex}");
+			EmueraLog.Debug("SaveTo", $"fail index={saveIndex} path={filepath} ex={ex}");
 #endif
 			return false;
 		}
@@ -2483,7 +2483,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 
 #if HEADLESS
 		var sw = System.Diagnostics.Stopwatch.StartNew();
-		Console.Error.WriteLine($"[LoadFrom] begin index={dataIndex} path={filepath}");
+		EmueraLog.Debug("LoadFrom", $"begin index={dataIndex} path={filepath}");
 #endif
 		try
 		{
@@ -2504,14 +2504,14 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 			}
 			varData.LastLoadNo = dataIndex;
 #if HEADLESS
-			Console.Error.WriteLine($"[LoadFrom] ok index={dataIndex} ms={sw.ElapsedMilliseconds}");
+			EmueraLog.Debug("LoadFrom", $"ok index={dataIndex} ms={sw.ElapsedMilliseconds}");
 #endif
 			return true;
 		}
 		catch (Exception ex)
 		{
 #if HEADLESS
-			Console.Error.WriteLine($"[LoadFrom] fail index={dataIndex} path={filepath} ex={ex}");
+			EmueraLog.Debug("LoadFrom", $"fail index={dataIndex} path={filepath} ex={ex}");
 #endif
 			throw;
 		}
