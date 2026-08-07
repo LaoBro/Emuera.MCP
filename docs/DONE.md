@@ -221,3 +221,18 @@
   - 完整 C# 套件 685/685 全绿（667 + 18）。
   - `test_vt_only.py` 4/4 通过——stderr 关键断言（`[headless]` 致命错误、VT 失败、`--server`/`交互式终端` 提示）未受影响。
 - 后续 Phase（未做，按用户节奏推进）：Phase 2 加载诊断 43 处 stdout 迁移；Phase 3 terminal/server/config 等剩余 stderr 迁移；Phase 4 `Debug.WriteLine` 10 处并入。游戏画面 127 处（PrintSystemLine/PrintError）属 UX 不纳入门面，仅 handleException 双写待 Phase 3 评估。
+
+### T-027 Phase 2：加载诊断日志迁移
+
+- 状态：已实现（2026-08-07，Phase 2）
+- 范围：`ErbLoader.cs`（6 处）、`ErhLoader.cs`（8 处）、`Process.cs`（21 处）、`Preload.cs`（9 处）、`ConsoleStateManager.cs`（2 处）——共 46 处 `Console.WriteLine` → `EmueraLog`。
+- 级别映射：
+  - **Info**（正常进度/成功）：`stage=*`、`Load start/done/ok`、`loaded count`、`GetErbFilesFromCache` 等 → 文件记录、终端默认不显示；
+  - **Warn**（降级继续）：`DirExists FAILED`、`EMPTY_BYTES`、`EMPTY_LINES`；
+  - **Error**（初始化失败/异常）：全部 `soft-return reason=*`、`EXCEPTION`、`loadHeaderFile failed`、`OpenOnCache FAIL`、`IOERR`、`ENCERR`、`Process.Initialize returned false` → 终端可见 + 文件。
+- 顺带清理：原先成对的 `Console.Out.Flush()` 与重复的 `Debug.WriteLine(msg)` 一并移除（门面 TerminalSink 自带 Flush、DebuggerSink 已覆盖）。
+- 验收：
+  - 完整 C# 套件 685/685 全绿（无新增 warning 级错误）。
+  - `test_vt_only.py` 4/4、`test_server_single_session.py` 35/35 通过（启动/加载链路无回归）。
+  - 构建过程遇 `MSB3021/3027` dll 文件锁（残留 Emuera.Headless.Cli 进程占用）——环境问题，`Stop-Process` 清理后重建成功。
+- 剩余 Phase（未做）：Phase 3 terminal/server/config 等剩余 stderr 迁移（~58 处，含 handleException 双写评估）；Phase 4 `Debug.WriteLine` 10 处并入。
