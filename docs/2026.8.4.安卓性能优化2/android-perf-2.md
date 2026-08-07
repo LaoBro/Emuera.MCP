@@ -236,9 +236,9 @@ P5 启动与包体（APK 体积、资源加载）
 | 2.2 | 前端三段计时 | ☐ | |
 | 2.3 | 前端分配统计 | ☐ | |
 | 2.4 | 引擎回合耗时基线 | ☐ | |
-| 3.1 | 可行性事实核实 | ✅ 部分 | 反射/插件/AspNetCore 已核实；`Expression.Compile`/`Type.GetType` 扫描待做 |
-| 3.2 | NativeAOT 引擎先行（win-x64 → android-arm64） | ☐ | |
-| 3.3 | JSON 源生成器迁移 + DataTable 验证 + MarshalMethods 评估 | ☐ | |
+| 3.1 | 可行性事实核实 | ✅ 部分 | 反射/插件/AspNetCore 已核实；`Expression.Compile`/`Type.GetType` 扫描已补（全仓零匹配，动态反射仅 PluginManager 一处，Android 禁用） |
+| 3.2 | NativeAOT 引擎先行（win-x64 → android-arm64） | ✅ win-x64 达成 | 验证分支 `nativeaot-verify`：win-x64 产物 26.2MB 单文件，xUnit 685/685 + run_all 14/14 全绿（含 server 全端点/WebSocket/snapshot/assets/load-game 46 用例）；android-arm64 待 NDK。详见 `nativeaot-verify-report.md` |
+| 3.3 | JSON 源生成器迁移 + DataTable 验证 + MarshalMethods 评估 | ☐ 部分 | JSON 源生成器迁移已提前完成（`EmueraJsonContext`/`ServerJsonContext`，wire 不变——xUnit relaxed escaping 断言验证）；DataTable 子集验证与 MarshalMethods 重评待收尾 |
 | 3.4 | MAUI 壳切换（门控） | ☐ | .NET 11 评估完成（2026.8.7）：等 GA 后实验分支，见 `android-perf-2-net11-eval.md` |
 | 4.1 | GC 配置（SustainedLowLatency / LOH） | ☐ | |
 | 4.2 | 前端数据层分配 | ☐ | |
@@ -255,4 +255,5 @@ P5 启动与包体（APK 体积、资源加载）
 - 前端渲染现状：`Emuera.Web/src/components/TerminalDisplay.vue`、`Emuera.Web/src/lib/opsApplier.ts`、`Emuera.Web/src/lib/hitTest.ts`
 - NativeAOT：Microsoft 官方 Native AOT 文档（Android 标注 experimental、no built-in Java interop）；.NET 10 RC2 Android NativeAOT 启动 271ms vs Mono AOT 1200ms（.NET Conf China 2025）
 - .NET 11 评估：`docs/2026.8.4.安卓性能优化2/android-perf-2-net11-eval.md`；官方 MAUI CoreCLR 博客（Preview 4 / Preview 6）、MS Learn .NET 11 runtime what's-new、Android 最低 API 24 breaking change
+- NativeAOT 验证：`docs/2026.8.4.安卓性能优化2/nativeaot-verify-report.md`（工具链路径 / ILC 清单 / 回归矩阵 / 体积耗时）
 - 质量护栏：I-12（`Emuera.Headless/Shared/**` 警告抑制边界）；测试入口 `tests/run_all.py`

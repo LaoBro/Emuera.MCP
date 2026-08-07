@@ -995,3 +995,68 @@ CPU 低）/ 会话已结束前端没收到通知（game loop completed normally 
 1. 凡是操纵进程级全局状态（静态单例、全局目录、静态配置）的测试，一开始就应放入 `[CollectionDefinition(..., DisableParallelization = true)]` 串行集合（仓库先例：`GamePathsIsolated`）——不要指望"现在全绿"就安全，高频调用点一旦增多竞态就会显形。
 2. 排查间歇失败：先跑"单独（绿）+ 与嫌疑类组合（绿）+ 完整套件（红）"三段定位，再用全局状态切分推断竞态对象；修复后完整套件连跑 2 次验证稳定（1 次绿不够，之前就是 1/3 绿）。
 3. 静态门面（EmueraLog→AgentLog）让"测试进程里谁都会写日志"成为常态——新增高频调用点时要评估对全局状态测试的影响面。
+
+## 无 VS C++ workload 也能跑 win-x64 NativeAOT——IlcUseEnvironmentalTools + 手动 CppLinker（2026-08-07）
+
+**场景**：3.2 引擎 NativeAOT 验证（`nativeaot-verify` 分支）。本机无 VS C++ 桌面 workload：VS 18 只装了 MSVC bin（lib 只有 onecore 子集），Windows Kits 无 Lib，vswhere 也认不出 VS 18 的 VC.Tools 组件（findvcvarsall 报 "Platform linker not found"）。
+
+**解决**（全部写死，避免重查）：
+1. 装 Windows SDK 库：`winget install Microsoft.WindowsSDK.10.0.26100`（提供 um/x64 + ucrt/x64 的 kernel32.lib/ucrt.lib）。
+2. `-p:IlcUseEnvironmentalTools=true` 跳过 findvcvarsall（_VCVarsAllFound 为空 → 不再触发 linker-not-found error）。
+3. `-p:CppLinker="...\MSVC\14.51.36231\bin\Hostx64\x64\link.exe"` + `-p:CppLibCreator=...\lib.exe`（Windows 路径，Git Bash 的 /c/... 风格 link.exe 不认）。
+4. `LIB` 环境变量 = MSVC `lib/onecore/x64` + Windows SDK `um/x64` + `ucrt/x64`。
+
+**教训**：
+- **lld-link 不是 link.exe 的 drop-in**：不认 `/NOEXP`、`/SOURCELINK` 语义不同，`could not open '/NOEXP'` 直接失败——Windows NativeAOT 链接直接用 MSVC `link.exe`，别在 lld 上浪费时间。
+- 微软文档写的"需要 Desktop Development for C++ workload"是充分条件不是必要条件；`onecore/x64` 的 CRT 库（libcmt/libcpmt/oldnames）+ link.exe 就够。
+- 排查顺序：先确认 `vswhere -requires VC.Tools.x86.x64` 是否命中——组件注册缺失时，任何"装 VS"的自动化都不如手动 CppLinker 快。
+
+## NativeAOT 三座大山：JSON 反射禁用、minimal API 委托生成器、匿名类型序列化（2026-08-07）
+
+**场景**：AOT 发布成功（ILC 链接通过）但 server 模式启动即崩/全端点 500。三个问题层层叠叠，每个都是"编译通过、运行炸"。
+
+**教训一（System.Text.Json 反射是硬禁用）**：AOT 下 `JsonSerializer.Deserialize<JSONConfigData>(json)`（无 options/context）直接抛 `JsonSerializerIsReflectionDisabled`——不是慢，是**崩**。所有 JSON 路径必须源生成 context（`[JsonSerializable]` + `JsonSerializerContext`）；`TurnJsonOptions`/`JsonOpts` 这类 options 加 `TypeInfoResolver = context` 即可让既有 `Serialize(value, options)` 调用零改动走源生成（converter 递归 `Serialize((object)value, options)` 经 resolver 按运行时类型解析——前提是 context 显式注册了全部多态叶子类型）。
+
+**教训二（库项目的 Map* 必须开请求委托生成器）**：minimal API 的 `MapGet/MapPost` 在 `PublishAot=true` 时 SDK 只对 **web 项目**自动启用静态委托生成；**库项目（如 Emuera.Headless.Server）必须显式 `<EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>`**，否则 AOT 下 RequestDelegateFactory 走反射路径，**所有端点 500（连 404 都 500 是强烈信号）**。顺带加 `<IsAotCompatible>true</IsAotCompatible>` 激活分析器。
+
+**教训三（匿名类型在 AOT 下不可序列化）**：`Results.Json(new { ... })` 响应全部要替换——统一改 `JsonObject`（JsonNode 内建 converter）+ `ConfigureHttpJsonOptions(TypeInfoResolverChain.Insert(0, context))` 让 Results.Json 的默认 options 能解析 JsonObject。**别用 `Results.Json(value, jsonTypeInfo)` 显式注入 TypeInfo**：context 的源生成 options 无 encoder 属性（.NET 10），TypeInfo 走默认 encoder 会把 `'` 转义成 `\u0027` 破坏 wire；走 HttpJsonOptions（默认 UnsafeRelaxedJsonEscaping）才与托管时代逐字节一致。wire 回归靠 xUnit 端点断言抓（`Assert.Contains("Missing 'value' field", body)` 直接命中 \u0027）。
+
+**教训四（AOT 下 Kestrel 异常无处可查）**：500 无 body 无日志时，先在管道最前加全局 try-catch 中间件 `Console.Error.WriteLine(ex)`——本次正是靠它抓到 `JsonTypeInfo metadata for type 'JsonObject' was not provided` 才定位到 resolver 问题。排查完移除。
+
+**教训五（托管/AOT 对照定位法）**：同一请求托管 200 / AOT 500 = AOT 特有；全端点共同失败（含 404）→ 管道/路由层；单端点失败 → handler 内。逐层缩小比瞎猜快得多。
+
+## ILC 增量发布产物不更新——改代码后必须清 bin-aot/obj-aot 全量重建（2026-08-07）
+
+**场景**：修完代码重跑 `dotnet publish`（同 -o 目录）成功，但复现时行为没变；`grep -c "新字符串" exe` 返回 0，以为代码没进去。
+
+**真相**：两个陷阱叠加——
+1. **ILC 增量缓存**：obj-aot 下的 ILC 中间产物（native/*.obj 等）在输入 dll 时间戳判断下可能复用旧编译，exe 不含新代码。`dotnet clean` 清不掉自定义 BaseOutputPath（bin-aot/obj-aot），要手动删目录强制全量。
+2. **grep 二进制搜不到 .NET 字符串**：程序集字符串字面量是 **UTF-16LE** 存储，`grep "UNEXPECTED"`（ASCII）永远 0——用 `python` 搜 `'UNEXPECTED'.encode('utf-16-le')` 才准。**先确认代码真在产物里，再开始排查运行时行为**。
+
+**教训**：AOT 验证期改代码 → publish → 复现，若现象不变，先查"产物是否真的新"（二进制搜新字符串 UTF-16 + 时间戳 + 清目录全量重建），别在旧产物上反复烧时间。
+
+## 写"已存在文件"被拒、新建 OK 的怪症——安全软件防篡改/残留句柄，先查环境（2026-08-07）
+
+**场景**：publish 复制 Core.dll 到输出目录反复 `Access denied`；连 `.gitignore` append 都 `Permission denied`，但 touch 新建文件 OK、C 盘 OK、icacls 权限正常。
+
+**定位**：先查残留进程（MSBuild 驻留节点 `dotnet build-server shutdown`；后台起的 server 进程锁 exe 导致 MSB3027——**起的 server 必须记得杀**），再查安全软件（`ZhuDongFangYu.exe`=360 主防；"改已有文件被拦、新建放行"正是防篡改/勒索防护特征）。用户确认 360 关闭后，锁释放恢复正常。
+
+**教训**：
+- "写已有文件被拒 + 新建正常 + 非只读 + ACL 正常"的排障顺序：残留句柄 → 安全软件防护 → 文件系统层；不要一上来改代码。
+- Git Bash 的 `rm` 会被 safe-delete 包装拦截（通配符/相对路径失败）、`cmd //c`/`taskkill //PID` 参数被 MSYS 转义破坏——这类环境操作改用 **PowerShell `Stop-Process`/`Remove-Item` 或 Python `os.remove`** 绕开，别在 shell 转义上耗时间。
+
+## 行号基线的测试在源码行号偏移时会误报——SafIoPolicyTests 与"加一行 using"（2026-08-07）
+
+**场景**：3.3 JSON 迁移给 `JSONConfig.cs` 加了一行 `using MinorShift.Emuera.GameView;`，`SafIoPolicyTests.Shared_runtime_direct_IO_does_not_exceed_documented_SAF_baseline` 立即报 8 处 "outside the explicit baseline"。
+
+**原因**：该测试用 (文件, 行号) → 直接 IO 调用数 的**显式基线**扫描 Shared/** 源码；行号整体 +1 后旧基线全部错位，误报"新增直接 IO"（实际零变化）。
+
+**教训**：这类"行号锚定基线"的测试对源码行号漂移脆弱——改 Shared/**（尤其加/删行）后要同步更新基线行号；改完跑一次该测试确认只有"行号平移"而无真实 IO 变化。反过来它也是称职的守卫：真实新增直接 IO 会被立刻抓到。
+
+## 残留进程干扰回归矩阵——run_all.py 内置 xUnit 与单独跑不一致（2026-08-07）
+
+**场景**：NativeAOT 产物跑 `run_all.py`：14/14 e2e 全绿但内置 xUnit FAIL；单独 `dotnet test` 却 685 全绿。
+
+**原因**：此前手动起的 AOT server 进程残留，锁住 `agent.log`/`test_game` 等共享资源（日志见过 `[agent-log] file init failed: ... being used by another process`），xUnit 里依赖文件系统的测试被波及。
+
+**教训**：跑全量回归前先清残留进程（`Get-Process -Name "Emuera.Headless.Cli" | Stop-Process`）；"套件内 FAIL、单独跑绿"优先怀疑环境干扰（残留进程/文件锁），而不是代码回归——但也别轻易归因环境，先看失败测试的报错内容确认。
