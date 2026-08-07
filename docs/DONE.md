@@ -251,3 +251,16 @@
   - 完整 C# 套件 685/685（唯一失败 `BuildSnapshot_1000_lines` 为已知性能护栏 flake，重跑即绿）。
   - `test_vt_only.py` 4/4、`test_server_single_session.py` 35/35。
 - 剩余：Phase 4 `Debug.WriteLine` 10 处并入；handleException 双写评估（错误画面一句话 + 门面堆栈）列入 Phase 4 收尾。
+
+### T-027 Phase 4：Debug.WriteLine 并入 + handleException 双写
+
+- 状态：已实现（2026-08-07，Phase 4，日志统一管理收官）
+- 范围：
+  - `EraStreamReader.cs` 5 处、`Preload.cs` 1 处 `Debug.WriteLine` → `EmueraLog.Debug`（门面 DebuggerSink 等价覆盖 ADB logcat，FileSink 补文件记录）；
+  - `Process.cs` `handleException`/`handleExceptionInSystemProc` 双写评估落地：画面保留玩家可见错误（错误按钮/脚本栈帧，UX 不变），门面补 `EmueraLog.Error("script", ...)` 诊断（类型+消息+位置+.NET 堆栈）→ agent.log 全量 + CLI 终端 Error 可见，MAUI 玩家只看到画面。
+- 收尾验证：全仓库 `Console.Error/Out.WriteLine`、`Debug.WriteLine` 残留清零（仅门面实现与 AgentLog 兜底保留），EmueraLog 调用 124 处覆盖四个 Phase。
+- **实战教训（flake 修复）**：完整套件下 `AgentLogTests.Configure_false_disables_then_runtime_toggle` 间歇失败（2/3 复现）。根因：AgentLogTests 操纵进程级全局 `AppDataPaths.Directory` + `AgentLog.Instance` 单例，xUnit 类级并行下与 `SafStage2StorageTests.AppDataScope`（全局切目录）竞态——writer 落点/FilePath 被切走导致断言失败。Phase 4 的 EraStreamReader Debug 高频调用放大了竞争窗口。修复：新建 `AppDataIsolatedCollection`（`DisableParallelization=true`，仿 `GamePathsIsolated` 先例），`AgentLogTests` 加入；连续 2 次完整套件 685/685 绿验证稳定。
+- 验收：
+  - 完整 C# 套件 685/685（连续 2 次全绿，flake 修复后稳定）。
+  - `test_vt_only.py` 4/4、`test_server_single_session.py` 35/35。
+- 至此 T-027 四个 Phase 全部完成：Phase 1 存档类 12 处 → Phase 2 加载诊断 46 处 → Phase 3 剩余 stderr/stdout ~44 处 → Phase 4 Debug.WriteLine 6 处 + handleException 双写。日志统一管理闭环。

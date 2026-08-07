@@ -984,3 +984,14 @@ CPU 低）/ 会话已结束前端没收到通知（game loop completed normally 
 **教训二（架构红利）**：`BuildTerminalLine` 是 CLI 宽度的单一源头（对齐 padding、`ComputeAlignOffset` 按钮命中区列偏移、`RebuildButtonPositions` 按钮列位置都经它取 textWidth）。给图片/矩形补占位后，这些消费者**自动同步修正**，零额外改动——之前"图片后按钮列偏左"的隐患随之消除。增强共享宽度计算时，消费者联动是红利而非负担，前提是它们必须复用同一函数而不是各算各的。
 
 **教训三（复用先例）**：`ConsoleSpacePart` 已有 `Math.Max(node.Width / charWidth, 0)` 空格占位先例，图片/矩形直接复用同公式即可，不需要为视觉节点设计新机制。判断"能否增强"先搜同层已有模式的同类节点。
+
+## 操纵全局静态的测试必须进 DisableParallelization 集合;高频日志调用会放大竞态窗口（2026-08-07）
+
+**场景**：T-027 Phase 4 日志统一收官后，完整套件下 `AgentLogTests.Configure_false_disables_then_runtime_toggle` 间歇失败（2/3 复现），单独跑/组合跑全绿。
+
+**根因**：AgentLogTests 操纵进程级全局 `AppDataPaths.Directory` + `AgentLog.Instance` 静态 Lazy 单例；xUnit 默认类级并行下，`SafStage2StorageTests.AppDataScope` 会全局切换 AppDataPaths，把 AgentLog 的 writer 落点/FilePath 切到别的目录，断言读错文件。Phase 4 新增的 EraStreamReader/Preload `EmueraLog.Debug` 调用把 `AgentLog.Instance` 访问频率抬高（几乎所有读脚本文件的测试都会触发），竞争窗口从"几乎不可见"放大到"2/3 复现"。
+
+**教训**：
+1. 凡是操纵进程级全局状态（静态单例、全局目录、静态配置）的测试，一开始就应放入 `[CollectionDefinition(..., DisableParallelization = true)]` 串行集合（仓库先例：`GamePathsIsolated`）——不要指望"现在全绿"就安全，高频调用点一旦增多竞态就会显形。
+2. 排查间歇失败：先跑"单独（绿）+ 与嫌疑类组合（绿）+ 完整套件（红）"三段定位，再用全局状态切分推断竞态对象；修复后完整套件连跑 2 次验证稳定（1 次绿不够，之前就是 1/3 绿）。
+3. 静态门面（EmueraLog→AgentLog）让"测试进程里谁都会写日志"成为常态——新增高频调用点时要评估对全局状态测试的影响面。
