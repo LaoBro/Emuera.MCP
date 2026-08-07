@@ -1060,3 +1060,14 @@ CPU 低）/ 会话已结束前端没收到通知（game loop completed normally 
 **原因**：此前手动起的 AOT server 进程残留，锁住 `agent.log`/`test_game` 等共享资源（日志见过 `[agent-log] file init failed: ... being used by another process`），xUnit 里依赖文件系统的测试被波及。
 
 **教训**：跑全量回归前先清残留进程（`Get-Process -Name "Emuera.Headless.Cli" | Stop-Process`）；"套件内 FAIL、单独跑绿"优先怀疑环境干扰（残留进程/文件锁），而不是代码回归——但也别轻易归因环境，先看失败测试的报错内容确认。
+
+## 消 ILC 警告不能只换序列化入口——显式 context 会丢 converter 多态（2026-08-07）
+
+**场景**：`test_snapshot.py` 稳定 1 failed：turn diff 序列化成 `{"lineOps":[{"type":"append"}]}` 空壳（`AppendLinesOp.newLines` 全丢）。托管/AOT/stash 后均复现；xUnit 685 全绿但未覆盖该路径，成了漏网之鱼。
+
+**原因**：为消 IL2026/IL3050，把三处 `Serialize(turn, TurnJsonOptions)` 改成显式 `EmueraJsonContext.Default.TurnRecord`。但 context 的 `JsonSourceGenerationOptions` **不含 Converters**——`LineOpConverter`/`TurnOpConverter`（按运行时类型装箱 Write 的多态序列化）不参与 → 抽象基类 `LineOp` 直接序列化只输出 type 鉴别符，子类字段全丢。`TurnJsonOptions`（带 Converters + TypeInfoResolver）才是正确形态。
+
+**教训**：
+1. **源生成 context 序列化抽象基类/接口成员时不会自动多态 dispatch**——多态必须靠 `[JsonPolymorphic]`（会引入 `$type` 字段破坏 wire）或自定义 converter（挂在 options.Converters）。换序列化入口（context TypeInfo vs options）会静默改变 wire，务必有内容级断言兜底。
+2. 消 `Serialize(T, JsonSerializerOptions)` 警告的正解是 **JsonTypeInfo 重载**：`Serialize(turn, (JsonTypeInfo<TurnRecord>)TurnJsonOptions.GetTypeInfo(typeof(TurnRecord)))`——`GetTypeInfo(Type)` 与 TypeInfo 重载均无 RUC/RDC 标注（反射验证），converter 链完整保留，wire 逐字节一致。别用"换 context"这种看似等价的手段。
+3. **e2e 的文本内容断言能抓到单元测试漏掉的 wire 回归**——xUnit 685 绿 ≠ diff 内容正确；test_snapshot 的 diff 内容断言是这条防线的最后一道。
