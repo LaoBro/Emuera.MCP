@@ -60,6 +60,26 @@ P5 启动与包体（APK 体积、资源加载）
 
 虚拟滚动已解决节点数；Canvas 迁移收益未取证、成本高。渲染层改动**必须在阶段 0 归因数据证明渲染占帧预算主导之后**才立项（见阶段 3）。
 
+### 1.4 纯 MAUI（移除 Vue/WebView）渲染：否决为当前手段，列为最后后手 ❌
+
+> 2026.8.7 评估（用户提问"省掉 JS 运行时能否提性能"）。已核实：`IJsBridge` 只抽象消息通道（`PostTurn`/`PostMessage`/`InputReceived`），渲染器本体在 JS/DOM，无 C# 渲染实现——迁移 = 全量重写前端（`TerminalDisplay.vue` 574 行 + hitTest/opsApplier/snapshotReducer/InputBar/TinputCountdown + 图片通道 + 224 Vitest 用例）。
+
+**能省（真收益）**：
+- V8 堆 + Blink 渲染进程内存（低端机 WebView 进程 50-100MB+）→ 对齐"防杀进程"目标
+- WebView 初始化（冷启动 100-300ms 量级）
+
+**省不掉（换汤不换药）**：
+- 渲染几何：DOM layout/paint 换成 Android measure/draw，同价
+- 数据层分配：`opsApplier` 的深拷贝/逐行重建随迁 C#，分配一个字节不少（P3 的 4.2 优化目标原样存在）
+- 快照 diff 协议消费（wire 不变）
+
+**新增成本**：
+- 自绘管线：纯 MAUI 在 5000 行 scrollback 下不能用控件树（Label 树会炸），必须 GraphicsView/SkiaSharp 单画布 + 字形烘焙/网格对齐（= 5.3 字形图集的 C# 版，成本只高不低）
+- 丢原生选区/无障碍/文本搜索（5.3 代价清单同款）
+- 双平台（Windows WebView2 + Android WebKit）渲染器重写与维护
+
+**否决理由**：第一轮 S0 已证明瓶颈在**引擎指令语义 + 回合级快照/序列化/分配**（C# 侧），JS 运行时不在主矛盾；省 JS 外壳 ≠ 省渲染几何与数据层分配。**结论：无阶段 0 归因数据不立项**；若归因点名"内存/冷启动"主矛盾，优先引擎 NativeAOT（已在 3.2 主攻）与 WebView 进程/初始化优化，纯 MAUI 列为全部手段之后的最后后手。
+
 ---
 
 ## 2. 阶段 0：归因取证（所有优化的前置门槛）
@@ -126,11 +146,13 @@ P5 启动与包体（APK 体积、资源加载）
 ### 3.4 MAUI 壳切换（推迟，独立门控）
 
 > 微软文档 Android NativeAOT 仍标 experimental（no built-in Java interop）；壳层重度依赖 JNI：SAF `ContentResolver.OpenInputStream`（`SafGameDirAccessor`）、WebView（MAUI handler 过 JNI）。
+> **2026.8.7 .NET 11 评估完成（`android-perf-2-net11-eval.md`）**：.NET 11 Preview 4-6 将 CoreCLR 定为 Android 默认运行时、Android interop trimmable type map 默认开启（Java interop 首次实质松动），但：① NativeAOT 仍 experimental；② 最低 API 21→24 与低端机覆盖冲突；③ Preview 6 起 Mono 回退属性移除（升 .NET 11 = 单程票）。**结论：壳层不即时迁移，门控推迟到 .NET 11 GA（2026-11 前后）后开独立实验分支。**
 
-- [ ] **门控条件**：.NET 10 后续 Android NativeAOT 的 Java interop 支持成熟（跟进 release notes / dotnet/android 仓库），或引擎先行验证 + 壳层 JNI 冒烟测试通过。
+- [ ] **门控条件（已更新）**：引擎先行验证（3.2/3.3，.NET 10）通过 **且** .NET 11 GA 后壳层实验分支通过（CoreCLR 真机 A/B：冷/二次启动、包体、内存 P50/P95 vs Mono Full AOT 基线；NativeAOT 冒烟见下）。
 - [ ] 冒烟测试清单（切换前）：SAF 选目录/读游戏文件/存读档全流程、WebView 渲染 + 手势、`TinputCountdown`/输入框、捏合缩放。
-- [ ] 切换后回归：`Emuera.Maui.Tests` + 真机全流程 + 启动耗时 A/B（271ms vs 1200ms 目标验证）。
-- [ ] 期间保持 Mono Full AOT 作为壳层基线（现状不动）。
+- [ ] 切换后回归：`Emuera.Maui.Tests` + 真机全流程 + 启动耗时 A/B（271ms vs 1200ms 目标验证——注意该数字为 NativeAOT 演示值，CoreCLR 官方口径仅 Mono ±10%）。
+- [ ] 期间保持 Mono Full AOT 作为壳层基线（现状不动；**仅 .NET 10 内成立**——.NET 11 Preview 6 已移除 Mono 回退）。
+- [ ] 附加（.NET 11 红利）：真机 dotnet-trace/dotnet-counters 归因取证（阶段 0 工具链统一）；`AndroidEnableMarshalMethods=false`（XAGNM7009）在 CoreCLR/NativeAOT 下重评。
 
 **阶段 1 验收**：引擎侧 NativeAOT 验证分支达成"ILC 清零 + 全矩阵等价"；壳层切换有明确门控结论（做 / 等 / 不做）与冒烟结果。
 
@@ -209,7 +231,7 @@ P5 启动与包体（APK 体积、资源加载）
 
 | # | 条目 | 状态 | 结果摘要 |
 |---|------|------|----------|
-| 1.1-1.4 | 探索结论（WASM/Canvas/渲染推迟） | ✅ 已定 | 见第 1 节决策记录 |
+| 1.1-1.5 | 探索结论（WASM/Canvas/渲染推迟/纯 MAUI 否决） | ✅ 已定 | 见第 1 节决策记录；1.4 纯 MAUI 列为最后后手 |
 | 2.1 | 回放 harness | ☐ | |
 | 2.2 | 前端三段计时 | ☐ | |
 | 2.3 | 前端分配统计 | ☐ | |
@@ -217,7 +239,7 @@ P5 启动与包体（APK 体积、资源加载）
 | 3.1 | 可行性事实核实 | ✅ 部分 | 反射/插件/AspNetCore 已核实；`Expression.Compile`/`Type.GetType` 扫描待做 |
 | 3.2 | NativeAOT 引擎先行（win-x64 → android-arm64） | ☐ | |
 | 3.3 | JSON 源生成器迁移 + DataTable 验证 + MarshalMethods 评估 | ☐ | |
-| 3.4 | MAUI 壳切换（门控） | ☐ | |
+| 3.4 | MAUI 壳切换（门控） | ☐ | .NET 11 评估完成（2026.8.7）：等 GA 后实验分支，见 `android-perf-2-net11-eval.md` |
 | 4.1 | GC 配置（SustainedLowLatency / LOH） | ☐ | |
 | 4.2 | 前端数据层分配 | ☐ | |
 | 4.3 | 剩余热路径（数据驱动） | ☐ | |
@@ -232,4 +254,5 @@ P5 启动与包体（APK 体积、资源加载）
 - 架构：`docs/adr/0018-button-generation-invalidation-v7.md`、`docs/adr/0019-android-saf-file-access.md`
 - 前端渲染现状：`Emuera.Web/src/components/TerminalDisplay.vue`、`Emuera.Web/src/lib/opsApplier.ts`、`Emuera.Web/src/lib/hitTest.ts`
 - NativeAOT：Microsoft 官方 Native AOT 文档（Android 标注 experimental、no built-in Java interop）；.NET 10 RC2 Android NativeAOT 启动 271ms vs Mono AOT 1200ms（.NET Conf China 2025）
+- .NET 11 评估：`docs/2026.8.4.安卓性能优化2/android-perf-2-net11-eval.md`；官方 MAUI CoreCLR 博客（Preview 4 / Preview 6）、MS Learn .NET 11 runtime what's-new、Android 最低 API 24 breaking change
 - 质量护栏：I-12（`Emuera.Headless/Shared/**` 警告抑制边界）；测试入口 `tests/run_all.py`
