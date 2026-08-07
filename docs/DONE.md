@@ -275,3 +275,15 @@
   - 完整 C# 套件 685/685（`BuildSnapshot_1000_lines` 为已知性能护栏 flake，单独重跑 37ms 即绿）。
   - `test_vt_only.py` 4/4、`test_server_single_session.py` 35/35。
   - 实测 CLI 启动 stderr 零 DIAG 行（画面不再输出）。
+
+### T-027 收尾：门面日志审查清理
+
+- 状态：已实现（2026-08-07）
+- 背景：统一门面 124 处调用全量审查，清理多余/过时/高频噪音日志（用户确认 4 项全选）。
+- 清理项：
+  - **A 删除 3 处**：`Preload.cs:37/39`（DirExists OK + GetFiles 中间计数，完成哨兵已含数量）；`HeadlessRunner.cs:155`（字符宽度检测正常的零价值日志，异常与否从有无 140-152 行即可推断）。
+  - **B 降 Debug 1 处**：`ErhLoader.cs:430 PrepareERDFileNames`（SAF 验收日志，注释自证 hasDVAR 检查，已过时；保留排障价值）。
+  - **C1 回退链精简**：`EraStreamReader.cs` 成功路径 3 处（cache MISS / fallback OK / file I/O fallback，含 Android `#if ANDROID` ESR MISS 日志）删除——每次缓存未命中即打的高频噪音；失败路径 2 处（fallback FAILED / ALL FAILED）保留并**提为 Warn**（真出问题时终端可见）。
+  - **C2 存档日志合并**：`VariableEvaluator.cs` 4 处 begin（SaveGlobal/LoadGlobal/SaveTo/LoadFrom）删除，保留 ok（含 ms）与 fail——每次存档从 2 条减为 1 条成功日志。
+- 审查结论（确认保留不动）：成对阶段哨兵（ErbLoader/ErhLoader/Process stage=）、错误/失败路径、启动横幅（server 终端即日志）、terminal 检测异常块、handleException 双写、diag-ld 4 处。
+- 验收：完整 C# 套件 685/685（`BuildSnapshot_1000_lines` 已知性能护栏 flake，单独重跑 29ms 即绿）；`test_vt_only.py` 4/4、`test_server_single_session.py` 35/35。
