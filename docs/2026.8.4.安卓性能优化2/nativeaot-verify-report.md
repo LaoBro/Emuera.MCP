@@ -92,10 +92,10 @@ dotnet publish Emuera.Headless.Cli -c Release -r win-x64 \
   1. `Microsoft.NETCoreSdk.BundledVersions.props` 的 `KnownILCompilerPack`（net10.0）`ILCompilerRuntimeIdentifiers` **不含 android**；
   2. ILC `Publish.targets` 显式报 `Cross-OS native compilation is not supported`（Windows host 上 `_targetOS != win` 一律拒绝；`DisableUnsupportedError` 绕过后续仍缺 target 侧 ILC 包）；
   3. `runtime.android-arm64.Microsoft.DotNet.ILCompiler` 在 nuget.org **不存在**（BlobNotFound）——target 编译输入（sdk dll）无从获取；而 `Microsoft.NETCore.App.Runtime.NativeAOT.android-arm64` 存在但 SDK 不解析（restore 后 assets 里无 android pack）。
-  → **结论**：纯 SDK NativeAOT（net10.0 + `-r android-arm64`）在当前 .NET 10 不可行；Android NativeAOT 的官方路径只有 **MAUI/Xamarin.Android 管道**（`Microsoft.Android.Runtime.NativeAOT.36` pack，本机已随 workload 就位）——即 3.4 壳层门控项（.NET 11 GA 后实验分支）。
+  → **结论**：纯 SDK NativeAOT（net10.0 + `-r android-arm64`）在当前 .NET 10 不可行；Android NativeAOT 应走 **MAUI/Xamarin.Android workload 管道**（`Microsoft.Android.Runtime.NativeAOT.36` pack，本机已随 workload 就位）。补充实测已在当前 `Emuera.Maui` 的 `.NET 10 + android-arm64` 下生成签名 APK 和 `lib/arm64-v8a/libEmuera.Maui.so`，因此 `.NET 11 GA` 不是开始构建的前置条件；它仍是 NativeAOT experimental、JNI/SAF/WebView 真机冒烟和生产性复评窗口。
   → **已保留的基础**：`Emuera.Headless.Cli` 的 android RID 条件编译（排除 Server/Kestrel 引用 + `ANDROID_NO_SERVER` 符号 + `obj-aot/**` glob 排除修复 CS0579）——真实 Android 形态本就不含 Kestrel，将来壳层集成引擎时直接可用。
 - [ ] **ILC 警告清零收尾**（§5.2）：AgentJsonlProtocol 显式 context 调用（已完成）+ DataTable 子集验证（已完成，见 `tests/test_datatable_aot.py`）
-- [ ] **壳层门控（3.4）**：维持 .NET 11 GA 后实验分支结论（见 `android-perf-2-net11-eval.md`）
+- [ ] **壳层门控（3.4）**：当前 MAUI workload NativeAOT 已通过构建预检；继续完成 IL 警告治理、真实设备启动及 JNI/SAF/WebView 全流程，.NET 11 GA 后再做生产性复评（见 `android-perf-2-net11-eval.md`）
 - [ ] **测试遗留（2026.8.7 已修复）**：~~`test_snapshot.py` 稳定 1 failed~~ → ✅ 全绿。根因 = 显式 context 序列化丢失 `LineOpConverter` 多态（详见 §5.2 首行教训）。修复后托管 286/286、AOT 241/0、run_all 14/14 全 PASS。
 - [ ] 验证期产物 `publish/nativeaot-win-x64/` 与 `bin-aot/obj-aot` 已 gitignore，不入库
 

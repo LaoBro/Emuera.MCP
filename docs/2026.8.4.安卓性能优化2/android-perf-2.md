@@ -78,7 +78,99 @@ P5 启动与包体（APK 体积、资源加载）
 - 丢原生选区/无障碍/文本搜索（5.3 代价清单同款）
 - 双平台（Windows WebView2 + Android WebKit）渲染器重写与维护
 
-**否决理由**：第一轮 S0 已证明瓶颈在**引擎指令语义 + 回合级快照/序列化/分配**（C# 侧），JS 运行时不在主矛盾；省 JS 外壳 ≠ 省渲染几何与数据层分配。**结论：无阶段 0 归因数据不立项**；若归因点名"内存/冷启动"主矛盾，优先引擎 NativeAOT（已在 3.2 主攻）与 WebView 进程/初始化优化，纯 MAUI 列为全部手段之后的最后后手。
+**否决理由**：第一轮 S0 已证明瓶颈在**引擎指令语义 + 回合级快照/序列化/分配**（C# 侧），JS 运行时不在主矛盾；省 JS 外壳 ≠ 省渲染几何与数据层分配。**结论：无阶段 0 归因数据不立项**；若归因点名“内存/冷启动”主矛盾，优先引擎 NativeAOT（已在 3.2 主攻）与 WebView 进程/初始化优化，纯 MAUI 列为全部手段之后的最后后手。
+
+### 1.5 Avalonia 迁移可行性与性价比（2026.8.7 调研）
+
+#### TL;DR
+
+> **技术上可行，经济上不适合以“Native AOT 解锁”为唯一迁移理由。** Avalonia 可以替换 WebView + Vue，使用 C# / XAML 与自定义绘制做 Android 原生 UI；但它仍然走 .NET Android workload，不能自动绕过当前 Android Native AOT 的工具链与 Java interop 限制。迁移的确定性成本是重写终端渲染器和交互层，性能收益仍需同机 A/B 证明。
+
+**建议决策：暂不把 Avalonia 全量迁移列为主线；阶段 0 归因完成后，做一个有时限的 Avalonia vertical-slice PoC。** 由于现有 MAUI workload 已能生成 Android arm64 NativeAOT APK，Avalonia PoC 不再承担“解锁 AOT”的职责；只有在不依赖 Native AOT 的前提下显著降低低端机峰值内存/启动时间，或明确带来可接受的长期原生 UI 维护收益，才进入全量迁移。
+
+#### 补充路线：Avalonia 外壳 + 保留 WebView
+
+Avalonia 官方提供 `NativeControlHost`，可以在 Avalonia 视觉树中嵌入 Android 原生 `WebView`。因此存在一条比“立即重写 Vue/DOM”更低风险的 Android 壳验证路线：
+
+```text
+Avalonia Application
+  └─ NativeControlHost
+       └─ Android.Webkit.WebView
+            └─ 现有 Vue dist + C#-JS bridge
+```
+
+这条路线的价值是验证 Avalonia Android 的 Activity 生命周期、输入法/返回键、SAF、发布链路和现有协议能否共存；`Emuera.Headless.Core`、Vue 产物和大部分行为测试仍可保留，适合作为 1.5-A 的短期实验。
+
+但它**不是当前性能问题的解决方案**：WebView、V8/Blink、Vue reducer 和 JS↔C# bridge 仍然存在，低端机内存和前端 scripting 成本不会因外层换成 Avalonia 自动消失；Native AOT 仍需经过同样的 Android workload、JNI/Java interop 和真机验证。官方还列出原生 View 位于 Avalonia 渲染层之上、不能透明显示后方 Avalonia 内容、不受 Avalonia transform 影响、始终处于 Avalonia 内容上层、复杂裁剪受限等约束。故其定位应是“壳兼容性 PoC”，不能把结果外推为“原生 UI 性能已验证”。
+
+如果 Android 与 Windows 必须继续共用一套 UI 壳，这条路线还会引入平台分叉：Android 可嵌入原生 WebView，Windows 仍需另选 WebView/第三方控件或保留现有 MAUI 壳。它降低单次改造风险，但会增加双壳维护成本。
+
+#### 已核实事实与边界
+
+| 结论 | 证据 | 对本项目的含义 |
+|---|---|---|
+| Avalonia 官方支持 Android；当前平台页要求 .NET 10：Android 16/API 36 的 ARM64、x64 为 Tier 1；Android 12-15/API 31-35 的 ARM64、ARM32、x64 为 Tier 2；Android 11/API 30 及以下为 Tier 3。 | Avalonia 官方平台矩阵与 Android 开发指南（见 §9） | 替换 MAUI 壳在产品平台层面可行，但当前 API 21-30 低端设备目标落在 Tier 3，不能按“官方支持 Android”直接推导兼容性和性能。 |
+| Avalonia 官方 Native AOT 指南使用 `PublishAot=true`，要求编译 XAML/绑定、避免运行时动态 XAML，并明确提示动态控件、第三方控件和平台特性需要额外配置。 | Avalonia 官方 Native AOT 指南（见 §9） | Avalonia UI 层可以按 AOT 约束设计，但这不是 Android AOT 成功的证明。 |
+| Microsoft .NET Native AOT 官方目标表仍将 Android 标记为 **Experimental, no built-in Java interop**；Android 的 x64/ARM64/ARM 支持取决于对应 .NET 版本。 | Microsoft Learn Native AOT deployment（见 §9） | Avalonia 仍需面对 Android 宿主、Activity、存储选择器和系统 Intent 的 interop 风险。 |
+| 本仓库已实测：纯 `net10.0` CLI 项目使用 `.NET 10 + dotnet publish -r android-arm64` 没有通用 SDK Native AOT 路径（没有对应 KnownILCompilerPack，且 target ILC 包不存在）；但 `net10.0-android` MAUI 项目可以通过 Microsoft.Android workload 的 NativeAOT 管线。 | [`nativeaot-verify-report.md`](nativeaot-verify-report.md) §7；本次 MAUI 预检 | 换成 Avalonia 不会改变纯 CLI 工具链事实，也不是必要条件；现有 MAUI 壳应先直接验证 workload NativeAOT 的真机运行。 |
+| Avalonia 的 StorageProvider 在 Android 支持文件/文件夹 picker、bookmark 和 `content:` URI 的流读写；但官方明确说明 Android 通常没有物理路径，不能依赖 `Path` 直接读写。 | Avalonia Storage Provider / Storage Item 文档（见 §9） | SAF 能迁移，但应实现基于 `IStorageFolder` / `IStorageFile` / bookmark 的适配器，不能把现有 URI 字符串替换后继续假设是文件系统路径。 |
+
+**需要特别避免的误读：** 当前 `Emuera.Maui.csproj` 的 `RunAOTCompilation=true` 是 .NET Android 的 Mono Full AOT 配置，不等于 `PublishAot=true` 的 Native AOT。补充实测（2026.8.7）在不改项目文件的前提下执行 `dotnet publish Emuera.Maui/Emuera.Maui.csproj -f net10.0-android -r android-arm64 -c Release -p:PublishAot=true -p:RunAOTCompilation=false`，经 `Microsoft.Android.Runtime.NativeAOT.36.android-arm64` 产出 `com.emuera.maui-Signed.apk`（约 25.5 MiB）和 `lib/arm64-v8a/libEmuera.Maui.so`（约 40.4 MiB）；APK 签名及 16 KiB page alignment 校验通过，包内未发现托管程序集。故“MAUI Android NativeAOT 不能构建”已被本机实测推翻；当前仍未完成真机安装启动、WebView 和 SAF 全流程验证，且首次预检因 Core 的 IL2026/IL3050/IL2072 警告需使用 `TreatWarningsAsErrors=false` 才能继续，不能视为生产就绪。
+
+#### 对当前架构的迁移映射
+
+| 当前模块 | Avalonia 迁移后的处理 | 复用率判断 |
+|---|---|---|
+| `Emuera.Headless.Core`、ERB/CSV 引擎、`GamePaths`、`IGameDirAccessor`、JSON 源生成器和回归夹具 | 保留；把 UI 宿主依赖继续隔离在壳层 | 高，属于迁移的主要收益 |
+| `BridgeHost` / `MauiBridgeIO` | 抽出与 UI 无关的 `GameSession` / `ITurnSink` / `IInputSink`；Avalonia 壳直接投递内存对象，保留 JSONL 作为 CLI/兼容测试协议 | 中高，但不是把当前类原样搬过去 |
+| `MainPage`、`IJsBridge`、`AndroidJsBridge`、`WindowsJsBridge` | 改成 Avalonia `Application` / `TopLevel` / Android Activity 生命周期；删除 WebView 导航、JS 注入和 JS 消息桥 | 低，职责相似但 API 不兼容 |
+| `SafGameDirAccessor` | 可复用 SAF 经验和 `IGameDirAccessor` 契约；实现改为 Avalonia StorageProvider + Android bookmark/Intent 适配，逐项验证持久读写 | 中，不能直接复用实现 |
+| `Emuera.Web/src` | 不存在源码级迁移路径。13 个 Vue 组件、Pinia 状态、输入/手势/资源/协议 reducer 需要用 C# 控件和状态模型重建；现有测试主要作为行为规格 | 低 |
+| `TerminalDisplay.vue` / `SegmentRenderer.vue` | 建议一个 `TerminalControl : Control`，在 `Render(DrawingContext)` 中绘制文本、图片、矩形和按钮热区；只保留视口行，不能为 5 万行 scrollback 建立控件树 | 低，但 Avalonia 的自绘能力匹配该方案 |
+
+仓库当前 Web 前端共有 **34 个非测试源码文件 / 7,495 行**，另有 **21 个测试文件 / 6,777 行**；其中 `TerminalDisplay.vue` 为 574 行，`opsApplier.ts` 仍承担行级增量状态复制和深拷贝。这个规模说明迁移不是“把 Vue 模板翻译成 XAML”，而是重建一套原生终端渲染器。Avalonia 官方提供 `Control.Render`、`DrawingContext.DrawText/DrawGlyphRun/DrawImage`、裁剪/变换和指针事件，足以承载实现，但性能和 CJK 字形对齐必须做项目级验证（见 §9）。
+
+#### 性能收益的可信度
+
+**可能得到的收益：** 移除 WebView、V8/Blink 渲染进程、JS↔C# bridge 和 Vue 响应式对象，可以降低进程数量、首帧初始化和前端 reducer 分配；所有状态也可以在同一托管进程内传递。
+
+**不能预先承诺的收益：** Avalonia 不是“免费获得 Canvas”。如果用 `TextBlock` / `Inline` 为每个 segment 或每行建立控件，布局树和对象分配会把当前 DOM 问题原样换名；正确方向仍是自定义单控件绘制 + 视口虚拟化 + 字形/图片缓存。引擎回合执行、SAF IPC、快照/增量模型和大文本数据本身也不会因为换 UI 框架而消失。
+
+因此，Avalonia 的性能收益目前只能写成假设：
+
+1. **冷启动/内存：** 预期移除 WebView 相关开销，但 Avalonia/Skia 自身初始化与 native 库体积会抵消一部分收益。
+2. **每回合延迟：** 只有前端三段计时证明 scripting 或 WebView layout/paint 占主导时，原生渲染才可能成为主收益项；若瓶颈仍在引擎/SAF/数据分配，收益有限。
+3. **滚动和大文本：** 自绘控件有机会优于 DOM，但要自行实现命中测试、按钮代数、图片映射图取色、选择/复制、无障碍和缩放语义，不能只比较一张首屏截图。
+
+#### 粗略成本与性价比
+
+以下是基于当前代码规模的工程估算，不是官方承诺：
+
+| 阶段 | 工作量（1 名熟悉 C# UI 的工程师） | 产出 |
+|---|---:|---|
+| AOT/Android 可行性 spike | 2-5 人日 | 最小 Avalonia Android 项目，`android-arm64` 普通发布 + `PublishAot=true` 发布结果、ILC/interop 警告、真机启动日志 |
+| vertical slice | 1-2 周 | 真实 `test_game` 首回合、终端文本/按钮/图片/滚动、输入、SAF 选择/读/写、返回键 |
+| 全量迁移 | 约 3-6 人月 | 原生终端、设置/调试/游戏列表、双平台生命周期、行为回归、像素/低端机性能回归、发布流水线 |
+
+| 目标 | 评价 |
+|---|---|
+| 只为获得 Android Native AOT | **低性价比**：Avalonia 不解除 .NET Android 的实验性 Java interop 和本地 ILC 门槛。 |
+| 只为验证新原生壳、暂时保留 Vue/WebView | **短期可行**：改造面较小，但不减少 WebView/V8/JS 成本，且可能形成 Android/Windows 双壳。 |
+| 为了去掉 WebView、降低进程/内存并接受 UI 重写 | **中等性价比**：值得做 PoC，但收益要用低端真机数据确认。 |
+| 长期统一 C# UI、继续扩展复杂终端绘制 | **条件性中高性价比**：自绘控件和 C# 测试体系更统一，但前提是团队愿意长期维护自有渲染器。 |
+
+#### 建议的 PoC 门槛
+
+将下面任务作为独立实验分支，不改变当前 MAUI 基线：
+
+1. 用当前 .NET/Avalonia 版本创建最小 Android 项目，分别执行普通 `dotnet publish` 和 `PublishAot=true` 的 `android-arm64` 发布；必须在真实 arm64 设备安装、启动并加载第一帧。只“编译成功”不算通过。
+2. 复用 `Emuera.Headless.Core` 跑 `test_game`，先做单个 `TerminalControl`：40 行视口、CJK/彩色/粗斜体/下划线/删除线、按钮命中、图片/裁切/矩形、整屏清除、头部截断、缩放和 TINPUT 倒计时。
+3. 用 Avalonia StorageProvider 完成 SAF 目录选择、bookmark 持久化、递归枚举、文件读取、存档写入和无写权限重选；对照现有 `SafGameDirAccessor` 的读写探针。
+4. 在同一台低端设备、同一 `test_game` 回放序列上比较 MAUI+Vue 与 Avalonia：冷启动 P50/P95、首帧、峰值 RSS、连续 100 回合 P95、5 万行滚动帧时间、APK/AAB 体积和崩溃率。
+
+建议把“继续全量迁移”设置为内部门槛，而不是凭体验决定：Native AOT 必须真机通过；若只走普通 Android 发布，则至少要求峰值 RSS 下降 20%、冷启动下降 15%、连续回合 P95 不回退超过 5%，并通过全部核心行为/SAF 回归。若 AOT 不通过且上述指标也不达标，立即关闭 Avalonia 路线，继续优化现有 MAUI/WebView 和引擎。
+
+**路线调整建议：** 阶段 0、引擎 NativeAOT 和前端数据层优化继续按原计划推进；新增一个不阻塞主线的“1.5-A Avalonia spike”，分为两档：先做 Avalonia + WebView 混合壳验证，再决定是否做无 WebView 的 `TerminalControl`。如果原生渲染 PoC 通过，再先抽取 `GameSession` / `ITurnSink` 等 shell-neutral 边界，之后才迁移渲染器。这样即使最终不采用 Avalonia，边界抽取仍会降低当前 `BridgeHost` 对 MAUI/WebView 的耦合。
 
 ---
 
@@ -143,15 +235,18 @@ P5 启动与包体（APK 体积、资源加载）
 - [ ] **`Emuera.Maui.csproj:36` 关联点**：`AndroidEnableMarshalMethods=false`（XAGNM7009 workaround）与 NativeAOT 的 JNI 通道（Marshal Methods）可能冲突——进入 3.4 前必须重新评估此开关。
 - [ ] 验收：引擎 NativeAOT 产物在 CLI 模式下跑通 test_game 全流程 + 回归全绿。
 
-### 3.4 MAUI 壳切换（推迟，独立门控）
+### 3.4 MAUI 壳 NativeAOT（现在可构建，独立门控）
 
 > 微软文档 Android NativeAOT 仍标 experimental（no built-in Java interop）；壳层重度依赖 JNI：SAF `ContentResolver.OpenInputStream`（`SafGameDirAccessor`）、WebView（MAUI handler 过 JNI）。
-> **2026.8.7 .NET 11 评估完成（`android-perf-2-net11-eval.md`）**：.NET 11 Preview 4-6 将 CoreCLR 定为 Android 默认运行时、Android interop trimmable type map 默认开启（Java interop 首次实质松动），但：① NativeAOT 仍 experimental；② 最低 API 21→24 与低端机覆盖冲突；③ Preview 6 起 Mono 回退属性移除（升 .NET 11 = 单程票）。**结论：壳层不即时迁移，门控推迟到 .NET 11 GA（2026-11 前后）后开独立实验分支。**
+> **2026.8.7 MAUI workload 预检已通过构建门槛**：当前 `.NET 10 + Microsoft.Android workload 36.1.69` 在 `PublishAot=true`、`android-arm64` 下能生成签名 APK；这条路径不需要 Avalonia，也不必等待 .NET 11 才能开始。未通过的是“生产门槛”：静态分析警告治理、真机启动和 JNI/SAF/WebView 全流程仍待完成。
+> **2026.8.7 .NET 11 评估完成（`android-perf-2-net11-eval.md`）**：.NET 11 Preview 4-6 将 CoreCLR 定为 Android 默认运行时、Android interop trimmable type map 默认开启（Java interop 首次实质松动），但：① NativeAOT 仍 experimental；② 最低 API 21→24 与低端机覆盖冲突；③ Preview 6 起 Mono 回退属性移除（升 .NET 11 = 单程票）。**结论：.NET 11 GA（2026-11 前后）仍是生产切换复评窗口，不是当前开始 NativeAOT 构建的前置条件。**
 
-- [ ] **门控条件（已更新）**：引擎先行验证（3.2/3.3，.NET 10）通过 **且** .NET 11 GA 后壳层实验分支通过（CoreCLR 真机 A/B：冷/二次启动、包体、内存 P50/P95 vs Mono Full AOT 基线；NativeAOT 冒烟见下）。
+- [ ] **构建门控**：保留独立 `NativeAOT` 发布配置，使用 `PublishAot=true`、`RunAOTCompilation=false`；`TreatWarningsAsErrors=false` 只允许用于预检，生产配置必须逐条处理/豁免 IL2026、IL3050、IL2072 等警告。
+- [ ] **运行门控**：引擎先行验证（3.2/3.3，.NET 10）通过 **且** 当前 MAUI NativeAOT `android-arm64` APK 在真实设备启动并通过全流程；再做冷/二次启动、包体、内存 P50/P95 与现有 Mono Full AOT 基线 A/B。
 - [ ] 冒烟测试清单（切换前）：SAF 选目录/读游戏文件/存读档全流程、WebView 渲染 + 手势、`TinputCountdown`/输入框、捏合缩放。
 - [ ] 切换后回归：`Emuera.Maui.Tests` + 真机全流程 + 启动耗时 A/B（271ms vs 1200ms 目标验证——注意该数字为 NativeAOT 演示值，CoreCLR 官方口径仅 Mono ±10%）。
 - [ ] 期间保持 Mono Full AOT 作为壳层基线（现状不动；**仅 .NET 10 内成立**——.NET 11 Preview 6 已移除 Mono 回退）。
+- [ ] ABI/系统版本策略：先以 `android-arm64` 为 NativeAOT 主验证包，`android-x64` 仅用于模拟器/兼容性验证；API 21-23 的实际可用性必须用设备矩阵确认，NativeAOT 冒烟不通过时继续发布当前 Mono Full AOT 包。
 - [ ] 附加（.NET 11 红利）：真机 dotnet-trace/dotnet-counters 归因取证（阶段 0 工具链统一）；`AndroidEnableMarshalMethods=false`（XAGNM7009）在 CoreCLR/NativeAOT 下重评。
 
 **阶段 1 验收**：引擎侧 NativeAOT 验证分支达成"ILC 清零 + 全矩阵等价"；壳层切换有明确门控结论（做 / 等 / 不做）与冒烟结果。
@@ -231,15 +326,17 @@ P5 启动与包体（APK 体积、资源加载）
 
 | # | 条目 | 状态 | 结果摘要 |
 |---|------|------|----------|
-| 1.1-1.5 | 探索结论（WASM/Canvas/渲染推迟/纯 MAUI 否决） | ✅ 已定 | 见第 1 节决策记录；1.4 纯 MAUI 列为最后后手 |
+| 1.1-1.4 | 探索结论（WASM/Canvas/渲染推迟/纯 MAUI 否决） | ✅ 已定 | 见第 1 节决策记录；1.4 纯 MAUI 列为最后后手 |
+| 1.5 | Avalonia 迁移可行性与性价比调研 | ✅ 已完成 | 技术可行；不作为 Native AOT 解锁方案；阶段 0 后做有门槛的 vertical-slice PoC |
+| 1.5-A | Avalonia 混合壳 PoC（`NativeControlHost` + Android WebView，可选） | ☐ | 只验证壳/生命周期/SAF/发布兼容性；不把结果当作性能或 Native AOT 结论 |
 | 2.1 | 回放 harness | ☐ | |
 | 2.2 | 前端三段计时 | ☐ | |
 | 2.3 | 前端分配统计 | ☐ | |
 | 2.4 | 引擎回合耗时基线 | ☐ | |
 | 3.1 | 可行性事实核实 | ✅ 部分 | 反射/插件/AspNetCore 已核实；`Expression.Compile`/`Type.GetType` 扫描已补（全仓零匹配，动态反射仅 PluginManager 一处，Android 禁用） |
-| 3.2 | NativeAOT 引擎先行（win-x64 → android-arm64） | ✅ win-x64 达成；⚠️ android-arm64 无官方支持 | 验证分支 `nativeaot-verify`：win-x64 产物 26.2MB 单文件，xUnit 685/685 + run_all 14/14 全绿；android-arm64：NDK 27.2 已装，但 **.NET SDK NativeAOT 对 android 无官方支持**（KnownILCompilerPack 无 android RID + Cross-OS 检查 + `runtime.android-arm64.Microsoft.DotNet.ILCompiler` 包不存在）——Android NativeAOT 唯一官方路径 = 3.4 壳层（MAUI/Xamarin.Android 管道，.NET 11 GA）。已保留 android 条件编译基础（排除 Server/Kestrel）。详见 `nativeaot-verify-report.md` §7 |
+| 3.2 | NativeAOT 引擎先行（win-x64 → android-arm64） | ✅ win-x64 达成；⚠️ 纯 SDK CLI android-arm64 不通；MAUI workload 构建预检通过 | 验证分支 `nativeaot-verify`：win-x64 产物 26.2MB 单文件，xUnit 685/685 + run_all 14/14 全绿；纯 `net10.0` CLI 的 android-arm64 仍受 KnownILCompilerPack/Cross-OS/ILC 包限制；但当前 `Emuera.Maui` 用 `Microsoft.Android.Runtime.NativeAOT.36.android-arm64` 已生成签名 APK。仍待 IL 警告治理和真机运行，不把 `.NET 11 GA` 当作构建前置。已保留 android 条件编译基础（排除 Server/Kestrel）。详见 `nativeaot-verify-report.md` §7 |
 | 3.3 | JSON 源生成器迁移 + DataTable 验证 + MarshalMethods 评估 | ✅ 完成 | JSON 源生成器迁移（`EmueraJsonContext`/`ServerJsonContext`，wire 不变——xUnit relaxed escaping 断言验证）；DataTable 子集验证通过（`tests/test_datatable_aot.py`，托管+AOT 双跑 13/13：DT_* 全指令链 + XML 往返实测可用；发现 DT_FROMXML 异 key 失败为 .NET Core 固有行为非 AOT 回归）；MarshalMethods 重评：P/Invoke 仅终端平台层，AOT 已验证无需迁移 LibraryImport |
-| 3.4 | MAUI 壳切换（门控） | ☐ | .NET 11 评估完成（2026.8.7）：等 GA 后实验分支，见 `android-perf-2-net11-eval.md` |
+| 3.4 | MAUI 壳 NativeAOT（运行门控） | ☐ | .NET 10 workload 已通过 `android-arm64` 构建预检；待 IL 警告治理、真机启动与 JNI/SAF/WebView 全流程，.NET 11 GA 后复评生产性 |
 | 4.1 | GC 配置（SustainedLowLatency / LOH） | ☐ | |
 | 4.2 | 前端数据层分配 | ☐ | |
 | 4.3 | 剩余热路径（数据驱动） | ☐ | |
@@ -254,6 +351,14 @@ P5 启动与包体（APK 体积、资源加载）
 - 架构：`docs/adr/0018-button-generation-invalidation-v7.md`、`docs/adr/0019-android-saf-file-access.md`
 - 前端渲染现状：`Emuera.Web/src/components/TerminalDisplay.vue`、`Emuera.Web/src/lib/opsApplier.ts`、`Emuera.Web/src/lib/hitTest.ts`
 - NativeAOT：Microsoft 官方 Native AOT 文档（Android 标注 experimental、no built-in Java interop）；.NET 10 RC2 Android NativeAOT 启动 271ms vs Mono AOT 1200ms（.NET Conf China 2025）
+- Avalonia 官方平台矩阵：https://docs.avaloniaui.net/docs/supported-platforms（Android 支持、.NET 10 最低版本、API/架构等级；访问：2026.8.7）
+- Avalonia 官方 Android 开发与发布：https://docs.avaloniaui.net/docs/platform-specific-guides/android、https://docs.avaloniaui.net/docs/deployment/android（Android workload、APK/AAB、发布流程；访问：2026.8.7）
+- Avalonia 官方嵌入 Android 原生 View：https://docs.avaloniaui.net/docs/platform-specific-guides/android/embed-native-views（`NativeControlHost`、`WebView` 嵌入及透明/变换/Z-order/裁剪限制；访问：2026.8.7）
+- Avalonia 官方 MAUI 迁移与性能指南：https://docs.avaloniaui.net/docs/migration/maui、https://docs.avaloniaui.net/docs/app-development/performance（手工迁移、虚拟化和性能分析；访问：2026.8.7）
+- Avalonia 官方 Native AOT：https://docs.avaloniaui.net/docs/deployment/native-aot（`PublishAot`、编译绑定、动态控件/第三方控件限制；访问：2026.8.7）
+- Avalonia 官方自定义绘制与输入：https://docs.avaloniaui.net/docs/custom-controls/drawing-custom-controls、https://docs.avaloniaui.net/docs/graphics-animation/custom-rendering、https://docs.avaloniaui.net/docs/input-interaction/pointer（`Control.Render`、`DrawingContext`、文本/字形/图片、指针事件；访问：2026.8.7）
+- Avalonia 官方 StorageProvider：https://docs.avaloniaui.net/docs/services/storage/storage-provider、https://docs.avaloniaui.net/docs/services/storage/storage-item（Android picker/bookmark、`content:` URI、流读写和物理路径限制；访问：2026.8.7）
+- Microsoft Learn Native AOT 平台限制：https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/#platformarchitecture-restrictions（Android experimental、no built-in Java interop；访问：2026.8.7）
 - .NET 11 评估：`docs/2026.8.4.安卓性能优化2/android-perf-2-net11-eval.md`；官方 MAUI CoreCLR 博客（Preview 4 / Preview 6）、MS Learn .NET 11 runtime what's-new、Android 最低 API 24 breaking change
 - NativeAOT 验证：`docs/2026.8.4.安卓性能优化2/nativeaot-verify-report.md`（工具链路径 / ILC 清单 / 回归矩阵 / 体积耗时）
 - 质量护栏：I-12（`Emuera.Headless/Shared/**` 警告抑制边界）；测试入口 `tests/run_all.py`

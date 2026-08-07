@@ -8,7 +8,7 @@
 - MAUI 文件选择器是否能拉起 SAF，并返回文件结果；
 - `Emuera.Headless.Core` 是否能被同一个 Native AOT 应用引用。
 
-Android Native AOT 仍是实验性功能。这个项目通过构建和静态 APK 检查，不代表生产兼容性。真正的生产门槛是实体 arm64 设备安装启动，并完成 WebView、SAF、输入和存档流程。
+Android Native AOT 仍是实验性功能。这个项目通过构建和静态 APK 检查，不代表生产兼容性。当前已在实体 arm64 设备完成最小启动、WebView 和 SAF 冒烟；真正的生产门槛仍包括完整游戏、输入、存档和性能回归。
 
 ## 环境要求
 
@@ -95,7 +95,7 @@ adb logcat -d -s AndroidRuntime Mono AndroidNativeAot
 3. SAF 是否能打开、取消并返回结果；
 4. 是否出现 `FATAL EXCEPTION`、JNI、ILLink 或 WebView 错误。
 
-当前没有连接设备时，只能完成构建、APK 签名、对齐和包内容检查，不能宣称 Native AOT 运行验证通过。
+真机验证结果（2026-08-08）：APK 成功启动，WebView 显示 `WebView OK`；SAF 可以打开文件选择器、取消并返回；选择文件后页面能显示文件名。该结果只覆盖本实验项目的最小 Android interop 冒烟，不等同于生产壳完整流程验证。
 
 ## 与生产壳的关系
 
