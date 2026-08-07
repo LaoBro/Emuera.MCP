@@ -64,7 +64,7 @@ static partial class Preload
             files[path] = value;
         }
 
-        Debug.WriteLine($"Load: {path} : End in {(DateTime.Now - startTime).TotalMilliseconds}ms");
+        EmueraLog.Debug("preload", $"Load: {path} : End in {(DateTime.Now - startTime).TotalMilliseconds}ms");
         EmueraLog.Info("preload", $"{path} → {files.Count} files loaded");
     }
 

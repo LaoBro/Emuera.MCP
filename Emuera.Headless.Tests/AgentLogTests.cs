@@ -18,9 +18,12 @@ namespace Emuera.Headless.Tests;
 /// </para>
 /// <para>
 /// AppDataPaths 为全局可变状态——沿用 SafStage2StorageTests.AppDataScope 的保存/恢复惯例，
-/// 避免与并行测试互相污染。
+/// 避免与并行测试互相污染；同时本类放入 AppDataIsolated 串行集合（DisableParallelization=true），
+/// 保证与其他切 AppDataPaths 的测试（如 SafStage2StorageTests.AppDataScope）不并行
+/// （T-027 Phase 4：完整套件下间歇失败，根因即并行切目录）。
 /// </para>
 /// </summary>
+[Collection("AppDataIsolated")]
 public sealed class AgentLogTests : IDisposable
 {
     private readonly string _previousAppData = AppDataPaths.Directory;

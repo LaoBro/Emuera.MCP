@@ -409,6 +409,8 @@ internal sealed partial class Process(EmueraConsole view)
 
 	private void handleExceptionInSystemProc(Exception exc, LogicalLine current, bool playSound)
 	{
+		// T-027 Phase 4 双写：画面保留玩家可见错误（UX），门面补 Error 级诊断（类型+堆栈）供排障。
+		EmueraLog.Error("script", $"系统流程异常: {exc.GetType().Name}: {exc.Message}\n{exc.StackTrace}");
 		console.ThrowError(playSound);
 		if (exc is CodeEE)
 		{
@@ -449,6 +451,8 @@ internal sealed partial class Process(EmueraConsole view)
 				posString = string.Format(trerror.ErrorFile.Text, position.Value.Filename);
 
 		}
+		// T-027 Phase 4 双写：画面保留玩家可见错误（含错误按钮/脚本栈帧，UX 不变），门面补 Error 级诊断（类型+消息+位置+.NET 堆栈）供排障。
+		EmueraLog.Error("script", $"脚本异常: {exc.GetType().Name}: {exc.Message} @ {posString}\n{exc.StackTrace}");
 		if (exc is CodeEE)
 		{
 			if (position != default)

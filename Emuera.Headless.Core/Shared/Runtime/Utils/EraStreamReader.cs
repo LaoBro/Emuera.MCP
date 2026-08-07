@@ -1,4 +1,5 @@
 using MinorShift.Emuera;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
@@ -51,7 +52,7 @@ internal sealed partial class EraStreamReader : IDisposable
 			_fileLines = cached;
 			return true;
 		}
-		System.Diagnostics.Debug.WriteLine($"[EraStreamReader] cache MISS: {path}");
+		EmueraLog.Debug("EraStreamReader", $"cache MISS: {path}");
 #if ANDROID
 		Android.Util.Log.Info("EmueraMaui", $"[ESR] MISS: {path}");
 #endif
@@ -63,20 +64,20 @@ internal sealed partial class EraStreamReader : IDisposable
 			if (bytes != null)
 			{
 				_fileLines = EncodingHandler.ReadAllLinesFromBytes(bytes);
-				System.Diagnostics.Debug.WriteLine($"[EraStreamReader] fallback OK: {path} ({bytes.Length} bytes)");
+				EmueraLog.Debug("EraStreamReader", $"fallback OK: {path} ({bytes.Length} bytes)");
 				return true;
 			}
-			System.Diagnostics.Debug.WriteLine($"[EraStreamReader] fallback FAILED: {path}");
+			EmueraLog.Debug("EraStreamReader", $"fallback FAILED: {path}");
 		}
 		try
 		{
 			_fileLines = EncodingHandler.ReadAllLinesWithDetection(filepath);
-			System.Diagnostics.Debug.WriteLine($"[EraStreamReader] file I/O fallback: {path}");
+			EmueraLog.Debug("EraStreamReader", $"file I/O fallback: {path}");
 			return true;
 		}
 		catch
 		{
-			System.Diagnostics.Debug.WriteLine($"[EraStreamReader] ALL fallbacks FAILED: {path}");
+			EmueraLog.Debug("EraStreamReader", $"ALL fallbacks FAILED: {path}");
 			Dispose();
 			return false;
 		}
