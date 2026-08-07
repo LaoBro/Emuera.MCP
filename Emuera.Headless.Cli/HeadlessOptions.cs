@@ -1,3 +1,4 @@
+using MinorShift.Emuera.GameView;
 using System;
 using System.CommandLine;
 using System.CommandLine.Parsing;
@@ -80,7 +81,7 @@ internal sealed class HeadlessOptions
         if (result.Errors.Count > 0)
         {
             foreach (var err in result.Errors)
-                Console.Error.WriteLine(err.Message);
+                EmueraLog.Error("options", err.Message);
             return null;
         }
 
@@ -92,7 +93,7 @@ internal sealed class HeadlessOptions
 
         if (server && ArgsContainProtocol(args))
         {
-            Console.Error.WriteLine("[server] server 模式不支持 --protocol 参数");
+            EmueraLog.Error("server", "server 模式不支持 --protocol 参数");
             Environment.Exit(1);
             return null;
         }

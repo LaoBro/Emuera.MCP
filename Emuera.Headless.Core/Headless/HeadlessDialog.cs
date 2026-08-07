@@ -1,4 +1,5 @@
 using System;
+using MinorShift.Emuera.GameView;
 
 static class Dialog
 {
@@ -10,17 +11,17 @@ static class Dialog
 
     public static void Show(string text)
     {
-        Console.Error.WriteLine($"[dialog] {text}");
+        EmueraLog.Warn("dialog", text);
     }
 
     public static void Show(string title, string text)
     {
-        Console.Error.WriteLine($"[dialog:{title}] {text}");
+        EmueraLog.Warn("dialog", $"{title}: {text}");
     }
 
     public static bool ShowPrompt(string title, string text)
     {
-        Console.Error.WriteLine($"[dialog:{title}] {text} (auto-select: No)");
+        EmueraLog.Warn("dialog", $"{title}: {text} (auto-select: No)");
         return false;
     }
 }

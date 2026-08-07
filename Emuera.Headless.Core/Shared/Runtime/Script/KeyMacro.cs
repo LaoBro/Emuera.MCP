@@ -1,3 +1,4 @@
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Sub;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
@@ -65,7 +66,7 @@ internal static class KeyMacro
 		}
 		catch (Exception ex)
 		{
-			Console.Error.WriteLine($"[KeyMacro] SaveMacro failed: {ex}");
+			EmueraLog.Warn("KeyMacro", $"SaveMacro failed: {ex}");
 			Dialog.Show(trmb.ConfigError.Text, trmb.MacroSaveFailure.Text);
 			return false;
 		}

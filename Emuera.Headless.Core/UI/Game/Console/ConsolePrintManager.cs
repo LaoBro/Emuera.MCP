@@ -737,7 +737,7 @@ internal sealed class ConsolePrintManager
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[OutputLog] Failed to write {fullpath}: {ex}");
+            EmueraLog.Error("OutputLog", $"Failed to write {fullpath}: {ex}");
             if (showFailure)
                 Dialog.Show(trmb.FailedOutputLog.Text, trmb.FailedOutputLogError.Text);
             return false;

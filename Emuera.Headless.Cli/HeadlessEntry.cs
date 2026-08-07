@@ -1,3 +1,4 @@
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
 using System;
@@ -54,18 +55,18 @@ internal static class HeadlessEntry
         }
         catch (GamePathValidationException ex)
         {
-            Console.Error.WriteLine($"[error] {ex.Code}: {ex.Message}");
+            EmueraLog.Error("error", $"{ex.Code}: {ex.Message}");
             if (options.Server)
             {
                 // D1：server 模式空闲启动——降级 warn 继续，真正的游戏加载推迟到 /load-game。
                 // 复用 Initialize 返回的 configData + terminalSetup（已加载 config + 已启用 ANSI），
                 // 与重构前行为一致；ConfigData.Current AsyncLocal 也指向同一 configData，无 split-brain。
-                Console.Error.WriteLine("[server] 游戏目录校验失败，进入空闲模式。请在浏览器中选择游戏目录。");
+                EmueraLog.Error("server", "游戏目录校验失败，进入空闲模式。请在浏览器中选择游戏目录。");
             }
             else
             {
                 // D2/D17：CLI 模式——打印提示后等回车再退出
-                Console.Error.WriteLine("按回车键退出...");
+                EmueraLog.Error("headless", "按回车键退出...");
                 try
                 {
                     Console.ReadLine();

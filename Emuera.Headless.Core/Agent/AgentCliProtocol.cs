@@ -116,8 +116,7 @@ namespace MinorShift.Emuera.GameView
                         "或改用 --server 模式。");
                 }
 
-                Console.Error.WriteLine("[headless] 终端路径: VT（备用屏 + SGR mouse + DA1 探测）");
-                Console.Error.Flush();
+                EmueraLog.Info("headless", "终端路径: VT（备用屏 + SGR mouse + DA1 探测）");
 
                 // RunVtLoop 的循环末尾已刷新最终状态，CleanupVt() 在 finally 中将 _screen 置 null，
                 // 故此处不再额外 FlushBuffer。

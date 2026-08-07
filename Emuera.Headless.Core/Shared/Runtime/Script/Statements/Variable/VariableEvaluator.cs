@@ -1794,7 +1794,7 @@ internal sealed class VariableEvaluator : IVariableEvaluator, IDisposable
 		catch
 		{
 #if HEADLESS
-			Console.Error.WriteLine(trerror.FailedCreateDataFolder.Text);
+			EmueraLog.Error("savedata", trerror.FailedCreateDataFolder.Text);
 #else
 			MessageBox.Show(trerror.FailedCreateDataFolder.Text);
 #endif

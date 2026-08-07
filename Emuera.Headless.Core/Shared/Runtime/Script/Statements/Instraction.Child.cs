@@ -2900,7 +2900,7 @@ internal sealed partial class FunctionIdentifier
 					if (version != GlobalStatic.GameBaseData.VersionName)
 					{
 #if HEADLESS
-						Console.Error.WriteLine(string.Format(trmb.NewVersionAvailable.Text, version, link));
+						EmueraLog.Info("checkver", string.Format(trmb.NewVersionAvailable.Text, version, link));
 						exm.VEvaluator.RESULT = 1;
 						st.Close();
 						return;

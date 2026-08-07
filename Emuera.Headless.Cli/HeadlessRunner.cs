@@ -15,10 +15,10 @@ internal static class HeadlessRunner
 {
     public static async Task RunAsync(GamePaths paths, string protocolArg, string termWidthHint, ITerminalSetup terminalSetup, ConfigData configData)
     {
-        Console.Error.WriteLine($"[headless] Emuera {AssemblyData.EmueraVersionText} 无头模式启动");
-        Console.Error.WriteLine($"[headless] 工作目录: {paths.ExeDir}");
-        Console.Error.WriteLine($"[headless] 协议模式: {protocolArg}");
-        Console.Error.WriteLine($"[headless] 字符宽度提示: {termWidthHint}");
+        EmueraLog.Info("headless", $"Emuera {AssemblyData.EmueraVersionText} 无头模式启动");
+        EmueraLog.Info("headless", $"工作目录: {paths.ExeDir}");
+        EmueraLog.Info("headless", $"协议模式: {protocolArg}");
+        EmueraLog.Info("headless", $"字符宽度提示: {termWidthHint}");
 
         try
         {
@@ -80,9 +80,8 @@ internal static class HeadlessRunner
         {
             // ADR-0005：CLI 协议层 VT 初始化失败等不可恢复的环境问题。
             // 输出 stderr 提示（含原因 + 解决方案）+ 写 AgentLog，然后非零退出。
-            Console.Error.WriteLine($"[headless] 致命错误: {ex.Message}");
-            Console.Error.WriteLine("[headless] 进程将以非零退出码终止。");
-            Console.Error.Flush();
+            EmueraLog.Error("headless", $"致命错误: {ex.Message}");
+            EmueraLog.Error("headless", "进程将以非零退出码终止。");
             AgentLog.Instance.Write("HeadlessFatalException: " + ex);
             Environment.Exit(1);
         }
@@ -91,7 +90,7 @@ internal static class HeadlessRunner
         }
         catch (ArgumentException ex)
         {
-            Console.Error.WriteLine($"[headless] {ex.Message}");
+            EmueraLog.Error("headless", ex.Message);
             Environment.Exit(1);
         }
     }
@@ -113,7 +112,7 @@ internal static class HeadlessRunner
         // T-024：stdin 管道模式已废弃，非 server 模式仅支持交互式 CLI 终端。
         if (Console.IsInputRedirected)
         {
-            Console.Error.WriteLine("[headless] stdin 管道模式已废弃（T-024），请使用 --server 模式或交互式终端");
+            EmueraLog.Error("headless", "stdin 管道模式已废弃（T-024），请使用 --server 模式或交互式终端");
             return null;
         }
 
@@ -138,22 +137,22 @@ internal static class HeadlessRunner
 
         if (anySymbolHalf)
         {
-            Console.Error.WriteLine("[terminal] 检测到制表符/几何/符号字符被渲染为半角，已自动补空格补偿对齐。");
+            EmueraLog.Info("terminal", "检测到制表符/几何/符号字符被渲染为半角，已自动补空格补偿对齐。");
         }
         if (blockReplaced)
         {
-            Console.Error.WriteLine("[terminal] 检测到方块字符被渲染为全角，已自动替换为盲文点阵以保持游戏布局。");
+            EmueraLog.Info("terminal", "检测到方块字符被渲染为全角，已自动替换为盲文点阵以保持游戏布局。");
         }
         if (anySymbolHalf || blockReplaced)
         {
-            Console.Error.WriteLine("[terminal] 建议：选择字形宽度与终端占位匹配的字体可改善视觉效果。");
-            Console.Error.WriteLine("[terminal]   若占位半角但字形全角（字符重叠），选字形本身为半角的字体（如 Cascadia Mono）。");
-            Console.Error.WriteLine("[terminal]   若补空格后出现线条空缺，选字形本身为全角的字体（如 MS Gothic）。");
-            Console.Error.WriteLine("[terminal]   理想字体：各字符组的字形宽度恰好等于终端的占位列数。");
+            EmueraLog.Info("terminal", "建议：选择字形宽度与终端占位匹配的字体可改善视觉效果。");
+            EmueraLog.Info("terminal", "  若占位半角但字形全角（字符重叠），选字形本身为半角的字体（如 Cascadia Mono）。");
+            EmueraLog.Info("terminal", "  若补空格后出现线条空缺，选字形本身为全角的字体（如 MS Gothic）。");
+            EmueraLog.Info("terminal", "  理想字体：各字符组的字形宽度恰好等于终端的占位列数。");
         }
         if (!anySymbolHalf && !blockReplaced)
         {
-            Console.Error.WriteLine("[terminal] 字符宽度检测正常，无需额外补偿。");
+            EmueraLog.Info("terminal", "字符宽度检测正常，无需额外补偿。");
         }
     }
 }

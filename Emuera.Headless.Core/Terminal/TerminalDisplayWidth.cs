@@ -118,8 +118,8 @@ internal static class TerminalDisplayWidth
         ProbeGroup('\u2605', out bool miscWide);      // ★ Miscellaneous Symbols
         ProbeGroup('\u2588', out bool blockWide);     // █ Block Elements
 
-        Console.Error.WriteLine(
-            $"[terminal] Char widths: BoxDrawing={(boxWide ? "wide" : "half")} " +
+        EmueraLog.Info("terminal",
+            $"Char widths: BoxDrawing={(boxWide ? "wide" : "half")} " +
             $"Geometric={(geoWide ? "wide" : "half")} " +
             $"MiscSymbols={(miscWide ? "wide" : "half")} " +
             $"BlockElements={(blockWide ? "wide" : "half")}");

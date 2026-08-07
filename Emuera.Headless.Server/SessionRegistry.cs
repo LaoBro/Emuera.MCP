@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Terminal.Platform;
 
@@ -166,8 +167,8 @@ internal sealed class SessionRegistry
         catch (Exception ex)
         {
             // 兜底：未预期异常归为 LOAD_FAILED
-            Console.Error.WriteLine("[load-game] unexpected exception");
-            Console.Error.WriteLine(ex);
+            EmueraLog.Error("load-game", "unexpected exception");
+            EmueraLog.Error("load-game", ex.ToString());
             return LoadGameResult.LoadFailed(ex.Message);
         }
         finally

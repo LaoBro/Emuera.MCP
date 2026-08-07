@@ -1,3 +1,4 @@
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Primitives;
 using MinorShift.Emuera.Runtime.Config.JSON;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
@@ -689,7 +690,7 @@ internal sealed class ConfigData
 		}
 		catch (Exception ex)
 		{
-			Console.Error.WriteLine($"[Config] SaveConfig failed: {ex}");
+			EmueraLog.Warn("Config", $"SaveConfig failed: {ex}");
 			return false;
 		}
 		return true;
@@ -762,12 +763,11 @@ internal sealed class ConfigData
 			needSave = true;
 		}
 		if (needSave && !SaveConfig(configPathLocal))
-			Console.Error.WriteLine($"[Config] Could not create or update {configPathLocal}.");
+			EmueraLog.Error("Config", $"Could not create or update {configPathLocal}.");
 
-		Console.WriteLine(
-			$"[Config] LoadConfig: path={configPathLocal}, main={loadedMain}, default={loadedDefault}, fixed={loadedFixed}, " +
+		EmueraLog.Info("Config",
+			$"LoadConfig: path={configPathLocal}, main={loadedMain}, default={loadedDefault}, fixed={loadedFixed}, " +
 			$"SystemSaveInBinary={GetConfigValue<bool>(ConfigCode.SystemSaveInBinary)}, UseERD={GetConfigValue<bool>(ConfigCode.UseERD)}");
-		Console.Out.Flush();
 		return true;
 	}
 
@@ -845,7 +845,7 @@ internal sealed class ConfigData
 		if (GetConfigValue<TextDrawingMode>(ConfigCode.TextDrawingMode) == TextDrawingMode.WINAPI)
 		{
 #if HEADLESS
-			Console.Error.WriteLine(trmb.DoNotSupportWINAPI.Text);
+			EmueraLog.Warn("Config", trmb.DoNotSupportWINAPI.Text);
 #else
 			MessageBox.Show(trmb.DoNotSupportWINAPI.Text);
 #endif
@@ -868,7 +868,7 @@ internal sealed class ConfigData
 				catch (Exception ex)
 				{
 #if HEADLESS
-					Console.Error.WriteLine($"[Config] SAF CreateSavDir skipped/failed: {ex.Message}");
+					EmueraLog.Warn("Config", $"SAF CreateSavDir skipped/failed: {ex.Message}");
 #endif
 				}
 			}
@@ -974,7 +974,7 @@ internal sealed class ConfigData
 		}
 		catch (Exception ex)
 		{
-			Console.Error.WriteLine($"[Config] SAF update detection unavailable; continuing without timestamp reduction: {ex.Message}");
+			EmueraLog.Warn("Config", $"SAF update detection unavailable; continuing without timestamp reduction: {ex.Message}");
 			return 0;
 		}
 	}
@@ -1168,7 +1168,7 @@ internal sealed class ConfigData
 		}
 		catch (Exception ex)
 		{
-			Console.Error.WriteLine($"[Config] SaveDebugConfig failed: {ex}");
+			EmueraLog.Warn("Config", $"SaveDebugConfig failed: {ex}");
 			return false;
 		}
 		return true;

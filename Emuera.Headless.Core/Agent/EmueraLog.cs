@@ -35,7 +35,15 @@ internal static class EmueraLog
     private static readonly Level MinLevel = ParseLevel("EMUERA_LOG_LEVEL", Level.Debug);
 
     /// <summary>TerminalSink 独立阈值：低于该级别不进 stderr。默认 Warn（CLI 只显警告+错误）。</summary>
-    private static readonly Level TerminalLevel = ParseLevel("EMUERA_LOG_TERMINAL", Level.Warn);
+    private static Level TerminalLevel = ParseLevel("EMUERA_LOG_TERMINAL", Level.Warn);
+
+    /// <summary>
+    /// 运行时调整终端阈值（T-027 Phase 3）：Server 模式无交互画面，终端即其日志，
+    /// 启动横幅/端口提示等 Info 应可见——ServerRunner 启动时调此设为 Info；
+    /// CLI 交互保持默认 Warn（Debug/Info 诊断不污染画面）。线程安全用简单赋值即可
+    /// （阈值是单调配置，读方取到旧值一瞬无害）。
+    /// </summary>
+    internal static void SetTerminalLevel(Level level) => TerminalLevel = level;
 
     internal static void Debug(string category, string message) => Write(Level.Debug, category, message);
     internal static void Info(string category, string message) => Write(Level.Info, category, message);

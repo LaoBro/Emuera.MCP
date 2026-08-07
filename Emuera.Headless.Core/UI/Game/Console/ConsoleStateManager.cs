@@ -49,7 +49,7 @@ internal sealed class ConsoleStateManager
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[time.log] Failed to open initialization log: {ex}");
+            EmueraLog.Warn("time.log", $"Failed to open initialization log: {ex}");
             ParserMediator.Warn(trerror.TimeLogFileLocked.Text, null, 0);
         }
         try
@@ -100,7 +100,7 @@ internal sealed class ConsoleStateManager
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[time.log] Failed to close initialization log: {ex}");
+                EmueraLog.Warn("time.log", $"Failed to close initialization log: {ex}");
             }
         }
     }
@@ -111,7 +111,7 @@ internal sealed class ConsoleStateManager
     {
         if (GlobalStatic.ForceQuitAndRestart == true)
         {
-            Console.Error.WriteLine(trmb.ForceQuitAndRestart.Text);
+            EmueraLog.Error("csm", trmb.ForceQuitAndRestart.Text);
             Program.rebootFlag = false;
             throw new CodeEE(trerror.ForceQuitAndRestartError.Text);
         }
@@ -156,7 +156,7 @@ internal sealed class ConsoleStateManager
         if (!Config.Ctrl_Z_Enabled) return;
         if (JSONConfig.Data.UseNewRandom)
         {
-            Console.Error.WriteLine("CtrlZ: JSONConfig.Data.UseNewRandom not supported");
+            EmueraLog.Warn("csm", "CtrlZ: JSONConfig.Data.UseNewRandom not supported");
             return;
         }
         if (GlobalStatic.ctrlZ.mLastSave < 0) return;
@@ -193,12 +193,12 @@ internal sealed class ConsoleStateManager
     {
         if (_state.State == ConsoleState.Error)
         {
-            Console.Error.WriteLine(trerror.CanNotUseWhenError.Text);
+            EmueraLog.Error("csm", trerror.CanNotUseWhenError.Text);
             return;
         }
         if (_state.State == ConsoleState.Initializing)
         {
-            Console.Error.WriteLine(trerror.CanNotUseWhenInitialize.Text);
+            EmueraLog.Error("csm", trerror.CanNotUseWhenInitialize.Text);
             return;
         }
         bool notRedraw = false;
@@ -242,12 +242,12 @@ internal sealed class ConsoleStateManager
     {
         if (_state.State == ConsoleState.Error)
         {
-            Console.Error.WriteLine(trerror.CanNotUseWhenError.Text);
+            EmueraLog.Error("csm", trerror.CanNotUseWhenError.Text);
             return;
         }
         if (_state.State == ConsoleState.Initializing)
         {
-            Console.Error.WriteLine(trerror.CanNotUseWhenInitialize.Text);
+            EmueraLog.Error("csm", trerror.CanNotUseWhenInitialize.Text);
             return;
         }
         bool notRedraw = false;
@@ -279,12 +279,12 @@ internal sealed class ConsoleStateManager
     {
         if (_state.State == ConsoleState.Error)
         {
-            Console.Error.WriteLine(trerror.CanNotUseWhenError.Text);
+            EmueraLog.Error("csm", trerror.CanNotUseWhenError.Text);
             return;
         }
         if (_state.State == ConsoleState.Initializing)
         {
-            Console.Error.WriteLine(trerror.CanNotUseWhenInitialize.Text);
+            EmueraLog.Error("csm", trerror.CanNotUseWhenInitialize.Text);
             return;
         }
         if (_state.genericTimer.Enabled)

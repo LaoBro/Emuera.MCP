@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using MinorShift.Emuera.GameView;
 
 namespace MinorShift.Emuera.Terminal.Platform;
 
@@ -69,7 +70,7 @@ internal sealed class WindowsTerminalSetup : ITerminalSetup
                 hOut = GetStdHandle(STD_OUTPUT_HANDLE);
                 if (hOut == IntPtr.Zero || hOut == INVALID_HANDLE_VALUE)
                 {
-                    Console.Error.WriteLine("[terminal] Console font: failed to get console handle");
+                    EmueraLog.Warn("terminal", "Console font: failed to get console handle");
                     return null;
                 }
             }
@@ -79,19 +80,19 @@ internal sealed class WindowsTerminalSetup : ITerminalSetup
             if (!GetCurrentConsoleFontEx(hOut, false, ref info))
             {
                 int err = Marshal.GetLastWin32Error();
-                Console.Error.WriteLine($"[terminal] Console font: GetCurrentConsoleFontEx failed, error={err}");
+                EmueraLog.Warn("terminal", $"Console font: GetCurrentConsoleFontEx failed, error={err}");
                 if (openedConout) CloseHandle(hOut);
                 return null;
             }
-            Console.Error.WriteLine($"[terminal] Console font: {info.FaceName}, size={info.dwFontSizeX}x{info.dwFontSizeY}");
-            Console.Error.WriteLine("[terminal] (注意: Windows Terminal/Git Bash 下字体名可能不准确，以宽度探测结果为准)");
+            EmueraLog.Info("terminal", $"Console font: {info.FaceName}, size={info.dwFontSizeX}x{info.dwFontSizeY}");
+            EmueraLog.Info("terminal", "(注意: Windows Terminal/Git Bash 下字体名可能不准确，以宽度探测结果为准)");
 
             if (openedConout) CloseHandle(hOut);
             return info.FaceName;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[terminal] Console font: exception - {ex.Message}");
+            EmueraLog.Warn("terminal", $"Console font: exception - {ex.Message}");
             return null;
         }
     }

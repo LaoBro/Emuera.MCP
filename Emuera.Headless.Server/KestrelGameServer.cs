@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MinorShift.Emuera.Assets;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
 
@@ -92,7 +93,7 @@ internal sealed class KestrelGameServer : IDisposable
     public async Task StartAsync()
     {
         await _app.StartAsync();
-        Console.Error.WriteLine("[server] Kestrel 监听已启动");
+        EmueraLog.Info("server", "Kestrel 监听已启动");
     }
 
     public async Task WaitForShutdownAsync()

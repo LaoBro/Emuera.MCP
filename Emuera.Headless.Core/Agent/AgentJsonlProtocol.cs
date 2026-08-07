@@ -86,9 +86,7 @@ namespace MinorShift.Emuera.GameView
             {
                 // I-08：脚本运行期异常一律 fatal。
                 var msg = $"StepAsync fatal: {ex}";
-                AgentLog.Instance.Write(msg);
-                System.Diagnostics.Debug.WriteLine(msg);
-                Console.WriteLine(msg);
+                EmueraLog.Error("jsonl", msg);
                 var errorTurn = JsonSerializer.Serialize(new TurnRecord(
                     state: console.State.ToString(),
                     inputType: null,
