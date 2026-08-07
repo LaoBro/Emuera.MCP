@@ -189,3 +189,21 @@
 - 参考：
   - [Emuera.Headless 剩余问题与行动方案 — T-024](2026.6.30.架构健壮性重构/Emuera.Headless%20剩余问题与行动方案.md)
   - 收窄测试矩阵，为 I-09 单测项目减负
+
+### T-026：CLI 装饰线 ANSI 增强 + 图片/矩形空格占位
+
+- 状态：已实现（2026-08-07）
+- 范围：`Emuera.Headless.Core/Terminal/TerminalLineFormatter.cs`、新增 `Emuera.Headless.Tests/TerminalLineFormatterTests.cs`
+- 说明：两个 CLI 渲染待议问题的落地（TDD 红-绿，先写 10 个单测再改实现）：
+  - **① 下划线/删除线**：`FormatLineWithAnsi` 原只输出粗体 `\x1b[1m`/斜体 `\x1b[3m`（T-010 有意范围），补 `EmuFontStyle.Underline` → `\x1b[4m`、`Strikeout` → `\x1b[9m`。PRINT_SLIDER 滑条（ERB FONTSTYLE 位4 = 内部 Strikeout）在 CLI 由「完全消失」变为「删除线可见」，终端删除线位置 ≈60% 字符高度，与 winforms TextRenderer 一致。`\x1b[0m` 重置已覆盖，老终端仅静默不显示、不破坏布局。
+  - **② 图片/矩形占位**：`BuildTerminalLine` 与 `FormatLineWithAnsi` 对 `ConsoleImagePart`/`ConsoleRectangleShapePart` 原直接 break 丢弃（DisplayState.cs 注释的有意跳过语义），现复用 `ConsoleSpacePart` 同公式 `Math.Max(node.Width / charWidth, 0)` 补空格占位。`charWidth = Config.FontSize / 2`。占位计入 textWidth，顺带修正：居中/右对齐 padding、`ComputeAlignOffset`（按钮鼠标命中区列偏移）、`RebuildButtonPositions` 按钮列位置——均以 `BuildTerminalLine` 为单一宽度源头，天然一致。
+- 决策记录：
+  - 占位宽度用 `node.Width`（流推进列数）而非矩形绝对坐标 `Rect.X + Rect.Width`——与 space 先例自洽，避免把绝对定位语义引入 CLI 流式模型。
+  - 超宽（图片 > 行宽）不 clamp，终端自然换行，与 winforms 横向超宽语义一致。
+- 验收：
+  - 新增 `TerminalLineFormatterTests` 13/13 绿（4m/9m 单独与组合、段间/行尾 reset、bold/italic 不回归、图片/矩形 build 与 ansi 双路径占位、0 宽不占位、占位流入居中/右对齐 padding、**ComputeAlignOffset 与 FormatLineForTerminal 前导空格一致**、**ANSI 中段占位空格 reset 装饰线**——后两项为 code-review 后补的联动锁定测试）。
+  - 完整套件 667/667 全绿（含新增 13 个）。
+- 后续修订（2026-08-07 code-review 三修复）：
+  - **联动测试补缺**：RIGHT 对齐、ComputeAlignOffset（经 BuildSnapshot，锁"与 FormatLineForTerminal 一致"契约）、中段样式 reset 三个用例，把"单一宽度源"从结构保证升级为测试保证。
+  - **中段样式继承修复**：`FormatLineWithAnsi` 图片/矩形分支在有活动样式时先 `\x1b[0m` 并清空 last 镜像（保留选中反显 `\x1b[7m`），占位空格不再继承前段 4m/9m，且后续样式段能正确重开样式码。
+  - **过时注释同步**：`TerminalRenderer.cs`（"CLI 仍跳过图片/矩形"）与 `DisplayState.cs`（"保留跳过语义"）更新为占位语义。

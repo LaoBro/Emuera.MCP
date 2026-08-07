@@ -974,3 +974,13 @@ CPU 低）/ 会话已结束前端没收到通知（game loop completed normally 
 - **像素级渲染结论必须实测，肉眼不可靠**：第一版深底渲染图肉眼误判"GDI+ 删除线画在底部"，像素扫描证明 GDI+ 对空格**根本不画**。视觉问题先做"参考实现怎么渲染"的实测（含渲染模式配置），再下结论。
 - **hack 前先验证**：提交 2 的"空格段背景线"假设浏览器不为纯空格画 text-decoration，Chromium/WebView2 实测可靠（11 场景全画线），该 hack 不必要，已简化回 text-decoration。为旧版 WebView 假设写的兼容代码，要在当前内核上重新验证后再保留。
 - **修复方向的正确性独立于"现象是否消失"**：提交 3 让横线"出现"了，但方向是错的（把删除线当下划线）。"最后一个提交才成功"是碰巧对症（脚本用 4、解析变 Underline），不是正确性的证明。
+
+## CLI 渲染增强：ANSI 占位空格在样式段之外；单一宽度源头让联动修正自动一致（2026-08-07）
+
+**场景**：CLI 渲染增强（T-026）——`FormatLineWithAnsi` 补下划线/删除线 ANSI 码，`BuildTerminalLine`/`FormatLineWithAnsi` 对图片/矩形按 `node.Width / charWidth` 补空格占位。
+
+**教训一（测试断言）**：ANSI 行不是"样式段内含所有字符"的扁平模型——**无样式占位空格（图片/矩形补的空格）输出在样式段之外、转义码之前**，颜色/装饰转义码只在有 `ConsoleStyledString` 的段首出现。第一次断言写 `Assert.Contains(13空格 + "T", ansi)` 失败，因为 13 空格后跟的是 `\x1b[38;2;...mT`。正确断言是 `StartsWith(13空格)` + `EndsWith("T\x1b[0m")`。
+
+**教训二（架构红利）**：`BuildTerminalLine` 是 CLI 宽度的单一源头（对齐 padding、`ComputeAlignOffset` 按钮命中区列偏移、`RebuildButtonPositions` 按钮列位置都经它取 textWidth）。给图片/矩形补占位后，这些消费者**自动同步修正**，零额外改动——之前"图片后按钮列偏左"的隐患随之消除。增强共享宽度计算时，消费者联动是红利而非负担，前提是它们必须复用同一函数而不是各算各的。
+
+**教训三（复用先例）**：`ConsoleSpacePart` 已有 `Math.Max(node.Width / charWidth, 0)` 空格占位先例，图片/矩形直接复用同公式即可，不需要为视觉节点设计新机制。判断"能否增强"先搜同层已有模式的同类节点。
