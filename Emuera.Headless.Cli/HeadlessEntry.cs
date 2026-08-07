@@ -81,7 +81,16 @@ internal static class HeadlessEntry
 
         // 字体加载迁移至 runners 内 scope 打开后执行（ADR-0008：Pfc 是实例成员，随 scope 生灭）
         if (options.Server)
+        {
+#if !ANDROID_NO_SERVER
             await ServerRunner.RunAsync(options.Port, terminalSetup, configData);
+#else
+            // android 交叉产物（3.2 验证）：无 Kestrel（AspNetCore 无 android runtime pack），
+            // server 模式不可用——明确提示后走 CLI 模式，避免静默忽略 --server。
+            EmueraLog.Error("server", "server 模式在 Android 上不可用（无 Kestrel），已忽略 --server 参数");
+            await HeadlessRunner.RunAsync(paths, options.Protocol, options.TermWidthHint, terminalSetup, configData);
+#endif
+        }
         else
         {
             // ITerminalInput 在 HeadlessRunner 内创建：CLI 模式专属，stdin 重定向

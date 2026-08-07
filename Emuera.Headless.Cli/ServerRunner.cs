@@ -1,3 +1,4 @@
+#if !ANDROID_NO_SERVER
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Config;
@@ -23,3 +24,4 @@ internal static class ServerRunner
         await server.WaitForShutdownAsync();
     }
 }
+#endif

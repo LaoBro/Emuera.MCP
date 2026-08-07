@@ -237,7 +237,7 @@ P5 启动与包体（APK 体积、资源加载）
 | 2.3 | 前端分配统计 | ☐ | |
 | 2.4 | 引擎回合耗时基线 | ☐ | |
 | 3.1 | 可行性事实核实 | ✅ 部分 | 反射/插件/AspNetCore 已核实；`Expression.Compile`/`Type.GetType` 扫描已补（全仓零匹配，动态反射仅 PluginManager 一处，Android 禁用） |
-| 3.2 | NativeAOT 引擎先行（win-x64 → android-arm64） | ✅ win-x64 达成 | 验证分支 `nativeaot-verify`：win-x64 产物 26.2MB 单文件，xUnit 685/685 + run_all 14/14 全绿（含 server 全端点/WebSocket/snapshot/assets/load-game 46 用例）；android-arm64 待 NDK。详见 `nativeaot-verify-report.md` |
+| 3.2 | NativeAOT 引擎先行（win-x64 → android-arm64） | ✅ win-x64 达成；⚠️ android-arm64 无官方支持 | 验证分支 `nativeaot-verify`：win-x64 产物 26.2MB 单文件，xUnit 685/685 + run_all 14/14 全绿；android-arm64：NDK 27.2 已装，但 **.NET SDK NativeAOT 对 android 无官方支持**（KnownILCompilerPack 无 android RID + Cross-OS 检查 + `runtime.android-arm64.Microsoft.DotNet.ILCompiler` 包不存在）——Android NativeAOT 唯一官方路径 = 3.4 壳层（MAUI/Xamarin.Android 管道，.NET 11 GA）。已保留 android 条件编译基础（排除 Server/Kestrel）。详见 `nativeaot-verify-report.md` §7 |
 | 3.3 | JSON 源生成器迁移 + DataTable 验证 + MarshalMethods 评估 | ✅ 完成 | JSON 源生成器迁移（`EmueraJsonContext`/`ServerJsonContext`，wire 不变——xUnit relaxed escaping 断言验证）；DataTable 子集验证通过（`tests/test_datatable_aot.py`，托管+AOT 双跑 13/13：DT_* 全指令链 + XML 往返实测可用；发现 DT_FROMXML 异 key 失败为 .NET Core 固有行为非 AOT 回归）；MarshalMethods 重评：P/Invoke 仅终端平台层，AOT 已验证无需迁移 LibraryImport |
 | 3.4 | MAUI 壳切换（门控） | ☐ | .NET 11 评估完成（2026.8.7）：等 GA 后实验分支，见 `android-perf-2-net11-eval.md` |
 | 4.1 | GC 配置（SustainedLowLatency / LOH） | ☐ | |

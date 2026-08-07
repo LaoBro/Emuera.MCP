@@ -6,6 +6,10 @@
     <RootNamespace>MinorShift.Emuera</RootNamespace>
     <AssemblyName>Emuera.Headless.Cli</AssemblyName>
     <DefineConstants>HEADLESS</DefineConstants>
+    <!-- android 交叉编译（3.2 android-arm64 验证）：Kestrel/AspNetCore 无 android runtime pack
+         （NETSDK1082），真实 Android 形态（MAUI 壳）只引 Core。android RID 下排除 Server
+         引用并定义 ANDROID_NO_SERVER 条件编译符号（见 ServerRunner.cs/HeadlessEntry.cs）。 -->
+    <DefineConstants Condition="'$(RuntimeIdentifier)' == 'android-arm64' or '$(RuntimeIdentifier)' == 'android-x64'">$(DefineConstants);ANDROID_NO_SERVER</DefineConstants>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -18,8 +22,9 @@
          须在 Common.props 导入前设置，故不放这里）。 -->
     <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot>
     <!-- Base*OutputPath 改到 bin-aot/obj-aot 后，SDK 默认 ItemExcludes 不再覆盖旧 bin/obj 字面目录；
-         历史遗留 AssemblyInfo.cs 会被 glob 收进编译（CS0579 重复特性）——显式恢复排除。 -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);bin/**;obj/**</DefaultItemExcludes>
+         历史遗留 AssemblyInfo.cs 会被 glob 收进编译（CS0579 重复特性）——显式恢复排除，
+         并补 obj-aot/**（android 交叉发布会把不同 RID 的 AssemblyInfo.cs 写进 obj-aot，Debug 构建 glob 误收）。 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin/**;obj/**;bin-aot/**;obj-aot/**</DefaultItemExcludes>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisMode>Minimum</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
@@ -33,7 +38,7 @@
     <!-- Cli 引用 Core + Server：经 InternalsVisibleTo 访问 internal 成员
          （HeadlessRunner 调 GameLoopComposer.RunAsync / ServerRunner 调 KestrelGameServer 等）-->
     <ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
-    <ProjectReference Include="..\Emuera.Headless.Server\Emuera.Headless.Server.csproj" />
+    <ProjectReference Include="..\Emuera.Headless.Server\Emuera.Headless.Server.csproj" Condition="'$(RuntimeIdentifier)' != 'android-arm64' and '$(RuntimeIdentifier)' != 'android-x64'" />
   </ItemGroup>
 
   <!-- ===== issue 05 / spec ID13：Vue 前端构建 + 静态资源服务 =====
