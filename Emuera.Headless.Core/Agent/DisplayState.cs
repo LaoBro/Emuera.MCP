@@ -58,7 +58,8 @@ internal record DisplayLine(
 
     /// <summary>
     /// CLI 渲染专用：原 ConsoleDisplayLine 引用（R3 扩展）。
-    /// TerminalRenderer 经此调 FormatLineForTerminal，保留 CLI 对非文本视觉节点的跳过语义。
+    /// TerminalRenderer 经此调 FormatLineForTerminal；CLI 对图片/矩形按流宽度补空格占位
+    /// （TerminalLineFormatter.BuildTerminalLine，T-026），不再是"跳过非文本视觉节点"语义。
     /// Web 路径不访问此字段。不进入 JSON。
     /// </summary>
     [JsonIgnore] internal ConsoleDisplayLine? SourceLine { get; set; }
