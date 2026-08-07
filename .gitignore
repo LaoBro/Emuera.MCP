@@ -10,6 +10,7 @@ Emuera.Maui/Properties/
 .scratch/*
 current_plan/*
 
+publish/*
 Emuera/artifacts/*
 *.csproj.user
 *.pubxml.user
