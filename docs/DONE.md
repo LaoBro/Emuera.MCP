@@ -236,3 +236,18 @@
   - `test_vt_only.py` 4/4、`test_server_single_session.py` 35/35 通过（启动/加载链路无回归）。
   - 构建过程遇 `MSB3021/3027` dll 文件锁（残留 Emuera.Headless.Cli 进程占用）——环境问题，`Stop-Process` 清理后重建成功。
 - 剩余 Phase（未做）：Phase 3 terminal/server/config 等剩余 stderr 迁移（~58 处，含 handleException 双写评估）；Phase 4 `Debug.WriteLine` 10 处并入。
+
+### T-027 Phase 3：terminal/server/config 等剩余日志迁移
+
+- 状态：已实现（2026-08-07，Phase 3）
+- 范围：18 个文件、~44 处 `Console.Error/Out.WriteLine` → `EmueraLog`（门面自身与 AgentLog 兜底保留）。
+- 门面增强：新增 `EmueraLog.SetTerminalLevel(Level)`——ServerRunner 启动时调 `SetTerminalLevel(Info)`，server 模式无交互画面、终端即其日志（启动横幅/端口提示正常显示）；CLI 交互保持默认 Warn。
+- 级别映射：
+  - **Info**：启动横幅（`[headless]`/`[server]`）、Kestrel 监听、`[terminal]` 探测结果/字体/指引、`[Config] LoadConfig`、`[checkver]`；
+  - **Warn**：`[Config] Save*` 失败、`[KeyMacro]`、`[time.log]`、终端字体探测降级、`[dialog]`、CtrlZ 不支持；
+  - **Error**：致命错误/使用提示（`[headless] 致命错误`、stdin 废弃、参数错误、游戏目录校验失败、按回车退出）、`[error]`、`[server] 校验失败`、`[load-game] unexpected`、`[OutputLog]`、`CanNotUseWhen*`、`FailedCreateDataFolder`、`jsonl fatal`（原三写 AgentLog+Debug+Console 收敛为门面一次）。
+- 关键约束保持：`test_vt_only.py` 依赖的 `[headless] 致命错误`、`VT`/`失败`、`stdin`、`--server`/`交互式终端` 提示全部为 Error 级 → 终端可见。
+- 验收：
+  - 完整 C# 套件 685/685（唯一失败 `BuildSnapshot_1000_lines` 为已知性能护栏 flake，重跑即绿）。
+  - `test_vt_only.py` 4/4、`test_server_single_session.py` 35/35。
+- 剩余：Phase 4 `Debug.WriteLine` 10 处并入；handleException 双写评估（错误画面一句话 + 门面堆栈）列入 Phase 4 收尾。
