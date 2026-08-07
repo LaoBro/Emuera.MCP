@@ -79,14 +79,14 @@ internal sealed class ConsoleStateManager
 		};
 		if (!await _state.process!.Initialize(env, logWriter))
         {
-            Console.WriteLine("[csm] Process.Initialize returned false");
+            EmueraLog.Error("csm", "Process.Initialize returned false");
             _state.State = ConsoleState.Error;
             _console.OutputLog(null, false, showFailure: false);
             _console.PrintFlush(false);
             _console.RefreshStrings(true);
             return;
         }
-        Console.WriteLine("[csm] Process.Initialize OK");
+        EmueraLog.Info("csm", "Process.Initialize OK");
         _console.RunEmueraProgram("");
         _console.RefreshStrings(true);
 

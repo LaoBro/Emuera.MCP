@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MinorShift.Emuera.GameView;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.Runtime.Utils;
@@ -29,13 +30,13 @@ static partial class Preload
     public static async Task Load(string path, IGameDirAccessor dirAccessor)
     {
         var startTime = DateTime.Now;
-        Console.WriteLine($"[preload] Load start: {path}");
+        EmueraLog.Info("preload", $"Load start: {path}");
 
         if (dirAccessor.DirectoryExists(path))
         {
-            Console.WriteLine($"[preload] DirExists OK: {path}");
+            EmueraLog.Info("preload", $"DirExists OK: {path}");
             var allFiles = dirAccessor.GetFiles(path, "*", SearchOption.AllDirectories);
-            Console.WriteLine($"[preload] GetFiles returned {allFiles.Length} files from {path}");
+            EmueraLog.Info("preload", $"GetFiles returned {allFiles.Length} files from {path}");
             var targetFiles = allFiles.Where(f =>
             {
                 // SAF content URI 不能对整段 path 用 Path.GetExtension（应取逻辑短名）
@@ -58,13 +59,13 @@ static partial class Preload
         }
         else
         {
-            Console.WriteLine($"[preload] DirExists FAILED: {path} → caching single entry");
+            EmueraLog.Warn("preload", $"DirExists FAILED: {path} → caching single entry");
             var value = ReadAllLinesViaAccessor(path, dirAccessor);
             files[path] = value;
         }
 
         Debug.WriteLine($"Load: {path} : End in {(DateTime.Now - startTime).TotalMilliseconds}ms");
-        Console.WriteLine($"[preload] {path} → {files.Count} files loaded");
+        EmueraLog.Info("preload", $"{path} → {files.Count} files loaded");
     }
 
     public static async Task Load(IEnumerable<string> paths, IGameDirAccessor dirAccessor)
@@ -82,24 +83,24 @@ static partial class Preload
             var bytes = dirAccessor.ReadAllBytes(path);
             if (bytes == null)
             {
-                Console.WriteLine($"[preload] EMPTY_BYTES: {path}");
+                EmueraLog.Warn("preload", $"EMPTY_BYTES: {path}");
                 return [];
             }
             var lines = EncodingHandler.ReadAllLinesFromBytes(bytes);
             if (lines.Length == 0)
-                Console.WriteLine($"[preload] EMPTY_LINES: {path}");
+                EmueraLog.Warn("preload", $"EMPTY_LINES: {path}");
             return lines;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             ParserMediator.Warn(string.Format(trerror.FileUsingOtherProcess.Text, path), new ScriptPosition(path, 0), 0, "");
-            Console.WriteLine($"[preload] IOERR: {path} → {ex.Message}");
+            EmueraLog.Error("preload", $"IOERR: {path} → {ex.Message}");
             return [];
         }
         catch (Exception)
         {
             ParserMediator.Warn(trerror.AbnormalEncode.Text, new ScriptPosition(path, 0), 0, "");
-            Console.WriteLine($"[preload] ENCERR: {path}");
+            EmueraLog.Error("preload", $"ENCERR: {path}");
             return [];
         }
     }

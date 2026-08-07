@@ -72,8 +72,7 @@ internal sealed class ErbLoader
 		List<string> isOnlyEvent = [];
 		noError = true;
 		var starttime = DateTime.Now;
-		Console.WriteLine($"[ErbLoader] LoadErbDir start: dir={erbDir}, files={erbFiles.Count}, firstDirs={firstDir.Length}");
-		Console.Out.Flush();
+		EmueraLog.Info("ErbLoader", $"LoadErbDir start: dir={erbDir}, files={erbFiles.Count}, firstDirs={firstDir.Length}");
 		try
 		{
 			labelDic.RemoveAll();
@@ -152,9 +151,7 @@ internal sealed class ErbLoader
 			System.Media.SystemSounds.Hand.Play();
 #endif
 			var msg = $"[ErbLoader] EXCEPTION: {e.GetType().Name}: {e.Message}\n{e.StackTrace}";
-			Console.WriteLine(msg);
-			Console.Out.Flush();
-			Debug.WriteLine(msg);
+			EmueraLog.Error("ErbLoader", msg);
 			output.PrintError(string.Format(trerror.UnexpectedErrorFrom.Text, AssemblyData.EmueraVersionText));
 			output.PrintError(e.GetType().ToString() + ":" + e.Message);
 			return false;
@@ -169,13 +166,10 @@ internal sealed class ErbLoader
 			catch (Exception ex)
 			{
 				var msg = $"[ErbLoader] finally exception: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
-				Console.WriteLine(msg);
-				Console.Out.Flush();
-				Debug.WriteLine(msg);
+				EmueraLog.Error("ErbLoader", msg);
 			}
 		}
-		Console.WriteLine($"[ErbLoader] LoadErbDir done: noError={noError}, labels={labelDic?.Count ?? 0}");
-		Console.Out.Flush();
+		EmueraLog.Info("ErbLoader", $"LoadErbDir done: noError={noError}, labels={labelDic?.Count ?? 0}");
 		isOnlyEvent.Clear();
 		return noError;
 	}
@@ -1607,10 +1601,10 @@ internal sealed class ErbLoader
 			.Select(k => new KeyValuePair<string, string>(
 				SafPath.GetRelativePathFromRoot(dirPath, k), k))
 			.ToList();
-		if (erbFiles.Count == 0)
-			Console.WriteLine($"[ErbLoader] GetErbFilesFromCache: 0 .ERB under root in {Preload.GetAllCachedKeys().Count()} cached keys");
-		else
-			Console.WriteLine($"[ErbLoader] GetErbFilesFromCache: {erbFiles.Count} files, firstKey={erbFiles[0].Key}");
+	if (erbFiles.Count == 0)
+		EmueraLog.Info("ErbLoader", $"GetErbFilesFromCache: 0 .ERB under root in {Preload.GetAllCachedKeys().Count()} cached keys");
+	else
+		EmueraLog.Info("ErbLoader", $"GetErbFilesFromCache: {erbFiles.Count} files, firstKey={erbFiles[0].Key}");
 		return erbFiles;
 	}
 

@@ -89,8 +89,7 @@ internal sealed partial class Process(EmueraConsole view)
 				if (Dialog.ShowPrompt(trmb.ConfigFileError.Text, trmb.ConfigError.Text))
 				{
 					console.PrintSystemLine(trsl.SelectExitConfigMB.Text);
-					Console.WriteLine("[Initialize] soft-return reason=ConfigWarningExit");
-					Console.Out.Flush();
+					EmueraLog.Error("Initialize", "soft-return reason=ConfigWarningExit");
 					return false;
 				}
 			}
@@ -98,21 +97,18 @@ internal sealed partial class Process(EmueraConsole view)
 
 			logWriter?.WriteLine($"Proc:Init:Image:Start {stopWatch.ElapsedMilliseconds}ms");
 			//リソースフォルダ読み込み
-			Console.WriteLine("[Initialize] stage=Image start");
-			Console.Out.Flush();
+			EmueraLog.Info("Initialize", "stage=Image start");
 			var err = await Task.Run(() => AppContents.LoadContents(false));
 			if (err != null)
 			{
 				ParserMediator.FlushWarningList();
 				console.PrintSystemLine(trsl.ResourceReadError.Text);
 				console.Print(err.ToString());
-				Console.WriteLine($"[Initialize] soft-return reason=ResourceLoadFail err={err}");
-				Console.Out.Flush();
+				EmueraLog.Error("Initialize", $"soft-return reason=ResourceLoadFail err={err}");
 				return false;
 			}
 			ParserMediator.FlushWarningList();
-			Console.WriteLine("[Initialize] stage=Image ok");
-			Console.Out.Flush();
+			EmueraLog.Info("Initialize", "stage=Image ok");
 			logWriter?.WriteLine($"Proc:Init:Image:End {stopWatch.ElapsedMilliseconds}ms");
 
 			logWriter?.WriteLine($"Proc:Init:KeyMacro:Start {stopWatch.ElapsedMilliseconds}ms");
@@ -147,8 +143,7 @@ internal sealed partial class Process(EmueraConsole view)
 						if (Dialog.ShowPrompt(trmb.ReplaceFileError.Text, trmb.ReplaceError.Text))
 						{
 							console.PrintSystemLine(trsl.SelectExitReplaceMB.Text);
-							Console.WriteLine("[Initialize] soft-return reason=ReplaceWarningExit");
-							Console.Out.Flush();
+							EmueraLog.Error("Initialize", "soft-return reason=ReplaceWarningExit");
 							return false;
 						}
 					}
@@ -190,16 +185,13 @@ internal sealed partial class Process(EmueraConsole view)
 	this.labelDic = new LabelDictionary();
 
 	var loader = new Loader(console);
-	Console.WriteLine("[Initialize] stage=LoadEngineData start");
-	Console.Out.Flush();
+	EmueraLog.Info("Initialize", "stage=LoadEngineData start");
 	if (!await loader.LoadEngineData(this, env, logWriter, stopWatch))
 	{
-		Console.WriteLine("[Initialize] soft-return reason=LoadEngineDataFalse");
-		Console.Out.Flush();
+		EmueraLog.Error("Initialize", "soft-return reason=LoadEngineDataFalse");
 		return false;
 	}
-	Console.WriteLine("[Initialize] stage=LoadEngineData ok");
-	Console.Out.Flush();
+	EmueraLog.Info("Initialize", "stage=LoadEngineData ok");
 	logWriter?.WriteLine($"Proc:Init:ERB:End {stopWatch.ElapsedMilliseconds}ms");
 
 		_systemProc.Init();
@@ -211,17 +203,14 @@ internal sealed partial class Process(EmueraConsole view)
 		{
 			// SAF diag: print type/message/stack so csm returned-false is not the only signal
 			var msg = $"[Initialize] EXCEPTION: {e.GetType().Name}: {e.Message}\n{e.StackTrace}";
-			Console.WriteLine(msg);
-			Console.Out.Flush();
-			Debug.WriteLine(msg);
+			EmueraLog.Error("Initialize", msg);
 			handleException(e, null!, true);
 			console.PrintSystemLine(trsl.ErhLoadingError.Text);
 			return false;
 		}
 		if (labelDic == null)
 		{
-			Console.WriteLine("[Initialize] soft-return reason=LabelDicNull");
-			Console.Out.Flush();
+			EmueraLog.Error("Initialize", "soft-return reason=LabelDicNull");
 			return false;
 		}
 		state.Begin(BeginType.TITLE);
@@ -562,16 +551,13 @@ internal sealed partial class Process(EmueraConsole view)
 		internal async Task<bool> LoadEngineData(Process process, LoaderEnv env,
 			StreamWriter? logWriter, Stopwatch stopWatch)
 		{
-			Console.WriteLine("[Initialize] stage=LoadBaseCsv start");
-			Console.Out.Flush();
+			EmueraLog.Info("Initialize", "stage=LoadBaseCsv start");
 			if (!await LoadBaseCsv(process.gamebase, process.constantData, env, logWriter, stopWatch))
 			{
-				Console.WriteLine("[Initialize] soft-return reason=LoadBaseCsvFalse");
-				Console.Out.Flush();
+				EmueraLog.Error("Initialize", "soft-return reason=LoadBaseCsvFalse");
 				return false;
 			}
-			Console.WriteLine("[Initialize] stage=LoadBaseCsv ok");
-			Console.Out.Flush();
+			EmueraLog.Info("Initialize", "stage=LoadBaseCsv ok");
 			console.SetWindowTitle(process.gamebase.ScriptWindowTitle);
 			logWriter?.WriteLine($"Proc:Init:EtcCSV:End {stopWatch.ElapsedMilliseconds}ms");
 
@@ -588,8 +574,7 @@ internal sealed partial class Process(EmueraConsole view)
 			PluginManager.GetInstance().LoadPlugins();
 
 			logWriter?.WriteLine($"Proc:Init:ERH:Start {stopWatch.ElapsedMilliseconds}ms");
-			Console.WriteLine("[Initialize] stage=ERH+ERB start");
-			Console.Out.Flush();
+			EmueraLog.Info("Initialize", "stage=ERH+ERB start");
 			return await LoadHeadersAndScripts(process.idDic, process.exm, process.labelDic,
 				process.vEvaluator, env,
 				line => process.scaningLine = line,
@@ -603,14 +588,12 @@ internal sealed partial class Process(EmueraConsole view)
 		{
 			logWriter?.WriteLine($"Proc:Init:MainCSV:Start {stopWatch.ElapsedMilliseconds}ms");
 			var gamebasePath = env.DirAccessor.CombinePath(env.CsvDir, "GAMEBASE.CSV");
-			Console.WriteLine($"[Initialize] stage=GAMEBASE path={gamebasePath}");
-			Console.Out.Flush();
+			EmueraLog.Info("Initialize", $"stage=GAMEBASE path={gamebasePath}");
 			if (!await Task.Run(() => gamebase.LoadGameBaseCsv(gamebasePath, env.DirAccessor)))
 			{
 				ParserMediator.FlushWarningList();
 				console.PrintSystemLine(trsl.GamebaseError.Text);
-				Console.WriteLine("[Initialize] soft-return reason=GameBaseCsvFail");
-				Console.Out.Flush();
+				EmueraLog.Error("Initialize", "soft-return reason=GameBaseCsvFail");
 				return false;
 			}
 			logWriter?.WriteLine($"Proc:Init:MainCSV:End {stopWatch.ElapsedMilliseconds}ms");
@@ -629,24 +612,20 @@ internal sealed partial class Process(EmueraConsole view)
 
 			LexicalAnalyzer.UseMacro = false;
 
-			Console.WriteLine($"[Initialize] stage=ERH LoadHeaderFiles start dir={env.ErbDir}");
-			Console.Out.Flush();
+			EmueraLog.Info("Initialize", $"stage=ERH LoadHeaderFiles start dir={env.ErbDir}");
 			if (!await Task.Run(() => hLoader.LoadHeaderFiles(env.ErbDir, Config.DisplayReport)))
 			{
 				ParserMediator.FlushWarningList();
 				console.PrintSystemLine("");
-				Console.WriteLine("[Initialize] soft-return reason=ErhLoadHeaderFilesFalse");
-				Console.Out.Flush();
+				EmueraLog.Error("Initialize", "soft-return reason=ErhLoadHeaderFilesFalse");
 				return false;
 			}
-			Console.WriteLine("[Initialize] stage=ERH ok");
-			Console.Out.Flush();
+			EmueraLog.Info("Initialize", "stage=ERH ok");
 			LexicalAnalyzer.UseMacro = idDic.UseMacro();
 			logWriter?.WriteLine($"Proc:Init:ERH:End {stopWatch.ElapsedMilliseconds}ms");
 
 			logWriter?.WriteLine($"Proc:Init:ERB:Start {stopWatch.ElapsedMilliseconds}ms");
-			Console.WriteLine($"[proc] LoadHeadersAndScripts: ERH OK, starting ERB from {env.ErbDir}");
-			Console.Out.Flush();
+			EmueraLog.Info("proc", $"LoadHeadersAndScripts: ERH OK, starting ERB from {env.ErbDir}");
 			var erbLoader = new ErbLoader(console, exm, idDic, env, setScanLine);
 			bool erbNoError;
 			if (env.AnalysisMode)
@@ -654,8 +633,7 @@ internal sealed partial class Process(EmueraConsole view)
 			else
 				erbNoError = await erbLoader.LoadErbDir(env.ErbDir, Config.DisplayReport, labelDic);
 			setNoError(erbNoError);
-			Console.WriteLine($"[proc] LoadHeadersAndScripts: erbNoError={erbNoError}, labels={labelDic?.Count ?? 0}");
-			Console.Out.Flush();
+			EmueraLog.Info("proc", $"LoadHeadersAndScripts: erbNoError={erbNoError}, labels={labelDic?.Count ?? 0}");
 			return true;
 		}
 	}

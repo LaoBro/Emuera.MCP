@@ -46,8 +46,7 @@ internal sealed class ErhLoader
 			headerFiles = Config.Config.GetFiles(headerDir, "*.ERH");
 		headerFiles ??= [];
 		bool noError = true;
-		Console.WriteLine("[ErhLoader] LoadHeaderFiles start: dir=" + headerDir + ", files=" + headerFiles.Count);
-		Console.Out.Flush();
+		EmueraLog.Info("ErhLoader", "LoadHeaderFiles start: dir=" + headerDir + ", files=" + headerFiles.Count);
 
 		dimlines = new Queue<DimLineWC>();
 		#region EE_ERD
@@ -66,15 +65,13 @@ internal sealed class ErhLoader
 				// 注意：if 无大括号时只能管一行。曾因诊断日志插入导致 break 无条件执行，142 个 ERH 只加载 1 个。
 				if (!noError)
 				{
-					Console.WriteLine("[ErhLoader] loadHeaderFile failed: name=" + filename + ", file=" + file);
-					Console.Out.Flush();
+					EmueraLog.Error("ErhLoader", "loadHeaderFile failed: name=" + filename + ", file=" + file);
 					break;
 				}
 				loadedCount++;
 			}
 			//エラーが起きてる場合でも読み込めてる分だけはチェックする
-			Console.WriteLine($"[ErhLoader] ERH loaded={loadedCount}/{headerFiles.Count}, dimlines={dimlines.Count}");
-			Console.Out.Flush();
+			EmueraLog.Info("ErhLoader", $"ERH loaded={loadedCount}/{headerFiles.Count}, dimlines={dimlines.Count}");
 			if (dimlines.Count > 0)
 			{
 				//&=でないと、ここで起きたエラーをキャッチできない
@@ -90,8 +87,7 @@ internal sealed class ErhLoader
 			erdFileNames = null!;
 			#endregion
 		}
-		Console.WriteLine("[ErhLoader] LoadHeaderFiles done: noError=" + noError);
-		Console.Out.Flush();
+		EmueraLog.Info("ErhLoader", "LoadHeaderFiles done: noError=" + noError);
 		return noError;
 	}
 
@@ -107,8 +103,7 @@ internal sealed class ErhLoader
 
 		if (!eReader.OpenOnCache(filepath, filename))
 		{
-				Console.WriteLine("[ErhLoader] OpenOnCache FAIL: file=" + filepath + ", name=" + filename);
-				Console.Out.Flush();
+				EmueraLog.Error("ErhLoader", "OpenOnCache FAIL: file=" + filepath + ", name=" + filename);
 			throw new CodeEE(string.Format(trerror.FailedOpenFile.Text, eReader.Filename));
 			//return false;
 		}
@@ -432,8 +427,7 @@ internal sealed class ErhLoader
 
 		// 验收日志：Android SAF 下必须能看到 hasDVAR=True
 		var sample = string.Join(", ", erdFileNames.Keys.Take(20));
-		Console.WriteLine($"[ErhLoader] PrepareERDFileNames: count={erdFileNames.Count}, hasDVAR={erdFileNames.ContainsKey("DVAR")}, fromCacheErd={fromCache}, fromEnumErd={fromEnum}, sample=[{sample}]");
-		Console.Out.Flush();
+		EmueraLog.Info("ErhLoader", $"PrepareERDFileNames: count={erdFileNames.Count}, hasDVAR={erdFileNames.ContainsKey("DVAR")}, fromCacheErd={fromCache}, fromEnumErd={fromEnum}, sample=[{sample}]");
 	}
 	#endregion
 	private static void analyzeSharpFunction(CharStream st, ScriptPosition? position, bool funcs)
@@ -455,10 +449,10 @@ internal sealed class ErhLoader
 			.Select(k => new KeyValuePair<string, string>(
 				SafPath.GetRelativePathFromRoot(dirPath, k), k))
 			.ToList();
-		if (erhFiles.Count == 0)
-			Console.WriteLine($"[ErhLoader] GetErhFilesFromCache: 0 .ERH under root in {Preload.GetAllCachedKeys().Count()} cached keys");
-		else
-			Console.WriteLine($"[ErhLoader] GetErhFilesFromCache: {erhFiles.Count} files, firstKey={erhFiles[0].Key}");
-		return erhFiles;
+	if (erhFiles.Count == 0)
+		EmueraLog.Info("ErhLoader", $"GetErhFilesFromCache: 0 .ERH under root in {Preload.GetAllCachedKeys().Count()} cached keys");
+	else
+		EmueraLog.Info("ErhLoader", $"GetErhFilesFromCache: {erhFiles.Count} files, firstKey={erhFiles[0].Key}");
+	return erhFiles;
 	}
 }
