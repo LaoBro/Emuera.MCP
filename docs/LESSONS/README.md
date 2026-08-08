@@ -17,6 +17,7 @@
 | [nativeaot.md](nativeaot.md) | NativeAOT 发布：JSON 反射禁用、RequestDelegateGenerator、ILC 增量缓存、目录隔离补 DefaultItemExcludes |
 | [testing-and-ci.md](testing-and-ci.md) | 构建/测试/CI 环境：增量构建 0 警告假象、文件锁先查环境、行号基线脆弱、残留进程干扰回归、两轴 code-review |
 | [diagnostics.md](diagnostics.md) | 排查方法论：诊断推进揭开下一层、logcat 时间线拆段、中文乱码≠路径损坏、异常可见性 |
+| [web-fonts.md](web-fonts.md) | Web 跨平台字体：MS Gothic 符号区宽度非均匀、回退链缺口、Unifont 按实测宽度选字、CFF→TTF 漏 scale、Vite 内联、dist-maui/SkipVueBuild、WebView 缓存 |
 
 ## 约定
 

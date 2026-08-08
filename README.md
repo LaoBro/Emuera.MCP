@@ -115,20 +115,32 @@ npm test                         # Vitest 单元测试（12 个文件）
 
 游戏终端依赖「ASCII 半角 0.5em / CJK 全角 1.0em」的固定网格，与 C# 侧 GDI 的 `FontSize/2`、`FontSize` 字符宽度计算对齐。Windows 上 `ＭＳ ゴシック` 提供该度量；但 Android 等平台没有该字体，系统 fallback 字体宽度不一致会导致字符画、按钮行、整行横线排版错乱。
 
+**注意**：MS Gothic 的符号区宽度并非均匀——Box/Geometric/Misc 区段内半角（`◢◣`、各类框线 0.5em）与全角（`●` 1.0em）字符并存，引擎 `IsWideChar` 的"整区全角"判定是简化。因此字体补齐以 **MS Gothic 逐字符实测 advance 为准**（`analyze_unifont_widths.py` 实现），而非按区段一刀切。
+
 解决方案是内置两枚 woff2 字体，通过 `TerminalDisplay.vue` 的 font-family 链逐级回退（`游戏字体名 → EmueraMonoJP → EmueraBlock → ui-monospace…`）：
 
 - **`EmueraMonoJP`**（`src/assets/fonts/IPAGothic.woff2`）— 内置 IPA ゴシック，度量与 MS Gothic 兼容。Windows 上 MS Gothic 存在时行为不变；缺失时（Android 等）落到它保证网格一致。
-- **`EmueraBlock`**（`src/assets/fonts/EmueraBlock.woff2`）— 补充字体，覆盖 IPAGothic 缺失的两类字形，避免逐字形回退到宽度随机的系统字体：
-  - Block Elements（`░▒▓█▀▄▌▐` 等 U+2580–U+259F）按游戏设计为**半角**，与 `IsWideChar` 判定一致；
-  - 双线框（`═║╔╗╚╝╠╣╦╩╬` U+2550–U+256C）为**全角**，线宽对齐 IPAGothic 单线框实测厚度。
+- **`EmueraBlock`**（`src/assets/fonts/EmueraBlock.woff2`）— 补充字体，覆盖 IPAGothic 缺失的字形，避免逐字形回退到宽度随机的系统字体。字形来源 **Unifont 优先，程序化仅兜底**（当前 203 字形 = Unifont 193 + 程序化 10）：
+  - **Unifont 提取**（主体）：`analyze_unifont_widths.py` 逐字符比较 MS Gothic 与 GNU Unifont 的 advance，**宽度一致者才提取**，按实测 0.5em/1.0em 复刻 MS Gothic 宽度。覆盖 Box/Block/Geometric/Misc 四区 193 个字符，含滑动条三角 `◢◣◤◥`、各类框线 `┄╒╭╱` 等。许可：GNU Unifont 双许可（GPLv2+ 字体嵌入例外 / SIL OFL 1.1），可嵌入；
+  - **程序化兜底**（Unifont 未覆盖的极少数）：Block Elements 象限字符（`▖▗▘▙▚▛▜▝▞▟` U+2596–U+259F，MS Gothic 本身缺失、宽度无从比对）10 个，按半角绘制。脚本中双线框/三角的程序化绘制保留，仅在 Unifont 缺失时启用。
 
-字体注册见 `src/styles/fonts.css`（`main.ts` 全局引入）。`EmueraBlock` 由 [`scripts/build_emblock_font.py`](Emuera.Web/scripts/build_emblock_font.py) 程序化绘制生成（矩形/阴影点阵/双线框条对，无外部字体源依赖，可复现）：
+字体注册见 `src/styles/fonts.css`（`main.ts` 全局引入）。`EmueraBlock` 由 [`scripts/build_emblock_font.py`](Emuera.Web/scripts/build_emblock_font.py) 生成——**Unifont 提取为主，程序化兜底**（无手工字体制作，可复现）：
 
 ```bash
-cd Emuera.Web && python scripts/build_emblock_font.py
+cd Emuera.Web
+# 1. 下载 Unifont 17.0.05（OpenType/CFF，约 5MB；也可浏览器下载后放到 scripts/）
+curl -L -o scripts/unifont-17.0.05.otf https://unifoundry.com/pub/unifont/unifont-17.0.05/font-builds/unifont-17.0.05.otf
+# 2. 宽度比对：生成"MS Gothic 与 Unifont advance 一致"的可提取清单（需 Windows + 本机 MS Gothic）
+python scripts/analyze_unifont_widths.py scripts/unifont-17.0.05.otf --json scripts/width_match.json
+# 3. 构建：自动读取上述 otf + json，Unifont 优先、程序化兜底；缺 Unifont 时仅出程序化字形
+python scripts/build_emblock_font.py
 ```
 
-IPA 字体许可见 `src/assets/fonts/IPA_Font_License_Agreement_v1.0.txt`（IPA Font License v1.0）。
+**发布提醒**（改过前端/字体后）：MAUI 的 wwwroot 由 `build/VueBuild.targets` 从 **`dist-maui/`**（不是 `npm run build` 默认的 `dist/`）复制填充；publish 时**不要带 `-p:SkipVueBuild=true`**（README 示例命令默认带它，那是"未改前端"的场景），否则 wwwroot/APK 沿用旧前端。安装前**先卸载旧 APK**——Android WebView 对 file:// 资源有缓存，覆盖安装可能继续用旧字体。产物验证：`dist-maui/assets/` 里 <4KB 的字体（如 EmueraBlock）会被 Vite 内联为 css `data:font` base64，没有独立 woff2 文件是正常现象，别误判"没打包"。
+
+排查字体覆盖用 [`scripts/check_font_coverage.py`](Emuera.Web/scripts/check_font_coverage.py)：输出 IPAGothic 在 Box/Block/Geometric/Misc 各区的缺失字符，并可对照本机 MS Gothic 的 advance width。字形尺寸验证用 [`scripts/check_glyph_bounds.py`](Emuera.Web/scripts/check_glyph_bounds.py)（跨 UPM 提取后确认轮廓缩放正确）。
+
+IPA 字体许可见 `src/assets/fonts/IPA_Font_License_Agreement_v1.0.txt`（IPA Font License v1.0）。Unifont 双许可（GPLv2+ 字体嵌入例外 / SIL OFL 1.1）见 https://unifoundry.com/unifont/index.html，字形来源可经 `scripts/unifont-17.0.05.otf` 复现。
 
 ## MCP 集成
 
