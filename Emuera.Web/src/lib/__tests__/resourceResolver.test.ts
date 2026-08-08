@@ -7,6 +7,10 @@ import { resolveResource } from '../resourceResolver';
  * Web 返回 /assets/{path}；MAUI（Windows unpackaged 或安卓）返回 https://game.local/{path}。
  * 期望值锁**字面量** 'game.local' 而非被测常量——跨语言契约（C# GameAssetConstants）
  * 漂移时测试变红而不是跟着变绿。
+ *
+ * 2026-08-08：Android 整页从 file:///android_asset/wwwroot/ 迁到 https://game.local/wwwroot/
+ * （file:// 页面里的 https:// 子资源不进入 shouldInterceptRequest，AndroidX WebViewAssetLoader
+ * 官方设计前提是页面与资源同 https 域）。本页用例同步更新；旧 file:// 用例保留为兼容历史。
  */
 describe('resolveResource', () => {
   afterEach(() => {
@@ -28,8 +32,8 @@ describe('resolveResource', () => {
     expect(resolveResource('img/portrait.png')).toBe('/assets/img/portrait.png');
   });
 
-  it('安卓 MAUI（file:// 协议）→ https://game.local/{path}', () => {
-    mockLocation('file:///android_asset/wwwroot/index.html');
+  it('安卓 MAUI（https://game.local/wwwroot/）→ https://game.local/{path}', () => {
+    mockLocation('https://game.local/wwwroot/index.html');
     expect(resolveResource('img/portrait.png')).toBe('https://game.local/img/portrait.png');
   });
 
@@ -38,8 +42,16 @@ describe('resolveResource', () => {
     expect(resolveResource('img/portrait.png')).toBe('https://game.local/img/portrait.png');
   });
 
-  it('子目录路径原样透传', () => {
-    mockLocation('file:///android_asset/wwwroot/index.html');
+  it('子目录路径原样透传（Android https）', () => {
+    mockLocation('https://game.local/wwwroot/index.html');
     expect(resolveResource('bg/forest.png')).toBe('https://game.local/bg/forest.png');
+  });
+
+  it('旧版 Android file://（兼容）→ https://game.local/{path}', () => {
+    // 2026-08-08 前 Android 走 file:///android_asset/wwwroot/index.html，isMauiEnvironment
+    // 仍按 protocol==='file:' 返 true，URL 拼接走 game.local 分支；保留此用例作为
+    // 旧部署/降级兼容契约（生产已迁到 https://game.local/wwwroot/）。
+    mockLocation('file:///android_asset/wwwroot/index.html');
+    expect(resolveResource('img/portrait.png')).toBe('https://game.local/img/portrait.png');
   });
 });

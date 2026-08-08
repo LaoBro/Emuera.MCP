@@ -30,15 +30,39 @@
 const MAUI_WINDOWS_VIRTUAL_HOST = 'app.local';
 
 /**
+ * Android MAUI 页面 + 游戏资源共用的虚拟主机名（与 C# `GameAssetConstants.VirtualHostName` 对齐）。
+ *
+ * 2026-08-08：Android 整页从 `file:///android_asset/` 迁到 `https://game.local/wwwroot/`——
+ * file:// 页面里的 https:// 子资源不会进入 `shouldInterceptRequest`（AndroidX WebViewAssetLoader
+ * 设计前提），实测为图片直接走真实网络 → ERR_NAME_NOT_RESOLVED → 图片全空。
+ * 整页迁到 https 虚拟域后与 Windows 模式（app.local 页面 + game.local 资源）对称。
+ *
+ * **不要在 resourceResolver.test.ts 里把字面量 'game.local' 替换成 MAUI_GAME_VIRTUAL_HOST**——
+ * 测试锁字面量是跨语言契约（C# `GameAssetConstants.VirtualHostName`），漂移时变红而不是跟着变绿。
+ */
+export const MAUI_GAME_VIRTUAL_HOST = 'game.local';
+
+/**
+ * Windows unpackaged 虚拟主机名（`app.local`）——导出供组件按 hostname 区分
+ * Windows/Android（MauiGameList 的 isWindowsMaui/isAndroidMaui）。Android 页面迁到
+ * game.local 后两平台页面都是 https，必须按 hostname 分流，不能只看 protocol。
+ */
+export { MAUI_WINDOWS_VIRTUAL_HOST };
+
+/**
  * 判断当前是否运行在 MAUI WebView 内（spec ID7）。
  *
- * 检查 `window.location`：
- * - `protocol === 'ms-appx-web:'` → Windows MAUI packaged（MSIX 包内）
- * - `protocol === 'file:'` → Android MAUI（`file:///android_asset/`）
- * - `protocol === 'https:' && hostname === 'app.local'` → Windows MAUI unpackaged（虚拟主机映射）
- * - 其他（`http:` / `https:` 非 app.local）→ HTTP 模式（浏览器 / Vite dev server）
+ * <para>检查 <c>window.location</c>：</para>
+ * <list type="bullet">
+ *   <item><c>protocol === 'ms-appx-web:'</c> → Windows MAUI packaged（MSIX 包内）</item>
+ *   <item><c>protocol === 'file:'</c> → 旧版 Android MAUI（<c>file:///android_asset/</c>）——
+ *       已废弃，2026-08-08 起 Android 整页迁到 <c>https://game.local/wwwroot/</c></item>
+ *   <item><c>protocol === 'https:'</c> + host 是 <c>app.local</c> / <c>game.local</c> →
+ *       Windows MAUI unpackaged / Android MAUI（WebViewAssetLoader 拦截 wwwroot + 游戏资源）</item>
+ *   <item>其他 → HTTP 模式（浏览器 / Vite dev server）</item>
+ * </list>
  *
- * SSR / 非 browser 环境返 false（`window` 未定义）。
+ * SSR / 非 browser 环境返 <c>false</c>（<c>window</c> 未定义）。
  */
 export function isMauiEnvironment(): boolean {
   if (typeof window === 'undefined') return false;
@@ -46,6 +70,8 @@ export function isMauiEnvironment(): boolean {
   if (protocol === 'ms-appx-web:' || protocol === 'file:') return true;
   // Windows unpackaged 模式：WebView2 虚拟主机映射 https://app.local/
   if (protocol === 'https:' && hostname === MAUI_WINDOWS_VIRTUAL_HOST) return true;
+  // Android MAUI：整页走 https://game.local/wwwroot/（WebViewAssetLoader 拦截 wwwroot + 游戏资源）
+  if (protocol === 'https:' && hostname === MAUI_GAME_VIRTUAL_HOST) return true;
   return false;
 }
 

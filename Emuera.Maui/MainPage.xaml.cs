@@ -124,13 +124,22 @@ public partial class MainPage : ContentPage
     /// <see cref="WindowsJsBridge.Attach"/> 内 <c>SetVirtualHostNameToFolderMapping</c>
     /// 把 <c>app.local</c> 映射到输出目录 <c>wwwroot/</c>。
     /// </para>
+    /// <para>
+    /// Android 用 <c>https://game.local/wwwroot/index.html</c>——
+    /// <see cref="AndroidJsBridge.Attach"/> 内 <see cref="AndroidX.WebKit.WebViewAssetLoader"/>
+    /// 注册 <c>/wwwroot/</c> PathHandler（AssetsPathHandler 读 <c>android_asset/wwwroot/</c>）。
+    /// **不能用 <c>file:///android_asset/...</c>**：file:// 页面里的 https:// 子资源请求
+    /// 不会进入 <c>shouldInterceptRequest</c>（AndroidX WebViewAssetLoader 的官方设计前提：
+    /// 页面与资源同 https 域），实测图片直接走真实网络 →
+    /// <c>ERR_NAME_NOT_RESOLVED</c> → 图片全空。整页迁到 https 虚拟域后与 Windows 模式对称。
+    /// </para>
     /// </summary>
     private static string ResolveWebViewUrl()
     {
 #if WINDOWS
         return $"https://{WindowsJsBridge.VirtualHostName}/index.html";
 #elif ANDROID
-        return "file:///android_asset/wwwroot/index.html";
+        return $"https://{GameAssetConstants.VirtualHostName}/wwwroot/index.html";
 #else
         throw new System.PlatformNotSupportedException(
             "MAUI WebView URL 当前平台不支持（Phase 1 仅 Windows + Android）");

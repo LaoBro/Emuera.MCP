@@ -79,9 +79,22 @@ internal sealed class AndroidJsBridge : IJsBridge
 
 		// ADR-0019：WebViewClient 拦截 bridge:// URL——可靠 JS→C# 通道，不依赖 emueraBridge
 		// issue 05：同一 client 内接 WebViewAssetLoader（ShouldInterceptRequest 委托）——
-		// https://game.local/* 的图片请求走 PathHandler（SAF 读字节），bridge:// 仍走原 URL 拦截。
+		// 两个 PathHandler（first-match-wins，注册顺序：窄前缀先）：
+		//   1) /wwwroot/ → WwwrootPathHandler（读 android_asset/wwwroot/ 前端静态文件 index.html/assets/*）
+		//   2) /         → GameAssetPathHandler（SAF 读游戏图片字节 + CORS/缓存头）
+		//
+		// 关键设计：Android 页面也用 https://game.local/wwwroot/index.html 加载（ResolveWebViewUrl），
+		// 而非 file://——file:// 页面里的 https:// 子资源请求不会进入 shouldInterceptRequest
+		//（AndroidX WebViewAssetLoader 官方设计前提：页面与资源同 https 域），
+		// 实测图片直接走真实网络 → ERR_NAME_NOT_RESOLVED → 图片全空。
+		// 整页迁到 https 虚拟域后与 Windows 模式（app.local 页面 + game.local 资源）对称。
+		// 注意：Xamarin.AndroidX.WebKit 1.9.0 的 .NET 绑定只暴露 AssetsPathHandler(Context)
+		// 单参构造（读 android_asset/ 根），无 (Context, string assetsPath) 重载——
+		// 故用自定义 WwwrootPathHandler 读 android_asset/wwwroot/，MIME 映射自持。
+		var appContext = Android.App.Application.Context;
 		_assetLoader = new WebViewAssetLoader.Builder()
 			.SetDomain(GameAssetConstants.VirtualHostName)
+			.AddPathHandler("/wwwroot/", new WwwrootPathHandler(appContext))
 			.AddPathHandler("/", new GameAssetPathHandler())
 			.Build();
 		platformView.SetWebViewClient(new BridgeClient(this, _assetLoader));
@@ -219,7 +232,84 @@ internal sealed class AndroidJsBridge : IJsBridge
 	}
 
 	/// <summary>
-	/// issue 05：game.local PathHandler——游戏图片资源通道（spec Q3 路线 B / Q5 安全）。
+	/// <c>https://game.local/wwwroot/*</c> 请求处理——读 <c>android_asset/wwwroot/</c> 下的
+	/// Vue 前端静态文件（index.html / assets/*.js / *.css / 字体等）。
+	/// <para>
+	/// AndroidX <c>WebViewAssetLoader.AssetsPathHandler</c> 的 .NET 绑定只暴露单参构造
+	/// （固定读 <c>android_asset/</c> 根），无法指定子目录，故自定义实现。
+	/// MIME 用 <see cref="MimeTypeMap"/> 从扩展名取（Android 系统表，含 js/css/html/woff2），
+	/// 兜底 <c>application/octet-stream</c>。JS/CSS 是 Vite 构建的 ES Module 产物，
+	/// MIME 必须正确否则 WebView 报 “non-JavaScript MIME type” 白屏。
+	/// <c>Handle</c> 声明为 <c>new</c> 消除 CS0108（有意隐藏 <see cref="Java.Lang.Object.Handle"/>）。
+	/// </para>
+	/// </summary>
+	internal sealed class WwwrootPathHandler : Java.Lang.Object, WebViewAssetLoader.IPathHandler
+	{
+		private readonly Android.Content.Context _context;
+
+		public WwwrootPathHandler(Android.Content.Context context) => _context = context;
+
+		public new WebResourceResponse? Handle(string? path)
+		{
+			try
+			{
+				// WebViewAssetLoader 前缀匹配：/wwwroot/ 之后的部分（如 index.html / assets/x.js）。
+				// 防目录穿越——assets 目录下不存在 ..，但防御性拦截。
+				if (string.IsNullOrEmpty(path)
+					|| path.Contains("..", StringComparison.Ordinal)
+					|| path.StartsWith("/", StringComparison.Ordinal))
+					return null;
+
+				var rel = $"wwwroot/{path}";
+				Android.Util.Log.Info("EmueraMaui", $"WwwrootPathHandler: open {rel}");
+				using var stream = _context.Assets.Open(rel);
+				using var ms = new MemoryStream();
+				stream.CopyTo(ms);
+				var mime = GetMimeType(rel);
+				// 无 CORS 头需求——页面与资源同域（均 game.local），同源请求。静态文件缓存 1 天。
+				var headers = new Dictionary<string, string>
+				{
+					["Cache-Control"] = AssetChannel.CacheControlHeader,
+				};
+				return new WebResourceResponse(mime, null, 200, "OK", headers, new MemoryStream(ms.ToArray()));
+			}
+			catch (Java.IO.IOException)
+			{
+				Android.Util.Log.Warn("EmueraMaui", $"WwwrootPathHandler: missing {path}");
+				return null;
+			}
+			catch (Exception ex)
+			{
+				Android.Util.Log.Error("EmueraMaui", $"WwwrootPathHandler: exception for {path}: {ex}");
+				return null;
+			}
+		}
+
+		/// <summary>扩展名 → MIME（Android MimeTypeMap 主，失败回退常见映射）。</summary>
+		private static string GetMimeType(string path)
+		{
+			var ext = System.IO.Path.GetExtension(path);
+			if (string.IsNullOrEmpty(ext))
+				return "application/octet-stream";
+			var mime = MimeTypeMap.Singleton.GetMimeTypeFromExtension(ext.TrimStart('.').ToLowerInvariant());
+			if (!string.IsNullOrEmpty(mime))
+				return mime!;
+			return ext.ToLowerInvariant() switch
+			{
+				".js" or ".mjs" => "text/javascript",
+				".css" => "text/css",
+				".html" or ".htm" => "text/html",
+				".json" or ".map" => "application/json",
+				".svg" => "image/svg+xml",
+				".woff" => "font/woff",
+				".woff2" => "font/woff2",
+				_ => "application/octet-stream",
+			};
+		}
+	}
+
+	/// <summary>
+	/// <c>https://game.local/*</c> 图片请求处理——游戏资源通道（issue 05 / spec Q3 路线 B / Q5 安全）。
 	/// 消毒/白名单/读字节/MIME 全部收敛在 <see cref="AssetChannel"/>（与 Windows/Kestrel 共用单点）；
 	/// 此处只做平台胶水：相对路径 → AssetChannel → <see cref="WebResourceResponse"/>（带缓存/CORS 头）。
 	/// 失败返回 null（WebView 按默认处理，不泄露资源存在性）。
@@ -227,30 +317,42 @@ internal sealed class AndroidJsBridge : IJsBridge
 	/// <remarks>
 	/// 必须继承 <see cref="Java.Lang.Object"/>（WebViewAssetLoader.PathHandler 是 Java 接口，
 	/// IJavaObject 是绑定实现的前提，与 <see cref="Bridge"/> 同模式）。
+	/// <c>Handle</c> 声明为 <c>new</c> 消除 CS0108（有意隐藏 <see cref="Java.Lang.Object.Handle"/>）。
 	/// </remarks>
 	internal sealed class GameAssetPathHandler : Java.Lang.Object, WebViewAssetLoader.IPathHandler
 	{
-		public WebResourceResponse? Handle(string? path)
+		public new WebResourceResponse? Handle(string? path)
 		{
-			if (string.IsNullOrEmpty(path))
-				return null;
-			var paths = GamePaths.Current;
-			if (paths?.DirAccessor == null
-				|| !AssetChannel.TryGetImage(paths.DirAccessor, paths.ExeDir, path, out var bytes, out var mime))
+			// 异常可见性：之前无 try-catch，AssetChannel 内部未捕获异常会被 WebView 静默吞，
+			// 日志里无任何痕迹，排查盲区。AndroidJsBridge.Attach 的 ensure 期望：能成功读就 serve，
+			// 失败/异常统一走 WebView 默认（→ 真实网络 → ERR_NAME_NOT_RESOLVED），同时打 error logcat。
+			try
 			{
-				Android.Util.Log.Warn("EmueraMaui", $"GameAssetPathHandler: reject {path}");
+				if (string.IsNullOrEmpty(path))
+					return null;
+				var paths = GamePaths.Current;
+				if (paths?.DirAccessor == null
+					|| !AssetChannel.TryGetImage(paths.DirAccessor, paths.ExeDir, path, out var bytes, out var mime))
+				{
+					Android.Util.Log.Warn("EmueraMaui", $"GameAssetPathHandler: reject {path}");
+					return null;
+				}
+				// 显式缓存头——否则无浏览器级缓存，状态屏每回合重印画像每次走 SAF IPC（性能）。
+				// 头策略与 Kestrel/Windows 共用 AssetChannel 常量（改缓存/CORS 只动 Core）
+				var headers = new Dictionary<string, string>
+				{
+					["Cache-Control"] = AssetChannel.CacheControlHeader,
+					// srcm canvas 读像素需要 CORS 允许；图片 GET 无凭据，* 安全
+					["Access-Control-Allow-Origin"] = AssetChannel.CorsAllowOriginHeader,
+				};
+				Android.Util.Log.Info("EmueraMaui", $"GameAssetPathHandler: serve {path} ({bytes.Length}B {mime})");
+				return new WebResourceResponse(mime, null, 200, "OK", headers, new MemoryStream(bytes));
+			}
+			catch (Exception ex)
+			{
+				Android.Util.Log.Error("EmueraMaui", $"GameAssetPathHandler: exception for {path}: {ex}");
 				return null;
 			}
-			// 显式缓存头——否则无浏览器级缓存，状态屏每回合重印画像每次走 SAF IPC（性能）。
-			// 头策略与 Kestrel/Windows 共用 AssetChannel 常量（改缓存/CORS 只动 Core）
-			var headers = new Dictionary<string, string>
-			{
-				["Cache-Control"] = AssetChannel.CacheControlHeader,
-				// srcm canvas 读像素需要 CORS 允许；图片 GET 无凭据，* 安全
-				["Access-Control-Allow-Origin"] = AssetChannel.CorsAllowOriginHeader,
-			};
-			Android.Util.Log.Info("EmueraMaui", $"GameAssetPathHandler: serve {path} ({bytes.Length}B {mime})");
-			return new WebResourceResponse(mime, null, 200, "OK", headers, new MemoryStream(bytes));
 		}
 	}
 }

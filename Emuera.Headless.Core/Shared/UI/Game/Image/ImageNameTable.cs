@@ -17,9 +17,13 @@ namespace MinorShift.Emuera.UI.Game.Image;
 /// </para>
 /// <para>
 /// 懒加载 + 按游戏根缓存：<c>TryResolve</c> 首次调用（或游戏根变化）时扫描重建。
-/// 扫描经 <see cref="IGameDirAccessor.GetFiles"/> 枚举——SAF（安卓）下 GetFiles 已实现（ContentResolver 查询），
-/// 但本类的相对路径计算用 <see cref="Path"/> API（Windows 文件路径语义），对 content:// URI 无效——
-/// 安卓 sprite 名解析待 URI 形态适配（记入 spec，当前 Windows 场景不受影响）。
+/// 扫描经 <see cref="IGameDirAccessor.GetFiles"/> 枚举（SAF/文件系统统一抽象）。
+/// 2026-08-08 修复：<see cref="GetRelativeDir"/> 改用 <see cref="SafPath.GetRelativePathFromRoot"/>，
+/// content:// URI 走 documentId 前缀比较（Android SAF），普通路径走 <see cref="Path.GetRelativePath"/>
+/// 等价语义（Windows）。之前 <c>Path.GetRelativePath</c> 对 content:// 无效导致 Android sprite 名
+/// 解析完全失败，所有无扩展名 sprite（如 <c>Border_Normal</c>、<c>Image_F女</c>）查不到 fallback
+/// 路径 → <see cref="MinorShift.Emuera.Assets.AssetChannel.TryGetImage"/> false → PathHandler
+/// reject → WebView 走默认网络 → ERR_NAME_NOT_RESOLVED（图片空）。
 /// </para>
 /// </summary>
 internal static class ImageNameTable
@@ -122,13 +126,47 @@ internal static class ImageNameTable
 
     /// <summary>
     /// csv 文件所在目录相对游戏根（正斜杠）。
-    /// 注意：仅适用于文件系统路径；content:// URI 需 URI 形态适配（见类 remarks）。
+    /// 2026-08-08 修复：content:// URI 走 documentId 前缀比较 + Unescape（Android SAF），
+    /// 普通路径走 <see cref="Path.GetFullPath"/> + 手动前缀剥离等价语义（Windows）。
+    /// 返回值去掉路径末段（csv 文件名本身），保留目录前缀——后续拼 csv 第二列文件名（issue 07）。
+    /// 之前 <c>Path.GetDirectoryName</c> + <c>Path.GetRelativePath</c> 对 content:// 抛或返回乱码，
+    /// 导致 Android ImageNameTable 整个 sprite 表加载为空，所有无扩展名 sprite 解析失败。
     /// </summary>
     private static string GetRelativeDir(string gameRoot, string csvPath)
     {
-        var dir = Path.GetDirectoryName(csvPath) ?? "";
-        var rel = Path.GetRelativePath(gameRoot, dir);
-        return rel == "." ? "" : rel.Replace('\\', '/');
+        string rel;
+        if (SafPath.IsContentUri(gameRoot) && SafPath.IsContentUri(csvPath))
+        {
+            // SAF：documentId 前缀比较（含 Unescape，正确处理 %3A/%2F 编码的 tree URI）。
+            var rootId = SafPath.TryGetDocumentId(gameRoot);
+            var pathId = SafPath.TryGetDocumentId(csvPath);
+            if (rootId == null || pathId == null) return "";
+            rootId = rootId.TrimEnd('/');
+            if (pathId.Equals(rootId, StringComparison.OrdinalIgnoreCase)) return "";
+            if (!pathId.StartsWith(rootId + "/", StringComparison.OrdinalIgnoreCase)) return "";
+            rel = pathId[(rootId.Length + 1)..]; // csvPath 相对 gameRoot（documentId 段已 Unescape，正斜杠分隔）
+        }
+        else
+        {
+            try
+            {
+                var root = Path.GetFullPath(gameRoot);
+                var full = Path.GetFullPath(csvPath);
+                if (!root.EndsWith(Path.DirectorySeparatorChar)
+                    && !root.EndsWith(Path.AltDirectorySeparatorChar))
+                    root += Path.DirectorySeparatorChar;
+                if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase)) return "";
+                rel = full[root.Length..]; // 反斜杠分隔（Path.GetFullPath 标准化输出）
+            }
+            catch
+            {
+                return "";
+            }
+        }
+        // 统一正斜杠后去掉末段（csv 文件名），保留目录相对路径
+        rel = rel.Replace('\\', '/');
+        var lastSlash = rel.LastIndexOf('/');
+        return lastSlash < 0 ? "" : rel[..lastSlash];
     }
 }
 

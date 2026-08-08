@@ -11,6 +11,8 @@ import {
   sendBridgeUrl,
   scanGames as scanGamesBridge,
   loadGameFromPath,
+  MAUI_WINDOWS_VIRTUAL_HOST,
+  MAUI_GAME_VIRTUAL_HOST,
 } from '../lib/mauiBridge';
 import DirectoryBrowser from './DirectoryBrowser.vue';
 /**
@@ -51,19 +53,28 @@ const currentError = computed<string | null>(() => {
   return null;
 });
 
-/** 是否在 MAUI Windows 环境——决定「更改主目录」按钮走原生 FolderPicker 还是 Vue 弹窗。 */
+/** 是否在 MAUI Windows 环境——决定「更改主目录」按钮走原生 FolderPicker。 */
 const isWindowsMaui = computed(() => {
   if (!isMauiEnvironment()) return false;
   if (typeof window === 'undefined') return false;
-  // Windows unpackaged: https://app.local/  /  Windows packaged: ms-appx-web:
-  return window.location.protocol === 'https:' || window.location.protocol === 'ms-appx-web:';
+  const { protocol, hostname } = window.location;
+  // Windows packaged: ms-appx-web:  /  Windows unpackaged: https://app.local/
+  // 注意：**不能只看 protocol==='https:'**——Android 新页面形态也是 https（game.local），
+  // 2026-08-08 曾因此把 Android 误判为 Windows（点「选择主目录」走到 PickFolderAsync
+  // 空实现 → 无反应）。必须用 hostname 区分 app.local（Windows）/ game.local（Android）。
+  return protocol === 'ms-appx-web:'
+    || (protocol === 'https:' && hostname === MAUI_WINDOWS_VIRTUAL_HOST);
 });
 
-/** 是否在 MAUI Android 环境——走 DirectoryBrowser 弹窗。 */
+/** 是否在 MAUI Android 环境——走 SAF 原生目录选择器（sendBridgeUrl('pickSafDirectory')）。 */
 const isAndroidMaui = computed(() => {
   if (!isMauiEnvironment()) return false;
   if (typeof window === 'undefined') return false;
-  return window.location.protocol === 'file:';
+  const { protocol, hostname } = window.location;
+  // 旧版 Android（file:///android_asset/，已废弃）或新版（https://game.local/wwwroot/，
+  // WebViewAssetLoader 拦截）——hostname 判断与 isMauiEnvironment 对称。
+  return protocol === 'file:'
+    || (protocol === 'https:' && hostname === MAUI_GAME_VIRTUAL_HOST);
 });
 
 /** 主目录展示文案——优先 scanRootDir（最近扫描的目录），fallback mainGameDir。 */

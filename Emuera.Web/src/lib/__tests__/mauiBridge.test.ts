@@ -76,6 +76,13 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       expect(isMauiEnvironment()).toBe(true);
     });
 
+    it('https: + hostname=game.local → true（Android MAUI，WebViewAssetLoader 虚拟域）', () => {
+      // 2026-08-08：Android 整页迁到 https://game.local/wwwroot/（file:// 页面 + https 子资源
+      // 不进入 shouldInterceptRequest）。isMauiEnvironment 必须识别 game.local 主机。
+      setLocation('https:', 'game.local');
+      expect(isMauiEnvironment()).toBe(true);
+    });
+
     it('https: + hostname=localhost → false（HTTPS 浏览器模式）', () => {
       setLocation('https:', 'localhost');
       expect(isMauiEnvironment()).toBe(false);
@@ -86,7 +93,7 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       expect(isMauiEnvironment()).toBe(false);
     });
 
-    it('https: 协议但非 app.local 主机 → false（HTTPS 普通站点）', () => {
+    it('https: 协议但非 app.local/game.local 主机 → false（HTTPS 普通站点）', () => {
       setLocation('https:', 'example.com');
       expect(isMauiEnvironment()).toBe(false);
     });
