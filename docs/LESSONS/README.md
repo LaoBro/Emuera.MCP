@@ -1,0 +1,25 @@
+# 失败教训索引（渐进式披露）
+
+> 本目录收纳项目各阶段的失败教训（原 `docs/LESSONS.md` 单文件已拆分为按主题分类的多文件）。
+> **渐进式披露**：先在下方索引按"一句话摘要"定位主题，再进对应文件看 TL;DR 清单，需要细节才读具体小节。
+> 新增教训：按主题追加到对应文件末尾（含日期），勿再堆回单个大文件。
+
+## 快速定位
+
+| 主题 | 一句话摘要 |
+|---|---|
+| [terminal-windows.md](terminal-windows.md) | Windows 终端渲染：ANSI 转义需显式启用、清行别填满行、Ambiguous 宽度按组探测、宽度计算排除转义码 |
+| [win32-pinvoke.md](win32-pinvoke.md) | P/Invoke 结构体：BOOL 用 int 不用 bool、布局与 Win32 原始定义一一对应、过滤条件别凭直觉扩大 |
+| [csharp-pitfalls.md](csharp-pitfalls.md) | C# 陷阱：静态字段按声明序初始化、单行 if 插日志必须加大括号 |
+| [maui-android-lifecycle.md](maui-android-lifecycle.md) | MAUI Android 生命周期：MainPage 构造早于 Activity.OnCreate、RegisterForActivityResult 时序、白屏三连 |
+| [maui-android-webview.md](maui-android-webview.md) | MAUI Android WebView/桥接/资源通道：file:// 混 https 子资源不拦截、平台判断按 hostname、favicon 自动请求、JS→C# 通道选型 |
+| [saf-file-access.md](saf-file-access.md) | Android SAF 文件访问：content:// 不是文件路径、docId 提取口径统一、缓存/预取/失效设计、sprite 名解析 |
+| [nativeaot.md](nativeaot.md) | NativeAOT 发布：JSON 反射禁用、RequestDelegateGenerator、ILC 增量缓存、目录隔离补 DefaultItemExcludes |
+| [testing-and-ci.md](testing-and-ci.md) | 构建/测试/CI 环境：增量构建 0 警告假象、文件锁先查环境、行号基线脆弱、残留进程干扰回归、两轴 code-review |
+| [diagnostics.md](diagnostics.md) | 排查方法论：诊断推进揭开下一层、logcat 时间线拆段、中文乱码≠路径损坏、异常可见性 |
+
+## 约定
+
+- 每篇文件顶部是 **TL;DR** + **教训清单表**（扫读层），往下是逐条 **场景/结果/原因/解决/教训**（细节层）。
+- 日期标注在标题后（`（2026-08-08）` 或正文），便于按时间回溯。
+- 跨主题教训（如 SAF 性能与缓存）归主主题文件；方法论归 `diagnostics.md`。

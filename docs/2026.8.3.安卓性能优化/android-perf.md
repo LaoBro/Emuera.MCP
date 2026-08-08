@@ -182,5 +182,5 @@
 
 ## 备注
 
-- 相关既有文档：`docs/LESSONS.md`（终端行为回归教训）、`docs/adr/0018-button-generation-invalidation-v7.md`（按钮失效机制）、`docs/adr/0019-android-saf-file-access.md`（SAF 迁移决策，S6/2.4 背景）。
+- 相关既有文档：`docs/LESSONS/`（终端行为回归教训）、`docs/adr/0018-button-generation-invalidation-v7.md`（按钮失效机制）、`docs/adr/0019-android-saf-file-access.md`（SAF 迁移决策，S6/2.4 背景）。
 - 全部改动保持 I-12 质量护栏：不引入新 warning；阶段 1 的诊断代码与引擎热路径隔离（条件编译或独立文件），不影响常规回合路径。

@@ -72,7 +72,7 @@
 
 - 状态：未实现，需修复
 - 范围：`Emuera.Headless/Agent/AgentCliProtocol.cs`
-- 说明：`EraseTerminalRows()` 当前使用 `new string(' ', Console.WindowWidth)` 覆盖旧行。Windows 终端写入整行宽度空格可能触发自动换行，导致终端内容下移，和 `docs/LESSONS.md` 中记录的风险一致。
+- 说明：`EraseTerminalRows()` 当前使用 `new string(' ', Console.WindowWidth)` 覆盖旧行。Windows 终端写入整行宽度空格可能触发自动换行，导致终端内容下移，和 `docs/LESSONS/terminal-windows.md` 中记录的风险一致。
 - 纳入范围：
   - ANSI 可用时优先使用 `\x1b[2K` 清除当前行。
   - fallback 使用 `SetCursorPosition` 定位后写入 `Math.Max(Console.WindowWidth - 1, 1)` 个空格。

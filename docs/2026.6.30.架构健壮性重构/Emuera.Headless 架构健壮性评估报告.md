@@ -96,7 +96,7 @@ sequenceDiagram
 2. **Facade + Manager 分层**：[EmueraConsole.cs](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/UI/Game/EmueraConsole.cs) 作为 facade 把状态/打印/输入/定时器/刷新拆到 6 个 manager，单一职责清晰。
 3. **IConsoleUI 抽象**：[IConsoleUI.cs](file:///d:/LaoBro/Emuera.MCP/Emuera/UI/Game/IConsoleUI.cs) 把 WinForms 依赖隔离到接口背后，HeadlessConsole 提供空实现，避免了 WinForms 在无头环境的耦合。
 4. **SessionIO 抽象**：[SessionIO.cs](file:///d:/LaoBro/Emuera.MCP/Emuera.Headless/Server/SessionIO.cs) 让 JSONL 协议同时支持 stdin 管道与 HTTP 内存队列，复用 `RunLoop`。
-5. **文档化技术债务**：[docs/TODO.md](file:///d:/LaoBro/Emuera.MCP/docs/TODO.md) 与 [docs/LESSONS.md](file:///d:/LaoBro/Emuera.MCP/docs/LESSONS.md) 明确记录了已知问题与踩坑教训，团队对债务有清晰认知。
+5. **文档化技术债务**：[docs/TODO.md](file:///d:/LaoBro/Emuera.MCP/docs/TODO.md) 与 [docs/LESSONS/](file:///d:/LaoBro/Emuera.MCP/docs/LESSONS/) 明确记录了已知问题与踩坑教训，团队对债务有清晰认知。
 
 ***
 
@@ -141,7 +141,7 @@ sequenceDiagram
 
 错误处理是当前最薄弱的环节：
 
-- 21 处空 catch 等同于"假装成功"，与 [LESSONS.md](file:///d:/LaoBro/Emuera.MCP/docs/LESSONS.md) 中记录的多个 bug 根因一致
+- 21 处空 catch 等同于"假装成功"，与 [LESSONS/README.md](file:///d:/LaoBro/Emuera.MCP/docs/LESSONS/) 中记录的多个 bug 根因一致
 - 没有统一的 `ILogger` 抽象，`AgentLog` 仅在环境变量开启时才写文件
 - server 模式下 Session 异常只写入输出队列，调用方可能拿不到 error turn（若已 Close）
 - HTTP 500 泄露 `ex.Message`
@@ -211,7 +211,7 @@ sequenceDiagram
 
 ## 六、结论
 
-Emuera.Headless 的**协议层与 Facade 分层设计是健康的**，[docs/TODO.md](file:///d:/LaoBro/Emuera.MCP/docs/TODO.md) 与 [docs/LESSONS.md](file:///d:/LaoBro/Emuera.MCP/docs/LESSONS.md) 显示团队对技术债务有清晰认知。但在**新功能开发前**存在三个结构性风险：
+Emuera.Headless 的**协议层与 Facade 分层设计是健康的**，[docs/TODO.md](file:///d:/LaoBro/Emuera.MCP/docs/TODO.md) 与 [docs/LESSONS/](file:///d:/LaoBro/Emuera.MCP/docs/LESSONS/) 显示团队对技术债务有清晰认知。但在**新功能开发前**存在三个结构性风险：
 
 1. \*\*共享源码 glob（I-01）\*\*让两个项目耦合过紧，任何 Emuera 改动都可能破坏 Headless；
 2. \*\*GlobalStatic 全局可变状态（I-02）+ server 单会话矛盾（I-03）\*\*限制了 server 模式的扩展空间；
