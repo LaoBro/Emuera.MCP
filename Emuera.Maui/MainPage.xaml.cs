@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Emuera.Maui.JsBridge;
+using Emuera.Maui.Json;
 using MinorShift.Emuera;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
@@ -309,7 +310,8 @@ public partial class MainPage : ContentPage
             Console.WriteLine("[maui] OnBackButtonPressed: game running, forwarding to Vue");
             // 投递 backButtonPressed 给 Vue——Vue 端弹出退出确认对话框
             var msg = System.Text.Json.JsonSerializer.Serialize(
-                new { type = "backButtonPressed" });
+                new BackButtonPressedMessage("backButtonPressed"),
+                MauiJsonContext.Default.BackButtonPressedMessage);
             _jsBridge.PostMessage(msg);
             return true; // 已处理，阻止系统默认返回行为
         }

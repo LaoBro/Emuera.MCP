@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 using Emuera.Maui.JsBridge;
+using Emuera.Maui.Json;
 using Microsoft.Maui.Storage;
 using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
@@ -405,7 +407,8 @@ internal sealed class BridgeHost : IDisposable
                 return;
             }
             Console.WriteLine($"[bridge] HandlePickFolder: picked path={path}");
-            var msgJson = JsonSerializer.Serialize(new { type = "folderPicked", path });
+            var msgJson = JsonSerializer.Serialize(
+                new FolderPickedMessage("folderPicked", path), MauiJsonContext.Default.FolderPickedMessage);
             _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
         }
         catch (Exception ex)
@@ -413,7 +416,8 @@ internal sealed class BridgeHost : IDisposable
             Console.WriteLine($"[bridge] HandlePickFolder failed: {ex}");
             AgentLog.Instance.Write($"[bridge] HandlePickFolder failed: {ex}");
             // 推 error 事件给 Vue 让 UI 解除 picking 状态 + 显示错误
-            var errJson = JsonSerializer.Serialize(new { type = "folderPicked", error = ex.Message });
+            var errJson = JsonSerializer.Serialize(
+                new FolderPickedError("folderPicked", ex.Message), MauiJsonContext.Default.FolderPickedError);
             _dispatcher.Dispatch(() => _jsBridge.PostMessage(errJson));
         }
     }
@@ -437,9 +441,13 @@ internal sealed class BridgeHost : IDisposable
             {
                 Console.WriteLine("[bridge] HandlePickSafDirectory: no DirAccessor");
 #if ANDROID
-                var errJson = JsonSerializer.Serialize(new { type = "safDirectoryPicked", error = "DirAccessor is null — SafGameDirAccessor not initialized" });
+                var errJson = JsonSerializer.Serialize(
+                    new SafDirectoryPickedError("safDirectoryPicked", "DirAccessor is null — SafGameDirAccessor not initialized"),
+                    MauiJsonContext.Default.SafDirectoryPickedError);
 #else
-                var errJson = JsonSerializer.Serialize(new { type = "safDirectoryPicked", error = "SAF not supported on this platform" });
+                var errJson = JsonSerializer.Serialize(
+                    new SafDirectoryPickedError("safDirectoryPicked", "SAF not supported on this platform"),
+                    MauiJsonContext.Default.SafDirectoryPickedError);
 #endif
                 _dispatcher.Dispatch(() => _jsBridge.PostMessage(errJson));
                 return;
@@ -448,7 +456,9 @@ internal sealed class BridgeHost : IDisposable
             var result = await dirAccessor.PickDirectoryAsync();
             if (result == null)
             {
-                var cancelJson = JsonSerializer.Serialize(new { type = "safDirectoryPicked", cancelled = true });
+                var cancelJson = JsonSerializer.Serialize(
+                    new SafDirectoryPickedCancelled("safDirectoryPicked", true),
+                    MauiJsonContext.Default.SafDirectoryPickedCancelled);
                 _dispatcher.Dispatch(() => _jsBridge.PostMessage(cancelJson));
                 return;
             }
@@ -476,18 +486,18 @@ internal sealed class BridgeHost : IDisposable
 #endif
             if (!hasWrite || !writeProbeOk)
             {
-                var needRepick = JsonSerializer.Serialize(new
-                {
-                    type = "safDirectoryPicked",
-                    path = result,
-                    hasWrite,
-                    writeProbeOk,
-                    writeProbeDetail,
-                    error = hasWrite
-                        ? $"Write probe failed: {writeProbeDetail}"
-                        : "No write permission on selected folder. Please re-select the game directory and allow access.",
-                    needRepickForWrite = true
-                });
+                var needRepick = JsonSerializer.Serialize(
+                    new SafDirectoryPickedRepick(
+                        Type: "safDirectoryPicked",
+                        Path: result,
+                        HasWrite: hasWrite,
+                        WriteProbeOk: writeProbeOk,
+                        WriteProbeDetail: writeProbeDetail,
+                        Error: hasWrite
+                            ? $"Write probe failed: {writeProbeDetail}"
+                            : "No write permission on selected folder. Please re-select the game directory and allow access.",
+                        NeedRepickForWrite: true),
+                    MauiJsonContext.Default.SafDirectoryPickedRepick);
                 _dispatcher.Dispatch(() => _jsBridge.PostMessage(needRepick));
                 // 仍继续扫描——读权限可能足够浏览；存档会再失败并提示
             }
@@ -498,7 +508,9 @@ internal sealed class BridgeHost : IDisposable
         catch (Exception ex)
         {
             Console.WriteLine($"[bridge] HandlePickSafDirectory failed: {ex}");
-            var errJson = JsonSerializer.Serialize(new { type = "safDirectoryPicked", error = ex.Message });
+            var errJson = JsonSerializer.Serialize(
+                new SafDirectoryPickedError("safDirectoryPicked", ex.Message),
+                MauiJsonContext.Default.SafDirectoryPickedError);
             _dispatcher.Dispatch(() => _jsBridge.PostMessage(errJson));
         }
     }
@@ -512,14 +524,10 @@ internal sealed class BridgeHost : IDisposable
         var dirAccessor = ResolveDirAccessor(rootDir);
         bool rootDirExists = GameScanner.RootDirectoryExists(rootDir, dirAccessor);
         var games = GameScanner.Scan(rootDir, dirAccessor);
-        var gamesPayload = games.Select(g => new { name = g.Name, fullPath = g.FullPath }).ToList();
-        var msgJson = JsonSerializer.Serialize(new
-        {
-            type = "gamesScanned",
-            games = gamesPayload,
-            rootDir,
-            rootDirExists,
-        });
+        var gamesPayload = games.Select(g => new GameInfoDto(g.Name, g.FullPath)).ToList();
+        var msgJson = JsonSerializer.Serialize(
+            new GamesScannedMessage("gamesScanned", gamesPayload, rootDir, rootDirExists),
+            MauiJsonContext.Default.GamesScannedMessage);
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
         Console.WriteLine($"[bridge] ScanAndPushGames: {gamesPayload.Count} games, rootDir={rootDir}");
     }
@@ -581,14 +589,10 @@ internal sealed class BridgeHost : IDisposable
         var dirAccessor = ResolveDirAccessor(rootDir);
         bool rootDirExists = GameScanner.RootDirectoryExists(rootDir, dirAccessor);
         var games = GameScanner.Scan(rootDir, dirAccessor);
-        var gamesPayload = games.Select(g => new { name = g.Name, fullPath = g.FullPath }).ToList();
-        var msgJson = JsonSerializer.Serialize(new
-        {
-            type = "gamesScanned",
-            games = gamesPayload,
-            rootDir,
-            rootDirExists,
-        });
+        var gamesPayload = games.Select(g => new GameInfoDto(g.Name, g.FullPath)).ToList();
+        var msgJson = JsonSerializer.Serialize(
+            new GamesScannedMessage("gamesScanned", gamesPayload, rootDir, rootDirExists),
+            MauiJsonContext.Default.GamesScannedMessage);
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
         // A0 补充（code-review 修复）：Vue 启动必发 scanGames——此处同步推 config，
         // 让「重启 app 未进游戏」时设置页开关也能显示 Preferences 持久化的权威状态
@@ -616,13 +620,9 @@ internal sealed class BridgeHost : IDisposable
 
         Console.WriteLine($"[bridge] HandleListDirectories: dirPath={dirPath}");
         var result = DirectoryLister.ListDirectories(dirPath, ResolveDirAccessor(dirPath));
-        var msgJson = JsonSerializer.Serialize(new
-        {
-            type = "directoriesListed",
-            currentPath = result.CurrentPath,
-            parentPath = result.ParentPath,
-            subDirectories = result.SubDirectories,
-        });
+        var msgJson = JsonSerializer.Serialize(
+            new DirectoriesListedMessage("directoriesListed", result.CurrentPath, result.ParentPath, result.SubDirectories),
+            MauiJsonContext.Default.DirectoriesListedMessage);
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
     }
 
@@ -651,7 +651,7 @@ internal sealed class BridgeHost : IDisposable
         AgentLog.Instance.Write("[bridge] HandleExitGame: disposing game loop and notifying Vue");
 
         // 1. 先回复 gameExited——Dispatch 异步派发到 UI 线程队列
-        var msgJson = JsonSerializer.Serialize(new { type = "gameExited" });
+        var msgJson = JsonSerializer.Serialize(new GameExitedMessage("gameExited"), MauiJsonContext.Default.GameExitedMessage);
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
 
         // 2. 调回调让 MainPage 重建 BridgeHost——RecreateHost 内会 Dispose 当前 host
@@ -692,7 +692,9 @@ internal sealed class BridgeHost : IDisposable
         // Windows MAUI 不检查 Android 权限——默认视为已授权
         granted = true;
 #endif
-        var msg = JsonSerializer.Serialize(new { type = "permissionStatus", granted });
+        var msg = JsonSerializer.Serialize(
+            new PermissionStatusMessage("permissionStatus", granted),
+            MauiJsonContext.Default.PermissionStatusMessage);
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
         Console.WriteLine($"[bridge] HandleCheckPermission: granted={granted}");
         AgentLog.Instance.Write($"[bridge] HandleCheckPermission: granted={granted}");
@@ -714,7 +716,9 @@ internal sealed class BridgeHost : IDisposable
     private void HandleGetGameThreadStatus()
     {
         var alive = _gameTask is { IsCompleted: false };
-        var msg = JsonSerializer.Serialize(new { type = "gameThreadStatus", alive });
+        var msg = JsonSerializer.Serialize(
+            new GameThreadStatusMessage("gameThreadStatus", alive),
+            MauiJsonContext.Default.GameThreadStatusMessage);
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
         Console.WriteLine($"[bridge] HandleGetGameThreadStatus: alive={alive}");
         AgentLog.Instance.Write($"[bridge] HandleGetGameThreadStatus: alive={alive}");
@@ -767,13 +771,15 @@ internal sealed class BridgeHost : IDisposable
         var text = AgentLog.Instance.ReadAllText();
         if (string.IsNullOrEmpty(text))
         {
-            var emptyJson = JsonSerializer.Serialize(new { type = "agentLog", content = "", truncated = false });
+            var emptyJson = JsonSerializer.Serialize(
+                new AgentLogMessage("agentLog", "", false), MauiJsonContext.Default.AgentLogMessage);
             _dispatcher.Dispatch(() => _jsBridge.PostMessage(emptyJson));
             return;
         }
         var truncated = text.Length > AgentLogViewMaxChars;
         var content = truncated ? text.Substring(text.Length - AgentLogViewMaxChars) : text;
-        var msgJson = JsonSerializer.Serialize(new { type = "agentLog", content, truncated });
+        var msgJson = JsonSerializer.Serialize(
+            new AgentLogMessage("agentLog", content, truncated), MauiJsonContext.Default.AgentLogMessage);
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msgJson));
         Console.WriteLine($"[bridge] HandleGetAgentLog: {text.Length} chars, truncated={truncated}");
     }
@@ -950,17 +956,17 @@ internal sealed class BridgeHost : IDisposable
         int marginOffset = Math.Max(2, fs / 6);
         int gameColumns = (ww - marginOffset) / charWidth;
 
-        var msg = JsonSerializer.Serialize(new
-        {
-            type = "layout",
-            state = "Loading",
-            gameDir = GamePaths.Current?.ExeDir,
-            windowWidth = ww,
-            fontSize = fs,
-            lineHeight = lh,
-            gameColumns,
-            fontName = fn,
-        });
+        var msg = JsonSerializer.Serialize(
+            new LayoutMessage(
+                Type: "layout",
+                State: "Loading",
+                GameDir: GamePaths.Current?.ExeDir,
+                WindowWidth: ww,
+                FontSize: fs,
+                LineHeight: lh,
+                GameColumns: gameColumns,
+                FontName: fn),
+            MauiJsonContext.Default.LayoutMessage);
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
     }
 
@@ -975,12 +981,9 @@ internal sealed class BridgeHost : IDisposable
     private void PushConfigMessage()
     {
         var maxLog = _configData.GetConfigValue<int>(ConfigCode.MaxLog);
-        var msg = JsonSerializer.Serialize(new
-        {
-            type = "config",
-            maxLog,
-            agentLogEnabled = AgentLog.Instance.Enabled,
-        });
+        var msg = JsonSerializer.Serialize(
+            new ConfigMessage("config", maxLog, AgentLog.Instance.Enabled),
+            MauiJsonContext.Default.ConfigMessage);
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
     }
 

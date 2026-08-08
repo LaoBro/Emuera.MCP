@@ -100,3 +100,22 @@ adb logcat -d -s AndroidRuntime Mono AndroidNativeAot
 ## 与生产壳的关系
 
 生产应用仍是 `Emuera.Maui`。本实验项目只验证 workload 和关键 Android interop，避免直接改变生产壳的 `RunAOTCompilation=true` Mono Full AOT 基线。实验通过后，再把同样的 `PublishAot` 配置迁移到生产壳，并执行完整游戏、SAF、WebView 和性能回归。
+
+## 运维脚本（2026-08-08 白屏取证沉淀）
+
+生产壳 NativeAOT 白屏排查中沉淀的 3 个脚本，可直接复用：
+
+### `collect_whitescreen_logs.bat <apk路径>`
+一键取证：清 logcat → 安装 APK → 启动应用 → 等 8 秒 → 抓过滤日志到 `logcat_whitescreen.txt`（过滤 `EmueraMaui EmueraWV chromium AndroidRuntime MonoDroid Dotnet FATAL`）。
+用于快速复现/采集 NativeAOT 白屏或崩溃现场。
+
+### `clean_build_artifacts.js`
+删除 **Core 项目**（`Emuera.Headless.Core`）的 `obj/`、`obj-aot/`、`bin-aot/` 下全部 `.cs`/`.xaml` 生成物——CS0579 中间文件污染（旧目录 AssemblyInfo 回流编译）的清理手段。
+> 注意：自 2026-08-08 起 `Emuera.Maui/Directory.Build.props` 已用 `DefaultItemExcludes` 无条件排除 `obj-aot/**;bin-aot/**`（PublishAot 时另补 `obj/**;bin/**`），**Maui 项目无需再手动清理**；本脚本仅用于 Core 或历史残留兜底。
+
+### `clean_maui_obj.js`
+删除 **Maui 项目**（`Emuera.Maui`）`obj/`、`bin/` 下所有文件（不含 `obj-aot/bin-aot`）——清理普通构建残留用。
+> 同样已由 `Directory.Build.props` 的 `DefaultItemExcludes` 取代（PublishAot 分支排除 `obj/**;bin/**`），仅在极端残留场景兜底。
+
+**脚本用途边界**：均为**构建期维护工具**，不参与运行时；删除对象全部为可再生成的构建中间产物（`obj/`、`bin/`、`obj-aot/`、`bin-aot/`），不含源码。
+

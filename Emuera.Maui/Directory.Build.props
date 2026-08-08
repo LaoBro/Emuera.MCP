@@ -1,0 +1,29 @@
+<Project>
+  <!-- ===== NativeAOT 构建目录隔离（3.4 壳层门控实验） =====
+       与 Emuera.Headless.Cli/Directory.Build.props 同模式：
+       PublishAot=true 时把中间产物/输出重定向到 obj-aot/bin-aot，
+       避免 NativeAOT 的 ILC 生成物污染普通版本（Mono Full AOT）的 obj/bin 目录。
+       注意：必须放在 Directory.Build.props（在 Microsoft.Common.props 导入前生效），
+       放 csproj 里会触发 MSB3539 + CS0579 双份 AssemblyInfo。
+       仅 PublishAot=true 生效——普通 Release（RunAOTCompilation=true）与 Debug 不受影响。
+
+       2026.8.8 白屏取证补充修复（两层污染）：
+       1. AOT 构建时：Base*OutputPath 重定向后 SDK 默认排除 obj/**、bin/** 失效，
+          旧普通构建的 obj/ 残留回流编译与 obj-aot/ 新生成物重复 → CS0579。
+          修复：PublishAot 分支显式补回 obj/**、bin/** 排除。
+       2. 普通构建时：SDK 默认排除只有 obj/**、bin/**，obj-aot/ 不在排除列表——
+          AOT 构建残留的 AssemblyInfo/.NETCoreApp/Resource.Designer.cs 等 .cs 生成物
+          回流进 Windows/Debug TFM 编译 → CS0579/CS0246。
+          修复：obj-aot/**、bin-aot/** 排除必须无条件（任何构建都排除 AOT 专用目录）。 -->
+  <PropertyGroup>
+    <!-- 无条件排除 AOT 专用目录——无论当前是否 PublishAot，obj-aot/bin-aot 残留永不参与编译 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj-aot/**;bin-aot/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <BaseOutputPath>bin-aot\</BaseOutputPath>
+    <BaseIntermediateOutputPath>obj-aot\</BaseIntermediateOutputPath>
+    <!-- AOT 构建：Base*OutputPath 重定向后补回旧 obj/**、bin/** 排除（防旧普通构建残留回流） -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

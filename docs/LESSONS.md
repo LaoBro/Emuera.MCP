@@ -1071,3 +1071,45 @@ CPU 低）/ 会话已结束前端没收到通知（game loop completed normally 
 1. **源生成 context 序列化抽象基类/接口成员时不会自动多态 dispatch**——多态必须靠 `[JsonPolymorphic]`（会引入 `$type` 字段破坏 wire）或自定义 converter（挂在 options.Converters）。换序列化入口（context TypeInfo vs options）会静默改变 wire，务必有内容级断言兜底。
 2. 消 `Serialize(T, JsonSerializerOptions)` 警告的正解是 **JsonTypeInfo 重载**：`Serialize(turn, (JsonTypeInfo<TurnRecord>)TurnJsonOptions.GetTypeInfo(typeof(TurnRecord)))`——`GetTypeInfo(Type)` 与 TypeInfo 重载均无 RUC/RDC 标注（反射验证），converter 链完整保留，wire 逐字节一致。别用"换 context"这种看似等价的手段。
 3. **e2e 的文本内容断言能抓到单元测试漏掉的 wire 回归**——xUnit 685 绿 ≠ diff 内容正确；test_snapshot 的 diff 内容断言是这条防线的最后一道。
+
+## 壳层反射 JSON 是 NativeAOT 白屏根因，且异常传播缺陷掩盖了崩溃（2026-08-08）
+
+**场景**：生产 `Emuera.Maui` 开 `PublishAot=true` 构建成功（26.7MB 纯 NativeAOT），但真机/模拟器**白屏**。实验项目（最小壳）NativeAOT 正常——差异在壳层代码。
+
+**取证**（MuMu x64 + logcat）：
+- 进程存活（`pidof` 有值）但 `dumpsys activity top` 无 WebView 视图行；`edge://inspect` 看不到条目。
+- logcat 抓到 **`FATAL EXCEPTION: System.InvalidOperationException: JsonSerializerIsReflectionDisabled`**，堆栈：`BridgeHost.HandleScanGames` → `JsonSerializer.Serialize(new {...})`（匿名类型反射序列化）→ JNI 回调 `BridgeClient.ShouldOverrideUrlLoading`。
+- 前端 `scanGames` 已正常到达 C#（bridge 链路好的），崩溃发生在 C# 侧回包序列化。
+
+**原因**（两层叠加）：
+1. **NativeAOT 禁用反射序列化**：`JsonSerializer.Serialize(匿名类型)` 抛 `JsonSerializerIsReflectionDisabled`（IL3050 警告的运行时形态）。壳层 BridgeHost 有 18 处匿名类型，Core 层已治理过（EmueraJsonContext），壳层漏了。
+2. **NativeAOT 异常传播缺陷掩盖崩溃**：异常从 WebView JNI 回调抛出时，`mono.android.Runtime.propagateUncaughtException` 的 JNI 导出在 NativeAOT 下**不存在**（logcat: `No implementation found for ... propagateUncaughtException`）→ 异常无法正常终止进程/打印崩溃框 → **UI 线程挂起** → 表现是"白屏+进程存活"，而不是崩溃退出。这就是"pidof 有值 + 无 crash 日志 + 无 console 报错"矛盾的根因。
+
+**修复**：
+1. 新增 `Emuera.Maui/Json/MauiJsonContext.cs`：全部壳层消息改具名 record + `[JsonSourceGenerationOptions(PropertyNamingPolicy = CamelCase)]` 源生成上下文，wire 与匿名类型逐字节一致（camelCase 字段名、null 仍写出）。
+2. `BridgeHost.cs` 15 处 + `MainPage.xaml.cs` 1 处匿名类型 → `MauiJsonContext.Default.Xxx`。TurnRecord 不动（走 Core `TurnJsonOptions`，已挂 EmueraJsonContext）。
+3. 验证：0 FATAL，进入游戏选择界面。
+
+**教训**：
+1. **NativeAOT 排查白屏，先查"进程是否存活"**：存活=托管层异常被吞/挂起（JNI 回调内异常 + propagateUncaughtException 缺失），崩溃退出=Java 层/链接问题。logcat 搜 `FATAL EXCEPTION` 能直接定位。
+2. **"构建成功 ≠ 可运行"**：NativeAOT 的 IL 警告（IL2026/IL3050）是运行时崩溃的预告——**IL3050 的运行时形态就是 `JsonSerializerIsReflectionDisabled` 抛异常**。凡是 `JsonSerializer.Serialize(new {...})` 匿名类型/未注册类型，AOT 下必崩，代码评审就要拦。
+3. **实验项目验证通过 ≠ 生产项目可过**：最小壳无桥接消息/无复杂 JSON，NativeAOT 差异全在壳层业务代码。门控验证必须用真实生产路径（scanGames → HandleScanGames → gamesScanned 回包）。
+4. 壳层 JSON 与 Core 同模式治理：新增消息类型必须走 `MauiJsonContext`（壳层）/`EmueraJsonContext`（Core），禁止匿名类型。
+
+## NativeAOT 目录隔离的 CS0579 根治——重定向后必须补 DefaultItemExcludes（2026-08-08）
+
+**场景**：`Emuera.Maui/Directory.Build.props` 在 `PublishAot=true` 时重定向 `BaseOutputPath=bin-aot\`、`BaseIntermediateOutputPath=obj-aot\`。构建报连环 `CS0579 特性重复`（AssemblyInfo/.NETCoreApp/TargetPlatform 等），且**构建期间并发清理会变成文件锁 Access denied**。
+
+**原因**：SDK 默认 `DefaultItemExcludes` 含 `$(BaseIntermediateOutputPath)/**`——重定向后变成 `obj-aot/**`，**旧的 `obj/` 目录不再被排除**，其中残留的普通构建生成物（`obj/Debug/net10.0-windows.../App.g.cs`、`obj/Release/.../AssemblyInfo.cs` 等）全部回流进编译 glob，与新目录生成物重复 → CS0579/MAUIX2000/CS0234 连环报错。命令行全局传 `-p:BaseIntermediateOutputPath` 还会传染 ProjectReference（Core）同病。
+
+**修复**：`Directory.Build.props` 的 PublishAot 分支显式补回排除：
+```xml
+<DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+```
+一次性根治，之后 AOT 构建无需每次手动清 `obj/`。
+
+**教训**：
+1. **重定向 `Base*OutputPath` 后必须同步补 `DefaultItemExcludes`**，否则 SDK 对旧目录的默认排除失效——这是"输出目录重定向"方案的必配项，不是可选项。
+2. **命令行全局传 `Base*OutputPath` 是毒药**：全局属性传染整个项目图（ProjectReference 全中招）。目录级隔离必须放 `Directory.Build.props`（仅本目录项目生效），并保留"构建前清残留"的兜底。
+3. **构建期间不要并发清理中间产物**：`dotnet publish` 运行中删除 `obj/` 下文件会与构建写文件竞争 → `UnauthorizedAccessException: Access to the path ... denied`（MSB3491）。等构建完全结束（进程退干净）再清理，或依赖 DefaultItemExcludes 根治后不再需要清理。
+4. 此类"中间文件污染"的排障顺序：先看错误是编译期（CS0579 重复源）还是文件系统（Access denied 锁），前者清残留+修排除，后者查并发/残留进程。

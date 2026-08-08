@@ -79,7 +79,16 @@ docs/HANDOFF.md
 bin-aot/
 obj-aot/
 
+# MAUI 壳 NativeAOT 产物（3.4 门控，Directory.Build.props 重定向 bin-aot/obj-aot + PublishDir artifacts）
+Emuera.Maui/bin-aot/
+Emuera.Maui/obj-aot/
+Emuera.Maui/artifacts/
+
 # Android Native AOT 实验项目产物
 experiments/AndroidNativeAot/bin/
 experiments/AndroidNativeAot/obj/
+
+# 真机/模拟器取证临时产物（logcat、截屏）
+logcat_*.txt
+emuera_mumu_screen.png
 experiments/AndroidNativeAot/artifacts/
