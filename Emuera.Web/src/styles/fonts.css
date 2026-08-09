@@ -20,14 +20,11 @@
 
 /**
  * EmueraBlock——IPAGothic 缺失字形的补充字体（scripts/build_emblock_font.py 生成）。
- * 字形来源 Unifont 优先，程序化仅兜底：
- * - Unifont 提取（主体）：按 MS Gothic 实测宽度从 GNU Unifont 提取的补充字形
- *   （Box Drawing 虚线/粗线/圆角框、Block Elements、Geometric、Misc 符号等），
- *   逐字形复刻 MS Gothic 的 0.5em/1.0em 宽度。许可：GNU Unifont 双许可
- *   （GPLv2+ 字体嵌入例外 / SIL OFL 1.1），可嵌入；
- * - 程序化兜底（Unifont 未覆盖的少量字符）：Block Elements（U+2580–U+259F）半角、
- *   双线框（═║╔╗╚╝╠╣╦╩╬ U+2550–U+256C）全角、Geometric 三角（◢◣◤◥ U+25E2–U+25E5）
- *   半角（滑动条等脚本常用，MS Gothic 实测 0.5em）。
+ * 字形来源单一：DejaVu Sans（265 字符，无程序化字形）。
+ * Box/Block/Geometric/Misc 四区全覆盖（含 ◢◣◤◥ 三角、Block 象限 U+2596–259F），
+ * 平滑矢量轮廓，提取时按 MS Gothic 实测 bbox 仿射缩放——字形视觉大小与 MS
+ * Gothic 一致，advance 强制 MS 实测值（0.5em/1.0em）。
+ * 许可：Bitstream Vera Fonts 版权 + 自由许可（可嵌入、可再分发）。
  * 放在 EmueraMonoJP 之后：IPAGothic 有的字形它先用，缺失时逐字形回退到这里。
  */
 @font-face {

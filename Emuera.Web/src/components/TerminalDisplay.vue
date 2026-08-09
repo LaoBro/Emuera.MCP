@@ -93,8 +93,8 @@ const effectiveFontName = computed(() => game.fontName ?? 'ＭＳ ゴシック')
  * 'ＭＳ ゴシック' 是日文系统字体，非日文 Windows / Android 等平台没有——浏览器找不到时
  * 自动 fallback 到 'EmueraMonoJP'（内置 IPA ゴシック，与 MS Gothic 度量兼容，见 styles/fonts.css），
  * 保证固定网格排版跨平台一致；IPAGothic 缺失的字形由 'EmueraBlock' 逐字形回退补齐
- * （Unifont 提取为主，程序化仅兜底：Block Elements 半角 / 双线框全角 / 三角半角）；
- * 最后才退到 ui-monospace 链（覆盖 Windows/macOS/Linux 主流字体）。
+ * （DejaVu Sans 提取全部四区符号，无程序化字形）；最后才退到 ui-monospace 链
+ * （覆盖 Windows/macOS/Linux 主流字体）。
  */
 const MONOSPACE_FALLBACK = "'EmueraMonoJP', 'EmueraBlock', ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace";
 const effectiveFontFamily = computed(() => {

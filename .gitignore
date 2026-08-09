@@ -92,3 +92,4 @@ experiments/AndroidNativeAot/obj/
 logcat_*.txt
 emuera_mumu_screen.png
 experiments/AndroidNativeAot/artifacts/
+Emuera.Web/scripts/dejavu/DejaVuSans.ttf

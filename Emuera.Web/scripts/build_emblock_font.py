@@ -5,21 +5,20 @@ build_emblock_font.py — 生成 EmueraBlock 补充字体（woff2）。
 EmueraBlock 是 IPAGothic（EmueraMonoJP）缺失字形的补充字体，回退链：
 游戏字体 → EmueraMonoJP → EmueraBlock → 系统字体。
 
-字形来源分两部分（Unifont 优先，程序化仅兜底）：
-  1. Unifont 提取（可选，需先下载并分析）：
-     从 GNU Unifont 提取"MS Gothic 实测 advance 一致"的字符，逐字形复刻
-     MS Gothic 宽度（0.5em / 1.0em），覆盖 Box/Block/Geometric/Misc 四区中
-     IPAGothic 缺失且宽度匹配的字符。
-     - 下载：https://unifoundry.com/pub/unifont/unifont-17.0.05/font-builds/unifont-17.0.05.otf
-     - 分析：python scripts/analyze_unifont_widths.py scripts/unifont-17.0.05.otf --json scripts/width_match.json
-     - 许可：GNU Unifont 双许可（GPLv2+ 字体嵌入例外 / SIL OFL 1.1），可嵌入
-     - 对齐：Unifont 字形按轮廓中心垂直平移到与 IPAGothic 一致的格子中心（778/2048）
-  2. 程序化绘制（仅 Unifont 未覆盖的字符，无外部依赖，可复现）：
-     - Block Elements（U+2580–U+259F）：半角 0.5em
-     - 双线框（U+2550–U+256C 常用 11 个）：全角 1.0em
-     - Geometric 三角（U+25E2–U+25E5）：半角 0.5em（MS Gothic 实测）
+字形来源单一（DejaVu Sans 全接管，无程序化）：
+  DejaVu Sans 提取（需先下载并分析）：
+  从 DejaVu Sans（Bitstream Vera 衍生，自由许可可嵌入，平滑矢量轮廓）
+  提取 IPAGothic 缺失的四区符号（Box/Block/Geometric/Misc，265 字符，
+  含 ◢◣◤◥ 三角与 Block 象限 U+2596–259F）。
+  DejaVu 是比例字体（advance 各异），提取时以 analyze 脚本测得的
+  **MS Gothic 实测 bbox** 为目标矩形做仿射缩放（源 bbox → 目标 bbox,
+  居中），使字形视觉大小与 MS Gothic 完全一致；advance 强制 MS 实测值。
+  MS 缺失的字符（Block 象限）以 DejaVu 自身 bbox 居中到半角格子。
+  - 下载：https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip
+  - 分析：python scripts/analyze_dejavu_widths.py scripts/dejavu/DejaVuSans.ttf --json scripts/dejavu_width_match.json
+  - 许可：Bitstream Vera Fonts 版权 + 自由许可（可嵌入、可再分发）
 
-用法：python scripts/build_emblock_font.py [--unifont <otf>] [--match <json>]
+用法：python scripts/build_emblock_font.py [--dejavu <ttf>] [--dejavu-match <json>]
 输出：src/assets/fonts/EmueraBlock.woff2
 """
 from __future__ import annotations
@@ -27,12 +26,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from array import array
 
 from fontTools.fontBuilder import FontBuilder
-from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont
+from fontTools.ttLib.tables._g_l_y_f import Glyph, GlyphCoordinates, ttProgram
 
 UPM = 2048
 # 单元竖跨：与 IPAGothic 框线一致（-246 下过冲 / 1802 上界，跨度正好 2048）
@@ -57,125 +57,21 @@ def rects_glyph(rects):
     return pen.glyph()
 
 
-def poly_glyph(points):
-    """按顶点序列 (x,y) 画一个闭合多边形（单个 contour）。"""
-    pen = TTGlyphPen(None)
-    pen.moveTo(points[0])
-    for p in points[1:]:
-        pen.lineTo(p)
-    pen.closePath()
-    return pen.glyph()
+def extract_dejavu(dejavu_path, match_path, glyphs, cmap, metrics, order):
+    """从 DejaVu Sans 提取字形（平滑矢量轮廓），按 MS Gothic 实测 bbox 仿射缩放。
 
-
-def build_fallback(glyphs, cmap, metrics, order):
-    """程序化兜底字形：仅绘制 Unifont 未覆盖的字符（cp 已在 cmap 则跳过）。
-    覆盖：Block Elements（半角）+ 双线框（全角）+ Geometric 三角（半角）。
-    返回实际生成的程序化字形数。"""
-    count = 0
-
-    # ---------- Block Elements（半角，宽 1024） ----------
-    adv = UPM // 2
-    block = {}
-    for n in range(1, 9):                      # ▁..▇█ U+2581–2588
-        block[0x2580 + n] = [(0, Y_LO, adv, Y_LO + 256 * n)]
-    block[0x2594] = [(0, Y_HI - 256, adv, Y_HI)]   # ▔
-    block[0x2580] = [(0, YC, adv, Y_HI)]           # ▀
-    block[0x2584] = [(0, Y_LO, adv, YC)]           # ▄
-    for n in range(1, 8):                      # ▏..▉ U+258F–2589
-        block[0x258F - (n - 1)] = [(0, Y_LO, 128 * n, Y_HI)]
-    block[0x2590] = [(adv // 2, Y_LO, adv, Y_HI)]  # ▐
-    block[0x2595] = [(adv - 128, Y_LO, adv, Y_HI)] # ▕
-
-    def shade(keep):
-        return [(128 * c, Y_LO + 128 * r, 128 * c + 128, Y_LO + 128 * r + 128)
-                for r in range(16) for c in range(8) if keep(r, c)]
-
-    block[0x2591] = shade(lambda r, c: r % 2 == 0 and c % 2 == 0)   # ░
-    block[0x2592] = shade(lambda r, c: (r + c) % 2 == 0)            # ▒
-    block[0x2593] = shade(lambda r, c: not (r % 2 == 0 and c % 2 == 0))  # ▓
-
-    UL, UR = (0, YC, adv // 2, Y_HI), (adv // 2, YC, adv, Y_HI)
-    LL, LR = (0, Y_LO, adv // 2, YC), (adv // 2, Y_LO, adv, YC)
-    quads = {
-        0x2596: [LL], 0x2597: [LR], 0x2598: [UL], 0x2599: [UL, LL, LR],
-        0x259A: [UL, LR], 0x259B: [UL, UR, LL], 0x259C: [UL, UR, LR],
-        0x259D: [UR], 0x259E: [UR, LL], 0x259F: [LR, LL, UL],
-    }
-    for cp, rects in quads.items():
-        block[cp] = rects
-
-    for cp, rects in block.items():
-        if cp in cmap:
-            continue
-        name = f'block_{cp:04X}'
-        glyphs[name] = rects_glyph(rects)
-        order.append(name)
-        cmap[cp] = name
-        metrics[name] = (adv, 0)
-        count += 1
-
-    # ---------- 双线框（全角，宽 2048） ----------
-    H1 = (0, YC - (T + G), UPM, YC - G)
-    H2 = (0, YC + G, UPM, YC + G + T)
-    V1 = (XC - (T + G), Y_LO, XC - G, Y_HI)
-    V2 = (XC + G, Y_LO, XC + G + T, Y_HI)
-    V_PAIR, H_FULL = [V1, V2], [H1, H2]
-    H_RIGHT = [(XC, H1[1], UPM, H1[3]), (XC, H2[1], UPM, H2[3])]
-    H_LEFT = [(0, H1[1], XC, H1[3]), (0, H2[1], XC, H2[3])]
-    box = {
-        0x2550: H_FULL, 0x2551: V_PAIR,
-        0x2554: V_PAIR + H_RIGHT, 0x2557: V_PAIR + H_LEFT,
-        0x255A: V_PAIR + H_RIGHT, 0x255D: V_PAIR + H_LEFT,
-        0x2560: V_PAIR + H_RIGHT, 0x2563: V_PAIR + H_LEFT,
-        0x2566: V_PAIR + H_FULL, 0x2569: V_PAIR + H_FULL, 0x256C: V_PAIR + H_FULL,
-    }
-    for cp, rects in box.items():
-        if cp in cmap:
-            continue
-        name = f'box_{cp:04X}'
-        glyphs[name] = rects_glyph(rects)
-        order.append(name)
-        cmap[cp] = name
-        metrics[name] = (UPM, 0)
-        count += 1
-
-    # ---------- Geometric 三角（半角，宽 1024，MS Gothic 实测 0.5em） ----------
-    geo_adv = UPM // 2
-    BL, BR = (0, Y_LO), (geo_adv, Y_LO)
-    TL, TR = (0, Y_HI), (geo_adv, Y_HI)
-    geo = {
-        0x25E3: [BL, TL, BR],  # ◣
-        0x25E2: [BR, TR, BL],  # ◢
-        0x25E4: [TL, BL, TR],  # ◤
-        0x25E5: [TR, BR, TL],  # ◥
-    }
-    for cp, pts in geo.items():
-        if cp in cmap:
-            continue
-        name = f'geo_{cp:04X}'
-        glyphs[name] = poly_glyph(pts)
-        order.append(name)
-        cmap[cp] = name
-        metrics[name] = (geo_adv, 0)
-        count += 1
-
-    return count
-
-
-def extract_unifont(unifont_path, match_path, glyphs, cmap, metrics, order):
-    """从 Unifont 提取宽度匹配清单中的字形（CFF → TrueType，垂直居中到格子中心）。"""
-    if not (os.path.exists(unifont_path) and os.path.exists(match_path)):
-        print('未找到 Unifont otf / 匹配清单，跳过 Unifont 提取（仅程序化兜底字形）')
+    DejaVu 是比例字体（advance 各异），字形画在各自宽度的格子里。提取时以
+    analyze 脚本测得的 **MS Gothic 实测 bbox**（target 字段，2048 UPM 坐标）
+    为目标矩形，把 DejaVu 源字形 bbox 仿射映射过去（缩放 + 平移居中），
+    使字形视觉大小与 MS Gothic 完全一致；advance 强制 MS 实测值。
+    ◢◣◤◥ 由程序化直边三角接管（排除，避免 DejaVu 自带三角尺寸不一致）。"""
+    if not (os.path.exists(dejavu_path) and os.path.exists(match_path)):
+        print('未找到 DejaVu Sans ttf / 匹配清单，跳过 DejaVu 提取（仅程序化兜底）')
         return 0
 
-    uni = TTFont(unifont_path)
-    uni_upm = uni['head'].unitsPerEm
-    scale = UPM / uni_upm
-    uni_cmap = uni.getBestCmap()
-    hmtx = uni['hmtx'].metrics
-    cff = uni['CFF '].cff
-    top = cff[cff.fontNames[0]]
-    charstrings = top.CharStrings
+    dv = TTFont(dejavu_path)
+    dv_cmap = dv.getBestCmap()
+    glyf = dv['glyf']
 
     with open(match_path, encoding='utf-8') as f:
         items = json.load(f)['matched']
@@ -183,56 +79,71 @@ def extract_unifont(unifont_path, match_path, glyphs, cmap, metrics, order):
     count = 0
     for item in items:
         cp, em = item['cp'], item['em']
-        gname = uni_cmap.get(cp)
-        if gname is None or gname not in charstrings:
+        if cp in cmap:
             continue
-        cs = charstrings[gname]
+        gname = dv_cmap.get(cp)
+        if gname is None or gname not in glyf:
+            continue
+        glyph = glyf[gname]
+        # 空字形跳过（组合字形 contours=-1 由 getCoordinates 递归解析）
+        if glyph.numberOfContours == 0 and not getattr(glyph, 'components', None):
+            continue
         try:
-            # 注意：draw() 的 glyphSet 关键字参数在旧版 fontTools 不存在。
-            # Unifont 符号区为简单轮廓（无 seac 组合），直接 draw(pen) 即可；
-            # 组件由 TTGlyphPen/BoundsPen 构造时的 glyphSet 处理。
-            bp = BoundsPen(charstrings)
-            cs.draw(bp)
-            if bp.bounds is None:
+            # getCoordinates 递归解析组合字形（▣☰☷ 等）为轮廓点
+            coords, endpts, flags = glyph.getCoordinates(glyf)
+            if len(coords) == 0:
                 continue
-            _, ymin, _, ymax = bp.bounds
-            # 关键：Unifont UPM=64，坐标必须放大到 2048（×scale）再垂直居中到
-            # 格子中心 778。旧实现漏了 scale，字形只有原始尺寸（~3%），
-            # advance 正确但字形几乎不可见（表现为"字符消失、宽度正确"）。
-            dy = round(YC - (ymin + ymax) / 2 * scale)
-            pen = TTGlyphPen(charstrings)
-            tpen = TransformPen(pen, (scale, 0, 0, scale, 0, dy))
-            cs.draw(tpen)
+            xs = [p.real if hasattr(p, 'real') else p[0] for p in coords]
+            ys = [p.imag if hasattr(p, 'real') else p[1] for p in coords]
+            # 目标 bbox（analyze 已按 MS 实测换算到 2048 UPM 坐标）
+            tx0, ty0, tx1, ty1 = item['target']
+            sx0, sx1 = min(xs), max(xs)
+            sy0, sy1 = min(ys), max(ys)
+            if sx1 - sx0 <= 0 or sy1 - sy0 <= 0 or tx1 - tx0 <= 0 or ty1 - ty0 <= 0:
+                continue
+            # 仿射：源 bbox → 目标 bbox（缩放 + 平移，中心自然对齐）
+            sx = (tx1 - tx0) / (sx1 - sx0)
+            sy = (ty1 - ty0) / (sy1 - sy0)
+            dx = tx0 - sx0 * sx
+            dy = ty0 - sy0 * sy
+            # 直接用解析出的轮廓点构建简单字形（绕过 TTGlyphPen 组件问题）
+            new_coords = GlyphCoordinates(
+                (round(p.real * sx + dx) if hasattr(p, 'real') else round(p[0] * sx + dx),
+                 round(p.imag * sy + dy) if hasattr(p, 'real') else round(p[1] * sy + dy))
+                for p in coords
+            )
+            new_glyph = Glyph()
+            new_glyph.coordinates = new_coords
+            new_glyph.endPtsOfContours = list(endpts)
+            new_glyph.flags = array('B', flags)
+            new_glyph.numberOfContours = len(endpts)
+            new_glyph.program = ttProgram.Program()
         except Exception as e:  # noqa: BLE001
             print(f'  跳过 U+{cp:04X}（{e}）')
             continue
-        name = f'uni_{cp:04X}'
-        glyphs[name] = pen.glyph()
+        name = f'dv_{cp:04X}'
+        glyphs[name] = new_glyph
         order.append(name)
         cmap[cp] = name
-        adv = round(em * UPM)
-        _, uni_lsb = hmtx.get(gname, (0, 0))
-        metrics[name] = (adv, round(uni_lsb * scale))
+        metrics[name] = (round(em * UPM), round(dx))
         count += 1
-    print(f'Unifont 提取：{count} 字符（advance 按 MS Gothic 实测 em 换算到 2048 UPM）')
+    print(f'DejaVu Sans 提取：{count} 字符（按 MS Gothic 实测 bbox 仿射缩放）')
     return count
 
 
 def main():
     ap = argparse.ArgumentParser(description='生成 EmueraBlock 补充字体')
-    ap.add_argument('--unifont', default=os.path.join(SCRIPT_DIR, 'unifont-17.0.05.otf'),
-                    help='Unifont otf 路径（默认 scripts/unifont-17.0.05.otf）')
-    ap.add_argument('--match', default=os.path.join(SCRIPT_DIR, 'width_match.json'),
-                    help='宽度匹配清单 json（默认 scripts/width_match.json，由 analyze 脚本生成）')
+    ap.add_argument('--dejavu', default=os.path.join(SCRIPT_DIR, 'dejavu', 'DejaVuSans.ttf'),
+                    help='DejaVu Sans ttf 路径（默认 scripts/dejavu/DejaVuSans.ttf）')
+    ap.add_argument('--dejavu-match', default=os.path.join(SCRIPT_DIR, 'dejavu_width_match.json'),
+                    help='提取清单 json（默认 scripts/dejavu_width_match.json，由 analyze_dejavu_widths.py 生成）')
     args = ap.parse_args()
 
-    # Unifont 优先：先提取（宽度与 MS Gothic 一致的字符全部用 Unifont），
-    # 程序化仅在 Unifont 未覆盖时兜底。
+    # DejaVu 全接管：提取全部四区符号（含 ◢◣◤◥ 三角与 Block 象限），无程序化字形。
     glyphs, cmap, metrics, order = {}, {}, {}, ['.notdef']
     metrics['.notdef'] = (UPM, 0)
     glyphs['.notdef'] = rects_glyph([(0, 0, 2048, 1802)])
-    n = extract_unifont(args.unifont, args.match, glyphs, cmap, metrics, order)
-    p = build_fallback(glyphs, cmap, metrics, order)
+    n_dv = extract_dejavu(args.dejavu, args.dejavu_match, glyphs, cmap, metrics, order)
 
     fb = FontBuilder(UPM)
     fb.setupGlyphOrder(order)
@@ -245,10 +156,10 @@ def main():
     fb.setupNameTable({
         'familyName': 'EmueraBlock',
         'styleName': 'Regular',
-        'uniqueFontIdentifier': 'EmueraBlock 1.5',
+        'uniqueFontIdentifier': 'EmueraBlock 1.9',
         'fullName': 'EmueraBlock',
         'psName': 'EmueraBlock',
-        'version': 'Version 1.5',
+        'version': 'Version 1.9',
     })
     fb.setupPost()
     fb.setupMaxp()
@@ -257,7 +168,7 @@ def main():
     fb.font.flavor = 'woff2'
     fb.save(OUT)
     print(f'wrote {OUT} ({os.path.getsize(OUT)} bytes)')
-    print(f'glyphs: {len(order) - 1}（Unifont {n} + 程序化兜底 {p}）')
+    print(f'glyphs: {len(order) - 1}（DejaVu {n_dv}）')
 
 
 if __name__ == '__main__':
