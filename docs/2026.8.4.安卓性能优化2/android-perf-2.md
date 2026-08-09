@@ -211,29 +211,25 @@ Avalonia Application
 
 ### 3.1 可行性事实（已核实，写死避免重查）
 
-- [x] **反射障碍不存在**：`PluginManager.LoadPlugins()` 在 Android/SAF 路径直接抛异常禁用（`Emuera.Headless.Core/Shared/Runtime/Utils/PluginSystem/PluginManager.cs:272-280`），`Assembly.LoadFrom`/`Activator.CreateInstance`（L292-305）在 Android 不走。
+- [x] **Android 反射路径已隔离**：`PluginManager.LoadPlugins()` 在 Android/SAF 路径直接拒绝带 DLL 的 `Plugins` 目录（`Emuera.Headless.Core/Shared/Runtime/Utils/PluginSystem/PluginManager.cs:279-286`），因此 `Assembly.LoadFrom`/`Activator.CreateInstance`（L297-310）在 Android 不走。**桌面 NativeAOT 的真实插件加载尚未验证**，不能把“测试游戏没有 Plugins 目录”当作语义等价证明。
 - [x] 引擎核心无 AspNetCore 依赖（MAUI 只引 `Emuera.Headless.Core`，不引 Headless.Server/Cli）。
 - [x] `InternalsVisibleTo` 为编译期机制，不受 AOT 影响。
-- [ ] **待核实**：全仓库扫描 `Expression.Compile`（AOT 下退化为解释模式、变慢）与 `Type.GetType(字符串)` 隐式反射。
+- [x] 全仓库扫描 `Expression.Compile` 与 `Type.GetType(字符串)`：当前维护路径无匹配；动态反射仅剩 `PluginManager`，Android 路径已禁用，桌面插件加载仍需单独 AOT fixture 验证。
 
 ### 3.2 引擎先行实验（低风险，先做）
 
-- [ ] 新建 NativeAOT 验证分支（不并入主分支）：给 `Emuera.Headless.Cli` 或独立最小入口加 `PublishAot=true`，**先 `-r win-x64`**（零 Android 工具链依赖，快速闭环），跑通后出 `android-arm64`。
-- [ ] 记录并清零 ILC 警告：IL3050（动态代码）、IL3053、IL2026（反射）、IL2067 等；**原则：清零或逐条注明豁免理由**，不许静默 suppress。
-- [ ] 行为等价回归：304+ xUnit 用例（在 net10.0 桌面跑）+ `run_all.py` 14/14 + 前端 224 用例——**NativeAOT 产物跑同一回归矩阵，输出与 Mono AOT 逐字节一致**。
-- [ ] 记录：编译耗时（CI 预算参考）、单文件体积、泛型结构体膨胀对体积的影响（`GlobalInt1dWrapper` 等值类型包装器是典型膨胀源）。
-- [ ] **验收**：ILC 警告清零 + 回归矩阵全绿 + 体积记录在案。通过后进入 3.3；不通过则回退并记录阻塞点。
+- [x] 新建并合并 NativeAOT 验证分支：`Emuera.Headless.Cli` 的 `PublishAot=true`、`win-x64` 发布已闭环；纯 SDK `android-arm64` 路径经验证不可用，Android 形态改走 MAUI workload。
+- [x] 记录 ILC 警告并逐条处理：可代码修复项已清零；DataTable、插件、`Lang` 等保留项均有源码位置和 Justification。**这不是“零警告”**：`IL3053/XA1040` 仍是 Android 构建的降级提示，桌面插件和 `Lang` 裁剪行为仍需补验证。
+- [x] 行为等价回归：NativeAOT 产物已通过 xUnit 685/685、`run_all.py` 14/14，协议 wire 与托管基线一致。
+- [x] 记录：win-x64 单文件约 26.2 MB，增量发布约 52 s，详见 `nativeaot-verify-report.md` §4。
+- [x] **引擎侧验收**：NativeAOT 构建、回归和体积记录完成；“ILC 警告清零”收窄为“代码修复或逐条有证据的例外”。这只完成引擎验证，不代表 MAUI 壳已达到生产门槛。
 
-### 3.3 迁移清单（硬性改造，仅一处）
+### 3.3 迁移与验证清单
 
-- [ ] **System.Text.Json 反射 → 源生成器**（唯一硬性改造，一两天量级）：
-  - [ ] 新增 `JsonSerializerContext`（源生成）声明，覆盖：`TurnRecord`、`DisplayState` 快照类型、`JsonlCommand`、`JSONConfigData`。
-  - [ ] 改造 8 处调用点：`AgentJsonlProtocol.cs:76/92/203/266`、`DisplayState.cs:443`（`GetSnapshotJson`）、`JSONConfig.cs:28/36/46`。
-  - [ ] **重点**：`TurnRecord.cs:117/133` 两个 `JsonSerializer.Serialize(writer, (object)value, options)` 装箱 converter——AOT 下必炸，改为 `[JsonConverter]` 特性 + 源生成上下文。
-  - [ ] 验收：单测（含序列化 roundtrip）+ 前端协议兼容性回归（wire 格式不得变化）。
-- [ ] **`System.Data.DataTable` 子集验证**（`PluginManager.GetDataTable` / `GetIntVar` 等 API 用到）：AOT 下 `DataColumn.Expression` 等反射路径受限——用现有测试覆盖实际用到的子集（建表/读值/改值），记录结论。
-- [ ] **`Emuera.Maui.csproj:36` 关联点**：`AndroidEnableMarshalMethods=false`（XAGNM7009 workaround）与 NativeAOT 的 JNI 通道（Marshal Methods）可能冲突——进入 3.4 前必须重新评估此开关。
-- [ ] 验收：引擎 NativeAOT 产物在 CLI 模式下跑通 test_game 全流程 + 回归全绿。
+- [x] **System.Text.Json 反射 → 源生成器**：`EmueraJsonContext`/`ServerJsonContext` 已覆盖协议、快照和配置类型；converter 多态通过基类 `[JsonConverter]` 与 `GetTypeInfo` 保留，wire 回归通过。
+- [x] **`System.Data.DataTable` 子集验证**：`tests/test_datatable_aot.py` 托管+AOT 双跑 13/13；DT 全指令链及 XML 往返可用，异 key 失败是 .NET Core 固有行为。
+- [x] **`AndroidEnableMarshalMethods=false` 评估**：当前引擎侧 P/Invoke 仅终端平台层，NativeAOT 验证无需迁移到 `LibraryImport`；MAUI JNI 真机门控仍单独保留。
+- [x] 引擎 NativeAOT 产物已跑通 `test_game` 全流程和回归矩阵。
 
 ### 3.4 MAUI 壳 NativeAOT（现在可构建，独立门控）
 
@@ -241,15 +237,16 @@ Avalonia Application
 > **2026.8.7 MAUI workload 预检已通过构建门槛**：当前 `.NET 10 + Microsoft.Android workload 36.1.69` 在 `PublishAot=true`、`android-arm64` 下能生成签名 APK；这条路径不需要 Avalonia，也不必等待 .NET 11 才能开始。未通过的是“生产门槛”：静态分析警告治理、真机启动和 JNI/SAF/WebView 全流程仍待完成。
 > **2026.8.7 .NET 11 评估完成（`android-perf-2-net11-eval.md`）**：.NET 11 Preview 4-6 将 CoreCLR 定为 Android 默认运行时、Android interop trimmable type map 默认开启（Java interop 首次实质松动），但：① NativeAOT 仍 experimental；② 最低 API 21→24 与低端机覆盖冲突；③ Preview 6 起 Mono 回退属性移除（升 .NET 11 = 单程票）。**结论：.NET 11 GA（2026-11 前后）仍是生产切换复评窗口，不是当前开始 NativeAOT 构建的前置条件。**
 
-- [ ] **构建门控**：保留独立 `NativeAOT` 发布配置，使用 `PublishAot=true`、`RunAOTCompilation=false`；`TreatWarningsAsErrors=false` 只允许用于预检，生产配置必须逐条处理/豁免 IL2026、IL3050、IL2072 等警告。
-- [ ] **运行门控**：引擎先行验证（3.2/3.3，.NET 10）通过 **且** 当前 MAUI NativeAOT `android-arm64` APK 在真实设备启动并通过全流程；再做冷/二次启动、包体、内存 P50/P95 与现有 Mono Full AOT 基线 A/B。
+- [ ] **构建门控（部分完成）**：独立配置已使用 `PublishAot=true`、`RunAOTCompilation=false`，MAUI Android APK 可构建；生产护栏已恢复 `TreatWarningsAsErrors=true`，但 Android 的 `XA1040/IL3053` 仍作条件降级，且条件需进一步收窄到 Android TFM。插件动态加载和 `Lang` 反射扫描不能仅凭当前测试视为已验证。
+- [ ] **运行门控**：引擎先行验证（3.2/3.3，.NET 10）已通过；当前 MAUI NativeAOT `android-arm64` APK 仍未完成真实设备启动及 JNI/SAF/WebView 全流程，不能进入冷/二次启动、包体、内存 P50/P95 的生产 A/B。
 - [ ] 冒烟测试清单（切换前）：SAF 选目录/读游戏文件/存读档全流程、WebView 渲染 + 手势、`TinputCountdown`/输入框、捏合缩放。
 - [ ] 切换后回归：`Emuera.Maui.Tests` + 真机全流程 + 启动耗时 A/B（271ms vs 1200ms 目标验证——注意该数字为 NativeAOT 演示值，CoreCLR 官方口径仅 Mono ±10%）。
-- [ ] 期间保持 Mono Full AOT 作为壳层基线（现状不动；**仅 .NET 10 内成立**——.NET 11 Preview 6 已移除 Mono 回退）。
+- [x] 期间保持 Mono Full AOT 作为壳层基线（现状不动；**仅 .NET 10 内成立**——.NET 11 Preview 6 已移除 Mono 回退）。
+- [ ] 收尾 NativeAOT 例外：将 `WarningsNotAsErrors` 限定 Android TFM；为桌面插件加载增加真实 AOT fixture 或在 NativeAOT 下显式禁用；为 `Lang.queryManagedClass` 增加 DynamicDependency/DAM 或源生成注册，并补充裁剪后翻译完整性测试。
 - [ ] ABI/系统版本策略：先以 `android-arm64` 为 NativeAOT 主验证包，`android-x64` 仅用于模拟器/兼容性验证；API 21-23 的实际可用性必须用设备矩阵确认，NativeAOT 冒烟不通过时继续发布当前 Mono Full AOT 包。
 - [ ] 附加（.NET 11 红利）：真机 dotnet-trace/dotnet-counters 归因取证（阶段 0 工具链统一）；`AndroidEnableMarshalMethods=false`（XAGNM7009）在 CoreCLR/NativeAOT 下重评。
 
-**阶段 1 验收**：引擎侧 NativeAOT 验证分支达成"ILC 清零 + 全矩阵等价"；壳层切换有明确门控结论（做 / 等 / 不做）与冒烟结果。
+**阶段 1 验收**：引擎侧 NativeAOT 达成“代码级警告修复或逐条有证据例外 + 全矩阵等价”；壳层切换仍须有明确门控结论（做 / 等 / 不做）与真实设备冒烟结果。
 
 ---
 
@@ -333,10 +330,10 @@ Avalonia Application
 | 2.2 | 前端三段计时 | ☐ | |
 | 2.3 | 前端分配统计 | ☐ | |
 | 2.4 | 引擎回合耗时基线 | ☐ | |
-| 3.1 | 可行性事实核实 | ✅ 部分 | 反射/插件/AspNetCore 已核实；`Expression.Compile`/`Type.GetType` 扫描已补（全仓零匹配，动态反射仅 PluginManager 一处，Android 禁用） |
-| 3.2 | NativeAOT 引擎先行（win-x64 → android-arm64） | ✅ win-x64 达成；⚠️ 纯 SDK CLI android-arm64 不通；MAUI workload 构建预检通过 | 验证分支 `nativeaot-verify`：win-x64 产物 26.2MB 单文件，xUnit 685/685 + run_all 14/14 全绿；纯 `net10.0` CLI 的 android-arm64 仍受 KnownILCompilerPack/Cross-OS/ILC 包限制；但当前 `Emuera.Maui` 用 `Microsoft.Android.Runtime.NativeAOT.36.android-arm64` 已生成签名 APK。仍待 IL 警告治理和真机运行，不把 `.NET 11 GA` 当作构建前置。已保留 android 条件编译基础（排除 Server/Kestrel）。详见 `nativeaot-verify-report.md` §7 |
-| 3.3 | JSON 源生成器迁移 + DataTable 验证 + MarshalMethods 评估 | ✅ 完成 | JSON 源生成器迁移（`EmueraJsonContext`/`ServerJsonContext`，wire 不变——xUnit relaxed escaping 断言验证）；DataTable 子集验证通过（`tests/test_datatable_aot.py`，托管+AOT 双跑 13/13：DT_* 全指令链 + XML 往返实测可用；发现 DT_FROMXML 异 key 失败为 .NET Core 固有行为非 AOT 回归）；MarshalMethods 重评：P/Invoke 仅终端平台层，AOT 已验证无需迁移 LibraryImport |
-| 3.4 | MAUI 壳 NativeAOT（运行门控） | ☐ | .NET 10 workload 已通过 `android-arm64` 构建预检；待 IL 警告治理、真机启动与 JNI/SAF/WebView 全流程，.NET 11 GA 后复评生产性 |
+| 3.1 | 可行性事实核实 | ✅ 部分 | `Expression.Compile`/`Type.GetType` 扫描全仓零匹配；Android/SAF 插件反射路径已隔离，但桌面 NativeAOT 的真实 DLL 插件加载和 `Lang` 裁剪完整性仍未验证 |
+| 3.2 | NativeAOT 引擎先行（win-x64 → android-arm64） | ✅ 引擎验证完成；⚠️ Android 走 MAUI workload | `nativeaot-verify` 已合并：win-x64 产物 26.2MB 单文件，xUnit 685/685 + `run_all.py` 14/14 全绿；纯 `net10.0` CLI 的 android-arm64 受 KnownILCompilerPack/Cross-OS 限制不可用。 |
+| 3.3 | JSON 源生成器迁移 + DataTable 验证 + MarshalMethods 评估 | ✅ 完成 | `EmueraJsonContext`/`ServerJsonContext`、converter 多态、DataTable 13/13 和 MarshalMethods 评估均完成；剩余的是有明确记录的静态分析例外，不宣称零风险。 |
+| 3.4 | MAUI 壳 NativeAOT（运行门控） | ⚠️ 构建门槛部分完成 | `.NET 10` workload 可生成签名 `android-arm64` APK，质量护栏已恢复；待收窄警告降级条件、验证桌面插件/`Lang` 裁剪语义，以及真实设备 JNI/SAF/WebView 全流程。生产切换前继续保持 Mono Full AOT。 |
 | 4.1 | GC 配置（SustainedLowLatency / LOH） | ☐ | |
 | 4.2 | 前端数据层分配 | ☐ | |
 | 4.3 | 剩余热路径（数据驱动） | ☐ | |
