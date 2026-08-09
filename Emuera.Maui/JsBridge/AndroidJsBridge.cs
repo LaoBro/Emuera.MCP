@@ -19,12 +19,12 @@ namespace Emuera.Maui.JsBridge;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="Attach"/>：从 MAUI <see cref="WebView"/> 取 <see cref="AWebView"/> 平台视图，
+/// <see cref="Attach"/>：从 MAUI <see cref="Microsoft.Maui.Controls.WebView"/> 取 <see cref="AWebView"/> 平台视图，
 /// 调 <see cref="AWebView.AddJavascriptInterface(Java.Lang.Object, string?)"/> 注册 <see cref="Bridge"/> 实例，
 /// JS 端通过 <c>window.emueraBridge.postMessage(json)</c> 触发 <see cref="Bridge.PostMessage"/> → <see cref="InputReceived"/>。
 /// </para>
 /// <para>
-/// <see cref="PostTurn"/>：调 <see cref="AWebView.EvaluateJavaScript(string?, JValueCallback?)"/>
+/// <see cref="PostTurn"/>：调 <c>AWebView.EvaluateJavascript(string, IValueCallback)</c>
 /// 执行 <c>window.__emueraOnTurn(turnJson)</c>——turnJson 作为 JS 字面量直接嵌入（JSON ⊂ JS 字面量）。
 /// </para>
 /// <para>
@@ -223,11 +223,15 @@ internal sealed class AndroidJsBridge : IJsBridge
 				else
 				{
 					Android.Util.Log.Info("EmueraMaui", $"BridgeClient action: {host}");
-					BridgeUrlReceived?.Invoke(host);
+					BridgeUrlReceived?.Invoke(host ?? string.Empty);
 					return true;
 				}
 			}
-			return base.ShouldOverrideUrlLoading(view, request);
+			// ShouldOverrideUrlLoading(WebView?, IWebResourceRequest?) 两参重载仅 API 24+ 受支持；
+			// minSdk 21 下框架不会调用此重载（走单参 deprecated 重载），guard 仅为满足 CA1416。
+			if (OperatingSystem.IsAndroidVersionAtLeast(24))
+				return base.ShouldOverrideUrlLoading(view, request);
+			return false;
 		}
 	}
 
@@ -262,7 +266,7 @@ internal sealed class AndroidJsBridge : IJsBridge
 
 				var rel = $"wwwroot/{path}";
 				Android.Util.Log.Info("EmueraMaui", $"WwwrootPathHandler: open {rel}");
-				using var stream = _context.Assets.Open(rel);
+				using var stream = _context.Assets!.Open(rel);
 				using var ms = new MemoryStream();
 				stream.CopyTo(ms);
 				var mime = GetMimeType(rel);
@@ -291,7 +295,7 @@ internal sealed class AndroidJsBridge : IJsBridge
 			var ext = System.IO.Path.GetExtension(path);
 			if (string.IsNullOrEmpty(ext))
 				return "application/octet-stream";
-			var mime = MimeTypeMap.Singleton.GetMimeTypeFromExtension(ext.TrimStart('.').ToLowerInvariant());
+			var mime = MimeTypeMap.Singleton?.GetMimeTypeFromExtension(ext.TrimStart('.').ToLowerInvariant());
 			if (!string.IsNullOrEmpty(mime))
 				return mime!;
 			return ext.ToLowerInvariant() switch

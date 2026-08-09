@@ -35,6 +35,7 @@ namespace Emuera.Maui;
 /// 让 <c>BridgeHost</c> / <c>WindowsJsBridge</c> 的 <c>Console.WriteLine</c> 诊断日志可见。
 /// Release 构建不创建 console（避免终端用户看到调试输出）。
 /// </para>
+/// </summary>
 public static class MauiProgram
 {
     [DllImport("kernel32.dll", SetLastError = true)]

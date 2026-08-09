@@ -14,9 +14,11 @@
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<!-- Headless 主项目用 TreatWarningsAsErrors=true 收紧；MAUI 项目模板默认不收紧，
-		     Phase 1 保持宽松以避免 MAUI 自身生成代码的警告阻塞构建。Phase 2 评估收紧。-->
-		<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+		<!-- 质量护栏（Phase 2 已开启，非 NativeAOT 配置先行）：自有源码 + SourceGen 生成代码
+		     （Styles.xaml 模板遗留 Frame/ListView 样式已删除）的 39 条警告已全部修复——
+		     XML 注释 / 空引用 / 过时 API / 平台版本，TreatWarningsAsErrors 收紧。
+		     若新增 warning 变 error，先修复根因，勿用 NoWarn 豁免。-->
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 

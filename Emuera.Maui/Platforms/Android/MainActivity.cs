@@ -57,13 +57,15 @@ public class MainActivity : MauiAppCompatActivity
             if (OperatingSystem.IsAndroidVersionAtLeast(30))
             {
                 var controller = WindowCompat.GetInsetsController(Window!, Window!.DecorView!);
-                controller.Hide(WindowInsetsCompat.Type.SystemBars());
-                controller.SystemBarsBehavior = WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
+                if (controller != null)
+                {
+                    controller.Hide(WindowInsetsCompat.Type.SystemBars());
+                    controller.SystemBarsBehavior = WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
+                }
             }
             else
             {
-                Window!.DecorView!.SystemUiVisibility = (StatusBarVisibility)(
-                    SystemUiFlags.Fullscreen | SystemUiFlags.HideNavigation | SystemUiFlags.ImmersiveSticky);
+                Window!.DecorView!.SystemUiFlags = SystemUiFlags.Fullscreen | SystemUiFlags.HideNavigation | SystemUiFlags.ImmersiveSticky;
             }
         }
         catch (Exception ex)

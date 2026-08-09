@@ -88,7 +88,7 @@ internal interface IJsBridge
 	/// <para>
 	/// 平台实现：
 	/// <list type="bullet">
-	///   <item>Windows：<see cref="WindowsJsBridge.PickFolderAsync"/> 重写此方法——
+	///   <item>Windows：<c>WindowsJsBridge.PickFolderAsync</c> 重写此方法——
 	///     WinRT <c>Windows.Storage.Pickers.FolderPicker</c>。
 	///     .NET 10 MAUI (10.0.20) 的 <c>Microsoft.Maui.Storage</c> 没有 <c>FolderPicker</c> 类型
 	///     （<c>FilePicker</c> 存在但 <c>FolderPicker</c> 不存在），故直接用 WinRT API。

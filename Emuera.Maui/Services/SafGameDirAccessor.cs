@@ -71,7 +71,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
     /// <summary>根据 URI 类型选择正确的文档 ID 提取方法——树 URI 用 GetTreeDocumentId，文档 URI 手动从路径提取。</summary>
     private static string ResolveDocId(Android.Net.Uri docUri)
     {
-        var uriStr = docUri.ToString();
+        var uriStr = docUri.ToString() ?? string.Empty;
         var posDoc = uriStr.LastIndexOf("/document/", StringComparison.Ordinal);
         // 文档 URI（.../document/...）：手动从路径提取完整文档 ID（GetDocumentId 对 %2F 编码只返回第一段）
         if (posDoc >= 0)
@@ -592,7 +592,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
                 {
                     var docId = ResolveDocId(baseUri);
                     var childUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, $"{docId}/{filename}");
-                    return childUri.ToString()!;
+                    return childUri!.ToString()!;
                 }
             }
             catch
@@ -698,7 +698,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
             if (childIsDir == isDir && (pattern == null || Wildcard.Matches(DisplayNameForMatch(child, pattern), pattern)))
             {
                 var childDocUri = DocumentsContract.BuildDocumentUriUsingTree(_treeAndroidUri!, child.DocId);
-                result.Add(childDocUri.ToString()!);
+                result.Add(childDocUri!.ToString()!);
             }
             if (recursive && childIsDir)
                 EnumerateUri(child.DocId, result, isDir, pattern, true);
@@ -738,7 +738,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         try
         {
             using var cursor = _context.ContentResolver!.Query(
-                childrenUri,
+                childrenUri!,
                 new[]
                 {
                     DocumentsContract.Document.ColumnDocumentId,
@@ -941,7 +941,7 @@ internal sealed class SafGameDirAccessor : IGameDirAccessor
         // FileExists / OpenRead / OpenWrite / Delete 统一受益：每文件 3 次 IPC → 0 次）
         var docId = ResolveDocId(docUri);
         var slash = docId.LastIndexOf('/');
-        var parentId = slash < 0 ? DocumentsContract.GetTreeDocumentId(_treeAndroidUri) : docId[..slash];
+        var parentId = slash < 0 ? DocumentsContract.GetTreeDocumentId(_treeAndroidUri)! : docId[..slash];
         var name = slash < 0 ? docId : docId[(slash + 1)..];
         if (_childCache.Get(parentId) is { } children)
         {

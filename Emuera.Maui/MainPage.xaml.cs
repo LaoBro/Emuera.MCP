@@ -24,7 +24,7 @@ namespace Emuera.Maui;
 /// URL 平台分叉（spec ID6）：
 /// <list type="bullet">
 ///   <item>Windows: <c>https://app.local/index.html</c>（unpackaged 模式下用 WebView2 虚拟主机映射，
-///     <see cref="WindowsJsBridge.Attach"/> 内调 <c>SetVirtualHostNameToFolderMapping</c> 把
+///     <c>WindowsJsBridge.Attach</c> 内调 <c>SetVirtualHostNameToFolderMapping</c> 把
 ///     <c>app.local</c> 映射到输出目录 wwwroot/）</item>
 ///   <item>Android: <c>file:///android_asset/wwwroot/index.html</c>（Android WebView + APK assets/）</item>
 /// </list>
@@ -37,6 +37,7 @@ namespace Emuera.Maui;
 /// <see cref="_host"/> / <see cref="_configData"/> / <see cref="_terminalSetup"/> 为可变字段，
 /// reload 时替换为新实例。
 /// </para>
+/// </summary>
 /// <remarks>
 /// <see cref="BridgeHost"/> 在 <see cref="OnDisappearing"/> 或 <see cref="RecreateHost"/> 时
 /// <see cref="BridgeHost.Dispose"/>——前者是页面销毁（Windows <c>Window.Closed</c> / Android <c>Activity.OnDestroy</c>），
@@ -121,12 +122,12 @@ public partial class MainPage : ContentPage
     /// 按平台返回 WebView 加载 URL（spec ID6）。
     /// <para>
     /// Windows unpackaged 模式下用 <c>https://app.local/index.html</c>——
-    /// <see cref="WindowsJsBridge.Attach"/> 内 <c>SetVirtualHostNameToFolderMapping</c>
+    /// <c>WindowsJsBridge.Attach</c> 内 <c>SetVirtualHostNameToFolderMapping</c>
     /// 把 <c>app.local</c> 映射到输出目录 <c>wwwroot/</c>。
     /// </para>
     /// <para>
     /// Android 用 <c>https://game.local/wwwroot/index.html</c>——
-    /// <see cref="AndroidJsBridge.Attach"/> 内 <see cref="AndroidX.WebKit.WebViewAssetLoader"/>
+    /// <c>AndroidJsBridge.Attach</c> 内 <see cref="AndroidX.WebKit.WebViewAssetLoader"/>
     /// 注册 <c>/wwwroot/</c> PathHandler（AssetsPathHandler 读 <c>android_asset/wwwroot/</c>）。
     /// **不能用 <c>file:///android_asset/...</c>**：file:// 页面里的 https:// 子资源请求
     /// 不会进入 <c>shouldInterceptRequest</c>（AndroidX WebViewAssetLoader 的官方设计前提：
@@ -162,7 +163,7 @@ public partial class MainPage : ContentPage
         _host = new BridgeHost(Dispatcher, _configData, _terminalSetup, _jsBridge, OnReloadGame, OnGameExited);
     }
 
-    /// <summary>ADR-0019：防止 auto-start 被多次触发。</summary>
+    /// <summary>ADR-0019：防止 auto-start 被多次触发。
     /// <para>
     /// 与 <see cref="OnReloadGame"/> 的区别：
     /// <list type="bullet">
@@ -202,7 +203,7 @@ public partial class MainPage : ContentPage
     /// </para>
     /// <para>
     /// <b>线程</b>：BridgeHost.HandleLoadGame 在 OnInputFromJs 内调此方法（UI 线程）；
-    /// 后台初始化用 <see cref="Task.Run"/>；UI 重建用 <see cref="IDispatcher.Dispatch"/>。
+    /// 后台初始化用 <see cref="Task.Run(System.Action)"/>；UI 重建用 <see cref="IDispatcher.Dispatch"/>。
     /// </para>
     /// </summary>
     /// <param name="gamePath">用户选中的游戏目录绝对路径。</param>

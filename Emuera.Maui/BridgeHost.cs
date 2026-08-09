@@ -26,7 +26,7 @@ namespace Emuera.Maui;
 /// </para>
 /// <para>
 /// <b>启动时序（spec ID7）</b>：构造不启动游戏循环。Vue 启动后 <c>postMessage({"type":"ready"})</c>，
-/// <see cref="OnInputFromJs"/> 识别 ready 后调 <see cref="Start"/>，<see cref="Task.Run"/> 启动
+/// <see cref="OnInputFromJs"/> 识别 ready 后调 <see cref="Start"/>，<see cref="Task.Run(System.Action)"/> 启动
 /// <see cref="GameLoopComposer.RunAsync"/>。Vue ready 是游戏循环启动的前置条件，第一帧 turn 自然推给已 ready 的 Vue。
 /// </para>
 /// <para>
@@ -41,6 +41,7 @@ namespace Emuera.Maui;
 /// Vue 端 <c>loadGameFromPath(path)</c> 投递 <c>{"type":"loadGame","path":...}</c> →
 /// <see cref="HandleLoadGame"/> 调 <c>_onReloadGame(path)</c> 让 <c>MainPage</c> 重建 BridgeHost。
 /// </para>
+/// </summary>
 /// <remarks>
 /// 生命周期：在 <c>MainPage</c> 构造时 new（不启动游戏循环），在 <c>MainPage.OnDisappearing</c> 或
 /// <c>MainPage.RecreateHost</c>（issue 09 hot-swap reload）时 <see cref="Dispose"/>。
@@ -856,7 +857,7 @@ internal sealed class BridgeHost : IDisposable
     /// <c>Intent.SetData(Android.Net.Uri.FromParts("package", PackageName, null))</c>
     /// </para>
     /// <para>
-    /// API < 30 降级：打开应用详情设置页（<c>Settings.ActionApplicationDetailsSettings</c>），
+    /// API &lt; 30 降级：打开应用详情设置页（<c>Settings.ActionApplicationDetailsSettings</c>），
     /// 用户可在此授予 READ_EXTERNAL_STORAGE。
     /// </para>
     /// <para>
@@ -920,10 +921,10 @@ internal sealed class BridgeHost : IDisposable
     }
 
     /// <summary>
-    /// 启动游戏循环——<see cref="Task.Run"/> 后台执行 <see cref="GameLoopComposer.RunAsync"/>。
+    /// 启动游戏循环——<see cref="Task.Run(System.Action)"/> 后台执行 <see cref="GameLoopComposer.RunAsync"/>。
     /// <para>
     /// 仅首次调用启动游戏循环；重复调用（多次 ready 信号等）幂等忽略。
-    /// <see cref="CancellationTokenSource"/> 控制取消——<see cref="Dispose"/> 调 <see cref="CancellationTokenSource.Cancel"/>。
+    /// <see cref="CancellationTokenSource"/> 控制取消——<see cref="Dispose"/> 调 <see cref="CancellationTokenSource.Cancel()"/>。
     /// </para>
     /// <para>
     /// 异常处理在 <see cref="GameLoopAsync"/> 内：<see cref="GameExitException"/> 静默（ERB QUIT 正常退出），
@@ -1188,7 +1189,7 @@ internal sealed class BridgeHost : IDisposable
     /// <summary>
     /// 释放桥接资源——fire-and-forget，不阻塞 UI 线程（spec ID9）。
     /// <para>
-    /// <b>关键约束</b>：UI 线程不阻塞——不调 <see cref="Task.Wait"/> / <c>GetAwaiter().GetResult()</c>。
+    /// <b>关键约束</b>：UI 线程不阻塞——不调 <see cref="Task.Wait()"/> / <c>GetAwaiter().GetResult()</c>。
     /// 正常关闭路径（用户点关闭，游戏循环在 <c>ReadLineAsync</c> await）游戏循环毫秒级退出，
     /// <c>using (var scope = GlobalStatic.OpenScope(...))</c> 的 finally 跑 scope Dispose，I-11 退出存活覆盖。
     /// 异常路径（卡在同步 ERB）进程强杀，scope Dispose 不跑——I-11 不覆盖异常退出，可接受。
@@ -1196,10 +1197,10 @@ internal sealed class BridgeHost : IDisposable
     /// <para>
     /// <b>步骤</b>：
     /// <list type="number">
-    ///   <item><see cref="CancellationTokenSource.Cancel"/>——通知 <c>RunLoopAsync</c> 退出
+    ///   <item><see cref="CancellationTokenSource.Cancel()"/>——通知 <c>RunLoopAsync</c> 退出
     ///     （<c>externalCt.IsCancellationRequested</c> 跳出循环）</item>
     ///   <item><see cref="MauiBridgeIO.Close"/>——关 Channel，<c>ReadLineAsync</c> 返回 null 让循环退出</item>
-    ///   <item><see cref="Task.ContinueWith"/>——诊断日志，<see cref="TaskScheduler.Default"/> 在线程池跑</item>
+    ///   <item><see cref="Task.ContinueWith(System.Action{System.Threading.Tasks.Task, object?}, object?)"/>——诊断日志，<see cref="TaskScheduler.Default"/> 在线程池跑</item>
     /// </list>
     /// </para>
     /// <para>
