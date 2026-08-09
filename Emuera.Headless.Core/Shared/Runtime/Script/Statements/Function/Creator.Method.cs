@@ -14,6 +14,7 @@ using MinorShift.Emuera.UI.Game.Image;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -1345,6 +1346,12 @@ internal static partial class FunctionMethodCreator
 			op = type;
 		}
 		private Operation op;
+		// NativeAOT 豁免（已登记：nativeaot-verify-report.md §5.2）：列类型解析经
+		// Utils.DataTable.NameToType/IntToType 返回内置基础类型（string/long 等）后传入
+		// DataColumnCollection.Add(string, Type)（要求 PublicFields|PublicProperties）。
+		// 返回值来自静态数组/字典，DAM 无法注解（Dictionary<string,Type> 元素不支持），
+		// 故在唯一调用点豁免；基础类型元数据天然保留，运行时无裁剪风险。
+		[UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "列类型解析返回内置基础类型（NameToType/IntToType），DAM 无法注解字典值")]
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string key = arguments[0].GetStrValue(exm);
@@ -1540,6 +1547,9 @@ internal static partial class FunctionMethodCreator
 					];
 			CanRestructure = false;
 		}
+		// NativeAOT 豁免（已登记：nativeaot-verify-report.md §5.2）：DataTable.Select 表达式
+		// 触发 IL2026；tests/test_datatable_aot.py 13/13 实测可用，豁免附证据。
+		[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "DataTable.Select 表达式实测 NativeAOT 可用（test_datatable_aot.py 13/13）")]
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string key = arguments[0].GetStrValue(exm);
@@ -1683,6 +1693,9 @@ internal static partial class FunctionMethodCreator
 				];
 			CanRestructure = false;
 		}
+		// NativeAOT 豁免（已登记：nativeaot-verify-report.md §5.2）：DataTable.Select 表达式
+		// 触发 IL2026；tests/test_datatable_aot.py 13/13 实测可用，豁免附证据。
+		[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "DataTable.Select 表达式实测 NativeAOT 可用（test_datatable_aot.py 13/13）")]
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			var key = arguments[0].GetStrValue(exm);
@@ -1718,6 +1731,10 @@ internal static partial class FunctionMethodCreator
 				];
 			CanRestructure = false;
 		}
+		// NativeAOT 豁免（已登记：nativeaot-verify-report.md §5.2）：DataTable.WriteXmlSchema/WriteXml
+		// 触发 IL2026/IL3050；tests/test_datatable_aot.py 13/13 实测可用，豁免附证据。
+		[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "DataTable XML 序列化实测 NativeAOT 可用（test_datatable_aot.py 13/13）")]
+		[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "DataTable XML 序列化实测 NativeAOT 可用（test_datatable_aot.py 13/13）")]
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			var key = arguments[0].GetStrValue(exm);
@@ -1745,6 +1762,10 @@ internal static partial class FunctionMethodCreator
 			argumentTypeArray = [typeof(string), typeof(string), typeof(string)];
 			CanRestructure = false;
 		}
+		// NativeAOT 豁免（已登记：nativeaot-verify-report.md §5.2）：DataTable.ReadXmlSchema/ReadXml
+		// 触发 IL2026/IL3050；tests/test_datatable_aot.py 13/13 实测可用，豁免附证据。
+		[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "DataTable XML 反序列化实测 NativeAOT 可用（test_datatable_aot.py 13/13）")]
+		[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "DataTable XML 反序列化实测 NativeAOT 可用（test_datatable_aot.py 13/13）")]
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			var key = arguments[0].GetStrValue(exm);

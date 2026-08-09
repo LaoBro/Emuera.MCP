@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
@@ -1508,6 +1509,13 @@ internal sealed partial class Lang
 		queryManagedClass(typeof(Lang), string.Empty, trItems);
 	}
 
+	// NativeAOT 豁免（已登记：nativeaot-verify-report.md §5.2「Lang.cs 待评估」）：
+	// [Managed]/[Translate] 特性驱动的翻译注册，静态初始化时反射扫描嵌套类型与属性。
+	// DAM 注解无法覆盖 GetNestedTypes()→GetProperties() 的注解传播链，故定点豁免；
+	// NativeAOT 下若裁剪导致翻译项缺失，属运行时行为差异，真机验证清单跟踪。
+	[UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "特性驱动翻译注册（[Managed]/[Translate]），静态初始化反射扫描")]
+	[UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "特性驱动翻译注册（[Managed]/[Translate]），静态初始化反射扫描")]
+	[UnconditionalSuppressMessage("Trimming", "IL2065", Justification = "ILC 链接阶段对同一反射扫描报 IL2065（csc 报 IL2075），同源同理由")]
 	static void queryManagedClass(Type t, string addr, Dictionary<string, TranslatableString> trItems)
 	{
 		if (addr.Length > 0) addr += '.';

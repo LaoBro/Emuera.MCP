@@ -4,6 +4,7 @@ Tests: happy path, clearline, clear, merge, alignment, setbg.
 Requires Windows 10 18309+ and pywinpty (pip install pywinpty).
 Skipped automatically on non-Windows or when pywinpty is unavailable.
 """
+import os
 import re
 import shutil
 import sys
@@ -144,7 +145,10 @@ def _capture_cli_with_erb(binary, erb_text, timeout=12):
 
 def _run_cli_and_capture(binary, game_dir, timeout=12):
     """Spawn CLI, send '0\\r' to advance past INPUT, return all captured output text."""
-    proc = PtyProcess.spawn([str(binary), "--ExeDir", str(game_dir), "--protocol", "cli"])
+    # T-027 EmueraLog：TerminalSink 默认阈值 Warn，Info 级"终端路径"诊断不进终端——
+    # 测试需读该标志验证 VT 路径激活，故显式把终端阈值调到 info（env 设计用途，不改产品行为）。
+    env = {**os.environ, "EMUERA_LOG_TERMINAL": "info"}
+    proc = PtyProcess.spawn([str(binary), "--ExeDir", str(game_dir), "--protocol", "cli"], env=env)
     output = []
     stop = False
 

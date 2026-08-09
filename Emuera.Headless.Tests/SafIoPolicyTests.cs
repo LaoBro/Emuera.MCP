@@ -84,9 +84,9 @@ public class SafIoPolicyTests
             ["Utils/SafCompat.cs:129"] = 1,
             ["Utils/Sys.cs:16"] = 1,
             ["Utils/EvilMask/Utils.cs:243"] = 1,
-            ["Utils/PluginSystem/PluginManager.cs:281"] = 1,
-            ["Utils/PluginSystem/PluginManager.cs:287"] = 1,
             ["Utils/PluginSystem/PluginManager.cs:288"] = 1,
+            ["Utils/PluginSystem/PluginManager.cs:294"] = 1,
+            ["Utils/PluginSystem/PluginManager.cs:295"] = 1,
         };
 
     [Fact]

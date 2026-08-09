@@ -19,6 +19,11 @@
 		     XML 注释 / 空引用 / 过时 API / 平台版本，TreatWarningsAsErrors 收紧。
 		     若新增 warning 变 error，先修复根因，勿用 NoWarn 豁免。-->
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<!-- NativeAOT（PublishAot=true）时官方实验性提示 XA1040——保留可见但不阻塞护栏
+		     （Android NativeAOT 尚未 GA，官方明确 non-production，见 https://github.com/dotnet/android/issues）。
+		     IL3053 为程序集级 AOT 汇总警告——Mono.Android 绑定库内部反射/JNI 固有（nativeaot-verify-report.md
+		     §3.1B 已登记，非自有代码）；自有代码的具体警告仍按 IL2026/IL3050 等码继续拦截。 -->
+		<WarningsNotAsErrors Condition="'$(PublishAot)' == 'true'">$(WarningsNotAsErrors);XA1040;IL3053</WarningsNotAsErrors>
 
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 

@@ -1148,13 +1148,15 @@ internal sealed class BridgeHost : IDisposable
     {
         try
         {
+            // NativeAOT：显式走源生成 TypeInfo（TurnOp/LineOp 基类已挂 [JsonConverter]，
+            // context 生成的 TurnRecord TypeInfo 自动使用自定义多态 converter，wire 与 options 重载一致）。
             var errorTurn = JsonSerializer.Serialize(new TurnRecord(
                 state: "Error",
                 inputType: null,
                 needValue: false,
                 diff: null,
                 error: message
-            ), AgentJsonlProtocol.TurnJsonOptions);
+            ), EmueraJsonContext.Default.TurnRecord);
             // _jsBridge.PostTurn 内部 fire-and-forget（async void），异常被自身 catch 不抛——
             // 但 try/catch 兜底防御：PostTurn 之外的序列化失败也走 DisplayAlert fallback。
             _dispatcher.Dispatch(() => _jsBridge.PostTurn(errorTurn));

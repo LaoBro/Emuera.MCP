@@ -67,6 +67,7 @@ internal record DisplayDiff(
 /// shift_head 由 ConsolePrintManager.RemoveAt(0) 主动 enqueue ShiftHeadTurnOp 捕获，
 /// 避免 StructuralDiff 走 CommonPrefix 检测到 k=0 误判为 ClearScreenOp + 全量重印。
 /// </summary>
+[JsonConverter(typeof(LineOpConverter))]
 internal abstract record LineOp(string type);
 
 /// <summary>追加新行（curr 比 prev 多出的尾部）。</summary>
@@ -87,6 +88,7 @@ internal record ClearScreenOp() : LineOp("clear_screen");
 /// 与 ClearScreenOp 互斥：全清已无头部可截。</summary>
 internal record ShiftHeadLineOp(int count) : LineOp("shift_head");
 
+[JsonConverter(typeof(TurnOpConverter))]
 internal abstract record TurnOp(string type);
 
 internal record PrintOp(
@@ -188,7 +190,10 @@ internal sealed class TurnOpConverter : JsonConverter<TurnOp>
 
     public override void Write(Utf8JsonWriter writer, TurnOp value, JsonSerializerOptions options)
     {
-        JsonSerializer.Serialize(writer, (object)value, options);
+        // NativeAOT：装箱反射重载（Serialize((object)value, options)）触发 IL2026/IL3050。
+        // 改经 options.GetTypeInfo 按运行时具体类型取源生成 TypeInfo——EmueraJsonContext 已注册
+        // 全部多态叶子（见 EmueraJsonContext.cs 机制 2 注释），GetTypeInfo 命中，wire 与反射版逐字节一致。
+        JsonSerializer.Serialize(writer, value, options.GetTypeInfo(value.GetType()));
     }
 }
 
@@ -204,6 +209,7 @@ internal sealed class LineOpConverter : JsonConverter<LineOp>
 
     public override void Write(Utf8JsonWriter writer, LineOp value, JsonSerializerOptions options)
     {
-        JsonSerializer.Serialize(writer, (object)value, options);
+        // 同 TurnOpConverter.Write——GetTypeInfo 按运行时类型取源生成 TypeInfo，NativeAOT 兼容。
+        JsonSerializer.Serialize(writer, value, options.GetTypeInfo(value.GetType()));
     }
 }

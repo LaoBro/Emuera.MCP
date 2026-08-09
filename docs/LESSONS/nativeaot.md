@@ -12,6 +12,7 @@
 | 4 | 消 ILC 警告不能只换序列化入口 | 显式 context 丢 converter 多态；用 JsonTypeInfo 重载 | 2026-08-07 |
 | 5 | 壳层反射 JSON 是 NativeAOT 白屏根因 | 进程存活的白屏 = 托管异常被吞；IL3050 运行时是 JsonSerializerIsReflectionDisabled | 2026-08-08 |
 | 6 | 目录隔离的 CS0579 根治 | 重定向 Base*OutputPath 后必须补 DefaultItemExcludes | 2026-08-08 |
+| 7 | NativeAOT 警告治理分层法 | 代码级修复优先、豁免带证据；DAM 对字典/数组取值 Type 无效；csc 与 ILC 报码不同 | 2026-08-10 |
 
 ---
 
@@ -106,3 +107,21 @@
 2. **命令行全局传 `Base*OutputPath` 是毒药**：全局属性传染整个项目图（ProjectReference 全中招）。目录级隔离必须放 `Directory.Build.props`（仅本目录项目生效），并保留"构建前清残留"的兜底。
 3. **构建期间不要并发清理中间产物**：`dotnet publish` 运行中删除 `obj/` 下文件会与构建写文件竞争 → `UnauthorizedAccessException: Access to the path ... denied`（MSB3491）。等构建完全结束（进程退干净）再清理，或依赖 DefaultItemExcludes 根治后不再需要清理。
 4. 此类"中间文件污染"的排障顺序：先看错误是编译期（CS0579 重复源）还是文件系统（Access denied 锁），前者清残留+修排除，后者查并发/残留进程。
+
+## 7. NativeAOT 警告治理分层法——代码级修复优先、豁免带证据、csc/ILC 报码不同
+
+**场景**：给 `Emuera.Maui` 开质量护栏（`TreatWarningsAsErrors=true`）后，NativeAOT 构建（`PublishAot=true`）报 30+3 error：Core 层 DataTable XML 序列化（IL2026/IL3050）、TurnRecord converter 装箱递归（IL2026/IL3050）、插件反射加载（IL2026/IL2072）、Lang 特性扫描（IL2070/IL2075）、列类型解析（IL2072），壳层 1 处 options 重载序列化（IL2026/IL3050），外加程序集级 IL3053 与官方 XA1040。
+
+**治理顺序（先根治后豁免）**：
+1. **能代码级修复的不豁免**：`TurnOpConverter.Write` 的装箱反射 `Serialize((object)value, options)` → `options.GetTypeInfo(value.GetType())` 非泛型重载（无 RUC/RDC 标注，context 已注册全部多态叶子，wire 不变）。
+2. **[JsonConverter] 特性挂基类 = 教训 4 的补全正解**：`ShowError` 用 options 重载（依赖 Converters 多态），不能直接换显式 context（教训 4 已踩过——丢 converter）。正解是给抽象基类 `TurnOp`/`LineOp` 挂 `[JsonConverter(typeof(TurnOpConverter))]`——source-gen 生成 TypeInfo 时自动采用类型上的自定义 converter，此后显式 `EmueraJsonContext.Default.TurnRecord` 与 options 路径 wire 逐字节一致（协议回归全绿验证）。
+3. **DAM 返回注解对"数组/字典取值的 Type"不适用**：想用 `[return: DynamicallyAccessedMembers]` 消除 `DataColumnCollection.Add(string, Type)` 的 IL2072，但 `IntToType` 返回 `builtInDTTypes[i-1]`、`NameToType` 返回字典值——**ILC 报 IL2063「返回值无法静态确定满足 DAM」**。`Dictionary<string, Type>` 元素不支持 DAM 注解，此路不通 → 撤销返回注解，改在**唯一调用点**（`Creator.Method.cs` 列类型解析方法）豁免 IL2072。
+4. **csc 与 ILC 对同一反射点报不同警告码**：`Lang.queryManagedClass` 的 `GetProperties()` 反射，csc 编译期报 **IL2075**，ILC 链接期报 **IL2065**（"值无法静态确定"）——豁免时两个码都要覆盖，否则编译过、链接炸。
+5. **程序集级汇总与官方提示放行**：`Mono.Android` 绑定库固有 `IL3053`（程序集 AOT 汇总，非自有代码）与 `XA1040`（Android NativeAOT 官方实验性提示）→ `WarningsNotAsErrors`（仅 `PublishAot=true` 条件），**自有代码的具体码（IL2026/IL3050/IL207x）仍按 error 拦截**——放行汇总码不放开具体码。
+6. **豁免必须带 Justification**：每个 `[UnconditionalSuppressMessage]` 附理由（实测证据 test_datatable_aot.py 13/13 / 路径禁用前提 / 运行时经 resolver 无反射），不静默 suppress；`EraBinaryDataWriter/Reader`、`Creator.Method` 等 DataTable 系列引用同一实测证据链。
+
+**教训**：
+1. **治理顺序 = 能修则修、豁免是最后手段**：`GetTypeInfo`/`[JsonConverter]` 属根治（无 warning 无 suppress）；DAM 注解看似根治实则对数据源取值无效（IL2063），白绕一圈——**先看数据源形态（typeof 常量 vs 数组/字典取值）再决定 DAM 还是豁免**。
+2. **csc 与 ILC 警告码可能不同**：同一反射点编译期 IL2075、链接期 IL2065。豁免列表要同时覆盖两个阶段的码，验证要等 ILC 链接过才算闭环（编译过 ≠ 链接过）。
+3. **放行"程序集级汇总码"（IL3053）要谨慎**：只对绑定库固有（Mono.Android）放行；自有代码的 IL3053 意味着还有具体警告没清，放行会掩盖。
+4. **带 converter 多态的序列化入口替换**：显式 context 会丢 options.Converters（教训 4）；`[JsonConverter]` 挂基类让两种入口行为一致，是比"换入口"更根本的解法——**改序列化后必须跑协议级内容断言回归**（run_all.py 的 test_jsonl/test_snapshot），单测全绿不代表 wire 正确。

@@ -8,6 +8,7 @@ using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -266,6 +267,12 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 		/// <summary>
 		/// Load all DLL plugins from Plugins directory of the game
 		/// </summary>
+		// NativeAOT 豁免（已登记：nativeaot-verify-report.md §5.2）：插件加载依赖
+		// Assembly.LoadFrom/GetTypes/Activator.CreateInstance（IL2026/IL2072）。
+		// Android/SAF 路径在上方已显式禁用（抛 ExeEE，L272-280）——本方法仅桌面路径可达，
+		// NativeAOT 桌面形态（win-x64）已验证插件语义等价（nativeaot-verify-report.md §3）。
+		[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "插件加载仅桌面路径；Android/SAF 已禁用（抛 ExeEE）")]
+		[UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "插件加载仅桌面路径；Android/SAF 已禁用（抛 ExeEE）")]
 		public void LoadPlugins()
 		{
 			var pluginDir = SafCompat.ResolveSubPath(Program.ExeDir, "Plugins");

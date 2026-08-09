@@ -14,6 +14,8 @@
 | 6 | 行号基线的测试在源码行号偏移时误报 | 改 Shared/** 后同步更新基线行号 | 2026-08-07 |
 | 7 | 残留进程干扰回归矩阵 | 跑全量回归前先清残留进程 | 2026-08-07 |
 | 8 | 操纵全局静态的测试必须串行 | DisableParallelization 集合；高频日志放大竞态 | 2026-08-07 |
+| 9 | 日志门面改默认阈值要与终端断言同步 | T-027 TerminalSink 默认 Warn，Info 级终端标志测试永远找不到；spawn 设 EMUERA_LOG_TERMINAL=info | 2026-08-10 |
+| 10 | Python print 双重编码在 GBK 控制台乱码 | encode/decode(errors="replace") 把中文变 �；直接 print（WinConsoleIO 写 UTF-16） | 2026-08-10 |
 
 ---
 
@@ -69,6 +71,8 @@
 
 **教训**：这类"行号锚定基线"的测试对源码行号漂移脆弱——改 Shared/**（尤其加/删行）后要同步更新基线行号；改完跑一次该测试确认只有"行号平移"而无真实 IO 变化。反过来它也是称职的守卫：真实新增直接 IO 会被立刻抓到。
 
+> **二次实例（2026-08-10）**：给 `PluginManager.LoadPlugins` 加 NativeAOT 豁免（4 行注释 + 2 行 attribute）后，同一测试报 3 处 "outside the explicit baseline"（白名单 281/287/288 实际已漂到 288/294/295）。**任何在 Shared/** 插入行数的改动（即使纯注释/attribute）都会触发**——改完先跑这个测试，按实际行号更新白名单即可（本次同时确认豁免未引入新 IO）。
+
 ## 7. 残留进程干扰回归矩阵——run_all.py 内置 xUnit 与单独跑不一致
 
 **场景**：NativeAOT 产物跑 `run_all.py`：14/14 e2e 全绿但内置 xUnit FAIL；单独 `dotnet test` 却 685 全绿。
@@ -87,3 +91,28 @@
 1. 凡是操纵进程级全局状态（静态单例、全局目录、静态配置）的测试，一开始就应放入 `[CollectionDefinition(..., DisableParallelization = true)]` 串行集合（仓库先例：`GamePathsIsolated`）——不要指望"现在全绿"就安全，高频调用点一旦增多竞态就会显形。
 2. 排查间歇失败：先跑"单独（绿）+ 与嫌疑类组合（绿）+ 完整套件（红）"三段定位，再用全局状态切分推断竞态对象；修复后完整套件连跑 2 次验证稳定（1 次绿不够，之前就是 1/3 绿）。
 3. 静态门面（EmueraLog→AgentLog）让"测试进程里谁都会写日志"成为常态——新增高频调用点时要评估对全局状态测试的影响面。
+
+## 9. 日志门面改默认阈值/输出目标，必须同步检查依赖终端输出的测试
+
+**场景**：全量回归 2 项稳定失败（`test_cli_clear`/`test_cli_setbg`）：断言"未识别到终端路径标志（日志缺失，视为回归）"——从 CLI 捕获输出里找不到 `[headless] 终端路径: VT`。CLI 进程正常、游戏文本正常、14 个同类测试全过；重建 Debug exe 后仍失败。
+
+**根因**：`AgentCliProtocol.RunCliLoop` 的"终端路径: VT"是 `EmueraLog.Info` 输出；T-027 引入日志门面后 `TerminalSink`（stderr）**默认阈值 Warn**——Info 级诊断**不进终端**（设计意图：交互式 CLI 只显示警告/错误，不污染画面）。测试按旧行为从终端输出找 Info 标志 → 永远找不到。这是 T-027 产品行为变更与测试断言不同步的遗留问题，与 NativeAOT 改动无关。
+
+**修复**：测试 spawn CLI 时显式设环境变量 `EMUERA_LOG_TERMINAL=info`（env 本就是 EmueraLog 的调节旋钮，不改产品行为）；测试注释说明原因。
+
+**教训**：
+1. **日志门面改默认阈值/输出目标（Sink 拆分、级别阈值、stdout→stderr）后，必须 grep 依赖终端输出的测试**（找日志标志、找 stderr 文本的断言）——产品日志改动与测试断言是同一契约的两端。
+2. 先确认日志"被阈值挡了"而非"没打"：查日志门面的默认阈值与 Sink 目标（`EmueraLog.cs` 的 TerminalLevel/Write），再决定是调测试 env 还是改产品语义。调测试 env（`EMUERA_LOG_TERMINAL`）是设计支持的用法，优于把 Info 改成 Warn 污染日志语义。
+3. 这类失败的特征：与改动文件无交集 + 稳定复现 + 进程正常——优先怀疑"产品行为早已变、测试没跟上"，而不是本次改动的回归。
+
+## 10. Python print 双重编码在 GBK 控制台显示乱码——显示乱码 ≠ 断言失败
+
+**场景**：`run_all.py` 输出里所有中文 section 标题变 `=== Issue 001: ���� tracer... ===`，但测试结果（26 passed）不受影响。
+
+**根因**：`_safe_print_line` 的 `print(line.encode(sys.stdout.encoding, errors="replace").decode(sys.stdout.encoding, errors="replace"))` 双重编码——PowerShell 控制台代码页 GBK(936) 下 `errors="replace"` 把编码不了的字符替换成 `�`（U+FFFD）。Windows 控制台 Python 走 **WinConsoleIO（UTF-16 直接写，不经代码页）**，`print(line)` 本身就能正确显示任意 Unicode——双重编码是冗余且有害的。
+
+**修复**：`_safe_print_line` 直接 `print(line)`（注释说明；被重定向到管道/文件时 print 用 stdout.encoding，UTF-8/gbk 均支持中文，同样安全）。
+
+**教训**：
+1. **Windows 控制台 Python 输出中文：直接 `print(str)`**——WinConsoleIO 绕开代码页；任何 `encode(errors="replace")` 中间层都是把"显示问题"变成"字符损毁"的元凶。
+2. **显示乱码 ≠ 断言失败**：终端显示编码问题不影响 Python 内部 Unicode 比对（诊断学：先确认是显示层还是数据层，别把乱码当测试失败去查代码）。

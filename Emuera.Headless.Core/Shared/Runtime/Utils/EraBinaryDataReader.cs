@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
@@ -267,6 +268,10 @@ internal abstract class EraBinaryDataReader : IDisposable
 			doc.LoadXml(reader.ReadString());
 			return doc;
 		}
+		// NativeAOT 豁免（已登记：nativeaot-verify-report.md §5.2）：DataTable.ReadXmlSchema/ReadXml
+		// 触发 IL2026/IL3050 静态警告；tests/test_datatable_aot.py 13/13 实测可用，豁免附证据。
+		[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "DataTable XML 反序列化实测 NativeAOT 可用（test_datatable_aot.py 13/13）")]
+		[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "DataTable XML 反序列化实测 NativeAOT 可用（test_datatable_aot.py 13/13）")]
 		public override DataTable ReadDataTable()
 		{
 			var dt = new DataTable();

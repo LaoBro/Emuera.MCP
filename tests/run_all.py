@@ -48,8 +48,11 @@ def _child_env(binary_path=None):
 
 
 def _safe_print_line(line):
-    encoding = sys.stdout.encoding or "utf-8"
-    print(line.encode(encoding, errors="replace").decode(encoding, errors="replace"))
+    # 直接 print：Windows 控制台 Python 走 WinConsoleIO（UTF-16 直接写，不经代码页），
+    # 任意 Unicode 正常显示。旧实现 encode/decode(errors="replace") 双重编码在 GBK
+    # 代码页（PowerShell 默认 936）下把中文替换成 U+FFFD �——显示乱码，且断言层无关。
+    # 若被重定向到管道/文件，print 用 stdout.encoding（UTF-8/gbk 均支持中文），同样安全。
+    print(line)
 
 
 def _print_key_lines(stdout):
@@ -65,10 +68,16 @@ def _print_key_lines(stdout):
 
 def _run_script(name, args, env=None, timeout=None):
     print(f"\n=== {name} ===")
+    # 子进程 stdout 是管道（非控制台）：Python 管道模式默认用 locale 编码（Windows=GBK）
+    # 写中文，父进程按 UTF-8 解码即乱码（�）。强制子进程 UTF-8 输出，与下方
+    # encoding="utf-8" 解码对齐；PYTHONIOENCODING 是 Python 专用，不影响其他子进程类型。
+    child_env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    if env:
+        child_env.update(env)
     completed = subprocess.run(
         args,
         cwd=str(ROOT_DIR),
-        env=env,
+        env=child_env,
         capture_output=True,
         text=True,
         encoding="utf-8",
