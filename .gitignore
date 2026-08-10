@@ -65,7 +65,6 @@ Emuera.CLI/artifacts/
 *.pyc
 .mcp.json
 .emuera-mcp.json
-CLAUDE.md
 test_game/setting.json
 test_game/emuera.config
 .trae/rules/git-commit-message.md
