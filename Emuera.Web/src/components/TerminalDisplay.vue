@@ -398,13 +398,11 @@ watch(() => game.inputInFlight, (inFlight) => {
     </div>
     <div v-if="game.displayState.lines.length === 0" class="terminal-empty">
       <template v-if="isMaui">
-        <!-- MAUI 模式：无 HTTP/WS，提示文案按 gameDir + 游戏状态分流 -->
-        <p v-if="!game.gameDir">请先在顶部选择游戏目录</p>
-        <p v-else-if="game.serverState === 'Idle'">
-          已选择目录：{{ game.gameDir }}<br />请点击顶部「快速重开」按钮启动游戏
-        </p>
-        <p v-else-if="game.serverState === 'Loading'">游戏加载中，请稍候…</p>
-        <p v-else>游戏运行中，等待输出或在下方提交输入…</p>
+        <!-- MAUI 模式：游戏列表负责选择并自动启动游戏，这里只展示当前启动状态。 -->
+        <p v-if="game.serverState === 'Loading'">游戏加载中，请稍候…</p>
+        <p v-else-if="game.gameDir && game.serverState === 'Idle'">游戏正在启动，请稍候…</p>
+        <p v-else-if="game.gameDir">游戏运行中，等待输出…</p>
+        <p v-else>请选择一个游戏</p>
       </template>
       <template v-else>
         <!-- HTTP 模式：按 WS 连接状态分流 -->

@@ -8,6 +8,15 @@ import { useConnectionStore } from '../../stores/connection';
 import { loadImageAndReadPixel } from '../../lib/imageLayout';
 import type { DisplaySnapshot, PrintSegment, BgImageState } from '../../types/protocol';
 
+vi.mock('../../lib/mauiBridge', () => ({
+  isMauiEnvironment: () => true,
+}));
+
+// TerminalDisplay 的空状态测试需要 MAUI 环境；资源 URL 断言仍沿用 Web 端测试路径。
+vi.mock('../../lib/resourceResolver', () => ({
+  resolveResource: (path: string) => `/assets/${path}`,
+}));
+
 /**
  * TerminalDisplay 组件测试（issue 04，spec Q7 seam ④——首个 happy-dom 组件测试）。
  *
@@ -278,6 +287,32 @@ describe('TerminalDisplay: image 掩膜渲染（Q6）', () => {
     const { wrapper } = await mountWith([line([imgSeg({ ypos: -50 })])]);
     const mask = wrapper.find('.term-mask');
     expect(mask.attributes('style')).not.toContain('position:');
+  });
+});
+
+describe('TerminalDisplay: MAUI 空状态', () => {
+  async function mountEmpty(gameDir: string | null, serverState: 'Idle' | 'Loading' | 'WaitInput') {
+    const { wrapper, game } = await mountWith([]);
+    game.gameDir = gameDir;
+    game.serverState = serverState;
+    await wrapper.vm.$nextTick();
+    return wrapper;
+  }
+
+  it('选择游戏后启动期间显示启动提示，不要求点击快速重开', async () => {
+    const wrapper = await mountEmpty('D:/games/mygame', 'Idle');
+    expect(wrapper.find('.terminal-empty').text()).toContain('游戏正在启动，请稍候…');
+    expect(wrapper.find('.terminal-empty').text()).not.toContain('快速重开');
+  });
+
+  it('Loading 状态显示加载提示', async () => {
+    const wrapper = await mountEmpty('D:/games/mygame', 'Loading');
+    expect(wrapper.find('.terminal-empty').text()).toContain('游戏加载中，请稍候…');
+  });
+
+  it('未选择游戏时显示选择游戏提示', async () => {
+    const wrapper = await mountEmpty(null, 'Idle');
+    expect(wrapper.find('.terminal-empty').text()).toContain('请选择一个游戏');
   });
 });
 

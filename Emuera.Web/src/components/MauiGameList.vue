@@ -218,7 +218,6 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
           <button class="game-btn" @click="onPickGame(g.name, g.fullPath)">
             <span class="game-icon">📁</span>
             <span class="game-name">{{ g.name }}</span>
-            <span v-if="g.name === game.lastPlayedGame" class="last-played-tag">上次玩</span>
           </button>
         </li>
       </ul>
@@ -355,14 +354,6 @@ watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true })
   flex: 1;
   font-family: ui-monospace, Consolas, monospace;
   word-break: break-all;
-}
-.last-played-tag {
-  font-size: 10px;
-  color: #dcdcaa;
-  background: #5a4a1d;
-  padding: 1px 6px;
-  border-radius: 8px;
-  flex-shrink: 0;
 }
 .error-banner {
   display: flex;
