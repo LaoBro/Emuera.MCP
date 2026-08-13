@@ -96,6 +96,20 @@ effects.
 - Text buttons rendered inside game output remain borderless and inherit the
   game text styling; hover may use a subtle background/underline.
 
+### Control sizing and typography
+
+- Standard standalone text buttons use the UI font at `14px`, `6px 28px`
+  padding, a `36px` minimum height, and `12px` corners. This applies to
+  send/continue, Debug, Settings, confirmation, and other standalone actions.
+- Standard text buttons share the same size tokens across pages. Components
+  must not add page-specific padding or fixed widths; compact and large sizes
+  require an explicit size variant.
+- Gameplay input fields use the UI font at `14px`, `6px 14px` inner padding,
+  a `40px` minimum height, and `12px` corners. Placeholder text uses the same
+  `14px` UI size and must remain separate from the game output font.
+- The gameplay input bar uses a dark surface without a bright top border or
+  highlight separator. Its input row follows a `48px` vertical rhythm.
+
 ### Gameplay menu
 
 - The popup surface is opaque and rounded, with no bright outer border.

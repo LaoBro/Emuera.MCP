@@ -290,12 +290,12 @@ const submitLabel = computed<string>(() => {
 <style scoped>
 .input-bar {
   flex-shrink: 0;
-  padding: var(--space-2) var(--space-3);
-  padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
+  padding: var(--space-1) var(--space-3);
+  padding-bottom: calc(var(--space-1) + env(safe-area-inset-bottom));
   background: var(--color-surface);
-  border-top: 1px solid var(--color-border); /* spec §6.3：顶部一条分隔线 */
-  font-family: var(--font-mono);
-  font-size: var(--font-size-md);
+  border-top: none;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -324,7 +324,7 @@ const submitLabel = computed<string>(() => {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: var(--inputbar-min-height);
+  min-height: var(--touch-target);
 }
 /* 浅色圆角输入条：不使用下划线或聚焦高亮。 */
 .text-input {
@@ -332,11 +332,12 @@ const submitLabel = computed<string>(() => {
   background: var(--color-control);
   color: var(--color-text);
   border: none;
-  padding: 10px 14px;
+  padding: 6px 14px;
   border-radius: var(--radius-control);
   /* Input prompts are UI chrome, not game output. */
   font-family: var(--font-ui);
   font-size: var(--font-size-base);
+  min-height: 40px;
   min-width: 0;
   transition: background-color var(--motion-fast);
 }
@@ -353,18 +354,17 @@ const submitLabel = computed<string>(() => {
 .key-prompt {
   color: var(--color-text-muted);
   padding: var(--space-2) 0;
-  min-height: var(--inputbar-min-height);
+  min-height: var(--touch-target);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-/* 发送 / 继续按钮——实心控件（DESIGN.md），仅抬高触控高度与字号；
-   留白 / 颜色 / hover / disabled 由全局 .btn-primary（--btn-padding-*）统一提供 */
+/* 发送 / 继续按钮使用全局标准文字规格，并与输入框保持 40px 高度。 */
 .submit-btn {
-  min-height: 36px;
-  min-width: 96px;
+  min-width: 0;
+  min-height: 40px;
   font-size: var(--font-size-base);
 }
 

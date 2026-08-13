@@ -169,10 +169,11 @@ h3 {
   background: var(--color-control);
   color: var(--color-text);
   border: none;
-  padding: var(--space-1) var(--space-2);
+  padding: 6px 14px;
   border-radius: var(--radius-control);
   font-family: var(--font-ui);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-base);
+  min-height: 40px;
   transition: background var(--motion-fast);
 }
 /* 聚焦仅微调背景；键盘焦点由全局 :focus-visible 焦点环提供 */

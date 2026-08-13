@@ -60,11 +60,12 @@
   --touch-target: 48px;
   --picker-list-max-width: 720px;
 
-  /* ---------- 按钮留白（DESIGN.md 未约定，统一为 4px / 12px） ----------
-   * 所有实心文字按钮共用 --btn-padding-*；尺寸变体（.btn-sm / .btn-lg）
+  /* ---------- 按钮留白（标准文字按钮统一规格） ----------
+   * 所有实心文字按钮共用 --btn-padding-* 与 --btn-min-height；尺寸变体（.btn-sm / .btn-lg）
    * 只调 min-height 与字号，不再散落 padding 覆盖。 */
-  --btn-padding-y: var(--space-1);  /* 4px */
-  --btn-padding-x: var(--space-3);  /* 12px */
+  --btn-padding-y: 6px;
+  --btn-padding-x: 28px;
+  --btn-min-height: 36px;
 
   color-scheme: dark;
 }
@@ -119,9 +120,9 @@ html.pointer-interaction :focus-visible {
   border: none;
   border-radius: var(--radius-control);
   padding: var(--btn-padding-y) var(--btn-padding-x);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-base);
   font-family: var(--font-ui);
-  min-height: 32px;
+  min-height: var(--btn-min-height);
   cursor: pointer;
   white-space: nowrap;
   transition: background var(--motion-fast);
