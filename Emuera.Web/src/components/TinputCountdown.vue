@@ -40,39 +40,39 @@ const tinputCountdownText = computed<string | null>(() => {
 .tinput-countdown {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  background: #1e3a5f;
-  border-radius: 3px;
-  border: 1px solid #2a5a8f;
-  font-size: 12px;
-  color: #9cdcfe;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
+  border-radius: var(--radius-control);
+  border: none;
+  font-size: var(--font-size-sm);
+  color: var(--color-warning);
 }
 .tinput-progress {
   flex: 1;
   height: 6px;
-  background: #1e1e1e;
-  border: 1px solid #3c3c3c;
+  background: var(--color-bg);
+  border: none;
   border-radius: 2px;
   /* progress 元素原生外观重置 */
   -webkit-appearance: none;
   appearance: none;
 }
 .tinput-progress::-webkit-progress-bar {
-  background: #1e1e1e;
+  background: var(--color-bg);
   border-radius: 2px;
 }
 .tinput-progress::-webkit-progress-value {
-  background: #0e639c;
+  background: var(--color-indicator);
   border-radius: 2px;
-  transition: width 0.1s linear;
+  transition: width var(--motion-fast) linear;
 }
 .tinput-progress::-moz-progress-bar {
-  background: #0e639c;
+  background: var(--color-indicator);
   border-radius: 2px;
 }
 .tinput-countdown-text {
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--font-mono);
   min-width: 60px;
   text-align: right;
 }

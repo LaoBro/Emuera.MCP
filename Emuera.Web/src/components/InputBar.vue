@@ -312,7 +312,7 @@ const submitLabel = computed<string>(() => {
   background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
   color: var(--color-warning);
   border-radius: var(--radius-control);
-  border: 1px solid color-mix(in srgb, var(--color-warning) 35%, var(--color-border));
+  border: none;
   font-size: var(--font-size-sm);
 }
 .tinput-icon {
@@ -334,7 +334,8 @@ const submitLabel = computed<string>(() => {
   border: none;
   padding: 10px 14px;
   border-radius: 12px;
-  font-family: inherit;
+  /* Input prompts are UI chrome, not game output. */
+  font-family: var(--font-ui);
   font-size: var(--font-size-base);
   min-width: 0;
   transition: background-color var(--motion-fast);

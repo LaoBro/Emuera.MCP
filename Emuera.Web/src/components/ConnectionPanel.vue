@@ -81,26 +81,26 @@ const statusDotClass = computed(() => {
     -->
     <button
       v-if="conn.status === 'disconnected' && !conn.reconnectFailed"
-      class="conn-btn"
+      class="btn-outline conn-btn"
       @click="onConnect"
     >
       连接
     </button>
     <button
       v-else-if="conn.status === 'disconnected' && conn.reconnectFailed"
-      class="conn-btn retry"
+      class="btn-outline conn-btn retry"
       @click="onRetryConnect"
     >
       重新连接
     </button>
     <button
       v-else-if="conn.status === 'reconnecting'"
-      class="conn-btn retry"
+      class="btn-outline conn-btn retry"
       @click="onRetryConnect"
     >
       立即重连
     </button>
-    <button v-else class="conn-btn disconnect" @click="onDisconnect">断开</button>
+    <button v-else class="btn-outline conn-btn disconnect" @click="onDisconnect">断开</button>
     <span v-if="game.protocolVersion !== null" class="proto-version">
       v{{ game.protocolVersion }}
     </span>
@@ -114,9 +114,10 @@ const statusDotClass = computed(() => {
 .conn-panel {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--space-2);
+  font-size: var(--font-size-md);
   flex-wrap: wrap;
+  color: var(--color-text);
 }
 .status-dot {
   width: 10px;
@@ -124,54 +125,55 @@ const statusDotClass = computed(() => {
   border-radius: 50%;
   display: inline-block;
   flex-shrink: 0;
+  transition: background var(--motion-fast);
 }
 .status-dot.green {
-  background: #4ec9b0;
+  background: var(--color-success);
 }
 .status-dot.yellow {
-  background: #dcdcaa;
+  background: var(--color-warning);
 }
 .status-dot.red {
-  background: #f48771;
+  background: var(--color-error);
 }
 .status-text {
   min-width: 50px;
+  color: var(--color-text-muted);
 }
 .url-input {
-  background: #1e1e1e;
-  color: #e0e0e0;
-  border: 1px solid #3c3c3c;
-  padding: 3px 8px;
-  border-radius: 3px;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-control);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
   min-width: 240px;
+  transition: border-color var(--motion-fast);
+}
+.url-input:focus {
+  border-color: var(--color-indicator);
 }
 .url-input:disabled {
   opacity: 0.6;
 }
-.conn-btn {
-  background: #0e639c;
-  color: #fff;
-  border: none;
-  padding: 4px 12px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-}
+/* 连接按钮——基于 .btn-outline，危险/重试变体仅换文字与边框色 */
 .conn-btn.disconnect {
-  background: #5a1d1d;
+  color: var(--color-error);
+  border-color: color-mix(in srgb, var(--color-error) 40%, var(--color-border));
 }
 .conn-btn.retry {
-  background: #5a4a1d;
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 40%, var(--color-border));
 }
 .proto-version {
-  color: #4ec9b0;
-  font-family: ui-monospace, Consolas, monospace;
+  color: var(--color-success);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
 }
 .close-reason {
-  color: #f48771;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  color: var(--color-error);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
 }
 </style>

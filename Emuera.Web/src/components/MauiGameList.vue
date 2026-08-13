@@ -28,11 +28,15 @@ import StatusBanner from './StatusBanner.vue';
  * 错误使用顶部可关闭 StatusBanner（5 秒自动消失）；空状态提供唯一主操作按钮。
  */
 const game = useGameStore();
+const compactTitleScrollThreshold = 24;
 
 /** 顶部 ⋮ 菜单展开状态。 */
 const showMenu = ref(false);
 const isScrolled = ref(false);
+const heroOpacity = ref(1);
 const menuRoot = ref<HTMLElement | null>(null);
+let heroIntroTimer: ReturnType<typeof setTimeout> | null = null;
+const heroIntro = ref(true);
 
 /** DirectoryBrowser 弹窗可见性——v-model 控制。 */
 const showDirectoryBrowser = ref(false);
@@ -174,7 +178,15 @@ function onDocumentKeyDown(event: KeyboardEvent): void {
 }
 
 function onWindowScroll(): void {
-  isScrolled.value = window.scrollY > 24;
+  const scrollY = Math.max(0, window.scrollY);
+  isScrolled.value = scrollY >= compactTitleScrollThreshold;
+  if (scrollY > 0) heroIntro.value = false;
+  // The fade is tied to the same scroll interval that leads into the compact
+  // title: it reaches zero exactly as that title appears.
+  heroOpacity.value = Math.max(
+    0,
+    1 - scrollY / compactTitleScrollThreshold,
+  );
 }
 
 onMounted(() => {
@@ -182,12 +194,16 @@ onMounted(() => {
   document.addEventListener('keydown', onDocumentKeyDown);
   window.addEventListener('scroll', onWindowScroll, { passive: true });
   onWindowScroll();
+  heroIntroTimer = setTimeout(() => {
+    heroIntro.value = false;
+  }, 540);
 });
 
 onUnmounted(() => {
   document.removeEventListener('pointerdown', onDocumentPointerDown);
   document.removeEventListener('keydown', onDocumentKeyDown);
   window.removeEventListener('scroll', onWindowScroll);
+  if (heroIntroTimer) clearTimeout(heroIntroTimer);
 });
 </script>
 
@@ -219,7 +235,11 @@ onUnmounted(() => {
     </header>
 
     <!-- hero 大标题（原型3）：功能标题，不显示产品名 -->
-    <div class="hero-title">选择游戏</div>
+    <div
+      class="hero-title"
+      :class="{ 'hero-intro': heroIntro }"
+      :style="{ opacity: heroOpacity }"
+    >选择游戏</div>
 
     <!-- 路径行独立为 sticky 层，滚动后与紧凑标题一起覆盖列表。 -->
     <div class="path-line">
@@ -316,19 +336,21 @@ onUnmounted(() => {
 .picker-appbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  /* Keep the appbar and its popup above the sticky directory row. */
+  z-index: 40;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   min-height: 56px;
-  padding: 8px 12px 0 16px;
-  background: color-mix(in srgb, var(--prototype-bg) 92%, transparent);
-  backdrop-filter: blur(10px);
+  padding: 8px 24px 0 16px;
+  /* Opaque surface keeps the compact-title row crisp while it covers content. */
+  background: var(--prototype-bg);
+  backdrop-filter: none;
   transition: background-color 0.18s ease;
 }
 .maui-game-list.is-scrolled .picker-appbar {
-  background: color-mix(in srgb, var(--prototype-bg) 92%, transparent);
+  background: var(--prototype-bg);
   border-bottom-color: transparent;
 }
 .compact-title {
@@ -384,7 +406,7 @@ onUnmounted(() => {
 .directory-menu {
   position: absolute;
   top: 56px;
-  right: 12px;
+  right: 24px;
   z-index: 10;
   width: 200px;
   padding: 8px 0;
@@ -396,14 +418,16 @@ onUnmounted(() => {
 .directory-menu button {
   display: flex;
   align-items: center;
-  width: 100%;
+  width: calc(100% - 16px);
   min-height: 44px;
-  padding: 0 16px;
+  margin: 0 8px;
+  padding: 0 12px;
   border: 0;
   background: transparent;
   color: var(--prototype-text);
   font-size: 14px;
   text-align: left;
+  border-radius: 8px;
   cursor: pointer;
 }
 .directory-menu button:hover:not(:disabled) {
@@ -427,12 +451,12 @@ onUnmounted(() => {
   font-weight: 400;
   line-height: 40px;
   color: var(--prototype-text);
-  opacity: 1;
-  transition: opacity 0.32s ease;
-  animation: picker-hero-in 0.52s ease both;
+  /* Scroll updates the target immediately; this transition provides the
+     time-based easing visible between successive scroll positions. */
+  transition: opacity 0.22s cubic-bezier(0.2, 0, 0, 1);
 }
-.maui-game-list.is-scrolled .hero-title {
-  opacity: 0;
+.hero-title.hero-intro {
+  animation: picker-hero-in 0.52s ease both;
 }
 
 /* 路径行（原型3）：prefix + mono value，可换行不截断 */
@@ -450,14 +474,11 @@ onUnmounted(() => {
   gap: 10px;
   min-width: 0;
 }
-@keyframes picker-hero-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 .path-prefix {
   color: var(--prototype-muted);
   font-size: 13px;
   line-height: 20px;
+  opacity: 0.6;
   flex-shrink: 0;
 }
 .path-value {
@@ -467,7 +488,7 @@ onUnmounted(() => {
   font-size: 14px;
   line-height: 22px;
   color: var(--prototype-text);
-  opacity: 0.9;
+  opacity: 0.6;
 }
 .mgl-body {
   flex: 1;
@@ -564,6 +585,8 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  /* Match the hero's 24px leading edge while keeping the page scrollable. */
+  padding-inline: 24px;
 }
 .game-list {
   list-style: none;
@@ -578,6 +601,11 @@ onUnmounted(() => {
   width: 100%;
   margin-left: auto;
   margin-right: auto;
+}
+
+@keyframes picker-hero-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 </style>

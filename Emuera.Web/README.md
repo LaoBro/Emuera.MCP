@@ -22,7 +22,7 @@ npm run build
 
 | 文件 | 职责 |
 |---|---|
-| `src/App.vue` | 应用初始化、页面切换、HTTP/MAUI 分流、快速重开和退出游戏 |
+| `src/App.vue` | 应用初始化、壳层组合（AppShell/AppBar/浮钮）、HTTP/MAUI 分流、快速重开和退出游戏 |
 | `src/views/TerminalView.vue` | 终端页面外壳、连接/加载状态展示 |
 | `src/views/SettingsView.vue` | 设置页面 |
 | `src/views/DebugView.vue` | 原始回合、协议和调试信息展示 |
@@ -41,6 +41,13 @@ npm run build
 | `src/components/ConnectionPanel.vue` | HTTP 服务器地址、WebSocket 连接和连接状态 |
 | `src/components/DirectoryBrowser.vue` | Android SAF 目录浏览器 |
 | `src/components/TinputCountdown.vue` | TINPUT 倒计时显示 |
+| `src/components/AppShell.vue` | 根布局壳层：全局背景、主内容与全局对话框挂载点 |
+| `src/components/AppBar.vue` | 桌面共用应用栏：连接状态 / 操作 / SegmentedNav 插槽 |
+| `src/components/PopupMenu.vue` | MAUI 更多菜单：快速重开、缩放（含恢复）、视图切换、退出 |
+| `src/components/ConfirmDialog.vue` | 退出 / 确认 Alert Dialog（遮罩 + 危险文字按钮，Escape/返回取消） |
+| `src/components/StatusBanner.vue` | 顶部可关闭提示条：错误 / 警告 / 成功 / 信息 |
+| `src/components/SegmentedNav.vue` | Terminal / Debug / Settings 视图切换（桌面） |
+| `src/components/GameRow.vue` | 游戏选择页列表项（文件管理器式整行） |
 
 ## 状态管理
 
@@ -87,7 +94,9 @@ npm run build
 | 修改 TINPUT 倒计时 | `components/TinputCountdown.vue`、`stores/game.ts` |
 | 修改终端滚动或缩放 | `composables/useVirtualScroll.ts`、`composables/usePinchZoom.ts`、`TerminalDisplay.vue` |
 | 修改 MAUI 启动和 C# 消息处理 | `composables/useAppInit.ts`、`lib/mauiBridge.ts` |
-| 修改页面导航、顶部按钮或模式分流 | `App.vue` |
+| 修改页面导航、顶部按钮或模式分流 | `App.vue`、`components/AppShell.vue`、`components/AppBar.vue`、`components/SegmentedNav.vue` |
+| 修改 UI 主题、颜色、圆角、阴影、动效或字号 | `styles/theme.css`（唯一令牌源，组件一律 `var(--token)`） |
+| 修改弹窗、菜单或确认框 | `components/PopupMenu.vue`、`components/ConfirmDialog.vue` |
 
 ## 数据流
 
@@ -95,7 +104,7 @@ npm run build
 
 ```text
 App.vue
-  -> ConnectionPanel / GamePicker
+  -> AppBar (ConnectionPanel) / picker-bar (GamePicker)
   -> connection.ts
   -> WebSocket / HTTP server
   -> parseTurnRecord.ts
@@ -108,7 +117,7 @@ App.vue
 
 ```text
 App.vue
-  -> MauiGameList
+  -> MauiGameList（选择页）/ game-shell-controls + PopupMenu（游戏页）
   -> mauiBridge.ts
   -> C# BridgeHost / IJsBridge
   -> window.__emueraOnTurn / window.__emueraOnMessage

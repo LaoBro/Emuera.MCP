@@ -78,15 +78,15 @@ const logCopied = ref(false);
         </p>
         <div class="setting-row">
           <span class="setting-label">日志查看</span>
-          <button class="action-btn" @click="viewLog">查看最新</button>
-          <button class="action-btn" @click="exportLog">导出</button>
+          <button class="btn-outline" @click="viewLog">查看最新</button>
+          <button class="btn-outline" @click="exportLog">导出</button>
         </div>
         <div v-if="game.agentLogContent" class="log-view">
           <div class="log-view-head">
             <span class="log-view-title">
               {{ game.agentLogTruncated ? '日志（末尾 200K 字符）' : '日志' }}
             </span>
-            <button class="action-btn small" @click="copyLog">
+            <button class="btn-outline small" @click="copyLog">
               {{ logCopied ? '已复制' : '复制' }}
             </button>
           </div>
@@ -104,77 +104,77 @@ const logCopied = ref(false);
 .settings-view {
   width: 100%;
   height: 100%;
-  background: #1e1e1e;
+  background: var(--color-bg);
   overflow-y: auto;
 }
 .settings-content {
   max-width: 600px;
   margin: 0 auto;
-  padding: 24px;
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-5);
 }
 .section {
-  background: #252526;
-  border: 1px solid #3c3c3c;
-  border-radius: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
   overflow: hidden;
 }
 h3 {
   margin: 0;
-  padding: 10px 16px;
-  font-size: 13px;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #9cdcfe;
-  background: #2d2d2d;
-  border-bottom: 1px solid #3c3c3c;
+  color: var(--color-indicator);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
 }
 .setting-row {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  gap: 12px;
-  border-bottom: 1px solid #333;
+  padding: var(--space-3) var(--space-4);
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
 }
 .setting-row:last-child {
   border-bottom: none;
 }
 .setting-label {
-  color: #d4d4d4;
-  font-size: 13px;
+  color: var(--color-text);
+  font-size: var(--font-size-md);
   min-width: 120px;
 }
 .setting-value {
-  color: #dcdcaa;
-  font-size: 14px;
+  color: var(--color-warning);
+  font-size: var(--font-size-base);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   min-width: 48px;
   text-align: left;
 }
 .hint-text {
-  color: #888;
-  font-size: 12px;
-  padding: 10px 16px 12px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  padding: var(--space-2) var(--space-4) var(--space-3);
   margin: 0;
+  line-height: 1.6;
 }
-/* A0：文件日志开关——暗色主题 toggle，ON 时高亮（蓝） */
+/* A0：文件日志开关——暗色主题 toggle，ON 时高亮（primary） */
 .toggle {
   position: relative;
   width: 44px;
   height: 24px;
   border-radius: 12px;
-  border: 1px solid #3c3c3c;
-  background: #3a3a3a;
+  border: none;
+  background: #353638;
   cursor: pointer;
   padding: 0;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background var(--motion-fast), border-color var(--motion-fast);
   flex-shrink: 0;
 }
 .toggle.on {
-  background: #0e639c;
-  border-color: #1177bb;
+  background: #414247;
 }
 .toggle-knob {
   position: absolute;
@@ -183,51 +183,56 @@ h3 {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #d4d4d4;
-  transition: left 0.2s;
+  background: var(--color-text-muted);
+  transition: left var(--motion-fast);
 }
 .toggle.on .toggle-knob {
   left: 22px;
+  background: #ffffff;
 }
-/* A0 补充：查看日志按钮 + 日志展示区 */
-.action-btn {
-  background: #0e639c;
-  color: #fff;
-  border: 1px solid #1177bb;
-  border-radius: 4px;
-  padding: 6px 14px;
-  font-size: 13px;
-  cursor: pointer;
+/* A0 补充：查看日志按钮 + 日志展示区（基于 .btn-outline） */
+.settings-view .btn-outline {
+  background: #353638;
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-control);
 }
-.action-btn.small {
-  padding: 3px 10px;
-  font-size: 12px;
+.settings-view .btn-outline:hover:not(:disabled),
+.settings-view .btn-outline:active:not(:disabled) {
+  background: #414247;
+  color: #ffffff;
+  border: none;
+}
+.btn-outline.small {
+  padding: 3px var(--space-2);
+  font-size: var(--font-size-sm);
+  min-height: 28px;
 }
 .log-view {
-  border-top: 1px solid #3c3c3c;
+  border-top: 1px solid var(--color-border);
 }
 .log-view-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
-  background: #2d2d2d;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
 }
 .log-view-title {
-  color: #9cdcfe;
-  font-size: 12px;
+  color: var(--color-indicator);
+  font-size: var(--font-size-sm);
 }
 .log-view-body {
   margin: 0;
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   max-height: 320px;
   overflow-y: auto;
-  color: #d4d4d4;
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 11px;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
-  background: #1b1b1b;
+  background: var(--color-bg);
 }
 </style>

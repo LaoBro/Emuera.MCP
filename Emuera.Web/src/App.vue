@@ -377,6 +377,19 @@ const popupItems = computed<PopupMenuItem[]>(() => [
   gap: var(--space-1);
   z-index: 50;
 }
+.game-shell-controls .icon-btn {
+  border-radius: 9999px;
+  background: transparent;
+  color: #ffffff;
+}
+.game-shell-controls .icon-btn:hover:not(:disabled),
+.game-shell-controls .icon-btn:active:not(:disabled) {
+  background: #414247;
+  color: #ffffff;
+}
+.game-shell-controls .icon-btn.active {
+  color: #ffffff;
+}
 
 /* 游戏静默状态提示（MAUI）——顶部半透明窄条，pointer-events:none */
 .status-hint {
@@ -390,12 +403,11 @@ const popupItems = computed<PopupMenuItem[]>(() => [
   font-size: var(--font-size-sm);
   color: var(--color-text);
   background: color-mix(in srgb, var(--color-surface) 80%, transparent);
-  border: 1px solid var(--color-border);
+  border: none;
   pointer-events: none;
   white-space: nowrap;
 }
 .status-hint.stopped {
   color: var(--color-error);
-  border-color: color-mix(in srgb, var(--color-error) 40%, var(--color-border));
 }
 </style>

@@ -74,7 +74,7 @@ function onDismissError(): void {
 
 <template>
   <div class="game-picker-mobile">
-    <button class="pick-btn" :disabled="isLoading" @click="onPickDirectory">
+    <button class="btn-primary pick-btn" :disabled="isLoading" @click="onPickDirectory">
       📁 选择目录
     </button>
     <span class="separator">或手动输入：</span>
@@ -86,7 +86,7 @@ function onDismissError(): void {
       :disabled="isLoading"
       @keyup.enter="onLoad"
     />
-    <button class="load-btn" :disabled="isLoading || !input.trim()" @click="onLoad">
+    <button class="btn-primary" :disabled="isLoading || !input.trim()" @click="onLoad">
       {{ isLoading ? '加载中…' : '加载' }}
     </button>
     <span v-if="game.gameDir" class="current-dir">当前：{{ game.gameDir }}</span>
@@ -105,89 +105,73 @@ function onDismissError(): void {
 .game-picker-mobile {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--space-2);
+  font-size: var(--font-size-md);
   flex-wrap: wrap;
+  color: var(--color-text);
 }
+/* pick-btn 触控略高于基准按钮（36px） */
 .pick-btn {
-  background: #0e639c;
-  color: #fff;
-  border: none;
-  padding: 6px 14px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-}
-.pick-btn:disabled {
-  background: #3a3a3a;
-  cursor: not-allowed;
+  min-height: 36px;
 }
 .separator {
-  color: #888;
-  font-size: 12px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 .dir-input {
-  background: #1e1e1e;
-  color: #e0e0e0;
-  border: 1px solid #3c3c3c;
-  padding: 3px 8px;
-  border-radius: 3px;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-control);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
   min-width: 220px;
   flex: 1;
+  transition: border-color var(--motion-fast);
+}
+.dir-input:focus {
+  border-color: var(--color-indicator);
 }
 .dir-input:disabled {
   opacity: 0.6;
 }
-.load-btn {
-  background: #0e639c;
-  color: #fff;
-  border: none;
-  padding: 4px 12px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-}
-.load-btn:disabled {
-  background: #3a3a3a;
-  cursor: not-allowed;
-}
 .current-dir {
-  color: #4ec9b0;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  color: var(--color-success);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
   width: 100%;
 }
 .picker-message {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: #3a3a1d;
-  color: #dcdcaa;
-  border: 1px solid #5a5a2a;
-  padding: 4px 8px;
-  border-radius: 3px;
+  gap: var(--space-2);
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
+  color: var(--color-warning);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-border));
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
   width: 100%;
 }
 .message-text {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 .error-banner {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: #5a1d1d;
-  color: #f48771;
-  border: 1px solid #7a2a2a;
-  padding: 4px 8px;
-  border-radius: 3px;
+  gap: var(--space-2);
+  background: color-mix(in srgb, var(--color-error) 14%, var(--color-surface));
+  color: var(--color-error);
+  border: 1px solid color-mix(in srgb, var(--color-error) 45%, var(--color-border));
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
   width: 100%;
 }
 .error-text {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
+  word-break: break-all;
 }
 .dismiss-btn {
   background: transparent;
@@ -196,9 +180,9 @@ function onDismissError(): void {
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
-  padding: 0 4px;
+  padding: 0 var(--space-1);
 }
 .dismiss-btn:hover {
-  color: #ffaaaa;
+  opacity: 0.8;
 }
 </style>

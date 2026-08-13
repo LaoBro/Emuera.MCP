@@ -123,8 +123,8 @@ function close(): void {
       </div>
 
       <footer class="db-footer">
-        <button class="db-btn cancel" @click="onCancel">取消</button>
-        <button class="db-btn confirm" @click="onConfirm">选择此目录</button>
+        <button class="btn-outline db-btn cancel" @click="onCancel">取消</button>
+        <button class="btn-outline db-btn confirm" @click="onConfirm">选择此目录</button>
       </footer>
     </div>
   </div>
@@ -134,66 +134,70 @@ function close(): void {
 .directory-browser-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 16px;
+  padding: var(--space-4);
+  animation: fade-in var(--motion-fast) ease-out;
 }
 .directory-browser-modal {
-  background: #252526;
-  border: 1px solid #3c3c3c;
-  border-radius: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--elevation-menu);
   display: flex;
   flex-direction: column;
   max-width: 560px;
   width: 100%;
   max-height: 80vh;
   overflow: hidden;
+  animation: dialog-in var(--motion-fast) ease-out;
 }
 .db-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid #3c3c3c;
-  background: #2d2d30;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 .db-title {
   margin: 0 0 4px 0;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   font-weight: 600;
-  color: #e0e0e0;
+  color: var(--color-text);
 }
 .db-current {
-  font-size: 12px;
-  color: #9aa0a6;
-  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
   word-break: break-all;
 }
 .db-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: var(--space-2) 0;
 }
 .db-up {
   display: block;
   width: 100%;
   text-align: left;
   background: transparent;
-  color: #4ec9b0;
+  color: var(--color-indicator);
   border: none;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   cursor: pointer;
-  font-size: 14px;
-  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--font-size-base);
+  font-family: var(--font-mono);
+  transition: background var(--motion-fast);
 }
 .db-up:hover {
-  background: #2d2d30;
+  background: var(--color-surface-raised);
 }
 .db-empty {
-  padding: 16px;
+  padding: var(--space-4);
   text-align: center;
-  color: #6a6a6a;
-  font-size: 13px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
 }
 .db-list {
   list-style: none;
@@ -205,43 +209,37 @@ function close(): void {
   width: 100%;
   text-align: left;
   background: transparent;
-  color: #dcdcdc;
+  color: var(--color-text);
   border: none;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   cursor: pointer;
-  font-size: 14px;
-  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--font-size-base);
+  font-family: var(--font-mono);
+  transition: background var(--motion-fast);
 }
 .db-item:hover {
-  background: #2d2d30;
-  color: #fff;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
 }
 .db-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid #3c3c3c;
-  background: #2d2d30;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
-.db-btn {
-  background: #333;
-  color: #ccc;
-  border: 1px solid #444;
-  padding: 6px 16px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-}
-.db-btn:hover {
-  background: #444;
+/* 基于 .btn-outline——取消用中性色，确认用主色填充 */
+.db-btn.cancel {
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
 }
 .db-btn.confirm {
-  background: #0e639c;
-  color: #fff;
-  border-color: #0e639c;
+  background: color-mix(in srgb, var(--color-indicator) 18%, var(--color-surface));
+  color: var(--color-indicator);
+  border-color: color-mix(in srgb, var(--color-indicator) 55%, var(--color-border));
 }
 .db-btn.confirm:hover {
-  background: #1177bb;
+  background: color-mix(in srgb, var(--color-indicator) 26%, var(--color-surface));
 }
 </style>
