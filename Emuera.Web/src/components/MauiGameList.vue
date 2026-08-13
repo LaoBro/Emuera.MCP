@@ -277,7 +277,7 @@ onUnmounted(() => {
         <div class="empty-hint">游戏目录需要包含 csv/ 和 erb/ 两个子目录</div>
         <button
           type="button"
-          class="empty-primary-btn"
+          class="btn-primary btn-lg empty-primary-btn"
           @click="onChangeMainDir"
         >
           更改主目录
@@ -310,22 +310,15 @@ onUnmounted(() => {
 
 <style scoped>
 .maui-game-list {
-  --prototype-bg: #171717;
-  --prototype-surface: #1f1f1f;
-  --prototype-surface-menu: #2a2b2e;
-  --prototype-text: #e8eaed;
-  --prototype-muted: #bdc1c6;
-  --prototype-border: #303134;
-  --prototype-primary: #a8c7fa;
   width: 100%;
   min-height: 100dvh;
   margin: 0;
   display: flex;
   flex-direction: column;
-  background: var(--prototype-bg);
-  color: var(--prototype-text);
-  font-family: Roboto, "Noto Sans SC", "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: 14px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -342,15 +335,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  min-height: 56px;
-  padding: 8px 24px 0 16px;
+  min-height: var(--appbar-height);
+  padding: var(--space-2) var(--space-5) 0 var(--space-4);
   /* Opaque surface keeps the compact-title row crisp while it covers content. */
-  background: var(--prototype-bg);
+  background: var(--color-bg);
   backdrop-filter: none;
   transition: background-color 0.18s ease;
 }
 .maui-game-list.is-scrolled .picker-appbar {
-  background: var(--prototype-bg);
+  background: var(--color-bg);
   border-bottom-color: transparent;
 }
 .compact-title {
@@ -358,8 +351,8 @@ onUnmounted(() => {
   left: 50%;
   top: 50%;
   transform: translate(-50%, calc(-50% + 8px));
-  color: var(--prototype-text);
-  font-size: 16px;
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
   line-height: 24px;
   opacity: 0;
   pointer-events: none;
@@ -377,21 +370,21 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   background: transparent;
-  color: var(--prototype-text);
+  color: var(--color-text);
   border: none;
   border-radius: 9999px;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 .appbar-menu-btn:hover {
-  background: color-mix(in srgb, var(--prototype-text) 8%, transparent);
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
 }
 .appbar-menu-btn:active {
-  background: color-mix(in srgb, var(--prototype-text) 14%, transparent);
+  background: color-mix(in srgb, var(--color-text) 14%, transparent);
 }
 .appbar-menu-btn:focus-visible {
-  background: color-mix(in srgb, var(--prototype-text) 12%, transparent);
-  outline: 2px solid var(--prototype-primary);
+  background: color-mix(in srgb, var(--color-text) 12%, transparent);
+  outline: 2px solid var(--color-focus);
   outline-offset: -2px;
 }
 .appbar-menu-btn svg {
@@ -405,52 +398,52 @@ onUnmounted(() => {
 }
 .directory-menu {
   position: absolute;
-  top: 56px;
-  right: 24px;
+  top: var(--appbar-height);
+  right: var(--space-5);
   z-index: 10;
   width: 200px;
-  padding: 8px 0;
-  background: var(--prototype-surface-menu);
-  border: 1px solid var(--prototype-border);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  padding: var(--space-2) 0;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--elevation-menu);
 }
 .directory-menu button {
   display: flex;
   align-items: center;
   width: calc(100% - 16px);
-  min-height: 44px;
-  margin: 0 8px;
-  padding: 0 12px;
+  min-height: var(--touch-target);
+  margin: 0 var(--space-2);
+  padding: 0 var(--space-3);
   border: 0;
   background: transparent;
-  color: var(--prototype-text);
-  font-size: 14px;
+  color: var(--color-text);
+  font-size: var(--font-size-base);
   text-align: left;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   cursor: pointer;
 }
 .directory-menu button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--prototype-text) 8%, transparent);
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
 }
 .directory-menu button:focus-visible {
-  background: color-mix(in srgb, var(--prototype-text) 12%, transparent);
-  outline: 2px solid var(--prototype-primary);
+  background: color-mix(in srgb, var(--color-text) 12%, transparent);
+  outline: 2px solid var(--color-focus);
   outline-offset: -2px;
 }
 .directory-menu button:disabled {
-  color: var(--prototype-muted);
+  color: var(--color-text-muted);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
 /* hero 大标题（原型3）：功能标题，不显示产品名 */
 .hero-title {
-  padding: 12px 24px;
+  padding: var(--space-3) var(--space-5);
   font-size: 32px;
   font-weight: 400;
   line-height: 40px;
-  color: var(--prototype-text);
+  color: var(--color-text);
   /* Scroll updates the target immediately; this transition provides the
      time-based easing visible between successive scroll positions. */
   transition: opacity 0.22s cubic-bezier(0.2, 0, 0, 1);
@@ -462,21 +455,21 @@ onUnmounted(() => {
 /* 路径行（原型3）：prefix + mono value，可换行不截断 */
 .path-line {
   position: sticky;
-  top: 56px;
+  top: var(--appbar-height);
   z-index: 25;
   width: 100%;
   margin: 0 0 18px;
-  padding: 0 24px 12px;
-  border-bottom: 1px solid var(--prototype-border);
-  background: var(--prototype-bg);
+  padding: 0 var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
   display: flex;
   align-items: baseline;
   gap: 10px;
   min-width: 0;
 }
 .path-prefix {
-  color: var(--prototype-muted);
-  font-size: 13px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
   line-height: 20px;
   opacity: 0.6;
   flex-shrink: 0;
@@ -485,9 +478,9 @@ onUnmounted(() => {
   min-width: 0;
   word-break: break-all; /* 完整路径允许换行，不用省略号截断（spec §8 窄屏） */
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: var(--font-size-base);
   line-height: 22px;
-  color: var(--prototype-text);
+  color: var(--color-text);
   opacity: 0.6;
 }
 .mgl-body {
@@ -495,7 +488,7 @@ onUnmounted(() => {
   overflow: visible;
   display: flex;
   flex-direction: column;
-  padding: 0 0 24px;
+  padding: 0 0 var(--space-5);
   padding-bottom: env(safe-area-inset-bottom); /* B5：底部安全区 */
 }
 .error-slot {
@@ -560,24 +553,10 @@ onUnmounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
 }
+/* 空状态主按钮——视觉完全由全局 .btn-primary.btn-lg 提供（--btn-padding-* /
+   --touch-target），此处仅保留间距 */
 .empty-primary-btn {
   margin-top: var(--space-3);
-  background: color-mix(in srgb, var(--color-indicator) 18%, var(--color-surface));
-  color: var(--color-indicator);
-  border: 1px solid color-mix(in srgb, var(--color-indicator) 55%, var(--color-border));
-  padding: var(--space-2) var(--space-5);
-  border-radius: var(--radius-control);
-  cursor: pointer;
-  font-size: var(--font-size-base);
-  font-family: var(--font-ui);
-  min-height: var(--touch-target); /* §12：触控目标 ≥48px */
-  transition: background var(--motion-fast);
-}
-.empty-primary-btn:hover {
-  background: color-mix(in srgb, var(--color-indicator) 26%, var(--color-surface));
-}
-.empty-primary-btn:active {
-  background: color-mix(in srgb, var(--color-indicator) 32%, var(--color-surface));
 }
 
 /* 游戏列表（spec §5.3：文件管理器式整行，无卡片） */
@@ -586,7 +565,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   /* Match the hero's 24px leading edge while keeping the page scrollable. */
-  padding-inline: 24px;
+  padding-inline: var(--space-5);
 }
 .game-list {
   list-style: none;
@@ -595,7 +574,7 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   overflow: visible;
   max-width: none;
   width: 100%;

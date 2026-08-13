@@ -59,12 +59,12 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown));
       <h2 class="confirm-title">{{ title }}</h2>
       <p v-if="message" class="confirm-message">{{ message }}</p>
       <div class="confirm-actions">
-        <button type="button" class="confirm-btn text" @click="onCancel">
+        <button type="button" class="btn-primary confirm-btn text" @click="onCancel">
           {{ cancelLabel }}
         </button>
         <button
           type="button"
-          class="confirm-btn text"
+          class="btn-primary confirm-btn text"
           :class="{ danger }"
           @click="onConfirm"
         >
@@ -119,23 +119,13 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown));
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
+/* 对话框按钮——视觉由全局 .btn-primary 提供（--btn-padding-*），
+   此处仅保留对话框内的字形强调与高度 */
 .confirm-btn.text {
-  background: #353638;
-  color: #ffffff;
-  border: none;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-control);
-  cursor: pointer;
-  font-size: var(--font-size-base);
-  font-family: var(--font-ui);
   font-weight: 500;
   min-height: 40px;
-  transition: background var(--motion-fast);
-}
-.confirm-btn.text:hover {
-  background: #414247;
 }
 .confirm-btn.text.danger {
-  color: #ffffff;
+  color: var(--color-text);
 }
 </style>

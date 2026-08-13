@@ -87,10 +87,6 @@ function onDismissError(): void {
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   min-width: 280px;
-  transition: border-color var(--motion-fast);
-}
-.dir-input:focus {
-  border-color: var(--color-indicator);
 }
 .dir-input:disabled {
   opacity: 0.6;

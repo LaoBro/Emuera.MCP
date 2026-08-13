@@ -59,8 +59,8 @@ defineEmits<{
   top: 10px;
   bottom: 10px;
   width: 4px;
-  background: #a8c7fa;
-  border-radius: 2px;
+  background: var(--color-indicator);
+  border-radius: var(--radius-indicator);
   z-index: 2;
 }
 .game-row-btn {
@@ -71,28 +71,28 @@ defineEmits<{
   min-height: 60px;
   text-align: left;
   background: transparent;
-  color: #e8eaed;
+  color: var(--color-text);
   border: none;
   padding: 0;
   border-radius: 12px;
   cursor: pointer;
   font-size: 15px;
-  font-family: Roboto, "Noto Sans SC", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   transition: background-color 0.15s ease;
 }
 .game-row-btn:hover {
-  background: color-mix(in srgb, #e8eaed 8%, transparent);
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
 }
 .game-row-btn:focus-visible {
-  background: color-mix(in srgb, #e8eaed 12%, transparent);
-  outline: 2px solid #a8c7fa;
+  background: color-mix(in srgb, var(--color-text) 12%, transparent);
+  outline: 2px solid var(--color-focus);
   outline-offset: -2px;
 }
 .game-row-btn:active {
-  background: color-mix(in srgb, #e8eaed 14%, transparent);
+  background: color-mix(in srgb, var(--color-text) 14%, transparent);
 }
 .game-row-icon {
-  color: #bdc1c6;
+  color: var(--color-text-muted);
   justify-self: center;
   display: flex;
   align-items: center;
@@ -121,14 +121,14 @@ defineEmits<{
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 24px;
-  color: #e8eaed;
+  color: var(--color-text);
 }
 .game-row-meta {
   flex-shrink: 0;
   margin-left: 8px;
-  color: #bdc1c6;
+  color: var(--color-text-muted);
   opacity: 0.65;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 .game-row-meta::before {
@@ -137,7 +137,7 @@ defineEmits<{
   opacity: 0.4;
 }
 .game-row-arrow {
-  color: #bdc1c6;
+  color: var(--color-text-muted);
   justify-self: center;
   display: flex;
   align-items: center;

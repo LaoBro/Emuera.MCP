@@ -18,6 +18,8 @@
   --color-success: #81c995;       /* 已连接、已加载 */
   --color-warning: #fdd663;       /* 加载中、倒计时提醒 */
   --color-error: #f87171;         /* 错误和危险操作 */
+  --color-control: #353638;       /* 交互控件实心背景（DESIGN.md solid controls） */
+  --color-control-hover: #414247; /* 控件 hover / active / 输入聚焦态 */
   --color-overlay: rgba(0, 0, 0, 0.64); /* 模态遮罩 */
   --color-focus: #38bdf8;         /* 键盘 / 指针焦点环（2px outline），与 indicator 同色 */
 
@@ -58,6 +60,12 @@
   --touch-target: 48px;
   --picker-list-max-width: 720px;
 
+  /* ---------- 按钮留白（DESIGN.md 未约定，统一为 4px / 12px） ----------
+   * 所有实心文字按钮共用 --btn-padding-*；尺寸变体（.btn-sm / .btn-lg）
+   * 只调 min-height 与字号，不再散落 padding 覆盖。 */
+  --btn-padding-y: var(--space-1);  /* 4px */
+  --btn-padding-x: var(--space-3);  /* 12px */
+
   color-scheme: dark;
 }
 
@@ -87,42 +95,30 @@ body {
   outline-offset: 2px;
 }
 
+/* 指针交互模式（main.ts 焦点模态追踪）：最近一次输入来自鼠标/触摸时，
+   抑制 :focus-visible 焦点环——DESIGN.md 输入框与控件不做指针聚焦高亮；
+   键盘导航键按下即退出该模式，恢复全局焦点环（键盘可达性保留）。
+   文本输入框在 Chrome/Safari 下点击也会匹配 :focus-visible，必须在此抑制。 */
+html.pointer-interaction :focus-visible {
+  outline: none;
+}
+
 /* 等宽数字——数字、倒计时、缩放百分比防宽度抖动（spec §3.2） */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- 通用控件类（spec §3.3：Text button / Filled button） ----------
- * 按钮视觉收敛为两档，组件只引用全局类 + 必要的尺寸覆盖，避免散落重复颜色块。 */
-.btn-primary {
-  background: color-mix(in srgb, var(--color-indicator) 18%, var(--color-surface));
-  color: var(--color-indicator);
-  border: 1px solid color-mix(in srgb, var(--color-indicator) 55%, var(--color-border));
-  border-radius: var(--radius-control);
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--font-size-md);
-  font-family: var(--font-ui);
-  min-height: 32px;
-  cursor: pointer;
-  transition: background var(--motion-fast);
-}
-.btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-indicator) 26%, var(--color-surface));
-}
-.btn-primary:active:not(:disabled) {
-  background: color-mix(in srgb, var(--color-indicator) 32%, var(--color-surface));
-}
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
+/* ---------- 通用控件类（spec §3.3：Filled button） ----------
+ * DESIGN.md：交互控件统一实心 #353638 深灰背景 + 白色文字（--color-text），
+ * hover/active 使用 #414247（--color-control-hover），禁用仅降透明度；
+ * 禁止亮色描边 / 发光。按钮视觉收敛为一档实心控件。 */
+.btn-primary,
 .btn-outline {
-  background: transparent;
-  color: var(--color-indicator);
-  border: 1px solid color-mix(in srgb, var(--color-indicator) 40%, var(--color-border));
+  background: var(--color-control);
+  color: var(--color-text);
+  border: none;
   border-radius: var(--radius-control);
-  padding: var(--space-1) var(--space-3);
+  padding: var(--btn-padding-y) var(--btn-padding-x);
   font-size: var(--font-size-md);
   font-family: var(--font-ui);
   min-height: 32px;
@@ -130,12 +126,28 @@ body {
   white-space: nowrap;
   transition: background var(--motion-fast);
 }
+.btn-primary:hover:not(:disabled),
 .btn-outline:hover:not(:disabled) {
-  background: var(--color-surface-raised);
+  background: var(--color-control-hover);
 }
+.btn-primary:active:not(:disabled),
+.btn-outline:active:not(:disabled) {
+  background: var(--color-control-hover);
+}
+.btn-primary:disabled,
 .btn-outline:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 尺寸变体——仅调 min-height 与字号，留白与基础按钮一致（--btn-padding-*） */
+.btn-sm {
+  min-height: 28px;
+  font-size: var(--font-size-sm);
+}
+.btn-lg {
+  min-height: var(--touch-target);
+  font-size: var(--font-size-base);
 }
 
 /* ---------- 通用动效（spec §3.4 --motion-*） ---------- */

@@ -329,20 +329,21 @@ const submitLabel = computed<string>(() => {
 /* 浅色圆角输入条：不使用下划线或聚焦高亮。 */
 .text-input {
   flex: 1;
-  background: #353638;
-  color: #ffffff;
+  background: var(--color-control);
+  color: var(--color-text);
   border: none;
   padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   /* Input prompts are UI chrome, not game output. */
   font-family: var(--font-ui);
   font-size: var(--font-size-base);
   min-width: 0;
   transition: background-color var(--motion-fast);
 }
+/* 聚焦仅微调背景（DESIGN.md：无下划线 / 无边框 / 无聚焦高亮）；
+   键盘焦点由全局 :focus-visible 焦点环提供（DESIGN.md Accessibility）。 */
 .text-input:focus {
-  background: #3b3c3f;
-  outline: none;
+  background: var(--color-control-hover);
 }
 .text-input:disabled {
   opacity: 0.5;
@@ -359,28 +360,12 @@ const submitLabel = computed<string>(() => {
   gap: var(--space-3);
 }
 
-/* 发送 / 继续按钮——基准按钮之上抬高触控高度与字号 */
+/* 发送 / 继续按钮——实心控件（DESIGN.md），仅抬高触控高度与字号；
+   留白 / 颜色 / hover / disabled 由全局 .btn-primary（--btn-padding-*）统一提供 */
 .submit-btn {
   min-height: 36px;
   min-width: 96px;
-  padding: 0 24px;
   font-size: var(--font-size-base);
-  background: #353638;
-  color: #ffffff;
-  border: none;
-  border-radius: 12px;
-  box-shadow: none;
-}
-.submit-btn:hover:not(:disabled),
-.submit-btn:active:not(:disabled) {
-  background: #414247;
-  color: #ffffff;
-  border: none;
-}
-.submit-btn:disabled {
-  background: #353638;
-  color: #ffffff;
-  border: none;
 }
 
 /* 状态显示 */

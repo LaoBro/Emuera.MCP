@@ -81,26 +81,26 @@ const statusDotClass = computed(() => {
     -->
     <button
       v-if="conn.status === 'disconnected' && !conn.reconnectFailed"
-      class="btn-outline conn-btn"
+      class="btn-outline"
       @click="onConnect"
     >
       连接
     </button>
     <button
       v-else-if="conn.status === 'disconnected' && conn.reconnectFailed"
-      class="btn-outline conn-btn retry"
+      class="btn-outline"
       @click="onRetryConnect"
     >
       重新连接
     </button>
     <button
       v-else-if="conn.status === 'reconnecting'"
-      class="btn-outline conn-btn retry"
+      class="btn-outline"
       @click="onRetryConnect"
     >
       立即重连
     </button>
-    <button v-else class="btn-outline conn-btn disconnect" @click="onDisconnect">断开</button>
+    <button v-else class="btn-outline" @click="onDisconnect">断开</button>
     <span v-if="game.protocolVersion !== null" class="proto-version">
       v{{ game.protocolVersion }}
     </span>
@@ -149,23 +149,11 @@ const statusDotClass = computed(() => {
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   min-width: 240px;
-  transition: border-color var(--motion-fast);
-}
-.url-input:focus {
-  border-color: var(--color-indicator);
 }
 .url-input:disabled {
   opacity: 0.6;
 }
-/* 连接按钮——基于 .btn-outline，危险/重试变体仅换文字与边框色 */
-.conn-btn.disconnect {
-  color: var(--color-error);
-  border-color: color-mix(in srgb, var(--color-error) 40%, var(--color-border));
-}
-.conn-btn.retry {
-  color: var(--color-warning);
-  border-color: color-mix(in srgb, var(--color-warning) 40%, var(--color-border));
-}
+/* 连接按钮——统一实心控件（DESIGN.md），连接状态由 status-dot / status-text 表达 */
 .proto-version {
   color: var(--color-success);
   font-family: var(--font-mono);

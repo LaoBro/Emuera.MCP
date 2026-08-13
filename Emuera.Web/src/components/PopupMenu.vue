@@ -142,7 +142,7 @@ onUnmounted(() => {
   gap: var(--space-3);
   min-height: var(--touch-target);
   background: transparent;
-  color: #ffffff;
+  color: var(--color-text);
   border: none;
   text-align: left;
   padding: var(--space-2) var(--space-3);
@@ -153,13 +153,13 @@ onUnmounted(() => {
   transition: background var(--motion-fast);
 }
 .popup-item:hover:not(:disabled) {
-  background: #414247;
+  background: var(--color-control-hover);
 }
 .popup-item.active {
-  color: #ffffff;
+  color: var(--color-text);
 }
 .popup-item.danger {
-  color: #ffffff;
+  color: var(--color-text);
 }
 .popup-item:disabled {
   opacity: 0.4;
@@ -184,7 +184,7 @@ onUnmounted(() => {
   align-items: stretch;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  color: #ffffff;
+  color: var(--color-text);
   font-size: var(--font-size-base);
 }
 .popup-zoom-label {
@@ -197,8 +197,8 @@ onUnmounted(() => {
 }
 .popup-zoom-btn {
   flex: 1;
-  background: #353638;
-  color: #ffffff;
+  background: var(--color-control);
+  color: var(--color-text);
   border: none;
   width: 32px;
   height: 32px;
@@ -209,7 +209,7 @@ onUnmounted(() => {
   transition: background var(--motion-fast);
 }
 .popup-zoom-btn:hover:not(:disabled) {
-  background: #414247;
+  background: var(--color-control-hover);
 }
 .popup-zoom-btn:disabled {
   opacity: 0.4;

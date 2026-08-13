@@ -86,7 +86,7 @@ const logCopied = ref(false);
             <span class="log-view-title">
               {{ game.agentLogTruncated ? '日志（末尾 200K 字符）' : '日志' }}
             </span>
-            <button class="btn-outline small" @click="copyLog">
+            <button class="btn-outline btn-sm" @click="copyLog">
               {{ logCopied ? '已复制' : '复制' }}
             </button>
           </div>
@@ -167,14 +167,14 @@ h3 {
   height: 24px;
   border-radius: 12px;
   border: none;
-  background: #353638;
+  background: var(--color-control);
   cursor: pointer;
   padding: 0;
   transition: background var(--motion-fast), border-color var(--motion-fast);
   flex-shrink: 0;
 }
 .toggle.on {
-  background: #414247;
+  background: var(--color-control-hover);
 }
 .toggle-knob {
   position: absolute;
@@ -188,26 +188,9 @@ h3 {
 }
 .toggle.on .toggle-knob {
   left: 22px;
-  background: #ffffff;
+  background: var(--color-text);
 }
-/* A0 补充：查看日志按钮 + 日志展示区（基于 .btn-outline） */
-.settings-view .btn-outline {
-  background: #353638;
-  color: #ffffff;
-  border: none;
-  border-radius: var(--radius-control);
-}
-.settings-view .btn-outline:hover:not(:disabled),
-.settings-view .btn-outline:active:not(:disabled) {
-  background: #414247;
-  color: #ffffff;
-  border: none;
-}
-.btn-outline.small {
-  padding: 3px var(--space-2);
-  font-size: var(--font-size-sm);
-  min-height: 28px;
-}
+/* A0 补充：查看日志按钮 + 日志展示区（基于 .btn-outline 实心控件，DESIGN.md） */
 .log-view {
   border-top: 1px solid var(--color-border);
 }

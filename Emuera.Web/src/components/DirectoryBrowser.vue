@@ -229,17 +229,8 @@ function close(): void {
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
 }
-/* 基于 .btn-outline——取消用中性色，确认用主色填充 */
+/* 基于 .btn-outline 实心控件（DESIGN.md）——取消用中性文字，确认保持默认白字 */
 .db-btn.cancel {
   color: var(--color-text-muted);
-  border-color: var(--color-border);
-}
-.db-btn.confirm {
-  background: color-mix(in srgb, var(--color-indicator) 18%, var(--color-surface));
-  color: var(--color-indicator);
-  border-color: color-mix(in srgb, var(--color-indicator) 55%, var(--color-border));
-}
-.db-btn.confirm:hover {
-  background: color-mix(in srgb, var(--color-indicator) 26%, var(--color-surface));
 }
 </style>

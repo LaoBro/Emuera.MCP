@@ -166,18 +166,18 @@ h3 {
 }
 .text-input {
   flex: 1;
-  background: #353638;
-  color: #ffffff;
+  background: var(--color-control);
+  color: var(--color-text);
   border: none;
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-control);
   font-family: var(--font-ui);
   font-size: var(--font-size-md);
-  outline: none;
   transition: background var(--motion-fast);
 }
+/* 聚焦仅微调背景；键盘焦点由全局 :focus-visible 焦点环提供 */
 .text-input:focus {
-  background: #414247;
+  background: var(--color-control-hover);
 }
 .text-input:disabled {
   opacity: 0.5;
@@ -217,18 +217,6 @@ h3 {
   background: var(--color-surface);
 }
 
-.debug-view .btn-primary {
-  background: #353638;
-  color: #ffffff;
-  border: none;
-  border-radius: var(--radius-control);
-}
-.debug-view .btn-primary:hover:not(:disabled),
-.debug-view .btn-primary:active:not(:disabled) {
-  background: #414247;
-  color: #ffffff;
-  border: none;
-}
 .frame-json {
   font-size: var(--font-size-xs);
   max-height: 120px;
