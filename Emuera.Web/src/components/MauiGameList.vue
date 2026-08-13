@@ -31,6 +31,7 @@ const game = useGameStore();
 
 /** 顶部 ⋮ 菜单展开状态。 */
 const showMenu = ref(false);
+const isScrolled = ref(false);
 const menuRoot = ref<HTMLElement | null>(null);
 
 /** DirectoryBrowser 弹窗可见性——v-model 控制。 */
@@ -172,21 +173,29 @@ function onDocumentKeyDown(event: KeyboardEvent): void {
   }
 }
 
+function onWindowScroll(): void {
+  isScrolled.value = window.scrollY > 24;
+}
+
 onMounted(() => {
   document.addEventListener('pointerdown', onDocumentPointerDown);
   document.addEventListener('keydown', onDocumentKeyDown);
+  window.addEventListener('scroll', onWindowScroll, { passive: true });
+  onWindowScroll();
 });
 
 onUnmounted(() => {
   document.removeEventListener('pointerdown', onDocumentPointerDown);
   document.removeEventListener('keydown', onDocumentKeyDown);
+  window.removeEventListener('scroll', onWindowScroll);
 });
 </script>
 
 <template>
-  <div ref="menuRoot" class="maui-game-list">
+  <div ref="menuRoot" class="maui-game-list" :class="{ 'is-scrolled': isScrolled }">
     <!-- 原型3：顶部仅保留右侧三点菜单，菜单不改变页面布局。 -->
     <header class="picker-appbar">
+      <span class="compact-title" aria-hidden="true">选择游戏</span>
       <button
         type="button"
         class="appbar-menu-btn"
@@ -288,32 +297,53 @@ onUnmounted(() => {
   --prototype-muted: #bdc1c6;
   --prototype-border: #303134;
   --prototype-primary: #a8c7fa;
-  width: min(100%, 680px);
-  min-height: min(820px, calc(100dvh - 64px));
-  margin: 32px auto;
+  width: 100%;
+  min-height: 100dvh;
+  margin: 0;
   display: flex;
   flex-direction: column;
   background: var(--prototype-bg);
   color: var(--prototype-text);
   font-family: Roboto, "Noto Sans SC", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 14px;
-  border: 1px solid var(--prototype-border);
-  border-radius: 12px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
 }
 
 /* PickerShell 顶部应用栏（原型3）——56px 高、surface 背景，菜单按钮右对齐 */
 .picker-appbar {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 20;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   min-height: 56px;
   padding: 8px 12px 0 16px;
-  background: var(--prototype-bg);
+  background: color-mix(in srgb, var(--prototype-bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  transition: background-color 0.18s ease;
 }
+.maui-game-list.is-scrolled .picker-appbar {
+  background: var(--prototype-surface);
+  border-bottom: 1px solid var(--prototype-border);
+}
+.compact-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--prototype-text);
+  font-size: 16px;
+  line-height: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+.maui-game-list.is-scrolled .compact-title { opacity: 1; }
 /* 原型3：48px 圆形图标按钮和 8/12px Material state layer。 */
 .appbar-menu-btn {
   width: 48px;
@@ -423,7 +453,7 @@ onUnmounted(() => {
 }
 .mgl-body {
   flex: 1;
-  overflow-y: auto;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   padding: 0 12px 24px;
@@ -532,14 +562,4 @@ onUnmounted(() => {
   margin-right: auto;
 }
 
-@media (max-width: 759px) {
-  .maui-game-list {
-    width: 100%;
-    min-height: 100dvh;
-    margin: 0;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-  }
-}
 </style>

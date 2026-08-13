@@ -1,0 +1,164 @@
+/**
+ * theme.css — Emuera Web UI 全局设计令牌（ui-redesign-spec §3）。
+ *
+ * 机制（spec §3.5）：原生 CSS 自定义属性，:root 下定义，main.ts 顶部引入全局生效。
+ * 组件样式一律 var(--token)，禁止再写具体 hex / rgba / 区间值。
+ * 本期为暗色单模式（spec §11）；将来加亮色在 theme.css 增加 [data-theme='light'] 覆盖层。
+ */
+:root {
+  /* ---------- 颜色（修订方案 §2.1：DESIGN.md 石板 + 天蓝权威） ---------- */
+  --color-bg: #171717;            /* 原型3页面主背景 */
+  --color-surface: #1f1f1f;       /* 应用栏、列表项、底部输入区 */
+  --color-surface-raised: #2a2b2e; /* 浮起/选中态、菜单、对话框表面 */
+  --color-border: #303134;        /* 分割线 */
+  --color-text: #e8eaed;          /* 主文字 */
+  --color-text-muted: #bdc1c6;    /* 次要文字、路径、说明 */
+  --color-indicator: #a8c7fa;     /* 原型3淡蓝强调 */
+  --color-indicator-pressed: #c4d7f8; /* 按下 / 强调 */
+  --color-success: #81c995;       /* 已连接、已加载 */
+  --color-warning: #fdd663;       /* 加载中、倒计时提醒 */
+  --color-error: #f87171;         /* 错误和危险操作 */
+  --color-overlay: rgba(0, 0, 0, 0.64); /* 模态遮罩 */
+  --color-focus: #38bdf8;         /* 键盘 / 指针焦点环（2px outline），与 indicator 同色 */
+
+  /* ---------- 圆角（修订方案 §2.4：DESIGN.md 2/4/8 三档） ---------- */
+  --radius-indicator: 2px;        /* 左指示条 */
+  --radius-control: 4px;          /* 按钮、列表项、输入框、图标按钮容器 */
+  --radius-surface: 8px;          /* 对话框、Popup Menu、表面化容器 */
+
+  /* ---------- 阴影（spec §3.4，单档浮层，不递增） ---------- */
+  --elevation-none: none;         /* 默认层级：仅 1px --color-border 表达边界 */
+  --elevation-menu: 0 2px 8px rgba(0, 0, 0, 0.36); /* 仅 Popup Menu / 对话框等浮层 */
+
+  /* ---------- 动效（spec §3.4，两档） ---------- */
+  --motion-fast: 120ms;           /* 状态切换、opacity / background */
+  --motion-slow: 180ms;           /* 输入栏高度过渡、表面出现 */
+
+  /* ---------- 字体（spec §3.2） ---------- */
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+  --font-mono: ui-monospace, Consolas, 'Noto Sans Mono', monospace;
+  --font-size-xs: 11px;           /* 帧序号、日志、微辅助信息 */
+  --font-size-sm: 12px;
+  --font-size-md: 13px;           /* 按钮 / 控件正文 */
+  --font-size-base: 14px;
+  --font-size-lg: 16px;           /* 对话框 / 卡片标题 */
+  --font-size-title: 20px;
+
+  /* ---------- 间距（spec §3.3，4px 基准） ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* ---------- 尺寸（spec §3.3 / §8） ---------- */
+  --appbar-height: 56px;
+  --inputbar-min-height: 64px;
+  --touch-target: 48px;
+  --picker-list-max-width: 720px;
+
+  color-scheme: dark;
+}
+
+/* 全局基础——body 背景 / 文字 / 字体由令牌驱动 */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/**
+ * 焦点环（spec §2.3 / §9）：统一 2px --color-focus outline。
+ * 禁止组件内 outline:none 追求简洁。
+ */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* 等宽数字——数字、倒计时、缩放百分比防宽度抖动（spec §3.2） */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 通用控件类（spec §3.3：Text button / Filled button） ----------
+ * 按钮视觉收敛为两档，组件只引用全局类 + 必要的尺寸覆盖，避免散落重复颜色块。 */
+.btn-primary {
+  background: color-mix(in srgb, var(--color-indicator) 18%, var(--color-surface));
+  color: var(--color-indicator);
+  border: 1px solid color-mix(in srgb, var(--color-indicator) 55%, var(--color-border));
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-md);
+  font-family: var(--font-ui);
+  min-height: 32px;
+  cursor: pointer;
+  transition: background var(--motion-fast);
+}
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-indicator) 26%, var(--color-surface));
+}
+.btn-primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-indicator) 32%, var(--color-surface));
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--color-indicator);
+  border: 1px solid color-mix(in srgb, var(--color-indicator) 40%, var(--color-border));
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-md);
+  font-family: var(--font-ui);
+  min-height: 32px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--motion-fast);
+}
+.btn-outline:hover:not(:disabled) {
+  background: var(--color-surface-raised);
+}
+.btn-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- 通用动效（spec §3.4 --motion-*） ---------- */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes popup-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 无障碍：prefers-reduced-motion 关闭非必要过渡（spec §2.3） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

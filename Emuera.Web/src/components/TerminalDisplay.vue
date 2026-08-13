@@ -463,8 +463,8 @@ watch(() => game.inputInFlight, (inFlight) => {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
   /* font-size / line-height / font-family 由 inline style 动态绑定——
      font-size/line-height 用像素，font-family 首选游戏字体名。 */
-  color: #d4d4d4;
-  background-color: #000000;
+  color: var(--color-text);
+  background-color: var(--color-bg);
   /* pre：保留 PRINT 输出中的空格 / 缩进，长行不自动换行。
      Emuera 的 ConsoleDisplayLine 语义是"一行不拆分"——WinForms GDI 下字符画按
      FontSize/2 的 ASCII 字符宽度算列数，浏览器 monospace 每字符宽度约 0.6em
@@ -530,7 +530,8 @@ watch(() => game.inputInFlight, (inFlight) => {
   /* 纯文本片段——颜色 / 粗体 / 斜体由 :style 内联应用 */
 }
 .term-btn {
-  /* 按钮视觉：与普通文本完全一致；hover 时高亮背景。
+  /* 按钮视觉：与普通文本完全一致；hover 时用下划线 + 低对比背景强调
+     （ui-redesign-spec §6.2：文字优先、细边界或下划线，避免大块圆角胶囊）。
      WinForms 中按钮没有下划线/边框，只是悬浮高亮。
      颜色继承父行——不破坏 segment 自定义颜色。 */
   display: inline;
@@ -545,28 +546,31 @@ watch(() => game.inputInFlight, (inFlight) => {
   text-decoration: none;
   /* 与文本基线对齐，避免按钮盒子顶起行高 */
   vertical-align: baseline;
+  transition: background var(--motion-fast), text-decoration-color var(--motion-fast);
 }
 .term-btn:hover:not(:disabled) {
-  background: #0e639c;
-  color: #fff;
+  background: color-mix(in srgb, var(--color-surface-raised) 60%, transparent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--color-indicator) 70%, transparent);
 }
 .term-btn:active:not(:disabled) {
-  background: #0a4a78;
+  background: color-mix(in srgb, var(--color-indicator) 25%, transparent);
 }
 .term-btn:disabled {
   cursor: default;
 }
 .terminal-empty {
-  color: #888;
+  color: var(--color-text-muted);
   font-style: italic;
-  padding: 24px;
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .terminal-error {
-  color: #f48771;
+  color: var(--color-error);
   font-style: normal;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 </style>

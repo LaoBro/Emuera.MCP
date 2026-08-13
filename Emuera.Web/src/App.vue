@@ -5,6 +5,11 @@ import { useGameStore } from './stores/game';
 import { initAppState } from './composables/useAppInit';
 import { startGameStatusMonitor } from './composables/useGameStatusMonitor';
 import { isMauiEnvironment, loadGameFromPath, exitGame as exitGameBridge } from './lib/mauiBridge';
+import AppShell from './components/AppShell.vue';
+import AppBar from './components/AppBar.vue';
+import PopupMenu, { type PopupMenuItem } from './components/PopupMenu.vue';
+import ConfirmDialog from './components/ConfirmDialog.vue';
+import SegmentedNav from './components/SegmentedNav.vue';
 import ConnectionPanel from './components/ConnectionPanel.vue';
 import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
@@ -19,44 +24,30 @@ const game = useGameStore();
 
 /**
  * T-025 D9 rev：App 挂载初始化——逻辑提取到 initAppState() 便于单测。
- * 见 composables/useAppInit.ts 的详细文档。
- * MAUI 额外启动游戏静默监控（useGameStatusMonitor）——长时间无输出时探测
- * C# 游戏线程存活，显示半透明「游戏运行中/已停止」提示。
+ * MAUI 额外启动游戏静默监控（useGameStatusMonitor）。
  */
 onMounted(() => {
   initAppState();
   startGameStatusMonitor();
 });
 
-/**
- * Issue 07 / spec ID11：MAUI 模式下隐藏 HTTP 模式的连接面板和游戏目录选择器——
- * 改用 MauiGameList（游戏列表 + 更改主目录 + 退出按钮）。
- */
 const isMaui = isMauiEnvironment();
 
 /**
- * game-library spec layout fix：MAUI 全屏游戏选择界面可见性——
- * 游戏未加载时（gameDir 为 null + serverState 空闲）显示全屏 MauiGameList，
- * 游戏运行中或 HTTP 模式显示标准 header + main 布局。
+ * MAUI 全屏游戏选择界面可见性——游戏未加载时（gameDir 为 null + serverState 空闲）
+ * 显示全屏 MauiGameList；游戏运行中或 HTTP 模式显示标准 AppShell 布局。
  */
 const showMauiGameList = computed(() =>
   isMaui && !game.gameDir && game.serverState === 'Idle',
 );
 
-/**
- * 「快速重开」按钮可见性——按模式分流：
- * - HTTP 模式：serverState 非 Idle 时显示（有活跃 session 才能重开）
- * - MAUI 模式：gameDir 非空时显示（已选过目录才能重开同目录）
- */
+/** 「快速重开」可见性：HTTP 非 Idle / MAUI 已选目录。 */
 const canQuickRestart = computed(() =>
   isMaui ? !!game.gameDir : game.serverState !== 'Idle',
 );
 const isRestarting = computed(() => game.reloadStatus === 'loading');
 
-/**
- * game-library spec ID10：MAUI 模式「退出游戏」按钮可见性——
- * 游戏运行中（serverState != 'Idle' 或 gameDir 非空）时显示。
- */
+/** MAUI 模式「退出游戏」可见性。 */
 const canExitGame = computed(
   () => isMaui && (game.serverState !== 'Idle' || !!game.gameDir),
 );
@@ -65,31 +56,31 @@ const isExiting = computed(() => game.exitStatus === 'exiting');
 /** 退出确认对话框可见性。 */
 const showExitConfirm = ref(false);
 
-/** MAUI 全屏浮动菜单（⋮）展开状态。 */
+/** MAUI 全屏「更多」（⋮）菜单展开状态。 */
 const showFloatMenu = ref(false);
 
-/**
- * game-library spec ID10：Android 物理返回键——监听 backButtonPressedTick 自增后弹出退出确认。
- * backButtonPressed 消息由 MainPage.OnBackButtonPressed 投递，useAppInit 转发至此计数器。
- */
+/** Android 物理返回键（backButtonPressed 由 C# 投递）——层级语义（spec §6.1）：
+ *  更多菜单打开 → 关闭菜单；退出确认打开 → 取消；游戏运行中 → 弹退出确认。 */
 watch(() => game.backButtonPressedTick, () => {
   if (!isMaui) return;
+  if (showFloatMenu.value) {
+    showFloatMenu.value = false;
+    return;
+  }
+  if (showExitConfirm.value) {
+    onExitCancel();
+    return;
+  }
   if (isExiting.value) return;
   if (game.serverState === 'Idle' && !game.gameDir) return;
   showExitConfirm.value = true;
 });
 
-/**
- * 快速重开 click——按模式分流：
- * - HTTP 模式：调 game.quickRestart()（disconnect → DELETE /session → POST /load-game → connect）
- * - MAUI 模式：调 loadGameFromPath(game.gameDir) 投递 {"type":"loadGame","path":...}
- *   让 C# OnReloadGame 重建 BridgeHost + Start
- */
+/** 快速重开——HTTP 走 game.quickRestart()；MAUI 投递 loadGameFromPath。 */
 async function onQuickRestart(): Promise<void> {
   if (isRestarting.value) return;
   if (isMaui) {
     if (!game.gameDir) return;
-    // 清空旧显示状态——新游戏首帧到达前不残留旧画面
     game.reset();
     loadGameFromPath(game.gameDir);
     return;
@@ -97,160 +88,205 @@ async function onQuickRestart(): Promise<void> {
   await game.quickRestart();
 }
 
-/**
- * game-library spec ID10：用户点击「退出」按钮——弹确认对话框。
- * 不直接退出，避免误点丢失游戏进度。
- */
+/** 点击「退出游戏」——弹确认对话框，不直接退出。 */
 function onExitClick(): void {
   if (isExiting.value) return;
   showExitConfirm.value = true;
 }
 
-/**
- * game-library spec ID10：用户确认退出——投递 exitGame 消息让 C# Dispose + 重建 host。
- * store.beginExitGame 置 exitStatus='exiting'，UI 禁用退出按钮；
- * C# 回复 gameExited 后 useAppInit 调 completeExitGame 重置状态。
- */
+/** 确认退出——投递 exitGame 消息，C# Dispose + 重建 host。 */
 function onExitConfirm(): void {
   showExitConfirm.value = false;
   if (!game.beginExitGame()) return; // 二次进入保护
   exitGameBridge();
 }
 
-/** 用户取消退出——关闭对话框，无副作用。 */
+/** 取消退出——关闭对话框，无副作用。 */
 function onExitCancel(): void {
   showExitConfirm.value = false;
 }
+
+/**
+ * spec §6.1：⌨ 键盘按钮 active 状态必须与实际输入栏状态一致，不得只按手动开关表现。
+ * 与 TerminalView.showInputBar 同语义：手动唤出时 WaitInput 即显示；
+ * 否则当前回合无按钮时显示（文本→输入行；AnyKey/EnterKey→提示行）。
+ */
+const keyboardActive = computed<boolean>(() => {
+  const st = game.displayState.state;
+  if (st !== 'WaitInput') return false;
+  if (ui.manualInputVisible) return true;
+  return !game.hasActiveButtons;
+});
+
+/** 「更多」菜单项（MAUI 游戏页）——快速重开、缩放、视图切换、退出（spec §6.1）。 */
+const popupItems = computed<PopupMenuItem[]>(() => [
+  {
+    type: 'item',
+    id: 'restart',
+    label: isRestarting.value ? '重开中…' : '快速重开',
+    icon: '⟳',
+    disabled: !canQuickRestart.value || isRestarting.value,
+    onClick: () => {
+      void onQuickRestart();
+      showFloatMenu.value = false;
+    },
+  },
+  {
+    type: 'zoom',
+    percent: Math.round(game.effectiveScale * 100),
+    canZoomOut: game.isMinScale,
+    canZoomIn: game.isMaxScale,
+    onZoomOut: () => game.setScale(game.effectiveScale - 0.1),
+    onZoomReset: () => game.setScale(1),
+    onZoomIn: () => game.setScale(game.effectiveScale + 0.1),
+  },
+  { type: 'separator' },
+  {
+    type: 'item',
+    id: 'terminal',
+    label: 'Terminal',
+    icon: '▣',
+    active: ui.currentView === 'terminal',
+    onClick: () => {
+      ui.switchView('terminal');
+      showFloatMenu.value = false;
+    },
+  },
+  {
+    type: 'item',
+    id: 'debug',
+    label: 'Debug',
+    icon: '{}',
+    active: ui.currentView === 'debug',
+    onClick: () => {
+      ui.switchView('debug');
+      showFloatMenu.value = false;
+    },
+  },
+  {
+    type: 'item',
+    id: 'settings',
+    label: 'Settings',
+    icon: '⚙',
+    active: ui.currentView === 'settings',
+    onClick: () => {
+      ui.switchView('settings');
+      showFloatMenu.value = false;
+    },
+  },
+  { type: 'separator' },
+  {
+    type: 'item',
+    id: 'exit',
+    label: isExiting.value ? '退出中…' : '退出游戏',
+    icon: '⏻',
+    danger: true,
+    disabled: !canExitGame.value || isExiting.value,
+    onClick: () => {
+      onExitClick();
+      showFloatMenu.value = false;
+    },
+  },
+]);
 </script>
 
 <template>
-  <div class="app-root">
-    <!-- game-library spec layout fix：MAUI 全屏游戏选择界面——游戏未加载时独占整个页面 -->
+  <AppShell :scrollable="showMauiGameList">
+    <!-- MAUI 全屏游戏选择界面——游戏未加载时独占整个页面 -->
     <MauiGameList v-if="showMauiGameList" />
 
-    <!-- 游戏运行中或 HTTP 模式：标准 header + main 布局。
-         MAUI 全屏：header 收进右上角浮动 ⋮ 菜单 / ⌨ 手动输入（见下方 float-controls）。 -->
     <template v-else>
-      <header v-if="!isMaui" class="app-header">
-        <ConnectionPanel v-if="!isMaui" />
-        <!-- Issue 05：游戏选择器，按平台条件渲染（MAUI 模式下隐藏——spec ID11） -->
-        <GamePickerMobile v-if="!isMaui && ui.platform === 'android'" />
-        <GamePicker v-else-if="!isMaui" />
-        <!-- T-025 D14：快速重开按钮——游戏运行/结束时显示，一键重载同目录 -->
-        <button
-          v-if="canQuickRestart"
-        class="quick-restart-btn"
-        :disabled="isRestarting"
-        :title="`重开当前游戏：${game.gameDir ?? ''}`"
-        @click="onQuickRestart"
-      >
-        {{ isRestarting ? '重开中…' : '快速重开' }}
-      </button>
-      <!-- game-library spec ID10：退出游戏按钮——MAUI 模式 + 游戏运行时显示 -->
-      <button
-        v-if="canExitGame"
-        class="exit-game-btn"
-        :disabled="isExiting"
-        @click="onExitClick"
-      >
-        {{ isExiting ? '退出中…' : '退出' }}
-      </button>
-      <div class="zoom-controls">
-        <button
-          :disabled="game.isMinScale"
-          title="缩小"
-          @click="game.setScale(game.effectiveScale - 0.1)"
-        >−</button>
-        <span class="zoom-label">{{ Math.round(game.effectiveScale * 100) }}%</span>
-        <button
-          :disabled="game.isMaxScale"
-          title="放大"
-          @click="game.setScale(game.effectiveScale + 0.1)"
-        >+</button>
-      </div>
-      <nav class="view-switch">
-        <button
-          :class="{ active: ui.currentView === 'debug' }"
-          @click="ui.switchView('debug')"
-        >
-          Debug
-        </button>
-        <button
-          :class="{ active: ui.currentView === 'settings' }"
-          @click="ui.switchView('settings')"
-        >
-          Settings
-        </button>
-        <button
-          :class="{ active: ui.currentView === 'terminal' }"
-          @click="ui.switchView('terminal')"
-        >
-          Terminal
-        </button>
-      </nav>
-    </header>
-    <main class="app-main">
-      <DebugView v-if="ui.currentView === 'debug'" />
-      <SettingsView v-else-if="ui.currentView === 'settings'" />
-      <TerminalView v-else />
-    </main>
+      <!-- 桌面：应用栏（连接状态 + 缩放/快速重开 + SegmentedNav） -->
+      <AppBar v-if="!isMaui">
+        <template #left>
+          <ConnectionPanel />
+        </template>
+        <template #actions>
+          <div class="zoom-controls">
+            <button
+              class="icon-btn sm"
+              :disabled="game.isMinScale"
+              aria-label="缩小"
+              title="缩小"
+              @click="game.setScale(game.effectiveScale - 0.1)"
+            >−</button>
+            <span class="zoom-label tabular-nums">{{ Math.round(game.effectiveScale * 100) }}%</span>
+            <button
+              class="icon-btn sm"
+              :disabled="game.isMaxScale"
+              aria-label="放大"
+              title="放大"
+              @click="game.setScale(game.effectiveScale + 0.1)"
+            >+</button>
+          </div>
+          <button
+            v-if="canQuickRestart"
+            class="btn-outline action-btn"
+            :disabled="isRestarting"
+            :title="`重开当前游戏：${game.gameDir ?? ''}`"
+            @click="onQuickRestart"
+          >
+            {{ isRestarting ? '重开中…' : '快速重开' }}
+          </button>
+        </template>
+        <template #nav>
+          <SegmentedNav />
+        </template>
+      </AppBar>
 
-    <!-- MAUI 全屏：浮动 ⌨ 手动输入 + ⋮ 菜单（半透明，不占布局） -->
-    <div v-if="isMaui" class="float-controls">
-      <button
-        class="float-btn"
-        :class="{ active: ui.manualInputVisible }"
-        title="手动输入（隐藏选项）"
-        @click="ui.toggleManualInput()"
-      >⌨</button>
-      <button
-        class="float-btn"
-        :class="{ active: showFloatMenu }"
-        title="菜单"
-        @click="showFloatMenu = !showFloatMenu"
-      >⋮</button>
-    </div>
-    <div v-if="isMaui && showFloatMenu" class="float-menu">
-      <button
-        class="menu-item"
-        :disabled="!canQuickRestart || isRestarting"
-        @click="onQuickRestart(); showFloatMenu = false;"
-      >
-        {{ isRestarting ? '重开中…' : '快速重开' }}
-      </button>
-      <button
-        class="menu-item"
-        :disabled="!canExitGame || isExiting"
-        @click="onExitClick(); showFloatMenu = false;"
-      >
-        {{ isExiting ? '退出中…' : '退出游戏' }}
-      </button>
-      <div class="menu-zoom">
-        <button :disabled="game.isMinScale" title="缩小" @click="game.setScale(game.effectiveScale - 0.1)">−</button>
-        <span>{{ Math.round(game.effectiveScale * 100) }}%</span>
-        <button :disabled="game.isMaxScale" title="放大" @click="game.setScale(game.effectiveScale + 0.1)">+</button>
+      <!-- 桌面：目录选择条（spec §5.5——路径输入行不塞进应用栏） -->
+      <div v-if="!isMaui" class="picker-bar">
+        <GamePickerMobile v-if="ui.platform === 'android'" />
+        <GamePicker v-else />
       </div>
-      <button class="menu-item" :class="{ active: ui.currentView === 'terminal' }" @click="ui.switchView('terminal'); showFloatMenu = false;">Terminal</button>
-      <button class="menu-item" :class="{ active: ui.currentView === 'debug' }" @click="ui.switchView('debug'); showFloatMenu = false;">Debug</button>
-      <button class="menu-item" :class="{ active: ui.currentView === 'settings' }" @click="ui.switchView('settings'); showFloatMenu = false;">Settings</button>
-    </div>
 
+      <!-- MAUI 全屏游戏页：两个常驻无边框图标（spec §6.1），fixed 不占布局。
+           DOM 顺序在 main 之前——满足 §9 Tab 顺序「更多 → 主要内容」。 -->
+      <div v-if="isMaui" class="game-shell-controls">
+        <button
+          class="icon-btn"
+          :class="{ active: keyboardActive }"
+          aria-label="手动输入"
+          title="手动输入"
+          @click="ui.toggleManualInput()"
+        >⌨</button>
+        <button
+          class="icon-btn"
+          :class="{ active: showFloatMenu }"
+          aria-label="更多操作"
+          title="更多操作"
+          @click="showFloatMenu = !showFloatMenu"
+        >⋮</button>
+      </div>
+
+      <PopupMenu
+        v-if="isMaui && showFloatMenu"
+        :items="popupItems"
+        @close="showFloatMenu = false"
+      />
+
+      <main class="app-main">
+        <DebugView v-if="ui.currentView === 'debug'" />
+        <SettingsView v-else-if="ui.currentView === 'settings'" />
+        <TerminalView v-else />
+      </main>
     </template>
 
-    <!-- game-library spec ID10：退出确认对话框 -->
-    <div v-if="showExitConfirm" class="confirm-overlay" @click.self="onExitCancel">
-      <div class="confirm-modal">
-        <div class="confirm-text">确认退出？未保存进度会丢失</div>
-        <div class="confirm-actions">
-          <button class="confirm-btn cancel" @click="onExitCancel">取消</button>
-          <button class="confirm-btn ok" @click="onExitConfirm">确认退出</button>
-        </div>
-      </div>
-    </div>
+    <!-- 退出确认（Android 风格 Alert Dialog，spec §6.1）——挂载于 AppShell #dialogs -->
+    <template #dialogs>
+      <ConfirmDialog
+        :visible="showExitConfirm"
+        title="退出游戏？"
+        message="退出后未保存的进度将丢失。"
+        confirm-label="退出"
+        cancel-label="取消"
+        :danger="true"
+        @confirm="onExitConfirm"
+        @cancel="onExitCancel"
+      />
+    </template>
 
-    <!-- 游戏静默状态提示（MAUI）——长时间无输出且不在等待输入时显示。
-         running=游戏线程存活（慢计算/真死循环都是"在忙"）；stopped=线程已死（假死兜底）。
-         纯展示、pointer-events:none 不挡交互；任何新 turn 到达即消失。 -->
+    <!-- 游戏静默状态提示（MAUI）——纯展示、pointer-events:none 不挡交互 -->
     <div
       v-if="isMaui && game.gameStatusHint !== null"
       class="status-hint"
@@ -258,247 +294,108 @@ function onExitCancel(): void {
     >
       {{ game.gameStatusHint === 'running' ? '游戏运行中…' : '游戏已停止' }}
     </div>
-  </div>
+  </AppShell>
 </template>
 
 <style scoped>
-.app-root {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: #1e1e1e;
-  color: #e0e0e0;
-}
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 12px;
-  background: #252526;
-  border-bottom: 1px solid #3c3c3c;
-  flex-wrap: wrap;
-}
-.view-switch {
-  display: flex;
-  gap: 4px;
-}
-.view-switch button {
-  background: #333;
-  color: #ccc;
-  border: 1px solid #444;
-  padding: 4px 12px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-}
-.view-switch button.active {
-  background: #0e639c;
-  color: #fff;
-  border-color: #0e639c;
-}
-.zoom-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.zoom-controls button {
-  background: #333;
-  color: #ccc;
-  border: 1px solid #444;
-  padding: 2px 8px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-  font-family: inherit;
-  line-height: 1.4;
-}
-.zoom-controls button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.zoom-controls button:hover:not(:disabled) {
-  background: #444;
-}
-.zoom-label {
-  font-size: 12px;
-  color: #aaa;
-  min-width: 36px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-.quick-restart-btn {
-  background: #5a4a1d;
-  color: #dcdcaa;
-  border: 1px solid #6a5a2d;
-  padding: 4px 12px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-  white-space: nowrap;
-}
-.quick-restart-btn:hover:not(:disabled) {
-  background: #6a5a2d;
-}
-.quick-restart-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.exit-game-btn {
-  background: #5a1d1d;
-  color: #f48771;
-  border: 1px solid #7a2a2a;
-  padding: 4px 12px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-  white-space: nowrap;
-}
-.exit-game-btn:hover:not(:disabled) {
-  background: #6a2d2d;
-}
-.exit-game-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
 .app-main {
   flex: 1;
   overflow: hidden;
   display: flex;
-}
-/* game-library spec ID10：退出确认对话框 */
-.confirm-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 16px;
-}
-.confirm-modal {
-  background: #252526;
-  border: 1px solid #3c3c3c;
-  border-radius: 6px;
-  padding: 16px 20px;
-  max-width: 360px;
-  width: 100%;
-  display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-.confirm-text {
-  font-size: 14px;
-  color: #e0e0e0;
-  text-align: center;
-}
-.confirm-actions {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-}
-.confirm-btn {
-  background: #333;
-  color: #ccc;
-  border: 1px solid #444;
-  padding: 6px 16px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-  min-width: 88px;
-}
-.confirm-btn:hover {
-  background: #444;
-}
-.confirm-btn.ok {
-  background: #5a1d1d;
-  color: #f48771;
-  border-color: #7a2a2a;
-}
-.confirm-btn.ok:hover {
-  background: #6a2d2d;
 }
 
-/* 游戏静默状态提示（MAUI）——顶部半透明胶囊，pointer-events:none 不挡交互 */
+/* 桌面目录选择条——路径输入 + 加载按钮成组（spec §5.5） */
+.picker-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 通用图标按钮（spec §3.3）：方形触控目标、无边框、无背景 */
+.icon-btn {
+  width: var(--touch-target);
+  height: var(--touch-target);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--color-text);
+  border: none;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-size: 18px;
+  font-family: var(--font-ui);
+  transition: background var(--motion-fast), color var(--motion-fast);
+}
+.icon-btn.sm {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--color-surface-raised);
+}
+.icon-btn:active:not(:disabled) {
+  background: var(--color-surface);
+}
+.icon-btn.active {
+  color: var(--color-indicator);
+}
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.zoom-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  min-width: 40px;
+  text-align: center;
+}
+
+/* 桌面「快速重开」——.btn-outline 基础上略降高度，与应用栏紧凑 */
+.action-btn {
+  min-height: 32px;
+}
+
+/* MAUI 全屏游戏页：两个常驻无边框图标（spec §6.1）——透明度一致、固定位置、≥48px 点击区 */
+.game-shell-controls {
+  position: fixed;
+  top: calc(var(--space-2) + env(safe-area-inset-top));
+  right: var(--space-2);
+  display: flex;
+  gap: var(--space-1);
+  z-index: 50;
+}
+
+/* 游戏静默状态提示（MAUI）——顶部半透明窄条，pointer-events:none */
 .status-hint {
   position: fixed;
-  top: 12px;
+  top: calc(var(--space-3) + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 12px;
-  color: #e0e0e0;
-  background: rgba(30, 30, 30, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  border: 1px solid var(--color-border);
   pointer-events: none;
   white-space: nowrap;
 }
 .status-hint.stopped {
-  color: #f48771;
-  border-color: rgba(244, 135, 113, 0.4);
-  background: rgba(60, 24, 24, 0.6);
-}
-
-/* 悬浮按钮/容器公共样式见 src/styles/float-btn.css（游戏页与选择页共用）。 */
-.float-menu {
-  position: fixed;
-  top: 60px;
-  right: 12px;
-  z-index: 50;
-  min-width: 150px;
-  background: rgba(37, 37, 38, 0.92);
-  border: 1px solid #3c3c3c;
-  border-radius: 6px;
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.menu-item {
-  background: transparent;
-  border: none;
-  color: #e0e0e0;
-  text-align: left;
-  padding: 8px 10px;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-}
-.menu-item:hover:not(:disabled) {
-  background: #333;
-}
-.menu-item.active {
-  color: #9cdcfe;
-}
-.menu-item:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.menu-zoom {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  color: #ccc;
-  font-size: 13px;
-}
-.menu-zoom button {
-  background: #333;
-  color: #ccc;
-  border: 1px solid #444;
-  width: 26px;
-  height: 26px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-}
-.menu-zoom button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+  color: var(--color-error);
+  border-color: color-mix(in srgb, var(--color-error) 40%, var(--color-border));
 }
 </style>
