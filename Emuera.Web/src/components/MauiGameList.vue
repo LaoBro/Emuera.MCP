@@ -328,22 +328,25 @@ onUnmounted(() => {
   transition: background-color 0.18s ease;
 }
 .maui-game-list.is-scrolled .picker-appbar {
-  background: var(--prototype-surface);
-  border-bottom: 1px solid var(--prototype-border);
+  background: color-mix(in srgb, var(--prototype-bg) 92%, transparent);
+  border-bottom-color: transparent;
 }
 .compact-title {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, calc(-50% + 8px));
   color: var(--prototype-text);
   font-size: 16px;
   line-height: 24px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.18s ease;
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
-.maui-game-list.is-scrolled .compact-title { opacity: 1; }
+.maui-game-list.is-scrolled .compact-title {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
 /* 原型3：48px 圆形图标按钮和 8/12px Material state layer。 */
 .appbar-menu-btn {
   width: 48px;
