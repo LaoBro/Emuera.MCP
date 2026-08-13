@@ -361,6 +361,8 @@ const submitLabel = computed<string>(() => {
 /* 发送 / 继续按钮——基准按钮之上抬高触控高度与字号 */
 .submit-btn {
   min-height: 36px;
+  min-width: 96px;
+  padding: 0 24px;
   font-size: var(--font-size-base);
   background: #353638;
   color: #ffffff;

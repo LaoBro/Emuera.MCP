@@ -428,22 +428,21 @@ onUnmounted(() => {
   line-height: 40px;
   color: var(--prototype-text);
   opacity: 1;
-  transform: translateY(0);
-  transition: opacity 0.18s ease, transform 0.18s ease;
-  animation: picker-hero-in 0.18s ease both;
+  transition: opacity 0.32s ease;
+  animation: picker-hero-in 0.52s ease both;
 }
 .maui-game-list.is-scrolled .hero-title {
   opacity: 0;
-  transform: translateY(-8px);
 }
 
 /* 路径行（原型3）：prefix + mono value，可换行不截断 */
 .path-line {
   position: sticky;
   top: 56px;
-  z-index: 15;
-  margin: 0 24px 18px;
-  padding-bottom: 12px;
+  z-index: 25;
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 0 24px 12px;
   border-bottom: 1px solid var(--prototype-border);
   background: var(--prototype-bg);
   display: flex;
@@ -452,8 +451,8 @@ onUnmounted(() => {
   min-width: 0;
 }
 @keyframes picker-hero-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .path-prefix {
   color: var(--prototype-muted);
