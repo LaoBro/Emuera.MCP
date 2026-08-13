@@ -221,7 +221,7 @@ onUnmounted(() => {
     <!-- hero 大标题（原型3）：功能标题，不显示产品名 -->
     <div class="hero-title">选择游戏</div>
 
-    <!-- 路径行（原型3）：path-prefix + path-value（等宽、可换行不截断） -->
+    <!-- 路径行独立为 sticky 层，滚动后与紧凑标题一起覆盖列表。 -->
     <div class="path-line">
       <span class="path-prefix">当前目录</span>
       <span class="path-value" :title="mainDirDisplay">
@@ -390,7 +390,7 @@ onUnmounted(() => {
   padding: 8px 0;
   background: var(--prototype-surface-menu);
   border: 1px solid var(--prototype-border);
-  border-radius: 8px;
+  border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 .directory-menu button {
@@ -427,17 +427,33 @@ onUnmounted(() => {
   font-weight: 400;
   line-height: 40px;
   color: var(--prototype-text);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  animation: picker-hero-in 0.18s ease both;
+}
+.maui-game-list.is-scrolled .hero-title {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 /* 路径行（原型3）：prefix + mono value，可换行不截断 */
 .path-line {
+  position: sticky;
+  top: 56px;
+  z-index: 15;
   margin: 0 24px 18px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--prototype-border);
+  background: var(--prototype-bg);
   display: flex;
   align-items: baseline;
   gap: 10px;
   min-width: 0;
+}
+@keyframes picker-hero-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .path-prefix {
   color: var(--prototype-muted);
@@ -459,7 +475,7 @@ onUnmounted(() => {
   overflow: visible;
   display: flex;
   flex-direction: column;
-  padding: 0 12px 24px;
+  padding: 0 0 24px;
   padding-bottom: env(safe-area-inset-bottom); /* B5：底部安全区 */
 }
 .error-slot {
@@ -558,8 +574,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  overflow-y: auto;
-  max-width: 656px;
+  overflow: visible;
+  max-width: none;
   width: 100%;
   margin-left: auto;
   margin-right: auto;

@@ -5,29 +5,22 @@ import { useConnectionStore } from '../stores/connection';
 import { useUiStore } from '../stores/ui';
 
 /**
- * InputBar.vue — 输入栏 + 游戏状态显示 + TINPUT 倒计时（issue 04 / ADR-0016 /
- * 虚拟滚动 + sticky 守卫扩展）。
+ * InputBar.vue — 输入栏 + 游戏状态显示 + TINPUT 倒计时（ui-redesign-spec §6.3）。
  *
  * 职责：
  * 1. 根据 `snapshot.inputType` 分支渲染 5 种输入 UI：
- *    - `IntValue`：数字输入框 + 提交按钮，`needValue=true` 时禁止空提交
- *    - `StrValue`：文本输入框 + 提交按钮，`needValue=true` 时禁止空提交
- *    - `AnyKey`：显示"按任意键继续"提示，点击页面任意位置或按任意键提交空 input
- *    - `EnterKey`：显示"按回车继续"提示，按 Enter 提交空 input
- *    - `AnyValue`：文本输入框，允许空提交
- * 2. 显示游戏状态：
- *    - `WaitInput`：显示输入 UI（按 inputType 分支）
- *    - `Running`：显示"游戏运行中..."
- *    - `Quit`：显示"游戏结束"
- *    - `Error`：显示错误提示（`lastTurn.error` 优先于 `lastError`）
- * 3. ADR-0016：TINPUT 超时通知——`game.timeoutNotice` 非空时显示提示文案
- *    （派生自 `turn.timedOut`，超时发生时显示，下一帧 turn.timedOut=false 时自动清空）
- * 4. ADR-0016：TINPUT 实时倒计时——`<TinputCountdown />` 轻量组件渲染
- *    进度条 + 剩余秒数，由 game store 的本地钟表驱动（setInterval 500ms）
- * 5. 输入框聚焦：`WaitInput` 状态时自动聚焦输入框
- * 6. 虚拟滚动 sticky 守卫——AnyKey 模式下 `isStickyToBottom=false` 时拒绝全局 click 推进，
- *    让触屏用户向上滑动翻看历史时不会误触发"点击推进游戏"（spec.md决策三）。
- *    按钮自身 @click 不受影响（按钮区域由 `closest('button')` 跳过）。
+ *    - `IntValue`：数字输入框 + 「发送」，`needValue=true` 时禁止空提交
+ *    - `StrValue`：文本输入框 + 「发送」，`needValue=true` 时禁止空提交
+ *    - `AnyKey`：只显示状态行「按任意键继续」，不渲染空输入框
+ *    - `EnterKey`：只显示状态行「按回车继续」，不渲染空输入框
+ *    - `AnyValue`：文本输入框 + 「发送」，允许空提交
+ * 2. 显示游戏状态（Running / Quit / Error / 等待连接）。
+ * 3. ADR-0016：TINPUT 超时通知 + 实时倒计时（TinputCountdown 组件，输入栏上方窄状态行）。
+ * 4. 输入框聚焦：WaitInput 且为文本类型时自动聚焦。
+ * 5. 虚拟滚动 sticky 守卫——AnyKey 模式下 `isStickyToBottom=false` 时拒绝全局 click 推进。
+ *
+ * 视觉（spec §6.3）：容器 --color-surface + 顶部 --color-border 分隔线；左侧输入类型标签；
+ * 输入框单下边框、聚焦时 --color-indicator 下边框 + 清晰焦点环；提交按钮文案「发送 / 继续」。
  */
 const game = useGameStore();
 const conn = useConnectionStore();
@@ -50,10 +43,10 @@ const hasTextInput = computed<boolean>(() => {
 });
 
 /**
- * 是否显示文本输入框——自动（IntValue/StrValue/AnyValue）或手动（`⌨` 唤出）。
- * 手动模式在任意 WaitInput 下都显示输入框，覆盖"按钮之外只能键入数字的隐藏选项"。
+ * 是否显示文本输入框——仅文本/数字类型显示实际文本字段（spec §6.3）：
+ * AnyKey/EnterKey 手动打开时也保留「按任意键/回车继续」语义，不渲染空输入框。
  */
-const showTextField = computed<boolean>(() => hasTextInput.value || ui.manualInputVisible);
+const showTextField = computed<boolean>(() => hasTextInput.value);
 
 /** 是否禁止空提交——IntValue/StrValue 在 needValue=true 时禁止空，AnyValue 始终允许空。 */
 const blockEmpty = computed<boolean>(() => {
@@ -63,15 +56,9 @@ const blockEmpty = computed<boolean>(() => {
 
 /**
  * 提交当前输入。
- *
  * - 有输入框：取 inputValue，空串 + blockEmpty 时拒绝
  * - 无输入框（AnyKey/EnterKey）：直接提交空串——server 端 inputType 决定是否接受
- *
- * 提交后清空 inputValue（为下轮输入做准备）。
- *
- * 提交前置 inputInFlight 乐观锁——与按钮点击路径（TerminalDisplay.onButtonClick）对称，
- * 防 Enter 连按/重复点击双提交；同时该锁是 TerminalDisplay 滚回底部 watch 的收口信号
- * （翻看历史后提交同样回到底部看结果）。
+ * 提交后清空 inputValue；提交前置 inputInFlight 乐观锁防双提交。
  */
 function submit(): void {
   if (!canSubmit.value) return;
@@ -90,37 +77,27 @@ function submit(): void {
 }
 
 /**
- * 监听 displayState.state 变化——进入新的 WaitInput 时：
- * 1. 清空 inputValue（避免上一轮残留）
- * 2. 等下一帧渲染后 auto-focus 输入框
- *
- * 用 watch + nextTick：displayState 是 ref，state 变化触发 watch；nextTick 等 DOM 更新
- * 后 focus 才有效（inputEl 此时已渲染）。
+ * 监听 displayState.state 变化——进入新的 WaitInput 时清空输入框并 auto-focus；
+ * 从 WaitInput 切走时也清空（避免残留）。
  */
 watch(
   () => game.displayState.state,
   (newState, oldState) => {
-    // 状态切换到 WaitInput（首次或后续）都清空输入框
     if (newState === 'WaitInput') {
       inputValue.value = '';
-      // 只在有文本输入框的 inputType 下尝试 focus
       if (hasTextInput.value) {
         void nextTick(() => {
           inputEl.value?.focus();
         });
       }
     }
-    // 状态从 WaitInput 切走时也清空（避免残留显示在下一次 WaitInput）
     if (oldState === 'WaitInput' && newState !== 'WaitInput') {
       inputValue.value = '';
     }
   },
 );
 
-/**
- * 监听 inputType 变化——同一 WaitInput 内若 inputType 改变（罕见），
- * 也需要重新 focus 输入框。
- */
+/** 监听 inputType 变化——同一 WaitInput 内若 inputType 改变，重新 focus。 */
 watch(
   () => game.displayState.inputType,
   () => {
@@ -133,13 +110,8 @@ watch(
 );
 
 // ---------- AnyKey / EnterKey 全局键盘监听 ----------
-//
-// issue 04 spec：
-// - AnyKey：点击页面任意位置或按任意键提交空 input
-// - EnterKey：按 Enter 提交空 input
-//
-// 用 window-level keydown + click 监听。仅在 state=WaitInput 且 inputType 匹配时挂载。
-// 用 watch 切换挂载/卸载，避免长生命周期 listener 误触发。
+// AnyKey：点击页面任意位置或按任意键提交空 input；EnterKey：按 Enter 提交。
+// 用 window-level keydown + click 监听，仅在 WaitInput 且 inputType 匹配时挂载。
 
 function isAnyKeyMode(): boolean {
   return (
@@ -158,7 +130,6 @@ function onGlobalKeydown(e: KeyboardEvent): void {
       submit();
     }
   } else if (t === 'AnyKey') {
-    // 任意键——但不包括修饰键（Shift/Ctrl/Alt/Meta 单独按下时不应触发）
     const modifierOnly = ['Shift', 'Control', 'Alt', 'Meta'].includes(e.key);
     if (modifierOnly) return;
     e.preventDefault();
@@ -167,18 +138,11 @@ function onGlobalKeydown(e: KeyboardEvent): void {
 }
 
 /** 全局 click 处理——仅 AnyKey 模式下，点击页面任意位置触发提交。
- *  注意：当用户点击按钮 / 链接等可交互元素时不应被劫持——交由具体元素 stopPropagation。
- *
- *  虚拟滚动 sticky 守卫（spec.md决策三）：`isStickyToBottom=false` 时拒绝推进——
- *  用户翻看历史时（向上滚过），触屏滑动可能误触发 click 事件，此时不应推进游戏。
- *  滚回底部后 `isStickyToBottom=true`，click 推进恢复。
- *  按钮区域由 `closest('button')` 跳过——按钮走自身 @click，受 generation/inputInFlight 守卫。 */
+ *  虚拟滚动 sticky 守卫：`isStickyToBottom=false` 时拒绝推进（翻看历史不误触发）；
+ *  按钮区域由 `closest('button')` 跳过——按钮走自身 @click。 */
 function onGlobalClick(e: MouseEvent): void {
   if (!isAnyKeyMode()) return;
-  // sticky 守卫——翻看历史时不推进游戏
   if (!ui.isStickyToBottom) return;
-  // 让点击 Terminal 中的按钮（如有）自然走 button.onclick——不在这里 submit
-  // 简单策略：若点击 target 是 <button> 元素，跳过（让按钮自身处理）
   const target = e.target as HTMLElement | null;
   if (target && target.closest('button')) return;
   e.preventDefault();
@@ -188,7 +152,6 @@ function onGlobalClick(e: MouseEvent): void {
 onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydown);
   window.addEventListener('click', onGlobalClick);
-  // 首次挂载时若已在 WaitInput + 有输入框 → focus
   if (game.displayState.state === 'WaitInput' && hasTextInput.value) {
     void nextTick(() => inputEl.value?.focus());
   }
@@ -204,7 +167,7 @@ const inputPlaceholder = computed<string>(() => {
   const t = game.displayState.inputType;
   if (t === 'IntValue') return '输入数字…';
   if (t === 'StrValue') return '输入文本…';
-  if (t === 'AnyValue') return '输入文本（可空）…';
+  if (t === 'AnyValue') return '输入文本…';
   return '';
 });
 
@@ -227,46 +190,29 @@ const submitDisabled = computed<boolean>(() => {
   return inputValue.value === '' && blockEmpty.value;
 });
 
-/** 提交按钮文案——按 inputType 区分。 */
+/**
+ * 提交按钮文案（spec §6.3）：文本/数字/任意值 → 「发送」；AnyKey/EnterKey → 「继续」。
+ * 不再使用「提交（可空）」等实现性文案。
+ */
 const submitLabel = computed<string>(() => {
   const t = game.displayState.inputType;
-  if (t === 'IntValue' || t === 'StrValue') return '提交';
-  if (t === 'AnyValue') return '提交（可空）';
-  // AnyKey / EnterKey 都用"继续"
-  return '继续';
+  if (t === 'AnyKey' || t === 'EnterKey') return '继续';
+  return '发送';
 });
-
-/** 当前 inputType 中文显示——用于状态栏提示。 */
-const inputTypeLabel = computed<string>(() => {
-  const t = game.displayState.inputType;
-  if (!t) return '';
-  const labels: Record<string, string> = {
-    IntValue: '数字输入',
-    StrValue: '文本输入',
-    AnyKey: '任意键',
-    EnterKey: '回车',
-    AnyValue: '任意值（可空）',
-  };
-  return labels[t] ?? t;
-});
-
-// ---------- ADR-0016：TINPUT 倒计时 UI 派生 ----------
-
-
 
 </script>
 
 <template>
   <div class="input-bar">
-    <!-- TINPUT 超时通知 -->
+    <!-- TINPUT 超时通知（输入栏上方窄状态行，spec §6.3） -->
     <div v-if="game.timeoutNotice" class="tinput-notice">
-      <span class="tinput-icon">⏱</span>
+      <span class="tinput-icon" aria-hidden="true">⏱</span>
       <span>{{ game.timeoutNotice }}</span>
     </div>
 
     <!-- 状态显示：按 displayState.state 分支 -->
     <template v-if="game.displayState.state === 'WaitInput'">
-      <!-- 输入 UI：自动（文本/数字输入态）或手动（⌨ 唤出）都显示输入框 -->
+      <!-- 文本/数字输入：占位提示 + 输入框 + 发送按钮 -->
       <div v-if="showTextField" class="input-row">
         <input
           ref="inputEl"
@@ -279,21 +225,36 @@ const inputTypeLabel = computed<string>(() => {
           @keyup.enter="submit"
         />
         <button
-          class="submit-btn"
+          class="btn-primary submit-btn"
           :disabled="submitDisabled"
           @click="submit"
         >
           {{ submitLabel }}
         </button>
-        <span class="input-hint">{{ inputTypeLabel }}</span>
       </div>
 
-      <div v-else-if="game.displayState.inputType === 'AnyKey'" class="anykey-prompt">
+      <!-- AnyKey / EnterKey：状态行 + 「继续」按钮，不渲染空输入框（spec §6.3）。
+           按钮提交空串；全局 click 监听已通过 closest('button') 排除按钮自身，不会双提交。 -->
+      <div v-else-if="game.displayState.inputType === 'AnyKey'" class="key-prompt">
         <span>按任意键继续</span>
+        <button
+          class="btn-primary submit-btn"
+          :disabled="submitDisabled"
+          @click="submit"
+        >
+          {{ submitLabel }}
+        </button>
       </div>
 
-      <div v-else-if="game.displayState.inputType === 'EnterKey'" class="enterkey-prompt">
+      <div v-else-if="game.displayState.inputType === 'EnterKey'" class="key-prompt">
         <span>按回车继续</span>
+        <button
+          class="btn-primary submit-btn"
+          :disabled="submitDisabled"
+          @click="submit"
+        >
+          {{ submitLabel }}
+        </button>
       </div>
 
       <div v-else class="unknown-input-type">
@@ -302,17 +263,17 @@ const inputTypeLabel = computed<string>(() => {
     </template>
 
     <div v-else-if="game.displayState.state === 'Running'" class="state-running">
-      <span class="state-icon">⟳</span>
+      <span class="state-icon" aria-hidden="true">⟳</span>
       <span>游戏运行中…</span>
     </div>
 
     <div v-else-if="game.displayState.state === 'Quit'" class="state-quit">
-      <span class="state-icon">■</span>
+      <span class="state-icon" aria-hidden="true">■</span>
       <span>游戏结束</span>
     </div>
 
     <div v-else-if="game.displayState.state === 'Error'" class="state-error">
-      <span class="state-icon">✕</span>
+      <span class="state-icon" aria-hidden="true">✕</span>
       <span>错误：{{ errorText ?? '未知错误' }}</span>
     </div>
 
@@ -329,54 +290,57 @@ const inputTypeLabel = computed<string>(() => {
 <style scoped>
 .input-bar {
   flex-shrink: 0;
-  padding: 8px 12px;
-  background: #252526;
-  border-top: 1px solid #3c3c3c;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 13px;
+  padding: var(--space-2) var(--space-3);
+  padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border); /* spec §6.3：顶部一条分隔线 */
+  font-family: var(--font-mono);
+  font-size: var(--font-size-md);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-1);
   min-height: 40px;
+  transition: opacity var(--motion-slow), transform var(--motion-slow);
 }
 
-/* TINPUT 超时通知——黄色背景 + 图标 */
+/* TINPUT 超时通知——warning 语义窄状态行 */
 .tinput-notice {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  background: #5a4a1d;
-  color: #dcdcaa;
-  border-radius: 3px;
-  border: 1px solid #7a6a2d;
-  font-size: 12px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
+  color: var(--color-warning);
+  border-radius: var(--radius-control);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 35%, var(--color-border));
+  font-size: var(--font-size-sm);
 }
 .tinput-icon {
   font-size: 14px;
 }
 
-
-
-/* 输入行：input + submit + hint */
+/* 输入行：input + 发送按钮 */
 .input-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
+  min-height: var(--inputbar-min-height);
 }
+/* 浅色圆角输入条：不使用下划线或聚焦高亮。 */
 .text-input {
   flex: 1;
-  background: #1e1e1e;
-  color: #e0e0e0;
-  border: 1px solid #3c3c3c;
-  padding: 4px 8px;
-  border-radius: 3px;
+  background: #353638;
+  color: #ffffff;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 12px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-base);
   min-width: 0;
+  transition: background-color var(--motion-fast);
 }
 .text-input:focus {
-  border-color: #0e639c;
+  background: #3b3c3f;
   outline: none;
 }
 .text-input:disabled {
@@ -384,36 +348,36 @@ const inputTypeLabel = computed<string>(() => {
   cursor: not-allowed;
 }
 
-.anykey-prompt,
-.enterkey-prompt {
-  color: #dcdcaa;
+.key-prompt {
+  color: var(--color-text-muted);
+  padding: var(--space-2) 0;
+  min-height: var(--inputbar-min-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
+/* 发送 / 继续按钮——基准按钮之上抬高触控高度与字号 */
 .submit-btn {
-  background: #0e639c;
-  color: #fff;
+  min-height: 36px;
+  font-size: var(--font-size-base);
+  background: #353638;
+  color: #ffffff;
   border: none;
-  padding: 4px 14px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-  font-family: inherit;
+  border-radius: 12px;
+  box-shadow: none;
 }
-.submit-btn:hover:not(:disabled) {
-  background: #1177bb;
-}
+.submit-btn:hover:not(:disabled),
 .submit-btn:active:not(:disabled) {
-  background: #0a4a78;
+  background: #414247;
+  color: #ffffff;
+  border: none;
 }
 .submit-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.input-hint {
-  color: #888;
-  font-size: 11px;
-  flex-shrink: 0;
+  background: #353638;
+  color: #ffffff;
+  border: none;
 }
 
 /* 状态显示 */
@@ -425,33 +389,46 @@ const inputTypeLabel = computed<string>(() => {
 .unknown-input-type {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #b0b0b0;
-  padding: 4px 0;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  padding: var(--space-1) 0;
+  min-height: 24px;
 }
 .state-icon {
   font-size: 14px;
 }
 .state-running .state-icon {
-  color: #dcdcaa;
+  color: var(--color-indicator);
   animation: spin 1.4s linear infinite;
   display: inline-block;
 }
 .state-quit .state-icon {
-  color: #f48771;
+  color: var(--color-error);
 }
 .state-error .state-icon {
-  color: #f48771;
+  color: var(--color-error);
 }
 .state-error {
-  color: #f48771;
+  color: var(--color-error);
 }
 .unknown-input-type {
-  color: #dcdcaa;
+  color: var(--color-warning);
 }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+</style>
+
+<!-- 输入栏出现/消失过渡（spec §6.3：短过渡，仅 opacity，避免遮挡最新游戏文本） -->
+<style>
+.inputbar-enter-active,
+.inputbar-leave-active {
+  transition: opacity var(--motion-slow);
+}
+.inputbar-enter-from,
+.inputbar-leave-to {
+  opacity: 0;
 }
 </style>

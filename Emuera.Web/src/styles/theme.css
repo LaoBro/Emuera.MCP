@@ -23,8 +23,8 @@
 
   /* ---------- 圆角（修订方案 §2.4：DESIGN.md 2/4/8 三档） ---------- */
   --radius-indicator: 2px;        /* 左指示条 */
-  --radius-control: 4px;          /* 按钮、列表项、输入框、图标按钮容器 */
-  --radius-surface: 8px;          /* 对话框、Popup Menu、表面化容器 */
+  --radius-control: 12px;         /* 选择页与游戏页通用大圆角控件 */
+  --radius-surface: 12px;         /* 对话框、Popup Menu、表面化容器 */
 
   /* ---------- 阴影（spec §3.4，单档浮层，不递增） ---------- */
   --elevation-none: none;         /* 默认层级：仅 1px --color-border 表达边界 */
