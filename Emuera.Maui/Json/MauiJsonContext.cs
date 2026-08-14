@@ -97,6 +97,12 @@ internal sealed record ConfigMessage(string Type, int MaxLog, bool AgentLogEnabl
 internal sealed record BackButtonPressedMessage(string Type);
 
 /// <summary>
+/// Headless Server GET /state 的最小子集——MAUI Windows 远程探测只读 state / gameDir。
+/// 其余字段（sessionId / 窗口布局）忽略。
+/// </summary>
+internal sealed record HeadlessStateResponse(string? State, string? GameDir);
+
+/// <summary>
 /// MAUI 壳层 JSON 源生成上下文（3.4 NativeAOT 硬性改造）。
 /// 覆盖 BridgeHost / MainPage 全部壳层消息；协议层（TurnRecord 等）继续走
 /// Core 的 <see cref="MinorShift.Emuera.GameView.EmueraJsonContext"/>。
@@ -117,6 +123,7 @@ internal sealed record BackButtonPressedMessage(string Type);
 [JsonSerializable(typeof(LayoutMessage))]
 [JsonSerializable(typeof(ConfigMessage))]
 [JsonSerializable(typeof(BackButtonPressedMessage))]
+[JsonSerializable(typeof(HeadlessStateResponse))]
 internal partial class MauiJsonContext : JsonSerializerContext
 {
 }
