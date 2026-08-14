@@ -1,12 +1,13 @@
-"""Python-side session management mapping client identities to Emuera sessions."""
+"""Python-side session wrapper over the single-session Headless API."""
 import threading
 import time
-from typing import Dict, Optional, Any
-from .emuera_client import EmueraClient
+from typing import Any, Dict, Optional
+
+from .emuera_client import EmueraClient, EmueraHttpError
 
 
 class GameSession:
-    """Python-side wrapper for a single Emuera game session."""
+    """Python-side wrapper for the single Emuera game session."""
 
     def __init__(self, session_id: str, client: EmueraClient):
         self.session_id = session_id
@@ -22,24 +23,33 @@ class GameSession:
         """Send input and fetch next turn via long polling."""
         with self._lock:
             self.touch()
-            if not self.client.send_input(self.session_id, value):
+            try:
+                self.client.post_input(value)
+                turn = self.client.get_turn()
+            except EmueraHttpError:
                 return None
-            turn = self.client.get_turn(self.session_id)
             self.touch()
             return turn
 
     def get_state(self) -> Optional[Dict[str, Any]]:
-        """Fetch current turn (non-blocking, uses cached or new long poll)."""
+        """Fetch current session state."""
         with self._lock:
             self.touch()
-            return self.client.get_turn(self.session_id, timeout=5.0)
+            try:
+                return self.client.get_state()
+            except EmueraHttpError:
+                return None
 
     def destroy(self) -> bool:
-        return self.client.delete_session(self.session_id)
+        try:
+            result = self.client.delete_session()
+        except EmueraHttpError:
+            return False
+        return bool(result.get("removed", True))
 
 
 class SessionManager:
-    """Manages multiple game sessions, mapping client identities to sessions."""
+    """Maps client identities onto the single Headless session."""
 
     def __init__(self, client: EmueraClient, idle_timeout: float = 1800.0):
         self.client = client
@@ -48,13 +58,11 @@ class SessionManager:
         self._lock = threading.Lock()
 
     def create(self, client_id: str) -> GameSession:
-        """Create a new session for a client. Reuses if already exists."""
+        """Return the wrapper for a client. Reuses if already exists."""
         with self._lock:
             if client_id in self._sessions:
                 return self._sessions[client_id]
-            resp = self.client.create_session()
-            session_id = resp["sessionId"]
-            gs = GameSession(session_id, self.client)
+            gs = GameSession("current", self.client)
             self._sessions[client_id] = gs
             return gs
 
@@ -71,7 +79,7 @@ class SessionManager:
             return False
 
     def cleanup_idle(self):
-        """Remove sessions idle longer than timeout."""
+        """Remove wrappers idle longer than timeout."""
         cutoff = time.time() - self.idle_timeout
         with self._lock:
             to_remove = [

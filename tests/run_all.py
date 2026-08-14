@@ -195,6 +195,25 @@ def main():
 
     results.append(
         (
+            "emuera_agent CLI",
+            _run_script(
+                "emuera_agent CLI",
+                [
+                    sys.executable,
+                    str(TESTS_DIR / "test_emuera_agent.py"),
+                    "--binary",
+                    str(binary_path),
+                    "--game-dir",
+                    str(game_dir),
+                ],
+                env=env,
+                timeout=180,
+            ),
+        )
+    )
+
+    results.append(
+        (
             "TINPUT timeout",
             _run_script(
                 "TINPUT timeout",

@@ -7,6 +7,7 @@
 - JSONL 协议流程与 buttons schema（经 server 模式驱动，T-024 后 stdin 管道已废弃）。
 - server 单会话 HTTP API。
 - Server 控制权交接（acquire/release/steal、输入/生命周期门禁、lease、drain、`/control/wait`、in-flight 409）。
+- `emuera_agent` CLI 进程级冒烟（start → acquire → step → release → stop）。
 - TINPUT timeout server 场景。
 - fatal turn 脚本异常路径（THROW）。
 - I-11 脚本退出后 server 存活。
@@ -56,12 +57,13 @@ python tests/run_all.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headle
 
 1. JSONL 流程 + buttons schema 测试（经 server 模式驱动）。
 2. server 单会话测试。
-3. TINPUT timeout 测试。
-4. fatal turn 测试（脚本异常路径）。
-5. I-11 exit survival 测试。
-6. 控制权交接测试（`test_control_handoff.py`）。
-7. `/assets` 资源通道测试（issue 03）。
-8. CLI 交互模式基础测试（happy path + ConPTY smoke tests）。
+3. 控制权交接测试（`test_control_handoff.py`）。
+4. `emuera_agent` CLI 进程级冒烟（`test_emuera_agent.py`）。
+5. TINPUT timeout 测试。
+6. fatal turn 测试（脚本异常路径）。
+7. I-11 exit survival 测试。
+8. `/assets` 资源通道测试（issue 03）。
+9. CLI 交互模式基础测试（happy path + ConPTY smoke tests）。
 
 在 Windows 命令行中，如果相对路径启动失败，请使用绝对路径，例如：
 

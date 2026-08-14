@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "emuera-gateway"
+version = "0.1.0"
+description = "emuera_agent CLI and HTTP client for Emuera.Headless"
+requires-python = ">=3.10"
+readme = "README.md"
+
+[project.optional-dependencies]
+watch = ["websockets>=12"]
+
+[project.scripts]
+emuera_agent = "emuera_gateway.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["emuera_gateway*"]
+exclude = ["emuera_gateway.plugins*"]

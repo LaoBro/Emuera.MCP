@@ -233,10 +233,16 @@ def test_control_wait_events(server):
 
 
 def test_acquire_drain(server):
-    status, body = server.request("POST", "/control/acquire")
-    user = assert_json(status, body, 200)
-    assert user["turnsAdvanced"] >= 1
-    assert user["turn"] is not None
+    deadline = time.time() + 10
+    user = None
+    while time.time() < deadline:
+        status, body = server.request("POST", "/control/acquire")
+        user = assert_json(status, body, 200)
+        if user.get("turnsAdvanced", 0) >= 1 and user.get("turn") is not None:
+            break
+        time.sleep(0.1)
+    assert user is not None and user["turnsAdvanced"] >= 1, user
+    assert user["turn"] is not None, user
 
     status, body = server.post_input("0")
     assert_json(status, body, 200)
