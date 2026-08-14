@@ -33,7 +33,11 @@ const inputEl = ref<HTMLInputElement | null>(null);
 
 /** 当前是否处于可输入状态——检查游戏状态 + 连接状态 + inputInFlight。 */
 const canSubmit = computed<boolean>(
-  () => conn.status === 'connected' && game.displayState.state === 'WaitInput' && !game.inputInFlight,
+  () =>
+    conn.status === 'connected'
+    && conn.canInput
+    && game.displayState.state === 'WaitInput'
+    && !game.inputInFlight,
 );
 
 /** 当前是否需要值输入——IntValue/StrValue/AnyValue 三类有输入框。 */
@@ -122,6 +126,7 @@ function isAnyKeyMode(): boolean {
 
 /** 全局 keydown 处理——EnterKey 监听 Enter，AnyKey 监听任意键。 */
 function onGlobalKeydown(e: KeyboardEvent): void {
+  if (e.ctrlKey || e.metaKey) return;
   if (!canSubmit.value) return;
   const t = game.displayState.inputType;
   if (t === 'EnterKey') {

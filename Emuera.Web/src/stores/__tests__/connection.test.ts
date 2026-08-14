@@ -338,8 +338,24 @@ function defaultFetchImpl(): (url: string | URL | Request, init?: RequestInit) =
     if (urlStr.endsWith('/snapshot')) {
       return new Response(snapshotJson(), { status: 200 });
     }
+    if (urlStr.includes('/control/wait')) {
+      return new Response(JSON.stringify({ error: 'No active session' }), { status: 404 });
+    }
+    if (urlStr.endsWith('/control')) {
+      return new Response(JSON.stringify({ controller: null, state: 'idle' }), { status: 200 });
+    }
     return new Response('not found', { status: 404 });
   };
+}
+
+function endControlWaitIfNeeded(urlStr: string): Response | null {
+  if (urlStr.includes('/control/wait')) {
+    return new Response(JSON.stringify({ error: 'No active session' }), { status: 404 });
+  }
+  if (urlStr.endsWith('/control')) {
+    return new Response(JSON.stringify({ controller: null, state: 'idle' }), { status: 200 });
+  }
+  return null;
 }
 
 describe('useConnectionStore.connect — onopen 立即拉 snapshot', () => {
@@ -483,8 +499,8 @@ describe('useConnectionStore.connect — onopen 立即拉 snapshot', () => {
     expect(game.displayState.lines[0].entries[0].segments[0].text).toBe('Snapshot');
     expect(game.displayState.lines[1].entries[0].segments[0].text).toBe('Hello');
     expect(game.protocolVersion).toBe(6);
-    // onopen 拉 1 次 snapshot + 1 次 POST /session = 2 次 fetch 调用
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenCalledWith('http://localhost:5173/snapshot');
+    expect(fetchSpy).toHaveBeenCalledWith('http://localhost:5173/control');
   });
 
   it('竞态：WS delta 帧在 snapshot resolve 之前到达 → await snapshot 后再 applyTurn（保证顺序）', async () => {
@@ -754,6 +770,8 @@ describe('useConnectionStore — issue 06 自动重连', () => {
         // 重连路径 POST /session 失败 → scheduleReconnect
         return new Response(JSON.stringify({ error: 'still down' }), { status: 500 });
       }
+      const control = endControlWaitIfNeeded(urlStr);
+      if (control) return control;
       return new Response(snapshotJson(), { status: 200 });
     });
 
@@ -776,6 +794,8 @@ describe('useConnectionStore — issue 06 自动重连', () => {
       if (urlStr.endsWith('/session')) {
         return new Response(JSON.stringify({ error: 'still down' }), { status: 500 });
       }
+      const control = endControlWaitIfNeeded(urlStr);
+      if (control) return control;
       return new Response(snapshotJson(), { status: 200 });
     });
 
@@ -826,6 +846,8 @@ describe('useConnectionStore — issue 06 自动重连', () => {
       if (urlStr.endsWith('/session')) {
         return new Response(JSON.stringify({ error: 'server down' }), { status: 500 });
       }
+      const control = endControlWaitIfNeeded(urlStr);
+      if (control) return control;
       return new Response(snapshotJson(), { status: 200 });
     });
 
@@ -863,6 +885,8 @@ describe('useConnectionStore — issue 06 自动重连', () => {
       if (urlStr.endsWith('/session')) {
         return new Response(JSON.stringify({ error: 'server down' }), { status: 500 });
       }
+      const control = endControlWaitIfNeeded(urlStr);
+      if (control) return control;
       return new Response(snapshotJson(), { status: 200 });
     });
 
@@ -953,6 +977,8 @@ describe('useConnectionStore — issue 06 自动重连', () => {
       if (urlStr.endsWith('/session')) {
         return new Response(JSON.stringify({ error: 'temporary failure' }), { status: 503 });
       }
+      const control = endControlWaitIfNeeded(urlStr);
+      if (control) return control;
       return new Response(snapshotJson(), { status: 200 });
     });
 

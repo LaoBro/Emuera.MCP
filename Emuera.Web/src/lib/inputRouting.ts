@@ -27,6 +27,8 @@ export interface ButtonClickContext {
   currentTurnGeneration: number;
   /** 乐观锁——同一回合内防重复点击。 */
   inputInFlight: boolean;
+  /** 用户是否可输入。agent 持有时为 false；省略视为 true（兼容旧调用）。 */
+  canInput?: boolean;
 }
 
 /**
@@ -44,6 +46,7 @@ export function shouldSubmitButtonValue(ctx: ButtonClickContext): boolean {
   if (isAnyKeyInput(ctx.inputType)) return false;
   if (ctx.buttonGeneration !== ctx.currentTurnGeneration) return false;
   if (ctx.inputInFlight) return false;
+  if (ctx.canInput === false) return false;
   return true;
 }
 
@@ -57,6 +60,8 @@ export interface TerminalClickContext {
   inputType: string | null;
   connected: boolean;
   inputInFlight: boolean;
+  /** 用户是否可输入。agent 持有时为 false；省略视为 true。 */
+  canInput?: boolean;
 }
 
 /**
@@ -77,5 +82,6 @@ export function shouldAdvanceOnTerminalClick(ctx: TerminalClickContext): boolean
   if (!isAnyKeyInput(ctx.inputType)) return false;
   if (!ctx.connected) return false;
   if (ctx.inputInFlight) return false;
+  if (ctx.canInput === false) return false;
   return true;
 }

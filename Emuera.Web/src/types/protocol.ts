@@ -329,6 +329,42 @@ export interface DisplayState {
  * 空状态（初始值）。`applySnapshot` 之前 / `clear` op 之后的状态。
  * state='' 与 C# TestAdapter `State = ""` 初始值对称。
  */
+// ---------- 控制权交接（issue 04 / M3） ----------
+
+/** Controller 身份。C# `ControllerInfo.Kind`：`agent` | `user`。空闲时 HTTP 返回 null。 */
+export type ControllerKind = 'agent' | 'user';
+
+export interface ControllerInfo {
+  kind: ControllerKind;
+  leaseExpiresAt?: string | null;
+}
+
+/** `GET /control` / acquire 响应中的控制快照。 */
+export interface ControlStatus {
+  controller: ControllerInfo | null;
+  state: string;
+}
+
+/**
+ * `GET /control/wait` 推送的控制事件。
+ * C# `ControlEvent.Type`：acquired / released / stolen / lease_expired / game_ended / session_replaced。
+ */
+export type ControlEventType =
+  | 'acquired'
+  | 'released'
+  | 'stolen'
+  | 'lease_expired'
+  | 'game_ended'
+  | 'session_replaced';
+
+export interface ControlEvent {
+  type: ControlEventType;
+  reason?: string | null;
+  at?: string;
+  controller: ControllerInfo | null;
+  state: string;
+}
+
 export const EMPTY_DISPLAY_STATE: DisplayState = {
   lines: [],
   bgColor: null,

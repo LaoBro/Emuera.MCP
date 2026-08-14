@@ -223,6 +223,7 @@ function onButtonClick(entry: DisplayEntry): void {
     buttonGeneration: button.generation,
     currentTurnGeneration: game.currentTurnGeneration,
     inputInFlight: game.inputInFlight,
+    canInput: conn.canInput,
   })) return;
   game.setInputInFlight();
   conn.sendInput(valueToWire(button.value));
@@ -248,6 +249,7 @@ function onTerminalClick(e: MouseEvent): void {
     inputType: game.displayState.inputType,
     connected: conn.status === 'connected',
     inputInFlight: game.inputInFlight,
+    canInput: conn.canInput,
   })) return;
   game.setInputInFlight();
   conn.sendInput('');
@@ -308,6 +310,7 @@ async function onImageClick(e: MouseEvent, img: SegmentImage, entry: DisplayEntr
     buttonGeneration: button.generation,
     currentTurnGeneration: game.currentTurnGeneration,
     inputInFlight: game.inputInFlight,
+    canInput: conn.canInput,
   })) return;
   if (imageClickBusy.value) return;
 

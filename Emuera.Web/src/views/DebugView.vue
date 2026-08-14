@@ -11,8 +11,8 @@ const inputValue = ref<string>('');
 
 function onSend(): void {
   const v = inputValue.value;
-  if (!v) return;
-  conn.sendInput(v);
+  if (!v || !conn.canInput) return;
+  void conn.sendInput(v);
   // 不清空输入框，方便反复发送同一输入调试
 }
 </script>
@@ -45,12 +45,12 @@ function onSend(): void {
             class="text-input"
             type="text"
             placeholder="输入值（如 0）"
-            :disabled="conn.status !== 'connected'"
+            :disabled="conn.status !== 'connected' || !conn.canInput"
             @keyup.enter="onSend"
           />
           <button
             class="btn-primary"
-            :disabled="conn.status !== 'connected'"
+            :disabled="conn.status !== 'connected' || !conn.canInput"
             @click="onSend"
           >
             发送

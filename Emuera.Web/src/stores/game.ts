@@ -916,17 +916,38 @@ export const useGameStore = defineStore('game', () => {
         // 步骤 3：connect 新 session（server 已建好新 session 等待 WS 升级）
         await conn.connect(conn.serverUrl);
       } else {
-        // 错误——解析 {error:{code,message}} 结构
-        let code: LoadGameErrorCode = 'LOAD_FAILED';
+        // 错误——解析 {error:{code,message}} 或控制权 409 {code,controller,state}
+        let code: string = 'LOAD_FAILED';
         let message = `HTTP ${resp.status}`;
+        let body: {
+          error?: { code?: string; message?: string } | string;
+          code?: string;
+          controller?: { kind?: string; leaseExpiresAt?: string | null };
+          state?: string;
+        } | null = null;
         try {
-          const body = await resp.json();
-          if (body?.error?.code) code = body.error.code as LoadGameErrorCode;
-          if (body?.error?.message) message = body.error.message;
+          body = await resp.json();
+          if (body?.error && typeof body.error === 'object' && body.error.code) {
+            code = body.error.code;
+            if (body.error.message) message = body.error.message;
+          } else if (typeof body?.code === 'string') {
+            code = body.code;
+          } else if (typeof body?.error === 'string') {
+            code = body.error;
+          }
         } catch {
           // body 非 JSON——用默认 code/message
         }
-        loadGameError.value = new LoadGameError(code, message, resp.status);
+        if (code.startsWith('CONTROL_')) {
+          conn.applyControlDenied({
+            controller: body?.controller,
+            state: body?.state,
+            reason: code,
+            code,
+          });
+        } else {
+          loadGameError.value = new LoadGameError(code as LoadGameErrorCode, message, resp.status);
+        }
         // 错误时仍 connect 回旧 session（路径级错误）/ 建空 session（加载级错误）
         await conn.connect(conn.serverUrl);
       }
@@ -1245,17 +1266,28 @@ export const useGameStore = defineStore('game', () => {
         await conn.connect(conn.serverUrl);
       } else {
         // 失败——D14：清空预填，回退到空路径选择器
-        let code: LoadGameErrorCode = 'LOAD_FAILED';
+        let code: string = 'LOAD_FAILED';
         let message = `HTTP ${resp.status}`;
+        let body: { error?: { code?: string; message?: string }; code?: string; controller?: unknown; state?: string } | null = null;
         try {
-          const body = await resp.json();
-          if (body?.error?.code) code = body.error.code as LoadGameErrorCode;
+          body = await resp.json();
+          if (body?.error?.code) code = body.error.code;
           if (body?.error?.message) message = body.error.message;
+          else if (typeof body?.code === 'string') code = body.code;
         } catch {
           // body 非 JSON——用默认 code/message
         }
-        loadGameError.value = new LoadGameError(code, message, resp.status);
-        resetToIdlePicker();
+        if (code.startsWith('CONTROL_')) {
+          conn.applyControlDenied({
+            controller: body?.controller,
+            state: body?.state,
+            reason: code,
+            code,
+          });
+        } else {
+          loadGameError.value = new LoadGameError(code as LoadGameErrorCode, message, resp.status);
+          resetToIdlePicker();
+        }
       }
     } catch (e) {
       // 网络错误——fetch 抛错
@@ -1314,6 +1346,7 @@ export const useGameStore = defineStore('game', () => {
     inputInFlight,
     hasActiveButtons,
     setInputInFlight,
+    clearInputInFlight,
     // ADR-0016：暴露 TINPUT timer 状态供 UI / 测试访问
     timeoutNotice,
     tinputStartedAt,

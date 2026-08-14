@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGameStore, mapLoadGameErrorCode } from '../stores/game';
+import { useConnectionStore } from '../stores/connection';
 import { useGameDirInput } from '../composables/useGameDirInput';
 
 /**
@@ -18,9 +19,11 @@ import { useGameDirInput } from '../composables/useGameDirInput';
  * 快速重开失败清空 gameDir 时输入框自动清空。
  */
 const game = useGameStore();
+const conn = useConnectionStore();
 const { input } = useGameDirInput();
 
 const isLoading = computed(() => game.reloadStatus === 'loading');
+const loadBlocked = computed(() => isLoading.value || !conn.canMutateLifecycle);
 const errorText = computed(() => {
   if (!game.loadGameError) return null;
   const base = mapLoadGameErrorCode(game.loadGameError.code);
@@ -33,7 +36,7 @@ const errorText = computed(() => {
 
 async function onLoad(): Promise<void> {
   const dir = input.value.trim();
-  if (!dir || isLoading.value) return;
+  if (!dir || loadBlocked.value) return;
   await game.loadGame(dir);
 }
 
@@ -51,12 +54,19 @@ function onDismissError(): void {
       class="dir-input"
       type="text"
       placeholder="例如：D:\games\mygame 或 ./test_game"
-      :disabled="isLoading"
+      :disabled="loadBlocked"
+      :title="!conn.canMutateLifecycle ? '旁观中，请先接管再换游戏' : undefined"
       @keyup.enter="onLoad"
     />
-    <button class="btn-primary" :disabled="isLoading || !input.trim()" @click="onLoad">
+    <button
+      class="btn-primary"
+      :disabled="loadBlocked || !input.trim()"
+      :title="!conn.canMutateLifecycle ? '旁观中，请先接管再换游戏' : undefined"
+      @click="onLoad"
+    >
       {{ isLoading ? '加载中…' : '加载' }}
     </button>
+    <span v-if="!conn.canMutateLifecycle" class="spectator-hint">旁观中，请先接管再换游戏</span>
     <span v-if="game.gameDir" class="current-dir">当前：{{ game.gameDir }}</span>
     <div v-if="errorText" class="error-banner">
       <span class="error-text">{{ errorText }}</span>
@@ -90,6 +100,10 @@ function onDismissError(): void {
 }
 .dir-input:disabled {
   opacity: 0.6;
+}
+.spectator-hint {
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
 }
 .current-dir {
   color: var(--color-success);

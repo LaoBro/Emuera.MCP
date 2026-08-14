@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useGameStore } from './game';
-import type { DisplaySnapshot } from '../types/protocol';
+import type { ControlEvent, ControlStatus, ControllerInfo, DisplaySnapshot } from '../types/protocol';
 import { isMauiEnvironment, postInput } from '../lib/mauiBridge';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -89,6 +89,20 @@ export const useConnectionStore = defineStore('connection', () => {
   let reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
   /** 用户主动断开标志——onclose 看到此 flag 不调度重连。connect() 时重置为 false。 */
   let isManualDisconnect = false;
+  /** 当前 Controller。null = 空闲（任何人可输入）。 */
+  const controller = ref<ControllerInfo | null>(null);
+  /** C# Controller.State：idle | held。 */
+  const controlState = ref<string>('idle');
+  /** 最近一次控制事件（多标签靠 /control/wait 收敛）。 */
+  const lastControlEvent = ref<ControlEvent | null>(null);
+  /** 输入/生命周期被拒时的可见错误，不静默。 */
+  const controlError = ref<string | null>(null);
+  /** 取消 GET /control/wait 长轮询。 */
+  let controlAbort: AbortController | null = null;
+
+  const isSpectator = computed(() => controller.value?.kind === 'agent');
+  const canInput = computed(() => controller.value?.kind !== 'agent');
+  const canMutateLifecycle = computed(() => controller.value?.kind !== 'agent');
   /**
    * 关联的 game store——store 顶层声明，供 connect / refreshSnapshot 共享同一引用。
    * Pinia store 是单例，useGameStore() 多次调用返回同一实例。
@@ -325,6 +339,8 @@ export const useConnectionStore = defineStore('connection', () => {
       // 再应用 delta——保证 spec 要求的"先 snapshot 后 delta"顺序，避免
       // delta 帧先于 snapshot resolve 到达被覆盖的竞态。
       pendingSnapshotPromise = refreshSnapshot(httpBase);
+      void refreshControl(httpBase);
+      void startControlWatch(httpBase);
     };
 
     socket.onmessage = async (event) => {
@@ -359,6 +375,7 @@ export const useConnectionStore = defineStore('connection', () => {
 
     socket.onclose = (event) => {
       ws = null;
+      stopControlWatch();
       closeReason.value = event.reason || `code=${event.code}`;
       // 用户主动断开（disconnect()）→ 不重连；正常关闭（code=1000）→ 不重连
       if (isManualDisconnect || event.code === 1000) {
@@ -423,9 +440,157 @@ export const useConnectionStore = defineStore('connection', () => {
     return pendingSnapshotPromise;
   }
 
+  function parseController(raw: unknown): ControllerInfo | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const rec = raw as { kind?: unknown; leaseExpiresAt?: unknown };
+    if (rec.kind !== 'agent' && rec.kind !== 'user') return null;
+    return {
+      kind: rec.kind,
+      leaseExpiresAt: typeof rec.leaseExpiresAt === 'string' ? rec.leaseExpiresAt : null,
+    };
+  }
+
+  function applyControlStatus(status: ControlStatus): void {
+    controller.value = status.controller;
+    controlState.value = status.state || (status.controller ? 'held' : 'idle');
+  }
+
+  function applyControlEvent(ev: ControlEvent): void {
+    lastControlEvent.value = ev;
+    applyControlStatus({
+      controller: ev.controller,
+      state: ev.state,
+    });
+    if (ev.controller?.kind !== 'agent') {
+      controlError.value = null;
+    }
+  }
+
+  function applyControlDenied(body: {
+    controller?: unknown;
+    state?: unknown;
+    reason?: unknown;
+    code?: unknown;
+    message?: unknown;
+  }): void {
+    applyControlStatus({
+      controller: parseController(body.controller),
+      state: typeof body.state === 'string' ? body.state : 'held',
+    });
+    const reason = typeof body.reason === 'string' ? body.reason : typeof body.code === 'string' ? body.code : '';
+    if (reason === 'CONTROL_HELD_BY_AGENT' || reason === 'CONTROL_NOT_CONTROLLER' || controller.value?.kind === 'agent') {
+      controlError.value = '当前由 Agent 操控，接管后可操作';
+    } else if (typeof body.message === 'string' && body.message) {
+      controlError.value = body.message;
+    } else {
+      controlError.value = '操作被拒绝，请确认当前控制权';
+    }
+  }
+
+  function stopControlWatch(): void {
+    if (controlAbort) {
+      controlAbort.abort();
+      controlAbort = null;
+    }
+  }
+
+  async function refreshControl(httpBase: string): Promise<void> {
+    try {
+      const resp = await fetch(`${httpBase}/control`);
+      if (resp.status !== 200) {
+        applyControlStatus({ controller: null, state: 'idle' });
+        return;
+      }
+      const body = await resp.json() as { controller?: unknown; state?: unknown };
+      applyControlStatus({
+        controller: parseController(body.controller),
+        state: typeof body.state === 'string' ? body.state : 'idle',
+      });
+    } catch {
+      // 保留上次已知状态；控制通道失败不等于断开游戏画面
+    }
+  }
+
+  async function startControlWatch(httpBase: string): Promise<void> {
+    stopControlWatch();
+    const ac = new AbortController();
+    controlAbort = ac;
+    while (!ac.signal.aborted) {
+      try {
+        const resp = await fetch(`${httpBase}/control/wait`, { signal: ac.signal });
+        if (ac.signal.aborted) return;
+        if (resp.status === 200) {
+          const body = await resp.json() as {
+            type?: unknown;
+            event?: unknown;
+            reason?: unknown;
+            at?: unknown;
+            controller?: unknown;
+            state?: unknown;
+          };
+          const typeRaw = typeof body.type === 'string' ? body.type : body.event;
+          if (typeof typeRaw !== 'string') {
+            await delay(500);
+            continue;
+          }
+          applyControlEvent({
+            type: typeRaw as ControlEvent['type'],
+            reason: typeof body.reason === 'string' ? body.reason : null,
+            at: typeof body.at === 'string' ? body.at : undefined,
+            controller: parseController(body.controller),
+            state: typeof body.state === 'string' ? body.state : 'idle',
+          });
+          continue;
+        }
+        if (resp.status === 204) continue;
+        if (resp.status === 404) {
+          applyControlStatus({ controller: null, state: 'idle' });
+          return;
+        }
+        await delay(500);
+      } catch {
+        if (ac.signal.aborted) return;
+        await delay(1000);
+      }
+    }
+  }
+
+  async function acquireControl(): Promise<void> {
+    const httpBase = deriveHttpBase(serverUrl.value);
+    try {
+      const resp = await fetch(`${httpBase}/control/acquire`, { method: 'POST' });
+      const text = await resp.text();
+      let body: {
+        controller?: unknown;
+        state?: unknown;
+        error?: unknown;
+        code?: unknown;
+        reason?: unknown;
+        message?: unknown;
+      } = {};
+      try {
+        body = text ? JSON.parse(text) as typeof body : {};
+      } catch {
+        body = {};
+      }
+      if (resp.status === 200) {
+        applyControlStatus({
+          controller: parseController(body.controller) ?? { kind: 'user', leaseExpiresAt: null },
+          state: typeof body.state === 'string' ? body.state : 'held',
+        });
+        controlError.value = null;
+        return;
+      }
+      applyControlDenied(body);
+    } catch (e) {
+      controlError.value = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   /** 主动断开——取消 pending 重连 + 关闭 WS + 抑制 onclose 重连。 */
   function disconnect(): void {
     isManualDisconnect = true;
+    stopControlWatch();
     clearPendingReconnect();
     if (ws) {
       ws.close(1000, 'client disconnect');
@@ -437,10 +602,8 @@ export const useConnectionStore = defineStore('connection', () => {
   }
 
   /**
-   * 通过 WS 发送输入帧。
-   *
-   * 帧格式与 C# HTTP /input 端点对称：`{"type":"input","value":"..."}`，
-   * 由 HandleWsInput 直接 EnqueueInput 给 HttpSessionIO，再被 AgentJsonlProtocol 消费。
+   * 提交输入。HTTP 模式走 `POST /input`（无 token = 用户），以便 409 回落到控制状态；
+   * MAUI 仍走 bridge `postInput`。
    *
    * ADR-0016：v6 协议用 turn.timedOut 旗标检测超时，已删除 issue 04 启发式
    * 超时检测——通知由下一帧 turn.timedOut 派生清空，submit 不需要任何额外动作。
@@ -449,7 +612,7 @@ export const useConnectionStore = defineStore('connection', () => {
    * `BridgeHost.OnInputFromJs` 识别 `{"type":"input","value":"..."}` 后（T08）入 `MauiBridgeIO.EnqueueInput`。
    * MAUI 模式下 status 由 useAppInit 标记为 'connected'（无 WS 但语义等价）。
    */
-  function sendInput(value: string): void {
+  async function sendInput(value: string): Promise<void> {
     const payload = JSON.stringify({ type: 'input', value });
     // 提交输入即标记"游戏开始干活"——静默监控据此在长时间无帧时探测线程存活
     // （慢回合计算期间前端 state 停留在旧 WaitInput，只有提交时刻能区分"在忙"与"在等人"）。
@@ -458,8 +621,33 @@ export const useConnectionStore = defineStore('connection', () => {
       postInput(payload);
       return;
     }
-    if (!ws || status.value !== 'connected') return;
-    ws.send(payload);
+    if (status.value !== 'connected') return;
+    const httpBase = deriveHttpBase(serverUrl.value);
+    try {
+      const resp = await fetch(`${httpBase}/input`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      });
+      if (resp.status === 409) {
+        let body: { controller?: unknown; state?: unknown; reason?: unknown; code?: unknown; message?: unknown } = {};
+        try {
+          body = await resp.json() as typeof body;
+        } catch {
+          body = {};
+        }
+        applyControlDenied(body);
+        game.clearInputInFlight();
+        return;
+      }
+      if (!resp.ok) {
+        controlError.value = `输入失败：HTTP ${resp.status}`;
+        game.clearInputInFlight();
+      }
+    } catch (e) {
+      controlError.value = e instanceof Error ? e.message : String(e);
+      game.clearInputInFlight();
+    }
   }
 
   return {
@@ -468,10 +656,21 @@ export const useConnectionStore = defineStore('connection', () => {
     closeReason,
     retryCount,
     reconnectFailed,
+    controller,
+    controlState,
+    lastControlEvent,
+    controlError,
+    isSpectator,
+    canInput,
+    canMutateLifecycle,
     connect,
     disconnect,
     retryConnect,
     sendInput,
+    acquireControl,
+    applyControlStatus,
+    applyControlEvent,
+    applyControlDenied,
     // 测试 seam：导出内部纯函数便于单测
     deriveHttpBase,
     ensureSession,

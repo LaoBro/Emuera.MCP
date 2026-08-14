@@ -25,6 +25,7 @@ const { input } = useGameDirInput();
 const pickerMessage = ref<string | null>(null);
 
 const isLoading = computed(() => game.reloadStatus === 'loading');
+const loadBlocked = computed(() => isLoading.value || !conn.canMutateLifecycle);
 const errorText = computed(() => {
   if (!game.loadGameError) return null;
   const base = mapLoadGameErrorCode(game.loadGameError.code);
@@ -36,7 +37,7 @@ const errorText = computed(() => {
 });
 
 async function onPickDirectory(): Promise<void> {
-  if (isLoading.value) return;
+  if (loadBlocked.value) return;
   pickerMessage.value = null;
 
   const httpBase = conn.deriveHttpBase(conn.serverUrl);
@@ -63,7 +64,7 @@ async function onPickDirectory(): Promise<void> {
 
 async function onLoad(): Promise<void> {
   const dir = input.value.trim();
-  if (!dir || isLoading.value) return;
+  if (!dir || loadBlocked.value) return;
   await game.loadGame(dir);
 }
 
@@ -74,7 +75,12 @@ function onDismissError(): void {
 
 <template>
   <div class="game-picker-mobile">
-    <button class="btn-primary pick-btn" :disabled="isLoading" @click="onPickDirectory">
+    <button
+      class="btn-primary pick-btn"
+      :disabled="loadBlocked"
+      :title="!conn.canMutateLifecycle ? '旁观中，请先接管再换游戏' : undefined"
+      @click="onPickDirectory"
+    >
       📁 选择目录
     </button>
     <span class="separator">或手动输入：</span>
@@ -83,12 +89,18 @@ function onDismissError(): void {
       class="dir-input"
       type="text"
       placeholder="/sdcard/games/mygame"
-      :disabled="isLoading"
+      :disabled="loadBlocked"
       @keyup.enter="onLoad"
     />
-    <button class="btn-primary" :disabled="isLoading || !input.trim()" @click="onLoad">
+    <button
+      class="btn-primary"
+      :disabled="loadBlocked || !input.trim()"
+      :title="!conn.canMutateLifecycle ? '旁观中，请先接管再换游戏' : undefined"
+      @click="onLoad"
+    >
       {{ isLoading ? '加载中…' : '加载' }}
     </button>
+    <span v-if="!conn.canMutateLifecycle" class="spectator-hint">旁观中，请先接管再换游戏</span>
     <span v-if="game.gameDir" class="current-dir">当前：{{ game.gameDir }}</span>
     <div v-if="pickerMessage" class="picker-message">
       <span class="message-text">{{ pickerMessage }}</span>
@@ -116,6 +128,10 @@ function onDismissError(): void {
 }
 .separator {
   color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.spectator-hint {
+  color: var(--color-warning);
   font-size: var(--font-size-sm);
 }
 .dir-input {

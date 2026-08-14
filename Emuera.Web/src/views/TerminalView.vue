@@ -8,6 +8,7 @@ import TerminalDisplay from '../components/TerminalDisplay.vue';
 import InputBar from '../components/InputBar.vue';
 import TinputCountdown from '../components/TinputCountdown.vue';
 import StatusBanner from '../components/StatusBanner.vue';
+import SpectatorBanner from '../components/SpectatorBanner.vue';
 
 const conn = useConnectionStore();
 const game = useGameStore();
@@ -84,6 +85,10 @@ const showInputBar = computed<boolean>(() => {
       >
         连接失败：自动重连已耗尽，请检查服务器后点击「重新连接」按钮。{{ conn.closeReason ? ` — ${conn.closeReason}` : '' }}
       </StatusBanner>
+      <StatusBanner v-else-if="conn.controlError" kind="warning">
+        {{ conn.controlError }}
+      </StatusBanner>
+      <SpectatorBanner />
     </div>
 
     <!-- 输入栏——自动弹出（文本/数字输入且无按钮）或 ⌨ 手动唤出；

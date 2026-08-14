@@ -46,6 +46,7 @@ npm run build
 | `src/components/PopupMenu.vue` | MAUI 更多菜单：快速重开、缩放（含恢复）、视图切换、退出 |
 | `src/components/ConfirmDialog.vue` | 退出 / 确认 Alert Dialog（遮罩 + 危险文字按钮，Escape/返回取消） |
 | `src/components/StatusBanner.vue` | 顶部可关闭提示条：错误 / 警告 / 成功 / 信息 |
+| `src/components/SpectatorBanner.vue` | HTTP 旁观横幅：Agent 操控提示 + 接管按钮 |
 | `src/components/SegmentedNav.vue` | Terminal / Debug / Settings 视图切换（桌面） |
 | `src/components/GameRow.vue` | 游戏选择页列表项（文件管理器式整行） |
 
@@ -54,7 +55,7 @@ npm run build
 | 文件 | 职责 |
 |---|---|
 | `src/stores/game.ts` | 游戏目录、服务器状态、回合数据、显示快照、加载和快速重开 |
-| `src/stores/connection.ts` | HTTP/WS 地址、连接生命周期、输入和回合请求 |
+| `src/stores/connection.ts` | HTTP/WS 地址、连接生命周期、输入和回合请求、控制权状态（旁观/接管） |
 | `src/stores/ui.ts` | 当前页面、平台、缩放和手动输入面板状态 |
 
 关键状态：
@@ -90,6 +91,7 @@ npm run build
 | 修改游戏选择和加载流程 | `components/MauiGameList.vue`、`stores/game.ts`、`lib/mauiBridge.ts` |
 | 修改快速重开或退出游戏 | `App.vue`、`stores/game.ts`、`lib/mauiBridge.ts` |
 | 修改 HTTP 连接或 WebSocket 输入 | `components/ConnectionPanel.vue`、`stores/connection.ts` |
+| 修改旁观/接管或控制权状态 | `stores/connection.ts`、`components/SpectatorBanner.vue`、`App.vue` |
 | 修改手动输入和按钮输入 | `components/InputBar.vue`、`lib/inputRouting.ts` |
 | 修改 TINPUT 倒计时 | `components/TinputCountdown.vue`、`stores/game.ts` |
 | 修改终端滚动或缩放 | `composables/useVirtualScroll.ts`、`composables/usePinchZoom.ts`、`TerminalDisplay.vue` |
@@ -106,11 +108,12 @@ npm run build
 App.vue
   -> AppBar (ConnectionPanel) / picker-bar (GamePicker)
   -> connection.ts
-  -> WebSocket / HTTP server
+  -> WebSocket (turns) + GET /control + GET /control/wait (control events)
   -> parseTurnRecord.ts
   -> game.ts
   -> TerminalView
-  -> TerminalDisplay / InputBar
+  -> SpectatorBanner / TerminalDisplay / InputBar
+  -> POST /control/acquire (接管) / POST /input (用户输入)
 ```
 
 ### MAUI 模式
@@ -147,6 +150,7 @@ MauiGameList.onPickGame()
 | 测试文件 | 覆盖内容 |
 |---|---|
 | `src/components/__tests__/TerminalDisplay.test.ts` | 终端文本、图片、图形、背景、按钮和 MAUI 空状态 |
+| `src/stores/__tests__/connectionControl.test.ts` | HTTP 控制权：旁观/接管、事件序列、输入 409 |
 | `src/stores/__tests__/game.test.ts` | 游戏状态、回合和目录状态 |
 | `src/stores/__tests__/gameLoadGame.test.ts` | HTTP 游戏加载 |
 | `src/stores/__tests__/gameQuickRestart.test.ts` | HTTP 快速重开 |

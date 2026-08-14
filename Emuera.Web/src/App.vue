@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, watch, defineAsyncComponent } from 'vue';
+import { onMounted, onUnmounted, ref, computed, watch, defineAsyncComponent } from 'vue';
 import { useUiStore } from './stores/ui';
 import { useGameStore } from './stores/game';
+import { useConnectionStore } from './stores/connection';
 import { initAppState } from './composables/useAppInit';
 import { startGameStatusMonitor } from './composables/useGameStatusMonitor';
 import { isMauiEnvironment, loadGameFromPath, exitGame as exitGameBridge } from './lib/mauiBridge';
@@ -21,6 +22,14 @@ const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue
 
 const ui = useUiStore();
 const game = useGameStore();
+const conn = useConnectionStore();
+
+function onControlHotkey(e: KeyboardEvent): void {
+  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 't') return;
+  if (isMauiEnvironment() || !conn.isSpectator) return;
+  e.preventDefault();
+  void conn.acquireControl();
+}
 
 /**
  * T-025 D9 rev：App 挂载初始化——逻辑提取到 initAppState() 便于单测。
@@ -29,6 +38,11 @@ const game = useGameStore();
 onMounted(() => {
   initAppState();
   startGameStatusMonitor();
+  window.addEventListener('keydown', onControlHotkey);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onControlHotkey);
 });
 
 const isMaui = isMauiEnvironment();
@@ -79,6 +93,7 @@ watch(() => game.backButtonPressedTick, () => {
 /** 快速重开——HTTP 走 game.quickRestart()；MAUI 投递 loadGameFromPath。 */
 async function onQuickRestart(): Promise<void> {
   if (isRestarting.value) return;
+  if (!isMaui && !conn.canMutateLifecycle) return;
   if (isMaui) {
     if (!game.gameDir) return;
     game.reset();
@@ -222,8 +237,8 @@ const popupItems = computed<PopupMenuItem[]>(() => [
           <button
             v-if="canQuickRestart"
             class="btn-outline action-btn"
-            :disabled="isRestarting"
-            :title="`重开当前游戏：${game.gameDir ?? ''}`"
+            :disabled="isRestarting || !conn.canMutateLifecycle"
+            :title="!conn.canMutateLifecycle ? '旁观中，请先接管再重开' : `重开当前游戏：${game.gameDir ?? ''}`"
             @click="onQuickRestart"
           >
             {{ isRestarting ? '重开中…' : '快速重开' }}

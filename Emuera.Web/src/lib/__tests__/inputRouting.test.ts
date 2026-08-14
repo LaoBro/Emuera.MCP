@@ -89,6 +89,10 @@ describe('shouldSubmitButtonValue——点击按钮是否提交 value', () => {
   it('inputType 为 null 时不阻断按钮提交（与旧行为一致，协议异常值不额外拦）', () => {
     expect(shouldSubmitButtonValue({ ...base, inputType: null })).toBe(true);
   });
+
+  it('旁观中（canInput=false）→ 不提交', () => {
+    expect(shouldSubmitButtonValue({ ...base, canInput: false })).toBe(false);
+  });
 });
 
 describe('shouldAdvanceOnTerminalClick——点击终端是否推进', () => {
@@ -146,6 +150,10 @@ describe('shouldAdvanceOnTerminalClick——点击终端是否推进', () => {
   it('inputType 为 null → 不推进（非任意键态）', () => {
     expect(shouldAdvanceOnTerminalClick({ ...base, inputType: null })).toBe(false);
     expect(shouldAdvanceOnTerminalClick({ ...base, isButton: true, inputType: null })).toBe(false);
+  });
+
+  it('旁观中（canInput=false）→ 不推进', () => {
+    expect(shouldAdvanceOnTerminalClick({ ...base, canInput: false })).toBe(false);
   });
 });
 
