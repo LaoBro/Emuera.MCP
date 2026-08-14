@@ -37,20 +37,20 @@
 构建后可运行单个测试：
 
 ```bash
-python tests/test_jsonl.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+python tests/test_jsonl.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
 python tests/test_server_single_session.py
 python tests/test_tinput_timeout.py
-python tests/test_fatal_turn.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+python tests/test_fatal_turn.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
 python tests/test_force_quit_survival.py
-python tests/test_assets.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
-python tests/test_cli_basic.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+python tests/test_assets.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
+python tests/test_cli_basic.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
 python tests/test_cli_basic.py --game-dir test_game  # 自动查找 binary
 ```
 
 也可以用一个入口运行常规回归：
 
 ```bash
-python tests/run_all.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe --game-dir test_game
+python tests/run_all.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
 ```
 
 `run_all.py` 会顺序执行：
@@ -68,7 +68,7 @@ python tests/run_all.py --binary Emuera.Headless/bin/Debug/net10.0/Emuera.Headle
 在 Windows 命令行中，如果相对路径启动失败，请使用绝对路径，例如：
 
 ```bash
-D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe
+D:/LaoBro/Emuera.MCP/Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe
 ```
 
 ## JSONL 协议测试
@@ -76,16 +76,16 @@ D:/LaoBro/Emuera.MCP/Emuera.Headless/bin/Debug/net10.0/Emuera.Headless.exe
 `test_jsonl.py` 通过 `tests/emuera_server.py` 的 `start_server` 启动 server 模式：
 
 ```bash
-Emuera.Headless.exe --server --port <port> --ExeDir <game-dir>
+Emuera.Headless.Cli.exe --server --port <port> --ExeDir <game-dir>
 ```
 
-T-024 后 stdin 管道 JSONL 模式已废弃，`AgentJsonlProtocol` 仅由 server 模式的 `Session` 通过 `HttpSessionIO` 驱动。turn 结构（`text`/`state`/`inputType`/`needValue`/`buttons`）与原 stdin 管道完全一致，断言逻辑不变。
+T-024 后 stdin 管道 JSONL 模式已废弃，`AgentJsonlProtocol` 仅由 server 模式的 `Session` 通过 `HttpSessionIO` 驱动。turn 走 `diff` 增量（无顶层 `text`/`ops`）。
 
 测试流程：
 
-1. `POST /session` 创建会话。
-2. `GET /turn` 读取初始 JSONL turn。
-3. 校验 `state`、`text`、`inputType`、`needValue`、`buttons` 字段。
+1. `POST /load-game` 建立会话。
+2. `GET /turn` 读取初始 turn。
+3. 校验 `state`、`inputType`、`needValue`、`protocolVersion`、`diff`。
 4. 校验按钮包含 `label` 和整数 `value`。
 5. `POST /input {"value":"0"}` 推进游戏。
 6. 验证第二轮菜单和最终 `Quit` 状态。
@@ -115,11 +115,11 @@ T-024 后 stdin 管道 CLI 模式已废弃，`AgentCliProtocol` 仅支持交互�
 
 ## Server 测试
 
-`test_server_single_session.py` 使用仓库根目录的 `test_game` 启动 `Emuera.Headless --server`，验证：
+`test_server_single_session.py` 使用仓库根目录的 `test_game` 启动 `Emuera.Headless.Cli --server`，验证：
 
-- 第一个 `POST /sessions` 返回 `201`。
-- 活跃会话期间第二个 `POST /sessions` 返回 `409`。
-- 输入、turn 拉取、删除会话和删除后重建会话正常。
+- 空闲态 `POST /session` 返回 `503`（须先 `POST /load-game`）。
+- `POST /load-game` 建立会话；活跃期间再次 `POST /session` 返回 `409`。
+- 输入、turn 拉取、删除会话后回到空闲态（再 `POST /session` 仍为 `503`）。
 
 `test_tinput_timeout.py` 同样通过 server 模式验证 timeout turn 不会吞掉后续输入。
 `test_force_quit_survival.py` 验证 `@QUIT` / `FORCE_QUIT` 后 server 存活并能重启 session。

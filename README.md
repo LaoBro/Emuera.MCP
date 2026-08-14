@@ -142,9 +142,83 @@ python scripts/build_emblock_font.py
 
 IPA 字体许可见 `src/assets/fonts/IPA_Font_License_Agreement_v1.0.txt`（IPA Font License v1.0）。DejaVu Sans 许可（Bitstream Vera Fonts 版权 + 自由许可）见 https://dejavu-fonts.github.io/。字形来源可经 `scripts/dejavu/DejaVuSans.ttf` 复现。
 
-## Agent 集成
+## Agent 集成（CLI + Skill）
 
-Agent 通过 `emuera_agent` CLI（`python -m emuera_gateway <subcommand>`）操控游戏。配置写在 `.emuera-agent.json`，运行时 server 记录写在 `.emuera-server.json`，两者都不要提交。命令入口见 `CLAUDE.md`。
+Agent 通过中转 CLI `emuera_agent` 操控游戏，不走 MCP。礼仪见 [`.agents/skills/emuera-playtesting/SKILL.md`](.agents/skills/emuera-playtesting/SKILL.md)。
+
+```text
+agent
+  └─ emuera_agent   (python -m emuera_gateway <subcommand>
+                     或安装后的 emuera_agent)
+       └─ HTTP      /load-game /turn /input /state /control/*
+            └─ Emuera.Headless.Server
+                 ├─ Emuera.Headless.Core
+                 └─ GET /ws  →  Web / MAUI 旁观与接管
+```
+
+`start` 自己拉起 `Emuera.Headless.Cli --server`，或复用已经在跑的实例。
+
+```bash
+python -m emuera_gateway start --game-dir test_game
+python -m emuera_gateway acquire
+python -m emuera_gateway step --value 0
+python -m emuera_gateway release
+python -m emuera_gateway status
+python -m emuera_gateway watch
+python -m emuera_gateway stop
+```
+
+| 子命令 | 作用 |
+|--------|------|
+| `start` | 拉起或复用 server，加载游戏，返回初始 turn |
+| `acquire` | 获取控制权，并返回 drain 后的状态确认 |
+| `step --value X` | 提交输入并读取下一回合 |
+| `release` | 让出控制权（不关 server） |
+| `status` | 查询当前 Controller 与游戏 state |
+| `watch` | 只读旁观终端输出 |
+| `stop` | 结束会话；若由本 CLI 拉起则同时停 server |
+
+配置不要提交：
+
+| 文件 | 内容 |
+|------|------|
+| `.emuera-agent.json` | 路径预设（`binaryPath` / `gameDir`） |
+| `.emuera-server.json` | 本次运行记录（`host` / `port` / `pid` / `token` / `gameDir` / `startedByAgent`）。`start` 写入，`stop` 删除，`release` 不删 |
+
+### 响应格式
+
+stdout 是一行 JSON。`start` / `step` 输出 turn：
+
+```json
+{
+  "state": "WaitInput",
+  "inputType": "IntValue",
+  "needValue": true,
+  "protocolVersion": 11,
+  "diff": { "lineOps": [], "bgColor": null }
+}
+```
+
+`acquire` 另带控制权确认：
+
+```json
+{
+  "controller": { "kind": "agent" },
+  "state": "WaitInput",
+  "turn": { "state": "WaitInput", "inputType": "IntValue", "needValue": true },
+  "turnsAdvanced": 0
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `state` | `WaitInput` / `Running` / `Quit` / `Error` / `Idle` |
+| `inputType` | `IntValue` / `StrValue` / `EnterKey` / `AnyKey` / `AnyValue` / `IntButton` / `StrButton` |
+| `needValue` | `true` 时需要非空输入 |
+| `diff` | 相对上一回合的行级增量；首回合为 `null`，全屏细节用 `GET /snapshot` |
+| `turnsAdvanced` | `acquire` 时 drain 掉的积压回合数 |
+
+错误走 stderr + 非零退出码（例如 `CONTROL_LOST`、`CONTROL_HELD_BY_USER`）。回合字段的权威来源是 `TurnRecord` / `AgentJsonlProtocol`。
 
 ## JSONL 协议
 

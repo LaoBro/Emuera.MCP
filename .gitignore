@@ -7,6 +7,10 @@ Emuera.Maui/Properties/
 .mimocode/*
 .workbuddy*
 .agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/emuera-playtesting/
+!.agents/skills/emuera-playtesting/**
 .scratch/*
 current_plan/*
 

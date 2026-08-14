@@ -86,11 +86,11 @@
 
 服务器会话约束：
 
-- 同一时间只有一个活跃 `Session`。
-- `POST /sessions` 用于创建会话；已有活跃会话时返回冲突。
-- `POST /load-game` 负责校验目录、重建运行时和创建新会话。
-- `DELETE /session` 结束当前会话并回到空闲态。
-- `GET /ws` 与 HTTP 长轮询共用同一会话输入通道。
+- 同一时间只有一个活跃 `Session`，同时最多一个 Controller（`kind: agent|user`）。
+- `POST /load-game` 校验目录、重建运行时并创建新会话；已有活跃会话时返回冲突。
+- `DELETE /session` 结束当前会话并回到空闲态。空闲时 `POST /session` 返回 503，不经 `load-game` 不能建局。
+- `GET /ws` 与 HTTP 长轮询共用同一会话输入通道；旁观者只读 WS。
+- 控制权：`POST /control/acquire`、`POST /control/release`、`GET /control`、`GET /control/wait`。输入与活跃会话的生命周期操作只对 Controller 放行。
 
 ## CLI
 

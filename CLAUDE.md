@@ -14,6 +14,8 @@
 
 `Emuera/` 是已停止维护的 WinForms 参考源码；`EmueraPluginExample/` 和 `experiments/` 不属于产品主路径。
 
+控制权模型：同一活跃会话同时最多一个 Controller（`kind: agent|user`）。输入与活跃会话的生命周期操作只对 Controller 放行；旁观者只读。术语见根 `CONTEXT.md`「控制权交接」；agent 操控礼仪见 [`.agents/skills/emuera-playtesting/SKILL.md`](.agents/skills/emuera-playtesting/SKILL.md)。
+
 项目结构、依赖边界和运行时数据流见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
 
 ## 前置依赖
@@ -81,7 +83,7 @@ npm run build
 
 ### emuera_agent CLI
 
-一次调用 = 一个回合。stdout 只输出 turn JSON，错误走 stderr + 非零退出码。
+一次调用 = 一个回合。stdout 只输出 turn JSON，错误走 stderr + 非零退出码。`start` 自己拉起 Headless server，或复用已在跑的实例（默认 `localhost:8080`，或读 `.emuera-server.json`）。
 
 ```bash
 python -m emuera_gateway start --game-dir test_game
@@ -93,7 +95,7 @@ python -m emuera_gateway watch
 python -m emuera_gateway stop
 ```
 
-安装 console 入口后也可用 `emuera_agent <subcommand>`。配置写在 `.emuera-agent.json`，运行时 server 记录写在 `.emuera-server.json`。
+安装 console 入口后也可用 `emuera_agent <subcommand>`。路径预设写在 `.emuera-agent.json`，运行时 server 记录（端口 / pid / token / gameDir）写在 `.emuera-server.json`，两者都不要提交。操控礼仪见 [`.agents/skills/emuera-playtesting/SKILL.md`](.agents/skills/emuera-playtesting/SKILL.md)。
 
 ## 必须遵守的约束
 
@@ -111,6 +113,7 @@ python -m emuera_gateway stop
 ## 文档索引
 
 - 架构总览：[`ARCHITECTURE.md`](ARCHITECTURE.md)
+- 控制权术语：根目录 `CONTEXT.md`「控制权交接」
 - Web 前端：[`Emuera.Web/README.md`](Emuera.Web/README.md)
 - 测试：[`tests/README.md`](tests/README.md)
 - 终端行为教训：[`docs/LESSONS/terminal-windows.md`](docs/LESSONS/terminal-windows.md)
@@ -121,4 +124,4 @@ python -m emuera_gateway stop
 
 ## Agent skills
 
-Issues live under `.scratch/<feature>/`. 使用仓库中 `.agents/skills/` 提供的专业流程；需要规划、实现、测试、审查或文档维护时，先加载匹配的 skill。
+Issues live under `.scratch/<feature>/`. 使用仓库中 `.agents/skills/` 提供的专业流程；需要规划、实现、测试、审查或文档维护时，先加载匹配的 skill。操控游戏走 [`emuera-playtesting`](.agents/skills/emuera-playtesting/SKILL.md)。
