@@ -25,6 +25,7 @@ internal sealed class Session : IDisposable
     private volatile bool _hasEnded;
     public bool HasEnded => _hasEnded;
     public HttpSessionIO IO => _io;
+    public Controller Controller { get; }
     /// <summary>
     /// Issue 11 D1：当前显示状态字符串。
     /// - <c>"Loading"</c>：Session.Start() 已排 GameLoopAsync 到独立 Task，但 runLoop 回调尚未启动
@@ -66,6 +67,7 @@ internal sealed class Session : IDisposable
     private Task? _gameTask;
     private readonly CancellationTokenSource _cts = new();
     private readonly object _turnLock = new();
+    private readonly SemaphoreSlim _turnAccessLock = new(1, 1);
     private bool _finalTurnReady;
     private bool _finalTurnDelivered;
     private bool _disposed;
@@ -75,11 +77,12 @@ internal sealed class Session : IDisposable
     /// </summary>
     private volatile bool _loading;
 
-    public Session(HttpSessionIO io, ITerminalSetup terminalSetup, ConfigData configData)
+    public Session(HttpSessionIO io, ITerminalSetup terminalSetup, ConfigData configData, TimeSpan? agentLease = null)
     {
         _io = io;
         _configData = configData;
         _terminalSetup = terminalSetup;
+        Controller = new Controller(agentLease);
         // 注意：HeadlessConsole / EmueraConsole / AgentJsonlProtocol 的构造推迟到
         // GameLoopAsync 内、GlobalStatic.OpenScope 之后——它们构造时读 Config.*（候选 2/ADR-0009
         // 后 Config 仅经 scope 注入），scope 未开即构造会 NPE（POST /session 500）。
@@ -151,6 +154,7 @@ internal sealed class Session : IDisposable
                     }
                     _protocol?.Stop();
                     _console?.Dispose();
+                    Controller.End("game_ended");
                     // 关闭 IO：Complete output Channel 后 TryTakeTurn 仍能 TryRead 已写入数据，
                     // 读完后返回 false；同时 Complete input Channel 防止后续 EnqueueInput。
                     _io.Close();
@@ -171,40 +175,92 @@ internal sealed class Session : IDisposable
     /// finalTurn 一次性交付语义：依赖 Channel 多 reader 原子性 + _turnLock 内检查 _finalTurnReady。
     /// 与原 TryTakeTurn 语义一致：_finalTurnReady=true 时，下一个取出的 turn 标记为已交付。
     /// </summary>
-    public async Task<TurnWaitResult> WaitForTurnAsync(int timeoutMs, CancellationToken externalCt)
+    public Task<TurnWaitResult> WaitForTurnAsync(int timeoutMs, CancellationToken externalCt)
     {
+        return WaitForTurnCoreAsync(timeoutMs, null, externalCt);
+    }
+
+    public Task<TurnWaitResult> WaitForTurnAsync(
+        int timeoutMs,
+        ControlIdentity identity,
+        CancellationToken externalCt)
+    {
+        return WaitForTurnCoreAsync(timeoutMs, identity, externalCt);
+    }
+
+    private async Task<TurnWaitResult> WaitForTurnCoreAsync(
+        int timeoutMs,
+        ControlIdentity? identity,
+        CancellationToken externalCt)
+    {
+        var waitSnapshot = Controller.CaptureWaitSnapshot();
+        if (identity.HasValue && waitSnapshot.Controller.HasValue && !waitSnapshot.Controller.Value.Matches(identity.Value) && !HasEnded)
+            return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "not_controller", DateTimeOffset.UtcNow);
+
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
         linkedCts.CancelAfter(timeoutMs);
         var ct = linkedCts.Token;
 
         while (true)
         {
-            string? turn;
+            var ownerChangedTask = waitSnapshot.OwnerChangedTask;
+            await _turnAccessLock.WaitAsync(ct);
             try
             {
-                turn = await _io.ReadOutputAsync(ct);
-            }
-            catch (OperationCanceledException)
-            {
-                // 服务器关闭：向上传播，调用方不应写 response
-                if (externalCt.IsCancellationRequested)
-                    throw;
-                // 超时：返回 204
-                return new TurnWaitResult(TurnWaitStatus.Timeout, null);
-            }
+                if (ownerChangedTask.IsCompleted ||
+                    (identity.HasValue && waitSnapshot.Controller.HasValue && !Controller.IsCurrent(identity.Value)))
+                    return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
 
-            // Channel 关闭且队列空：session 已结束
-            if (turn == null)
-                return new TurnWaitResult(TurnWaitStatus.Closed, null);
+                var readTask = _io.ReadOutputAsync(ct);
+                var completed = await Task.WhenAny(readTask, ownerChangedTask);
+                if (completed == ownerChangedTask && !readTask.IsCompleted)
+                {
+                    linkedCts.Cancel();
+                    try
+                    {
+                        await readTask;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
+                }
 
-            // 拿到 turn，在 lock 内检查 finalTurn 标记
-            lock (_turnLock)
+                string? turn;
+                try
+                {
+                    turn = await readTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // 服务器关闭：向上传播，调用方不应写 response
+                    if (externalCt.IsCancellationRequested)
+                        throw;
+                    // 超时：返回 204
+                    return new TurnWaitResult(TurnWaitStatus.Timeout, null);
+                }
+
+                // Channel 关闭且队列空：session 已结束
+                if (turn == null)
+                    return new TurnWaitResult(TurnWaitStatus.Closed, null);
+
+                if (ownerChangedTask.IsCompleted ||
+                    (identity.HasValue && waitSnapshot.Controller.HasValue && !Controller.IsCurrent(identity.Value)))
+                    return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
+
+                // 拿到 turn，在 lock 内检查 finalTurn 标记
+                lock (_turnLock)
+                {
+                    if (_finalTurnDelivered)
+                        continue; // 防御性：已交付，丢弃多余的 turn（理论上不会发生）
+                    if (_finalTurnReady)
+                        _finalTurnDelivered = true;
+                    return new TurnWaitResult(TurnWaitStatus.Turn, turn);
+                }
+            }
+            finally
             {
-                if (_finalTurnDelivered)
-                    continue; // 防御性：已交付，丢弃多余的 turn（理论上不会发生）
-                if (_finalTurnReady)
-                    _finalTurnDelivered = true;
-                return new TurnWaitResult(TurnWaitStatus.Turn, turn);
+                _turnAccessLock.Release();
             }
         }
     }
@@ -215,6 +271,7 @@ internal sealed class Session : IDisposable
             return;
 
         _disposed = true;
+        Controller.End("session_ended");
         _cts.Cancel();
         _protocol?.Stop();
         _io?.Close();
@@ -231,7 +288,29 @@ internal sealed class Session : IDisposable
         {
             AgentLog.Instance.Write("session game loop ended with error during dispose: " + ex);
         }
+        Controller.Dispose();
     }
+
+    public ControlAcquireSessionResult AcquireControl(ControlIdentity identity)
+    {
+        var result = Controller.Acquire(identity);
+        if (result.Status != ControlAcquireStatus.Acquired)
+            return new ControlAcquireSessionResult(result, null, 0);
+
+        _turnAccessLock.Wait();
+        try
+        {
+            var turns = _io.DrainOutput();
+            return new ControlAcquireSessionResult(result, turns.Count == 0 ? null : turns[^1], turns.Count);
+        }
+        finally
+        {
+            _turnAccessLock.Release();
+        }
+    }
+
+    /// <summary>测试和 WS 接缝使用的身份判定。</summary>
+    public bool IsCurrentController(ControlIdentity identity) => Controller.IsCurrent(identity);
 }
 
 /// <summary>WaitForTurnAsync 的等待结果状态。</summary>
@@ -242,8 +321,19 @@ internal enum TurnWaitStatus
     /// <summary>等待超时（HTTP 204）。</summary>
     Timeout,
     /// <summary>Channel 关闭，session 已结束（HTTP 404）。</summary>
-    Closed
+    Closed,
+    /// <summary>控制权在等待期间发生变化（HTTP 409）。</summary>
+    ControlLost
 }
 
 /// <summary>WaitForTurnAsync 的返回值：状态 + turn 内容（仅 Status=Turn 时非 null）。</summary>
-internal readonly record struct TurnWaitResult(TurnWaitStatus Status, string? Turn);
+internal readonly record struct TurnWaitResult(
+    TurnWaitStatus Status,
+    string? Turn,
+    string? Reason = null,
+    DateTimeOffset? At = null);
+
+internal readonly record struct ControlAcquireSessionResult(
+    ControlAcquireResult Control,
+    string? Turn,
+    int TurnsAdvanced);

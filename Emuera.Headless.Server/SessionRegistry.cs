@@ -26,11 +26,13 @@ internal sealed class SessionRegistry
     private OutputHub? _sessionHub;
     private readonly ITerminalSetup _terminalSetup;
     private readonly GameConfigService _configService;
+    private readonly TimeSpan? _agentLease;
 
-    public SessionRegistry(ITerminalSetup terminalSetup, GameConfigService configService)
+    public SessionRegistry(ITerminalSetup terminalSetup, GameConfigService configService, TimeSpan? agentLease = null)
     {
         _terminalSetup = terminalSetup ?? throw new ArgumentNullException(nameof(terminalSetup));
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
+        _agentLease = agentLease;
     }
 
     /// <summary>当前 session 引用（volatile 读）——仅供只读端点（/turn /input /snapshot）使用。</summary>
@@ -55,13 +57,13 @@ internal sealed class SessionRegistry
             if (!_session.HasEnded)
                 return new SessionCreateResult(SessionCreateStatus.Conflict, null, default, null);
 
-            DestroySession();
+            DestroySession("session_replaced");
 
             // issue 03：SessionRegistry 自持 OutputHub 引用，HttpSessionIO 只接 IOutputBroadcaster 抽象。
             var hub = new OutputHub();
             var io = new HttpSessionIO(hub);
             _sessionHub = hub;
-            _session = new Session(io, _terminalSetup, _configService.Current);
+            _session = new Session(io, _terminalSetup, _configService.Current, _agentLease);
             _session.Start();
             return new SessionCreateResult(SessionCreateStatus.Created, _session.Id, _session.CreatedAt, _session.StateString);
         }
@@ -75,17 +77,26 @@ internal sealed class SessionRegistry
     /// DELETE /session（迁移自原 HandleDeleteSessionAsync）。
     /// 存在 session → dispose 并置空 → <see cref="SessionDeleteStatus.Removed"/>；否则 NotFound。
     /// </summary>
-    public async Task<SessionDeleteResult> DeleteSessionAsync()
+    public Task<SessionDeleteResult> DeleteSessionAsync()
+    {
+        return DeleteSessionAsync(null);
+    }
+
+    public async Task<SessionDeleteResult> DeleteSessionAsync(ControlIdentity? identity)
     {
         await _sessionLock.WaitAsync();
         try
         {
-            if (_session != null)
+            if (_session == null)
+                return new SessionDeleteResult(SessionDeleteStatus.NotFound);
+            if (identity.HasValue && !_session.HasEnded)
             {
-                DestroySession();
-                return new SessionDeleteResult(SessionDeleteStatus.Removed);
+                var gate = _session.Controller.CheckLifecycle(identity.Value, sessionEnded: false);
+                if (gate.Status != ControlGateStatus.Allowed)
+                    return new SessionDeleteResult(SessionDeleteStatus.ControlDenied, gate.Reason);
             }
-            return new SessionDeleteResult(SessionDeleteStatus.NotFound);
+            DestroySession("session_ended");
+            return new SessionDeleteResult(SessionDeleteStatus.Removed);
         }
         finally
         {
@@ -110,11 +121,23 @@ internal sealed class SessionRegistry
     /// - 加载级失败（ConfigData.LoadConfig 等同步步骤异常、未预期异常）→ <see cref="LoadGameStatus.LoadFailed"/>
     ///   异步阶段（Preload.Load / Process.Initialize）失败由 ConsoleStateManager 置 State=Error。
     /// </summary>
-    public async Task<LoadGameResult> ReplaceForLoadGameAsync(string gameDir)
+    public Task<LoadGameResult> ReplaceForLoadGameAsync(string gameDir)
+    {
+        return ReplaceForLoadGameAsync(gameDir, null);
+    }
+
+    public async Task<LoadGameResult> ReplaceForLoadGameAsync(string gameDir, ControlIdentity? identity)
     {
         await _sessionLock.WaitAsync();
         try
         {
+            if (_session is { HasEnded: false } activeSession && identity.HasValue)
+            {
+                var gate = activeSession.Controller.CheckLifecycle(identity.Value, sessionEnded: false);
+                if (gate.Status != ControlGateStatus.Allowed)
+                    return LoadGameResult.ControlDenied(gate.Reason);
+            }
+
             // 1. 校验路径——GamePathValidationException 转 PathError。
             //
             // 注意：GamePaths.Resolve(gameDir) 内部会先把静态 Current 指向新 paths 再返回。
@@ -139,7 +162,7 @@ internal sealed class SessionRegistry
             }
 
             // 2. dispose 旧 Session（若有）——Dispose 等待旧 GameLoopAsync 退出，scope 自动清理
-            DestroySession();
+            DestroySession("session_replaced");
 
             // 3. Preload.Clear —— 清空旧 ERB/CSV 文件缓存
             Preload.Clear();
@@ -157,7 +180,7 @@ internal sealed class SessionRegistry
             var hub = new OutputHub();
             var io = new HttpSessionIO(hub);
             _sessionHub = hub;
-            var newSession = new Session(io, _terminalSetup, newConfig);
+            var newSession = new Session(io, _terminalSetup, newConfig, _agentLease);
             newSession.Start();
             _session = newSession;
 
@@ -183,7 +206,12 @@ internal sealed class SessionRegistry
     /// DELETE+POST 替换后仍从旧 hub 订阅。
     /// 无活跃 session（或已结束）→ 返回 null（调用方下发 4004 关闭码）。
     /// </summary>
-    public async Task<WsSubscription?> TryGetWsSubscriptionAsync()
+    public Task<WsSubscription?> TryGetWsSubscriptionAsync()
+    {
+        return TryGetWsSubscriptionAsync(null);
+    }
+
+    public async Task<WsSubscription?> TryGetWsSubscriptionAsync(ControlIdentity? identity)
     {
         await _sessionLock.WaitAsync();
         try
@@ -196,7 +224,7 @@ internal sealed class SessionRegistry
                 var hub = _sessionHub;
                 var reader = hub?.Subscribe();
                 if (reader != null)
-                    return new WsSubscription(session, reader, hub!);
+                    return new WsSubscription(session, reader, hub!, identity ?? ControlIdentity.User);
             }
             return null;
         }
@@ -212,7 +240,7 @@ internal sealed class SessionRegistry
         _sessionLock.Wait();
         try
         {
-            DestroySession();
+            DestroySession("session_ended");
         }
         finally
         {
@@ -224,8 +252,10 @@ internal sealed class SessionRegistry
     /// 销毁当前 session（若有）：Dispose（join 游戏循环，scope 自动清理）并置空 _session/_sessionHub。
     /// 三态同生命周期，仅应在持 _sessionLock 时调用。
     /// </summary>
-    private void DestroySession()
+    private void DestroySession(string reason = "session_ended")
     {
+        if (_session is { HasEnded: false } session)
+            session.Controller.End(reason);
         _session?.Dispose();
         _session = null;
         _sessionHub = null;
@@ -253,10 +283,12 @@ internal enum SessionDeleteStatus
     Removed,
     /// <summary>无 session → HTTP 404 {removed:false}。</summary>
     NotFound,
+    /// <summary>活跃会话由其他 Controller 持有 → HTTP 409。</summary>
+    ControlDenied,
 }
 
 /// <summary>DELETE /session 结果。</summary>
-internal readonly record struct SessionDeleteResult(SessionDeleteStatus Status);
+internal readonly record struct SessionDeleteResult(SessionDeleteStatus Status, string? Reason = null);
 
 /// <summary>POST /load-game 结果状态。</summary>
 internal enum LoadGameStatus
@@ -267,15 +299,22 @@ internal enum LoadGameStatus
     LoadFailed,
     /// <summary>成功 → HTTP 200。</summary>
     Success,
+    /// <summary>活跃会话由其他 Controller 持有 → HTTP 409。</summary>
+    ControlDenied,
 }
 
 /// <summary>POST /load-game 结果。</summary>
 internal readonly record struct LoadGameResult(LoadGameStatus Status, string? Code, string? Message, string? SessionId, string? State, string? GameDir)
 {
+    public static LoadGameResult ControlDenied(string reason) => new(LoadGameStatus.ControlDenied, reason, "Control is held by another controller", null, null, null);
     public static LoadGameResult PathError(string code, string message) => new(LoadGameStatus.PathError, code, message, null, null, null);
     public static LoadGameResult LoadFailed(string message) => new(LoadGameStatus.LoadFailed, null, message, null, null, null);
     public static LoadGameResult Success(string sessionId, string state, string gameDir) => new(LoadGameStatus.Success, null, null, sessionId, state, gameDir);
 }
 
 /// <summary>WS 订阅三元组：session + 独占 reader + 所属 hub（finally 退订用）。</summary>
-internal sealed record WsSubscription(Session Session, ChannelReader<string> Reader, OutputHub Hub);
+internal sealed record WsSubscription(
+    Session Session,
+    ChannelReader<string> Reader,
+    OutputHub Hub,
+    ControlIdentity Identity = default);

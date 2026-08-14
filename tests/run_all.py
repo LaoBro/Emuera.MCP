@@ -183,6 +183,18 @@ def main():
 
     results.append(
         (
+            "control handoff",
+            _run_script(
+                "control handoff",
+                [sys.executable, str(TESTS_DIR / "test_control_handoff.py")],
+                env=env,
+                timeout=180,
+            ),
+        )
+    )
+
+    results.append(
+        (
             "TINPUT timeout",
             _run_script(
                 "TINPUT timeout",

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -93,6 +94,14 @@ internal sealed class HttpSessionIO : SessionIO
     /// CancellationToken 取消时抛 OperationCanceledException，由调用方处理。
     /// 注意：output Channel 配置为 SingleReader=false，多 reader 并发安全。
     /// </summary>
+    public List<string> DrainOutput()
+    {
+        var turns = new List<string>();
+        while (_output.Reader.TryRead(out var turn))
+            turns.Add(turn);
+        return turns;
+    }
+
     public async Task<string?> ReadOutputAsync(CancellationToken ct)
     {
         try

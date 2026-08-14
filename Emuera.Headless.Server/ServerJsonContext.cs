@@ -15,6 +15,7 @@ namespace MinorShift.Emuera.Server;
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(JsonObject))]
 [JsonSerializable(typeof(KestrelGameServer.HttpInput))]
+[JsonSerializable(typeof(KestrelGameServer.ControlRequest))]
 [JsonSerializable(typeof(KestrelGameServer.LoadGameRequest))]
 internal partial class ServerJsonContext : JsonSerializerContext
 {

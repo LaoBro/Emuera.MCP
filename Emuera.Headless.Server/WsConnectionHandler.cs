@@ -43,7 +43,7 @@ internal sealed class WsConnectionHandler
         using var ws = await context.WebSockets.AcceptWebSocketAsync();
 
         // 锁内 accept→re-check→subscribe 原子序列由 SessionRegistry 保证
-        var subscription = await _sessions.TryGetWsSubscriptionAsync();
+        var subscription = await _sessions.TryGetWsSubscriptionAsync(ReadIdentity(context));
         if (subscription == null)
         {
             await ws.CloseAsync(WsCloseNoActiveSession, "No active session", CancellationToken.None);
@@ -66,7 +66,7 @@ internal sealed class WsConnectionHandler
         {
             await Task.WhenAny(
                 SendLoopAsync(ws, subscription.Reader, cts.Token),
-                ReceiveLoopAsync(ws, subscription.Session, cts.Token)
+                ReceiveLoopAsync(ws, subscription, cts.Token)
             );
         }
         finally
@@ -115,7 +115,7 @@ internal sealed class WsConnectionHandler
     }
 
     /// <summary>接收循环：读文本帧 → 校验 type=="input" → EnqueueInput。支持分片重组。客户端关闭帧即退出。</summary>
-    private static async Task ReceiveLoopAsync(WebSocket ws, Session session, CancellationToken ct)
+    private static async Task ReceiveLoopAsync(WebSocket ws, WsSubscription subscription, CancellationToken ct)
     {
         var buffer = new byte[8192];
         var accumulator = new List<byte>(8192);
@@ -133,7 +133,7 @@ internal sealed class WsConnectionHandler
 
                 var text = Encoding.UTF8.GetString(accumulator.ToArray());
                 accumulator.Clear();
-                HandleWsInput(text, session);
+                HandleWsInput(text, subscription.Session, subscription.Identity);
             }
         }
         catch (OperationCanceledException)
@@ -148,8 +148,26 @@ internal sealed class WsConnectionHandler
 
     /// <summary>WS 输入帧已是 <c>{"type":"input","value":"..."}</c> 格式，直接入队。
     /// 协议层 <c>AgentJsonlProtocol</c> 会校验 <c>type=="input"</c>，无效帧自然被忽略。</summary>
-    private static void HandleWsInput(string text, Session session)
+    private static void HandleWsInput(string text, Session session, ControlIdentity identity)
     {
-        session.IO.EnqueueInput(text);
+        var gate = session.Controller.CheckInput(identity, session.HasEnded);
+        if (gate.Status == ControlGateStatus.Allowed)
+            session.IO.EnqueueInput(text);
+    }
+
+    private static ControlIdentity ReadIdentity(HttpContext context)
+    {
+        string? token = context.Request.Query["token"].ToString();
+        if (context.Request.Headers.TryGetValue("X-Control-Token", out var headerToken))
+            token = headerToken.ToString();
+        if (string.IsNullOrWhiteSpace(token) && context.Request.Headers.TryGetValue("Authorization", out var authorization))
+        {
+            var value = authorization.ToString();
+            if (value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                token = value[7..];
+        }
+        return string.IsNullOrWhiteSpace(token)
+            ? ControlIdentity.User
+            : ControlIdentity.Agent(token);
     }
 }
