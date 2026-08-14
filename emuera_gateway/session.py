@@ -1,4 +1,4 @@
-"""Python-side session wrapper over the single-session Headless API."""
+"""Python-side wrapper over the single Headless session."""
 import threading
 import time
 from typing import Any, Dict, Optional
@@ -7,10 +7,10 @@ from .emuera_client import EmueraClient, EmueraHttpError
 
 
 class GameSession:
-    """Python-side wrapper for the single Emuera game session."""
+    """Thin wrapper around the one Headless session."""
 
-    def __init__(self, session_id: str, client: EmueraClient):
-        self.session_id = session_id
+    def __init__(self, client: EmueraClient):
+        self.session_id = "current"
         self.client = client
         self.created_at = time.time()
         self.last_activity = time.time()
@@ -49,43 +49,40 @@ class GameSession:
 
 
 class SessionManager:
-    """Maps client identities onto the single Headless session."""
+    """Holds the single GameSession wrapper for one Headless client."""
 
     def __init__(self, client: EmueraClient, idle_timeout: float = 1800.0):
         self.client = client
         self.idle_timeout = idle_timeout
-        self._sessions: Dict[str, GameSession] = {}
+        self._session: Optional[GameSession] = None
         self._lock = threading.Lock()
 
-    def create(self, client_id: str) -> GameSession:
-        """Return the wrapper for a client. Reuses if already exists."""
+    def create(self, _client_id: str = "") -> GameSession:
+        """Return the singleton wrapper, creating it if needed."""
         with self._lock:
-            if client_id in self._sessions:
-                return self._sessions[client_id]
-            gs = GameSession("current", self.client)
-            self._sessions[client_id] = gs
-            return gs
+            if self._session is None:
+                self._session = GameSession(self.client)
+            return self._session
 
-    def get(self, client_id: str) -> Optional[GameSession]:
+    def get(self, _client_id: str = "") -> Optional[GameSession]:
         with self._lock:
-            return self._sessions.get(client_id)
+            return self._session
 
-    def remove(self, client_id: str) -> bool:
+    def remove(self, _client_id: str = "") -> bool:
         with self._lock:
-            gs = self._sessions.pop(client_id, None)
-            if gs:
-                gs.destroy()
-                return True
-            return False
+            gs = self._session
+            self._session = None
+        if gs:
+            gs.destroy()
+            return True
+        return False
 
     def cleanup_idle(self):
-        """Remove wrappers idle longer than timeout."""
+        """Destroy the wrapper if it has been idle longer than timeout."""
         cutoff = time.time() - self.idle_timeout
         with self._lock:
-            to_remove = [
-                cid for cid, gs in self._sessions.items()
-                if gs.last_activity < cutoff
-            ]
-            for cid in to_remove:
-                gs = self._sessions.pop(cid)
-                gs.destroy()
+            gs = self._session
+            if gs is None or gs.last_activity >= cutoff:
+                return
+            self._session = None
+        gs.destroy()

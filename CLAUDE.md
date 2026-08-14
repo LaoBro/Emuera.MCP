@@ -79,21 +79,21 @@ npm run build
 
 前端文件导航和常见修改入口见 [`Emuera.Web/README.md`](Emuera.Web/README.md)。
 
-### MCP 网关
+### emuera_agent CLI
 
-嵌入模式：
-
-```bash
-python -m emuera_gateway --emuera-path Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
-```
-
-独立模式：
+一次调用 = 一个回合。stdout 只输出 turn JSON，错误走 stderr + 非零退出码。
 
 ```bash
-python -m emuera_gateway --standalone --server-url http://localhost:8080
+python -m emuera_gateway start --game-dir test_game
+python -m emuera_gateway acquire
+python -m emuera_gateway step --value 0
+python -m emuera_gateway release
+python -m emuera_gateway status
+python -m emuera_gateway watch
+python -m emuera_gateway stop
 ```
 
-使用 `emuera_gateway`，不要使用已废弃的 `mcp_relay.py`。
+安装 console 入口后也可用 `emuera_agent <subcommand>`。配置写在 `.emuera-agent.json`，运行时 server 记录写在 `.emuera-server.json`。
 
 ## 必须遵守的约束
 

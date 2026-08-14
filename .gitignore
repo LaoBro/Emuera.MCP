@@ -64,7 +64,6 @@ Emuera.CLI/artifacts/
 *.patch
 *.pyc
 .mcp.json
-.emuera-mcp.json
 .emuera-agent.json
 .emuera-server.json
 test_game/setting.json

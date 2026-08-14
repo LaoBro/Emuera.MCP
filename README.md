@@ -1,6 +1,6 @@
 # Emuera
 
-Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本语言，并通过 MCP 协议支持 AI 代理控制。
+Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本语言，并通过 `emuera_agent` CLI 支持 AI 代理控制。
 
 本项目以 **Emuera.Headless** 无头运行器为唯一维护目标。已拆分为三个项目：
 - `Emuera.Headless.Cli` — CLI 交互模式 & HTTP 服务器模式入口（Exe）
@@ -12,7 +12,7 @@ Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本�
 ## 环境要求
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) 或更高版本
-- Python 3.10+（用于 MCP 网关和测试）
+- Python 3.10+（用于 `emuera_agent` CLI 和测试）
 - Node.js 18+（用于 Web 前端 Emuera.Web/）
 - Windows（跨平台支持计划中，目前仅完成 Windows）
 
@@ -142,118 +142,9 @@ python scripts/build_emblock_font.py
 
 IPA 字体许可见 `src/assets/fonts/IPA_Font_License_Agreement_v1.0.txt`（IPA Font License v1.0）。DejaVu Sans 许可（Bitstream Vera Fonts 版权 + 自由许可）见 https://dejavu-fonts.github.io/。字形来源可经 `scripts/dejavu/DejaVuSans.ttf` 复现。
 
-## MCP 集成
+## Agent 集成
 
-Emuera 通过 Model Context Protocol 被 AI 编程工具（Claude Code、VS Code、Cursor 等）控制。项目使用 Python 网关管理游戏进程生命周期，仅在需要时才启动游戏。
-
-### 架构
-
-```
-Claude Code <-- MCP over stdio --> emuera_gateway <-- HTTP --> Emuera.Headless (C# 服务器)
-```
-
-- `emuera_gateway` 对外提供 MCP 协议，对内通过 HTTP 与 C# 服务器通信。
-- 嵌入模式下由 Python 自动启动/停止 C# 服务器；独立模式下连接已运行的服务器。
-
-### 配置（Claude Code）
-
-1. 先构建项目（见上）。
-
-2. 确认项目根目录存在 `.mcp.json`：
-
-```json
-{
-  "mcpServers": {
-    "emuera": {
-      "command": "python",
-      "args": ["-m", "emuera_gateway"]
-    }
-  }
-}
-```
-
-3. 在 VS Code 设置（`settings.json`）中启用：
-
-```json
-{
-  "enabledMcpjsonServers": ["emuera"]
-}
-```
-
-4. 重启 Claude Code。MCP 工具立即可用——在调用工具之前不会出现游戏窗口。
-
-### 路径配置
-
-首次使用前，需要通过 `emuera_set_config` 工具配置 Emuera 二进制路径和游戏目录：
-
-> 调用 `emuera_set_config`，传入 `binaryPath`（编译后的二进制路径，可以是 `.dll` 或 `.exe`）和 `gameDir`（游戏数据目录）。
->
-> 路径可以是相对于项目根目录的相对路径，也可以是绝对路径。配置会自动保存到 `.emuera-mcp.json`。
-
-也可以在项目根目录手动创建 `.emuera-mcp.json`：
-
-```json
-{
-  "binaryPath": "Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe",
-  "gameDir": "test_game"
-}
-```
-
-该文件**不应提交到仓库**——每个开发者有自己的路径和构建配置。
-
-### MCP 网关运行模式
-
-嵌入模式（默认）——由 Python 启动和停止 C# 服务器：
-
-```bash
-python -m emuera_gateway --emuera-path Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
-```
-
-独立模式——连接已运行的 C# 服务器：
-
-```bash
-python -m emuera_gateway --standalone --server-url http://localhost:8080
-```
-
-### 工具
-
-| 工具 | 说明 |
-|------|------|
-| `emuera_step` | 提交输入并等待下一回合。传 `{"value": "0"}` 发送输入，传 `{}` 读取当前状态。 |
-| `emuera_get_state` | 阻塞等待游戏进入 `WaitInput` 状态，然后返回当前状态和输出文本。 |
-| `emuera_kill` | 强制关闭游戏进程和窗口。 |
-| `emuera_set_config` | 设置二进制路径和/或游戏目录。传 `{"binaryPath": "...", "gameDir": "..."}`（参数可选），保存前验证路径有效性。 |
-| `emuera_get_config` | 返回当前配置的二进制路径和游戏目录。 |
-
-### 响应格式
-
-每个工具的返回结果在 `content[0].text` 中，为一个 JSON 字符串：
-
-```json
-{
-  "text": "=== 游戏输出 ===\n[0] Hello\n[1] Quit\n",
-  "state": "WaitInput",
-  "inputType": "IntValue",
-  "needValue": true,
-  "buttons": [{"label": "[0] Hello", "value": 0}]
-}
-```
-
-| 字段 | 说明 |
-|------|------|
-| `text` | 本回合产生的所有输出文本 |
-| `state` | `WaitInput` / `Running` / `Quit` / `Error` |
-| `inputType` | `IntValue` / `StrValue` / `EnterKey` / `AnyKey` / `AnyValue` / `IntButton` / `StrButton` |
-| `needValue` | 为 true 时表示需要非空输入 |
-| `buttons` | 可见区域内的按钮列表，每项含 `label`（显示文本）和 `value`（输入值） |
-
-### 其他 AI 工具
-
-任何支持 stdio 传输的 MCP 客户端均可使用：
-
-- **Claude Desktop** — 编辑 `%APPDATA%\Claude\claude_desktop_config.json`，填入相同配置
-- **VS Code Copilot** — 创建 `.vscode/mcp.json`，使用 `"type": "stdio"` 及相同的 command/args
-- **Cursor** — 创建 `.cursor/mcp.json`
+Agent 通过 `emuera_agent` CLI（`python -m emuera_gateway <subcommand>`）操控游戏。配置写在 `.emuera-agent.json`，运行时 server 记录写在 `.emuera-server.json`，两者都不要提交。命令入口见 `CLAUDE.md`。
 
 ## JSONL 协议
 
@@ -306,7 +197,7 @@ Emuera.Web/             -- Vue 3 + TypeScript 浏览器前端（Vite + Pinia + V
 Emuera.Headless.Tests/  -- C# 单元测试（xUnit，304 用例）
 Emuera.Maui.Tests/      -- MAUI 单元测试（xUnit，15 用例）
 Emuera/                 -- WinForms 残留源码（不再维护，仅作只读参考，不可独立构建）
-emuera_gateway/         -- Python MCP 网关
+emuera_gateway/         -- Python emuera_agent CLI 与 HTTP 客户端
 tests/                  -- Python 端到端测试脚本
 build/                  -- MSBuild targets（VueBuild.targets 共享）
 test_game/              -- 开发用最小 ERB 测试游戏

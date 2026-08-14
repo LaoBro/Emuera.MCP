@@ -17,4 +17,3 @@ emuera_agent = "emuera_gateway.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["emuera_gateway*"]
-exclude = ["emuera_gateway.plugins*"]
