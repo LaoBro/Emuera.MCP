@@ -1,3 +1,5 @@
+using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime.Config;
@@ -87,5 +89,65 @@ public class SessionWaitForTurnTests
         var (session, _) = CreateSession();
         using var sessionCleanup = session;
         Assert.Null(session.GetDisplaySnapshot());
+    }
+
+    [Fact]
+    public async Task Acquire_drains_backlog_so_next_wait_sees_only_new_turn()
+    {
+        var (session, io) = CreateSession();
+        using var sessionCleanup = session;
+        var agent = ControlIdentity.Agent("agent-1");
+
+        Assert.Equal(ControlAcquireStatus.Acquired, session.AcquireControl(agent).Control.Status);
+        io.WriteLine("old-1");
+        io.WriteLine("old-2");
+
+        var drained = session.AcquireControl(agent);
+        Assert.Equal(ControlAcquireStatus.Acquired, drained.Control.Status);
+        Assert.Equal(2, drained.TurnsAdvanced);
+        Assert.Equal("old-2", drained.Turn);
+
+        io.WriteLine("new-1");
+        var next = await session.WaitForTurnAsync(1000, agent, CancellationToken.None);
+        Assert.Equal(TurnWaitStatus.Turn, next.Status);
+        Assert.Equal("new-1", next.Turn);
+    }
+
+    [Fact]
+    public async Task In_flight_wait_returns_control_lost_immediately_on_steal()
+    {
+        var (session, _) = CreateSession();
+        using var sessionCleanup = session;
+        var agent = ControlIdentity.Agent("agent-1");
+        session.AcquireControl(agent);
+
+        var watch = Stopwatch.StartNew();
+        var waitTask = session.WaitForTurnAsync(5000, agent, CancellationToken.None);
+        await Task.Delay(80);
+        session.AcquireControl(ControlIdentity.User);
+        var result = await waitTask;
+
+        Assert.Equal(TurnWaitStatus.ControlLost, result.Status);
+        Assert.Equal("control_changed", result.Reason);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task Steal_racing_a_queued_turn_leaves_that_turn_for_acquire_drain()
+    {
+        var (session, io) = CreateSession();
+        using var sessionCleanup = session;
+        var agent = ControlIdentity.Agent("agent-1");
+        session.AcquireControl(agent);
+
+        var waitTask = session.WaitForTurnAsync(5000, agent, CancellationToken.None);
+        await Task.Delay(80);
+        io.WriteLine("raced-turn");
+        var stolen = session.AcquireControl(ControlIdentity.User);
+        var waitResult = await waitTask;
+
+        Assert.Equal(TurnWaitStatus.ControlLost, waitResult.Status);
+        Assert.Equal(1, stolen.TurnsAdvanced);
+        Assert.Equal("raced-turn", stolen.Turn);
     }
 }

@@ -6,7 +6,7 @@
 
 - JSONL 协议流程与 buttons schema（经 server 模式驱动，T-024 后 stdin 管道已废弃）。
 - server 单会话 HTTP API。
-- Server 控制权交接（acquire/release/steal/输入门禁）。
+- Server 控制权交接（acquire/release/steal、输入/生命周期门禁、lease、drain、`/control/wait`、in-flight 409）。
 - TINPUT timeout server 场景。
 - fatal turn 脚本异常路径（THROW）。
 - I-11 脚本退出后 server 存活。

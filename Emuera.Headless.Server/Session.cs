@@ -212,16 +212,31 @@ internal sealed class Session : IDisposable
                     return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
 
                 var readTask = _io.ReadOutputAsync(ct);
-                var completed = await Task.WhenAny(readTask, ownerChangedTask);
-                if (completed == ownerChangedTask && !readTask.IsCompleted)
+                await Task.WhenAny(readTask, ownerChangedTask);
+                if (ownerChangedTask.IsCompleted)
                 {
-                    linkedCts.Cancel();
-                    try
+                    if (readTask.IsCompleted)
                     {
-                        await readTask;
+                        try
+                        {
+                            var raced = await readTask;
+                            if (raced != null)
+                                _io.UnreadOutput(raced);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                        }
                     }
-                    catch (OperationCanceledException)
+                    else
                     {
+                        linkedCts.Cancel();
+                        try
+                        {
+                            await readTask;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                        }
                     }
                     return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
                 }
@@ -246,7 +261,10 @@ internal sealed class Session : IDisposable
 
                 if (ownerChangedTask.IsCompleted ||
                     (identity.HasValue && waitSnapshot.Controller.HasValue && !Controller.IsCurrent(identity.Value)))
+                {
+                    _io.UnreadOutput(turn);
                     return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
+                }
 
                 // 拿到 turn，在 lock 内检查 finalTurn 标记
                 lock (_turnLock)

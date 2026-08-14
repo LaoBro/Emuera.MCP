@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
@@ -24,6 +25,7 @@ internal sealed class HttpSessionIO : SessionIO
         SingleWriter = false
     });
     private volatile bool _closed;
+    private readonly ConcurrentQueue<string> _unread = new();
 
     /// <summary>
     /// 注入 <see cref="IOutputBroadcaster"/> 旁路广播：所有 <see cref="WriteLine"/> 的 turn
@@ -97,13 +99,26 @@ internal sealed class HttpSessionIO : SessionIO
     public List<string> DrainOutput()
     {
         var turns = new List<string>();
+        while (_unread.TryDequeue(out var unread))
+            turns.Add(unread);
         while (_output.Reader.TryRead(out var turn))
             turns.Add(turn);
         return turns;
     }
 
+    /// <summary>
+    /// 把刚读出的 turn 放回队列头部，供后续 Drain/Read 再消费。
+    /// 用于控制权变更时：in-flight GET /turn 已取出回合但不能交给旧 Controller。
+    /// </summary>
+    public void UnreadOutput(string turn)
+    {
+        _unread.Enqueue(turn);
+    }
+
     public async Task<string?> ReadOutputAsync(CancellationToken ct)
     {
+        if (_unread.TryDequeue(out var unread))
+            return unread;
         try
         {
             return await _output.Reader.ReadAsync(ct);

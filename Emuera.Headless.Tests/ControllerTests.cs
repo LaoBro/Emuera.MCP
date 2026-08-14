@@ -1,67 +1,172 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using MinorShift.Emuera.Server;
 using Xunit;
 
 namespace MinorShift.Emuera.Tests;
 
 public sealed class ControllerTests
 {
+    private static readonly ControlIdentity Agent = ControlIdentity.Agent("agent-1");
+    private static readonly ControlIdentity OtherAgent = ControlIdentity.Agent("agent-2");
+
     [Fact]
-    public void Acquire_release_and_steal_follow_controller_rules()
+    public void Transfer_table_idle_agent_user_steal_agent_rejected_release_idle()
     {
-        using var controller = new MinorShift.Emuera.Server.Controller(TimeSpan.FromMinutes(1));
-        var agent = MinorShift.Emuera.Server.ControlIdentity.Agent("agent-1");
-        var otherAgent = MinorShift.Emuera.Server.ControlIdentity.Agent("agent-2");
+        using var controller = new Controller(TimeSpan.FromMinutes(1));
 
-        Assert.Equal(MinorShift.Emuera.Server.ControlAcquireStatus.Acquired, controller.Acquire(agent).Status);
-        Assert.Equal(MinorShift.Emuera.Server.ControlAcquireStatus.HeldByAgent, controller.Acquire(otherAgent).Status);
-        Assert.Equal(MinorShift.Emuera.Server.ControlAcquireStatus.Acquired, controller.Acquire(agent).Status);
+        Assert.Equal(Controller.StateIdle, controller.State);
+        Assert.Equal(ControlAcquireStatus.Acquired, controller.Acquire(Agent).Status);
+        Assert.Equal(Controller.StateHeld, controller.State);
 
-        var stolen = controller.Acquire(MinorShift.Emuera.Server.ControlIdentity.User);
-        Assert.Equal(MinorShift.Emuera.Server.ControlAcquireStatus.Acquired, stolen.Status);
+        var stolen = controller.Acquire(ControlIdentity.User);
+        Assert.Equal(ControlAcquireStatus.Acquired, stolen.Status);
         Assert.Equal("stolen", stolen.Event!.Type);
-        Assert.Equal(MinorShift.Emuera.Server.ControlReleaseStatus.NotOwner, controller.Release(agent).Status);
-        Assert.Equal(MinorShift.Emuera.Server.ControlReleaseStatus.Released, controller.Release(MinorShift.Emuera.Server.ControlIdentity.User).Status);
-        Assert.Equal(MinorShift.Emuera.Server.Controller.StateIdle, controller.State);
+        Assert.Equal(ControlAcquireStatus.HeldByUser, controller.Acquire(Agent).Status);
+
+        Assert.Equal(ControlReleaseStatus.NotOwner, controller.Release(Agent).Status);
+        Assert.Equal(ControlReleaseStatus.Released, controller.Release(ControlIdentity.User).Status);
+        Assert.Equal(Controller.StateIdle, controller.State);
     }
 
     [Fact]
-    public void Input_gate_allows_idle_and_rejects_non_controller()
+    public void Agent_self_acquire_is_idempotent_and_refreshes_lease()
     {
-        using var controller = new MinorShift.Emuera.Server.Controller(TimeSpan.FromMinutes(1));
-        var agent = MinorShift.Emuera.Server.ControlIdentity.Agent("agent-1");
+        using var controller = new Controller(TimeSpan.FromMinutes(1));
+        controller.Acquire(Agent);
+        var firstExpiry = controller.CurrentInfo!.LeaseExpiresAt;
+        Assert.NotNull(firstExpiry);
 
-        Assert.Equal(MinorShift.Emuera.Server.ControlGateStatus.Allowed, controller.CheckInput(MinorShift.Emuera.Server.ControlIdentity.User, false).Status);
-        controller.Acquire(agent);
-        var rejected = controller.CheckInput(MinorShift.Emuera.Server.ControlIdentity.User, false);
-        Assert.Equal(MinorShift.Emuera.Server.ControlGateStatus.NotController, rejected.Status);
-        Assert.Equal("CONTROL_HELD_BY_AGENT", rejected.Reason);
-        Assert.Equal(MinorShift.Emuera.Server.ControlGateStatus.Allowed, controller.CheckInput(agent, false).Status);
-        Assert.Equal(MinorShift.Emuera.Server.ControlGateStatus.Allowed, controller.CheckInput(MinorShift.Emuera.Server.ControlIdentity.User, true).Status);
+        Thread.Sleep(30);
+        Assert.Equal(ControlAcquireStatus.Acquired, controller.Acquire(Agent).Status);
+        var secondExpiry = controller.CurrentInfo!.LeaseExpiresAt;
+        Assert.NotNull(secondExpiry);
+        Assert.True(secondExpiry > firstExpiry);
+    }
+
+    [Fact]
+    public void Second_agent_cannot_steal_from_first_agent()
+    {
+        using var controller = new Controller(TimeSpan.FromMinutes(1));
+        controller.Acquire(Agent);
+        Assert.Equal(ControlAcquireStatus.HeldByAgent, controller.Acquire(OtherAgent).Status);
+        Assert.True(controller.IsCurrent(Agent));
+    }
+
+    [Theory]
+    [InlineData("idle", "user", false, "Allowed", "")]
+    [InlineData("idle", "agent", false, "Allowed", "")]
+    [InlineData("user", "user", false, "Allowed", "")]
+    [InlineData("user", "agent", false, "NotController", "CONTROL_HELD_BY_USER")]
+    [InlineData("agent", "user", false, "NotController", "CONTROL_HELD_BY_AGENT")]
+    [InlineData("agent", "agent", false, "Allowed", "")]
+    [InlineData("agent", "other", false, "NotController", "CONTROL_HELD_BY_AGENT")]
+    [InlineData("agent", "user", true, "Allowed", "")]
+    [InlineData("user", "agent", true, "Allowed", "")]
+    public void Input_gate_follows_controller_table(
+        string holder,
+        string caller,
+        bool sessionEnded,
+        string expected,
+        string reason)
+    {
+        using var controller = new Controller(TimeSpan.FromMinutes(1));
+        ApplyHolder(controller, holder);
+
+        var result = controller.CheckInput(ToIdentity(caller), sessionEnded);
+
+        Assert.Equal(expected, result.Status.ToString());
+        Assert.Equal(reason, result.Reason);
+    }
+
+    [Theory]
+    [InlineData("idle", "user", false, "Allowed", "")]
+    [InlineData("idle", "agent", false, "Allowed", "")]
+    [InlineData("user", "user", false, "Allowed", "")]
+    [InlineData("user", "agent", false, "NotController", "CONTROL_HELD_BY_USER")]
+    [InlineData("agent", "user", false, "NotController", "CONTROL_HELD_BY_AGENT")]
+    [InlineData("agent", "agent", false, "Allowed", "")]
+    [InlineData("agent", "other", false, "NotController", "CONTROL_HELD_BY_AGENT")]
+    [InlineData("agent", "user", true, "Allowed", "")]
+    [InlineData("user", "agent", true, "Allowed", "")]
+    public void Lifecycle_gate_follows_controller_table(
+        string holder,
+        string caller,
+        bool sessionEnded,
+        string expected,
+        string reason)
+    {
+        using var controller = new Controller(TimeSpan.FromMinutes(1));
+        ApplyHolder(controller, holder);
+
+        var result = controller.CheckLifecycle(ToIdentity(caller), sessionEnded);
+
+        Assert.Equal(expected, result.Status.ToString());
+        Assert.Equal(reason, result.Reason);
     }
 
     [Fact]
     public async Task Lease_expiry_releases_agent_and_notifies_waiter()
     {
-        using var controller = new MinorShift.Emuera.Server.Controller(TimeSpan.FromMilliseconds(40));
-        controller.Acquire(MinorShift.Emuera.Server.ControlIdentity.Agent("agent-1"));
+        using var controller = new Controller(TimeSpan.FromMilliseconds(40));
+        controller.Acquire(Agent);
+        Assert.NotNull(controller.CurrentInfo!.LeaseExpiresAt);
 
         var controlEvent = await controller.WaitForEventAsync(1000, CancellationToken.None);
 
         Assert.NotNull(controlEvent);
         Assert.Equal("lease_expired", controlEvent!.Type);
-        Assert.Equal(MinorShift.Emuera.Server.Controller.StateIdle, controller.State);
+        Assert.Equal(Controller.StateIdle, controller.State);
+        Assert.Null(controller.CurrentInfo);
+    }
+
+    [Fact]
+    public void User_control_has_no_lease()
+    {
+        using var controller = new Controller(TimeSpan.FromMilliseconds(40));
+        controller.Acquire(ControlIdentity.User);
+
+        Assert.Equal(Controller.StateHeld, controller.State);
+        Assert.Null(controller.CurrentInfo!.LeaseExpiresAt);
+        Thread.Sleep(80);
+        Assert.Equal(Controller.StateHeld, controller.State);
+        Assert.True(controller.IsCurrent(ControlIdentity.User));
     }
 
     [Fact]
     public async Task Owner_change_completes_in_flight_signal()
     {
-        using var controller = new MinorShift.Emuera.Server.Controller(TimeSpan.FromMinutes(1));
+        using var controller = new Controller(TimeSpan.FromMinutes(1));
         var ownerChanged = controller.OwnerChangedTask;
-        controller.Acquire(MinorShift.Emuera.Server.ControlIdentity.User);
+        controller.Acquire(ControlIdentity.User);
 
         await ownerChanged.WaitAsync(TimeSpan.FromSeconds(1));
-        Assert.Equal(MinorShift.Emuera.Server.Controller.StateHeld, controller.State);
+        Assert.Equal(Controller.StateHeld, controller.State);
     }
+
+    private static void ApplyHolder(Controller controller, string holder)
+    {
+        switch (holder)
+        {
+            case "idle":
+                return;
+            case "user":
+                controller.Acquire(ControlIdentity.User);
+                return;
+            case "agent":
+                controller.Acquire(Agent);
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(holder), holder, null);
+        }
+    }
+
+    private static ControlIdentity ToIdentity(string caller) => caller switch
+    {
+        "user" => ControlIdentity.User,
+        "agent" => Agent,
+        "other" => OtherAgent,
+        _ => throw new ArgumentOutOfRangeException(nameof(caller), caller, null),
+    };
 }

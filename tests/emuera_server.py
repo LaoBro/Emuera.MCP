@@ -89,16 +89,18 @@ class ServerProcess:
         # T-025：缓存 game_dir，供 start_session() 自动 load_game 使用
         self.game_dir = game_dir
 
-    def request(self, method, path, body=None, timeout=35):
+    def request(self, method, path, body=None, timeout=35, headers=None):
         data = None if body is None else json.dumps(body).encode("utf-8")
-        headers = {}
+        req_headers = {}
         if body is not None:
-            headers["Content-Type"] = "application/json"
+            req_headers["Content-Type"] = "application/json"
+        if headers:
+            req_headers.update(headers)
         req = urllib.request.Request(
             f"{self.base_url}{path}",
             data=data,
             method=method,
-            headers=headers,
+            headers=req_headers,
         )
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -221,11 +223,12 @@ def _drain_stdout(proc):
         pass
 
 
-def start_server(game_dir=None, project_dir=None, binary=None, port=None):
+def start_server(game_dir=None, project_dir=None, binary=None, port=None, extra_env=None):
     """启动 Emuera.Headless server。
 
     T-025：game_dir 改为可选——None 时不传 --ExeDir，server 进入空闲启动模式
     （Program.Main 跳过 Validate，等待 /load-game 加载游戏）。
+    extra_env：合并进子进程环境（如 EMUERA_CONTROL_LEASE_SECONDS）。
     """
     if project_dir is None:
         project_dir = PROJECT_DIR
@@ -238,6 +241,10 @@ def start_server(game_dir=None, project_dir=None, binary=None, port=None):
     if game_dir is not None:
         cmd.extend(["--ExeDir", str(game_dir)])
 
+    env = os.environ.copy()
+    if extra_env:
+        env.update(extra_env)
+
     print(f"[EmueraServer] Starting: {' '.join(cmd)}")
     proc = subprocess.Popen(
         cmd,
@@ -247,6 +254,7 @@ def start_server(game_dir=None, project_dir=None, binary=None, port=None):
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=env,
     )
     # 立即启动 stdout 排空线程（早于 wait_for_port）：PIPE 缓冲写满会让 server 的
     # Console.Out.Flush() 阻塞——第二个 session 加载时必然触发（见 _drain_stdout 注释）。
