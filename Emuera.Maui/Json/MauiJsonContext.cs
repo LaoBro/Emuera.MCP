@@ -90,8 +90,8 @@ internal sealed record LayoutMessage(
     int GameColumns,
     string? FontName);
 
-/// <summary>{"type":"config","maxLog":...,"agentLogEnabled":...}</summary>
-internal sealed record ConfigMessage(string Type, int MaxLog, bool AgentLogEnabled);
+/// <summary>{"type":"config","maxLog":...,"agentLogEnabled":...,"noLoadingReport":...}</summary>
+internal sealed record ConfigMessage(string Type, int MaxLog, bool AgentLogEnabled, bool NoLoadingReport);
 
 /// <summary>{"type":"backButtonPressed"}</summary>
 internal sealed record BackButtonPressedMessage(string Type);

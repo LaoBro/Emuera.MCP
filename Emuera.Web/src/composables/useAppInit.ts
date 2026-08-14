@@ -86,6 +86,20 @@ export async function initAppState(): Promise<void> {
 }
 
 /**
+ * 解析 C# 桥接推来的 controller 节点（{kind,leaseExpiresAt}|null）——与 connection store
+ * 内部 parseController 同构，供 controlStatus 消息应用控制状态（issue 05 MAUI 托管）。
+ */
+function parseBridgeController(raw: unknown): { kind: 'agent' | 'user'; leaseExpiresAt: string | null } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const rec = raw as { kind?: unknown; leaseExpiresAt?: unknown };
+  if (rec.kind !== 'agent' && rec.kind !== 'user') return null;
+  return {
+    kind: rec.kind,
+    leaseExpiresAt: typeof rec.leaseExpiresAt === 'string' ? rec.leaseExpiresAt : null,
+  };
+}
+
+/**
  * issue 09 文件选择器 + game-library spec ID3 / ID9：处理 C# `PostMessage` 推来的非 turn 消息——
  * `registerMessageHandler` 注册的回调，按 `type` 字段分发。
  *
@@ -151,6 +165,21 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
     if (typeof m.maxLog === 'number') game.maxLog = m.maxLog;
     // A0：文件日志开关的 C# 权威状态——设置页据此渲染开关初始值
     if (typeof m.agentLogEnabled === 'boolean') game.agentLogEnabled = m.agentLogEnabled;
+    // issue 07：启动日志覆盖开关的 C# 权威状态——设置页据此渲染开关初始值
+    if (typeof m.noLoadingReport === 'boolean') game.noLoadingReport = m.noLoadingReport;
+    return;
+  }
+
+  // issue 05（MAUI 托管）：控制状态同步——C# BridgeHost.ControlPumpAsync 在控制事件发生时
+  // 推 {"type":"controlStatus","controller":{kind,leaseExpiresAt}|null,"state":"idle"|"held"}，
+  // 前端据此切 旁观/可操作（输入栏启用/禁用 + 接管按钮）。对应 HTTP 模式的 /control 轮询语义。
+  if (type === 'controlStatus') {
+    const conn = useConnectionStore();
+    const ctrl = parseBridgeController(m.controller);
+    conn.applyControlStatus({
+      controller: ctrl,
+      state: typeof m.state === 'string' ? m.state : (ctrl ? 'held' : 'idle'),
+    });
     return;
   }
 

@@ -291,6 +291,54 @@ describe('handleMauiMessage - config agentLogEnabled (A0)', () => {
   });
 });
 
+// ---------- handleMauiMessage：config 消息（issue 07 启动日志覆盖开关）----------
+
+describe('handleMauiMessage - config noLoadingReport (issue 07)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('config 消息含 noLoadingReport=true → 写入 store（设置页开关渲染依据）', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const game = useGameStore();
+    expect(game.noLoadingReport).toBe(true); // 默认 true（覆盖启动日志）
+
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+
+    handler!({ type: 'config', noLoadingReport: false });
+    expect(game.noLoadingReport).toBe(false);
+
+    // 再推 true → 同步开启
+    handler!({ type: 'config', noLoadingReport: true });
+    expect(game.noLoadingReport).toBe(true);
+  });
+
+  it('config 消息含 noLoadingReport=false → 写入 store', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const game = useGameStore();
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+
+    handler!({ type: 'config', noLoadingReport: false });
+    expect(game.noLoadingReport).toBe(false);
+  });
+});
+
 // ---------- handleMauiMessage：agentLog 消息（A0 补充：app 内日志查看器）----------
 
 describe('handleMauiMessage - agentLog (A0 日志查看器)', () => {
@@ -347,5 +395,77 @@ describe('handleMauiMessage - agentLog (A0 日志查看器)', () => {
     handler!({ type: 'agentLog' });
     expect(game.agentLogContent).toBe('');
     expect(game.agentLogTruncated).toBe(false);
+  });
+});
+
+// ---------- handleMauiMessage：controlStatus（issue 05 MAUI 托管控制状态同步）----------
+
+describe('handleMauiMessage - controlStatus (issue 05)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('agent 持有控制权 → controller=agent + isSpectator=true（输入栏禁用 + 旁观横幅）', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const conn = useConnectionStore();
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    handler!({
+      type: 'controlStatus',
+      controller: { kind: 'agent', leaseExpiresAt: '2026-08-15T10:00:00Z' },
+      state: 'held',
+    });
+
+    expect(conn.controller?.kind).toBe('agent');
+    expect(conn.isSpectator).toBe(true);
+    expect(conn.canInput).toBe(false);
+    expect(conn.controlState).toBe('held');
+  });
+
+  it('无控制权（空闲）→ controller=null + 可操作', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const conn = useConnectionStore();
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    handler!({ type: 'controlStatus', controller: null, state: 'idle' });
+
+    expect(conn.controller).toBeNull();
+    expect(conn.canInput).toBe(true);
+    expect(conn.controlState).toBe('idle');
+  });
+
+  it('用户释放/接管后 controller=user → 可操作且非旁观', async () => {
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', hostname: 'app.local' },
+      chrome: { webview: { postMessage: vi.fn() } },
+    });
+
+    await initAppState();
+
+    const conn = useConnectionStore();
+    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    handler!({
+      type: 'controlStatus',
+      controller: { kind: 'user', leaseExpiresAt: null },
+      state: 'held',
+    });
+
+    expect(conn.controller?.kind).toBe('user');
+    expect(conn.isSpectator).toBe(false);
+    expect(conn.canInput).toBe(true);
   });
 });

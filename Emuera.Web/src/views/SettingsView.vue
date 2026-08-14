@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useGameStore } from '../stores/game';
-import { setAgentLogEnabled, getAgentLog, exportAgentLog } from '../lib/mauiBridge';
+import { setAgentLogEnabled, setNoLoadingReport, getAgentLog, exportAgentLog } from '../lib/mauiBridge';
 
 const game = useGameStore();
 
@@ -14,6 +14,17 @@ function toggleAgentLog(): void {
   const next = !game.agentLogEnabled;
   setAgentLogEnabled(next);
   game.agentLogEnabled = next;
+}
+
+/**
+ * issue 07：启动日志覆盖开关切换——投递 setNoLoadingReport 请求 C# 覆盖游戏
+ * `DisplayReport` 为 off/on + 持久化，本地乐观更新。C# 处理完推回 config 消息
+ * （含 noLoadingReport 字段）再次同步——最终显示以 C# 权威状态为准。
+ */
+function toggleNoLoadingReport(): void {
+  const next = !game.noLoadingReport;
+  setNoLoadingReport(next);
+  game.noLoadingReport = next;
 }
 
 /**
@@ -59,6 +70,23 @@ const logCopied = ref(false);
       </div>
       <div class="section">
         <h3>其他</h3>
+        <div class="setting-row">
+          <span class="setting-label">启动日志覆盖</span>
+          <button
+            class="toggle"
+            :class="{ on: game.noLoadingReport }"
+            role="switch"
+            :aria-checked="game.noLoadingReport"
+            @click="toggleNoLoadingReport"
+          >
+            <span class="toggle-knob" />
+          </button>
+          <span class="setting-value">{{ game.noLoadingReport ? '开' : '关' }}</span>
+        </div>
+        <p class="hint-text">
+          覆盖游戏配置的加载时显示报告（DisplayReport）为关闭，隐藏启动时的脚本读取日志。
+          默认开启；若需排查启动问题可临时关闭，按游戏自身配置显示。
+        </p>
         <div class="setting-row">
           <span class="setting-label">文件日志 (agent.log)</span>
           <button

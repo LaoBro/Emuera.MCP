@@ -330,6 +330,20 @@ export function setAgentLogEnabled(enabled: boolean): void {
 }
 
 /**
+ * issue 07：设置页「启动日志覆盖」开关——请求 C# 覆盖游戏 `DisplayReport` 为 off/on。
+ *
+ * C# `BridgeHost.HandleSetNoLoadingReport` 收到后：
+ * 1. 写 Preferences（key=`emuera.noLoadingReport`——游戏加载时 OnReloadGame 读同一 key 前置位）
+ * 2. 运行时切换 `ConfigData.OverrideDisplayReport`（开启时强制 `DisplayReport=false`）
+ * 3. 推回 `config` 消息（含 noLoadingReport 字段）同步设置页开关的权威状态
+ *
+ * @param enabled true=覆盖（隐藏启动读取日志，默认）；false=不覆盖（按游戏自身配置）
+ */
+export function setNoLoadingReport(enabled: boolean): void {
+  postInput(JSON.stringify({ type: 'setNoLoadingReport', enabled }));
+}
+
+/**
  * A0 补充（真机无 adb）：请求 C# 读取 agent.log 内容推给 Vue（设置页日志查看器）。
  *
  * C# `BridgeHost.HandleGetAgentLog` 收到后调 `AgentLog.ReadAllText()`（内部先 flush，

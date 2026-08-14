@@ -12,14 +12,16 @@ internal sealed class HeadlessOptions
     public bool Server { get; }
     public int Port { get; }
     public string TermWidthHint { get; }
+    public bool NoLoadingReport { get; }
 
-    private HeadlessOptions(string? exeDir, string protocol, bool server, int port, string termWidthHint)
+    private HeadlessOptions(string? exeDir, string protocol, bool server, int port, string termWidthHint, bool noLoadingReport)
     {
         ExeDir = exeDir;
         Protocol = protocol;
         Server = server;
         Port = port;
         TermWidthHint = termWidthHint;
+        NoLoadingReport = noLoadingReport;
     }
 
     // 2.0 GA API：构造器直接接收 name + 别名，描述与默认值通过初始化器设置
@@ -56,6 +58,12 @@ internal sealed class HeadlessOptions
         DefaultValueFactory = _ => "auto"
     };
 
+    internal static readonly Option<bool> NoLoadingReportOption = new(
+        "--no-loading-report")
+    {
+        Description = "覆盖游戏配置的加载时显示报告（DisplayReport）为 off，隐藏启动读取日志（agent 用）"
+    };
+
     public static HeadlessOptions? Parse(string[] args)
     {
         var rootCommand = new RootCommand("Emuera.Headless - Emuera 无头模式运行器");
@@ -64,6 +72,7 @@ internal sealed class HeadlessOptions
         rootCommand.Options.Add(ServerOption);
         rootCommand.Options.Add(PortOption);
         rootCommand.Options.Add(TermWidthHintOption);
+        rootCommand.Options.Add(NoLoadingReportOption);
 
         var result = rootCommand.Parse(args);
 
@@ -90,6 +99,7 @@ internal sealed class HeadlessOptions
         var server = result.GetValue(ServerOption);
         var port = result.GetValue(PortOption);
         var termWidthHint = result.GetValue(TermWidthHintOption) ?? "auto";
+        var noLoadingReport = result.GetValue(NoLoadingReportOption);
 
         if (server && ArgsContainProtocol(args))
         {
@@ -98,7 +108,7 @@ internal sealed class HeadlessOptions
             return null;
         }
 
-        return new HeadlessOptions(exeDir, protocol, server, port, termWidthHint);
+        return new HeadlessOptions(exeDir, protocol, server, port, termWidthHint, noLoadingReport);
     }
 
     private static bool ArgsContainProtocol(string[] args)

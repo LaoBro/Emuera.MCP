@@ -61,6 +61,7 @@ internal sealed class Session : IDisposable
     private readonly HttpSessionIO _io;
     private readonly ConfigData _configData;
     private readonly ITerminalSetup _terminalSetup;
+    private readonly bool _fullDiffOnFirstTurn;
     private EmueraConsole? _console;
     private DisplayState? _displayState;
     private AgentJsonlProtocol? _protocol;
@@ -77,12 +78,13 @@ internal sealed class Session : IDisposable
     /// </summary>
     private volatile bool _loading;
 
-    public Session(HttpSessionIO io, ITerminalSetup terminalSetup, ConfigData configData, TimeSpan? agentLease = null)
+    public Session(HttpSessionIO io, ITerminalSetup terminalSetup, ConfigData configData, TimeSpan? agentLease = null, bool fullDiffOnFirstTurn = false)
     {
         _io = io;
         _configData = configData;
         _terminalSetup = terminalSetup;
         Controller = new Controller(agentLease);
+        _fullDiffOnFirstTurn = fullDiffOnFirstTurn;
         // 注意：HeadlessConsole / EmueraConsole / AgentJsonlProtocol 的构造推迟到
         // GameLoopAsync 内、GlobalStatic.OpenScope 之后——它们构造时读 Config.*（候选 2/ADR-0009
         // 后 Config 仅经 scope 注入），scope 未开即构造会 NPE（POST /session 500）。
@@ -110,7 +112,10 @@ internal sealed class Session : IDisposable
                 // HTTP 线程上 Config.Current 不可用（AsyncLocal 仅在游戏循环 task 设置），
                 // 直接从 ConfigData 读默认字体名，传给 DisplayState 避免 BuildPrintOpsForLine 访问 Config.FontName 时 NRE。
                 var defaultFontName = _configData.GetConfigValue<string>(ConfigCode.FontName) ?? "";
-                _displayState = new DisplayState(_console, defaultFontName);
+                // MAUI 托管模式（fullDiffOnFirstTurn=true）：WebView 桥接无 GET /snapshot 端点为入口，
+                // 首帧 diff 是唯一画面来源——ComputeDiff 首帧返回全量 AppendLinesOp 而非 null。
+                // HTTP 模式靠 GET /snapshot 拿画面，首帧 diff=null 正确（默认 false）。
+                _displayState = new DisplayState(_console, defaultFontName, _fullDiffOnFirstTurn);
                 _protocol = new AgentJsonlProtocol(_console, ui, _io, _displayState);
                 return _protocol;
             },

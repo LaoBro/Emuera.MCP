@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Terminal.Platform;
 
@@ -60,12 +61,36 @@ internal sealed class SessionRegistry
             DestroySession("session_replaced");
 
             // issue 03：SessionRegistry 自持 OutputHub 引用，HttpSessionIO 只接 IOutputBroadcaster 抽象。
-            var hub = new OutputHub();
-            var io = new HttpSessionIO(hub);
-            _sessionHub = hub;
-            _session = new Session(io, _terminalSetup, _configService.Current, _agentLease);
-            _session.Start();
-            return new SessionCreateResult(SessionCreateStatus.Created, _session.Id, _session.CreatedAt, _session.StateString);
+            var session = CreateSessionCore(_configService.Current);
+            return new SessionCreateResult(SessionCreateStatus.Created, session.Id, session.CreatedAt, session.StateString);
+        }
+        finally
+        {
+            _sessionLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// MAUI 托管模式建会话（issue 05）——游戏已由 MAUI <c>OnReloadGame</c> 初始化
+    /// （<c>GamePaths.Current</c> 已 Resolve + <c>ConfigData</c> 已 LoadConfig），无需再解析路径/重载配置。
+    /// 与 <see cref="CreateNewSessionAsync"/> 的区别：允许 <c>_session == null</c>（MAUI 首次起 server
+    /// 时注册表为空）——HTTP 模式靠 /load-game 建首个 session，POST /session 只负责结束后重建，
+    /// 因此其 NoGameLoaded 守卫不适用于 MAUI。
+    /// 已有活跃 session → Conflict；否则销毁旧 session（若有）后建新 session。
+    /// </summary>
+    /// <param name="fullDiffOnFirstTurn">首帧 diff 是否返回全量（MAUI WebView 桥接无 snapshot 入口，须 true）。</param>
+    public async Task<SessionCreateResult> CreateMauiSessionAsync(bool fullDiffOnFirstTurn = true)
+    {
+        await _sessionLock.WaitAsync();
+        try
+        {
+            if (_session is { HasEnded: false })
+                return new SessionCreateResult(SessionCreateStatus.Conflict, null, default, null);
+
+            DestroySession("session_replaced");
+
+            var session = CreateSessionCore(_configService.Current, fullDiffOnFirstTurn);
+            return new SessionCreateResult(SessionCreateStatus.Created, session.Id, session.CreatedAt, session.StateString);
         }
         finally
         {
@@ -177,12 +202,7 @@ internal sealed class SessionRegistry
             //    新 Session.Start() 排 GameLoopAsync 到独立 Task，_loading=true 让 StateString 返 "Loading"。
 
             // 7. 建新 Session——GameLoopAsync 内 GameLoopComposer.OpenScope(_configData) 注入新配置
-            var hub = new OutputHub();
-            var io = new HttpSessionIO(hub);
-            _sessionHub = hub;
-            var newSession = new Session(io, _terminalSetup, newConfig, _agentLease);
-            newSession.Start();
-            _session = newSession;
+            var newSession = CreateSessionCore(newConfig);
 
             // 8. Success——state="Loading"（issue 11 D1 落地后自动生效）
             return LoadGameResult.Success(newSession.Id, newSession.StateString, paths.ExeDir);
@@ -246,6 +266,26 @@ internal sealed class SessionRegistry
         {
             _sessionLock.Release();
         }
+    }
+
+    /// <summary>
+    /// 建新会话的统一助手（建会话三处去重）——新 OutputHub + HttpSessionIO + Session + Start，
+    /// 并写入 <c>_sessionHub</c> / <c>_session</c>（三态同生命周期）。
+    /// 仅在持有 <c>_sessionLock</c> 时调用（<see cref="CreateNewSessionAsync"/> /
+    /// <see cref="CreateMauiSessionAsync"/> / <see cref="ReplaceForLoadGameAsync(string, System.Nullable{ControlIdentity})"/>）。
+    /// </summary>
+    /// <param name="configData">会话使用的 ConfigData（HTTP /load-game 用重载后的 newConfig，其余用 <c>_configService.Current</c>）。</param>
+    /// <param name="fullDiffOnFirstTurn">首帧 diff 是否返回全量（MAUI 托管 true）。</param>
+    private Session CreateSessionCore(ConfigData configData, bool fullDiffOnFirstTurn = false)
+    {
+        // issue 03：SessionRegistry 自持 OutputHub 引用，HttpSessionIO 只接 IOutputBroadcaster 抽象。
+        var hub = new OutputHub();
+        var io = new HttpSessionIO(hub);
+        _sessionHub = hub;
+        var session = new Session(io, _terminalSetup, configData, _agentLease, fullDiffOnFirstTurn);
+        session.Start();
+        _session = session;
+        return session;
     }
 
     /// <summary>

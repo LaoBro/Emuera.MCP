@@ -5,6 +5,14 @@ import os
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(PROJECT_DIR, ".emuera-agent.json")
 SERVER_FILE = os.path.join(PROJECT_DIR, ".emuera-server.json")
+# issue 05：MAUI 托管 server 的发现记录（Windows %LOCALAPPDATA%\Emuera\emuera-maui-server.json）。
+# MAUI 应用跑游戏时写此记录（端口 + token + gameDir），emuera_agent start 据此侦测并复用，
+# 避免 agent 另起一局 server（单实例共享）。
+MAUI_SERVER_FILE = os.path.join(
+    os.environ.get("LOCALAPPDATA", ""),
+    "Emuera",
+    "emuera-maui-server.json",
+)
 
 
 def load_config():
@@ -54,3 +62,14 @@ def delete_server_record():
         os.remove(SERVER_FILE)
     except FileNotFoundError:
         pass
+
+
+def load_maui_server_record():
+    """Load MAUI-hosted server discovery record (issue 05). None if missing/unreadable/not Windows."""
+    if not MAUI_SERVER_FILE or not os.path.isfile(MAUI_SERVER_FILE):
+        return None
+    try:
+        with open(MAUI_SERVER_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None

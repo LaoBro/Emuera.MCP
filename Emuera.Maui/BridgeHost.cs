@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Emuera.Maui.JsBridge;
 using Emuera.Maui.Json;
@@ -18,21 +20,25 @@ using MinorShift.Emuera.Terminal.Platform;
 namespace Emuera.Maui;
 
 /// <summary>
-/// MAUI 桥接编排器——issue 07 / 08 / 09 / spec ID8 / ID9 / ID10。
+/// MAUI 桥接编排器——issue 07 / 08 / 09 / 05（托管 server）/ spec ID8 / ID9 / ID10。
 /// <para>
-/// 持有 <see cref="MauiBridgeIO"/> + <see cref="IJsBridge"/>，在游戏循环线程与 UI 线程之间转发 turn / input。
-/// 构造时创建 <see cref="MauiBridgeIO"/>（<c>_onTurn</c> 回调内 <c>Dispatcher.Dispatch</c> 切 UI 线程投递给 WebView），
+/// 持有 <see cref="IJsBridge"/> + 托管 <see cref="HttpListenerHost"/>（issue 05），在游戏会话与
+/// UI 线程之间转发 turn / input：会话由 <see cref="HttpListenerHost"/> 的 <see cref="SessionRegistry"/> 持有
+/// （共享层 <see cref="Session"/>），WebView 经 <see cref="OutputHub"/> 订阅 turn（<see cref="TurnPumpAsync"/>）
+/// 转发 + <see cref="HttpSessionIO"/> 入输入；agent 经 localhost HTTP+WS 连接同一会话（单实例共享）。
 /// 订阅 <see cref="IJsBridge.InputReceived"/> 接收 Vue 端 postMessage。
 /// </para>
 /// <para>
-/// <b>启动时序（spec ID7）</b>：构造不启动游戏循环。Vue 启动后 <c>postMessage({"type":"ready"})</c>，
-/// <see cref="OnInputFromJs"/> 识别 ready 后调 <see cref="Start"/>，<see cref="Task.Run(System.Action)"/> 启动
-/// <see cref="GameLoopComposer.RunAsync"/>。Vue ready 是游戏循环启动的前置条件，第一帧 turn 自然推给已 ready 的 Vue。
+/// <b>启动时序（spec ID7 + issue 05）</b>：构造不启动托管 server。Vue 启动后 <c>postMessage({"type":"ready"})</c>，
+/// <see cref="OnInputFromJs"/> 识别 ready 后调 <see cref="Start"/>；Start 建 <see cref="HttpListenerHost"/> +
+/// <see cref="SessionRegistry.CreateMauiSessionAsync"/> 建共享会话 + 起 turn/control 泵 + 写 agent 发现记录。
+/// Vue ready 是会话启动的前置条件，第一帧 turn（全量 diff）自然推给已 ready 的 Vue。
 /// </para>
 /// <para>
-/// <b>致命错误处理（spec ID10）</b>：<see cref="GameLoopComposer.RunAsync"/> 抛非 <see cref="GameExitException"/> 异常时
-/// <see cref="ShowFatalError"/> 推 error turn 给 Vue（Vue 渲染 error 字段），fallback 用 <c>DisplayAlert</c>。
-/// 单 step 脚本异常（ERB THROW / 除零等）由 <c>AgentJsonlProtocol.StepAsync</c> 内 catch 处理，不传播到 <see cref="ShowFatalError"/>。
+/// <b>致命错误处理（spec ID10）</b>：会话游戏循环异常由共享层 <see cref="Session"/> 兜底（写 error turn），
+/// 本类仅在宿主构建/订阅失败时 <see cref="ShowFatalError"/> 推 error turn 给 Vue（Vue 渲染 error 字段），
+/// fallback 用 <c>DisplayAlert</c>。单 step 脚本异常（ERB THROW / 除零等）由 <c>AgentJsonlProtocol.StepAsync</c>
+/// 内 catch 处理，不传播到 <see cref="ShowFatalError"/>。
 /// </para>
 /// <para>
 /// <b>文件选择器（issue 09）</b>：Vue 端 <c>pickGameFolder()</c> 投递 <c>{"type":"pickFolder"}</c> →
@@ -61,6 +67,14 @@ internal sealed class BridgeHost : IDisposable
     /// </summary>
     internal const string AgentLogEnabledKey = "emuera.agentLogEnabled";
 
+    /// <summary>
+    /// Preferences key——启动日志覆盖开关（issue 07）。
+    /// 默认 <see langword="true"/>（覆盖游戏 <c>DisplayReport</c> 为 off，隐藏启动读取日志）；
+    /// 设置页开关经 HandleSetNoLoadingReport 写此 key + 即时切换 ConfigData.OverrideDisplayReport。
+    /// 游戏加载（OnReloadGame → Initialize）时读此 key 前置位，让启动日志从一开始就被抑制。
+    /// </summary>
+    internal const string NoLoadingReportKey = "emuera.noLoadingReport";
+
     /// <summary>app 内日志查看器推送 Vue 的内容上限（字符）——超限保留尾部最新（A0 补充，真机无 adb）。</summary>
     private const int AgentLogViewMaxChars = 200_000;
 
@@ -68,11 +82,19 @@ internal sealed class BridgeHost : IDisposable
     private readonly ConfigData _configData;
     private readonly ITerminalSetup _terminalSetup;
     private readonly IJsBridge _jsBridge;
-    private readonly MauiBridgeIO _bridgeIO;
     private readonly Action<string>? _onReloadGame;
     private readonly Action? _onGameExited;
     private readonly CancellationTokenSource _cts = new();
-    private Task? _gameTask;
+    // issue 05：MAUI 托管 Server——共享层会话由 HttpListenerHost 的 SessionRegistry 持有，
+    // WebView 经 OutputHub 订阅 turn（TurnPumpAsync）投递 + session.IO 入输入；
+    // agent 经 localhost HTTP+WS 连接同一会话（单实例共享，非另起一局）。
+    private HttpListenerHost? _serverHost;
+    private Session? _session;
+    private HttpSessionIO? _sessionIO;
+    private Task? _turnPump;
+    private Task? _controlPump;
+    private string? _discoveryPath;
+    private string? _discoveryToken;
     private bool _disposed;
     private bool _started;
     private bool _readyReceived;
@@ -135,8 +157,9 @@ internal sealed class BridgeHost : IDisposable
         // Windows: Documents/emuera；Android: null（待权限引导后设置）
         _mainGameDir = LoadMainGameDir();
 
-        // MauiBridgeIO 的 _onTurn 回调在游戏循环线程执行——Dispatcher.Dispatch 切 UI 线程投递给 WebView。
-        _bridgeIO = new MauiBridgeIO(OnTurnFromGame);
+        // 托管模式（issue 05）：会话由 HttpListenerHost 的 SessionRegistry 持有，
+        // WebView 的 turn 流由 Start 里起的 TurnPumpAsync 从 OutputHub 订阅读取后
+        // Dispatcher.Dispatch 切 UI 线程投递——不再用 MauiBridgeIO 直连游戏循环。
         _jsBridge.InputReceived += OnInputFromJs;
 #if ANDROID
         // ADR-0019：兜底——InputReceived 无订阅者时仍能收到 JS 消息
@@ -204,11 +227,11 @@ internal sealed class BridgeHost : IDisposable
     }
 
     /// <summary>
-    /// 游戏循环线程的 turn 回调——<see cref="MauiBridgeIO.WriteLine"/> 调用。
+    /// turn 泵回调——<see cref="TurnPumpAsync"/> 从 OutputHub 订阅 reader 读到 turn 后调用。
     /// <para>
     /// <see cref="IJsBridge.PostTurn"/> 内部调 <c>EvaluateJavaScriptAsync</c> / <c>EvaluateJavaScript</c>，
     /// 必须在 UI 线程执行（CoreWebView2 / Android.Webkit.WebView 要求）。
-    /// <see cref="IDispatcher.Dispatch"/> 是 fire-and-forget——不阻塞游戏循环线程。
+    /// <see cref="IDispatcher.Dispatch"/> 是 fire-and-forget——不阻塞 turn 泵读取。
     /// </para>
     /// </summary>
     private void OnTurnFromGame(string turnJson)
@@ -228,7 +251,9 @@ internal sealed class BridgeHost : IDisposable
     ///       <c>{"type":"listDirectories","dirPath":...}</c> / <c>{"type":"exitGame"}</c>——
     ///       分别调 <see cref="HandleScanGames"/> / <see cref="HandleListDirectories"/> / <see cref="HandleExitGame"/></item>
     ///   <item><c>{"type":"getGameThreadStatus"}</c>——前端静默探测游戏线程存活，调 <see cref="HandleGetGameThreadStatus"/></item>
-    ///   <item>其他（如 <c>{"type":"input","value":"..."}</c>）——原样入 <see cref="MauiBridgeIO.EnqueueInput"/>，
+    ///   <item><c>{"type":"control","action":...}</c>——issue 05 托管控制权桥接（acquire/release/status），
+    ///       调 <see cref="HandleControlMessage"/>，让 WebView 用户能接管 agent 控制权</item>
+    ///   <item>其他（如 <c>{"type":"input","value":"..."}</c>）——经控制门禁入 <see cref="HttpSessionIO.EnqueueInput"/>，
     ///       由 <c>AgentJsonlProtocol.RunLoopAsync</c> 反序列化消费</item>
     /// </list>
     /// </para>
@@ -327,6 +352,12 @@ internal sealed class BridgeHost : IDisposable
                     HandleSetAgentLogEnabled(doc.RootElement);
                     return;
                 }
+                // issue 07：设置页启动日志覆盖开关——写 Preferences + 切换 ConfigData.OverrideDisplayReport
+                if (type == "setNoLoadingReport")
+                {
+                    HandleSetNoLoadingReport(doc.RootElement);
+                    return;
+                }
                 // A0 补充：app 内日志查看器——读取 agent.log 内容推给 Vue（真机无 adb 场景）
                 if (type == "getAgentLog")
                 {
@@ -337,6 +368,12 @@ internal sealed class BridgeHost : IDisposable
                 if (type == "exportAgentLog")
                 {
                     HandleExportAgentLog();
+                    return;
+                }
+                // issue 05：MAUI 托管控制权桥接——用户经 WebView 接管/让权/查询控制状态
+                if (type == "control")
+                {
+                    HandleControlMessage(doc.RootElement);
                     return;
                 }
                 // 其他 typed 消息（input 等）原样入队——AgentJsonlProtocol.RunLoopAsync 内
@@ -351,8 +388,22 @@ internal sealed class BridgeHost : IDisposable
             return;
         }
 
-        // input / 其他 typed 消息：原样入队给 protocol 层消费
-        _bridgeIO.EnqueueInput(message);
+        // input / 其他 typed 消息：经控制门禁入 session 输入队列（WebView = 用户身份，无 token）。
+        // 未起会话（无游戏）时丢弃——与旧 MauiBridgeIO 关闭后丢弃语义一致。
+        if (_session is { HasEnded: false } s)
+        {
+            var gate = s.Controller.CheckInput(ControlIdentity.User, s.HasEnded);
+            if (gate.Status == ControlGateStatus.Allowed)
+            {
+                s.IO.EnqueueInput(message);
+            }
+            else
+            {
+                Console.WriteLine($"[bridge] input dropped (control held: {gate.Reason}): {message}");
+                // 控制权被 agent 持有时同步一次状态——前端输入栏应已禁用（旁观态），此为兜底
+                PushControlStatus(s);
+            }
+        }
     }
 
     /// <summary>
@@ -635,7 +686,7 @@ internal sealed class BridgeHost : IDisposable
     /// <list type="number">
     ///   <item>回复 <c>{"type":"gameExited"}</c> 给 Vue——必须先回复再 Dispose，
     ///       Dispose 后 OnInputFromJs 守卫会丢消息</item>
-    ///   <item>调 <see cref="Dispose"/>——取消游戏循环 + 关 MauiBridgeIO</item>
+    ///   <item>调 <see cref="Dispose"/>——取消 turn/control 泵 + 停托管 server（会话随之结束）</item>
     ///   <item>调 <c>_onGameExited?.Invoke()</c>——让 MainPage 重建 BridgeHost
     ///       （新 host 不启动游戏循环，等 Vue 触发 scanGames）</item>
     /// </list>
@@ -711,12 +762,12 @@ internal sealed class BridgeHost : IDisposable
     /// </para>
     /// <para>
     /// 回复 <c>{"type":"gameThreadStatus","alive":true/false}</c>。
-    /// 游戏未启动（<c>_gameTask</c> 为 null）时视为不存活——前端无游戏时不探测，不会误显示。
+    /// 游戏未启动（<c>_session</c> 为 null / 已结束）时视为不存活——前端无游戏时不探测，不会误显示。
     /// </para>
     /// </summary>
     private void HandleGetGameThreadStatus()
     {
-        var alive = _gameTask is { IsCompleted: false };
+        var alive = _session is { IsRunning: true };
         var msg = JsonSerializer.Serialize(
             new GameThreadStatusMessage("gameThreadStatus", alive),
             MauiJsonContext.Default.GameThreadStatusMessage);
@@ -754,6 +805,40 @@ internal sealed class BridgeHost : IDisposable
         AgentLog.Instance.Enabled = enabled;
         Console.WriteLine($"[bridge] agentLogEnabled set to {enabled}");
         // 推回 config 消息同步 UI——设置页开关显示与 C# 权威状态一致
+        PushConfigMessage();
+    }
+
+    /// <summary>
+    /// 接收 <c>{"type":"setNoLoadingReport","enabled":true/false}</c>；持久化到 Preferences
+    /// （游戏加载时 OnReloadGame → Initialize 读同一 key 前置位），并即时切换
+    /// <see cref="ConfigData.OverrideDisplayReport"/>——开启时强制 <c>DisplayReport=false</c>，
+    /// 关闭时恢复游戏自身配置。完成后推回 <c>config</c> 消息同步 UI。
+    /// <para>
+    /// 说明：即时切换只影响后续读取 <c>DisplayReport</c> 的输出；当前会话已打印的启动日志
+    /// 不会回滚（真正抑制发生在游戏加载时）。
+    /// </para>
+    /// </summary>
+    private void HandleSetNoLoadingReport(JsonElement root)
+    {
+        if (!root.TryGetProperty("enabled", out var el)
+            || (el.ValueKind != JsonValueKind.True && el.ValueKind != JsonValueKind.False))
+        {
+            Console.WriteLine("[bridge] HandleSetNoLoadingReport: missing or non-boolean 'enabled' field");
+            return;
+        }
+        var enabled = el.GetBoolean();
+        try
+        {
+            Preferences.Set(NoLoadingReportKey, enabled);
+        }
+        catch
+        {
+            // Preferences 不可用——运行时切换仍生效，仅持久化失败（下次启动回默认）
+        }
+        _configData.OverrideDisplayReport = enabled;
+        if (enabled)
+            _configData.GetItem(ConfigCode.DisplayReport).SetValue(false);
+        Console.WriteLine($"[bridge] noLoadingReport set to {enabled}");
         PushConfigMessage();
     }
 
@@ -921,21 +1006,6 @@ internal sealed class BridgeHost : IDisposable
     }
 
     /// <summary>
-    /// 启动游戏循环——<see cref="Task.Run(System.Action)"/> 后台执行 <see cref="GameLoopComposer.RunAsync"/>。
-    /// <para>
-    /// 仅首次调用启动游戏循环；重复调用（多次 ready 信号等）幂等忽略。
-    /// <see cref="CancellationTokenSource"/> 控制取消——<see cref="Dispose"/> 调 <see cref="CancellationTokenSource.Cancel()"/>。
-    /// </para>
-    /// <para>
-    /// 异常处理在 <see cref="GameLoopAsync"/> 内：<see cref="GameExitException"/> 静默（ERB QUIT 正常退出），
-    /// 其他异常调 <see cref="ShowFatalError"/> 推 error turn 给 Vue。
-    /// </para>
-    /// <para>
-    /// <b>issue 09 hot-swap reload</b>：MainPage 重建 BridgeHost 后直接调 <see cref="Start"/>——
-    /// Vue 已 ready（首次 ready 信号早已收到），无需再等 ready 信号。
-    /// </para>
-    /// </summary>
-    /// <summary>
     /// 推送布局元数据给 Vue——让前端在首帧 turn 到达前就能用正确的游戏设置渲染终端区域。
     /// <para>
     /// 与 <c>KestrelGameServer.HandleGetStateAsync</c> 一致的计算逻辑：
@@ -982,110 +1052,316 @@ internal sealed class BridgeHost : IDisposable
     private void PushConfigMessage()
     {
         var maxLog = _configData.GetConfigValue<int>(ConfigCode.MaxLog);
+        var noLoadingReport = _configData.OverrideDisplayReport;
         var msg = JsonSerializer.Serialize(
-            new ConfigMessage("config", maxLog, AgentLog.Instance.Enabled),
+            new ConfigMessage("config", maxLog, AgentLog.Instance.Enabled, noLoadingReport),
             MauiJsonContext.Default.ConfigMessage);
         _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
     }
 
+    /// <summary>
+    /// 启动托管 server + 共享会话（issue 05）——仅首次调用生效；重复调用（多次 ready 信号等）幂等忽略。
+    /// <para>
+    /// <b>步骤</b>：
+    /// <list type="number">
+    ///   <item>建 <see cref="HttpListenerHost"/>（port=0 自动选空闲端口）——agent 经 localhost HTTP+WS 连接</item>
+    ///   <item><see cref="SessionRegistry.CreateMauiSessionAsync"/> 建共享会话（游戏已由 OnReloadGame 初始化）</item>
+    ///   <item>订阅 OutputHub turn 广播 → <see cref="TurnPumpAsync"/> 转发 WebView；起 <see cref="ControlPumpAsync"/> 同步控制状态</item>
+    ///   <item>写 agent 发现记录（端口 + token + gameDir）</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>issue 09 hot-swap reload</b>：MainPage 重建 BridgeHost 后直接调 <see cref="Start"/>——
+    /// Vue 已 ready（首次 ready 信号早已收到），无需再等 ready 信号。
+    /// </para>
+    /// </summary>
     internal void Start()
     {
         if (_started)
             return;
         _started = true;
         _readyReceived = true; // 标记 ready 已收到——避免后续 ready 信号重复触发 Start
-        // 在游戏循环启动前推送布局元数据——Vue 在首帧 turn 到达前拿到字体/列宽/字号/行距
+        // 在托管 server 启动前推送布局元数据——Vue 在首帧 turn 到达前拿到字体/列宽/字号/行距
         PushLayoutMessage();
         PushConfigMessage();
-        Console.WriteLine("[bridge] Starting game loop");
-        AgentLog.Instance.Write("[bridge] starting game loop");
-        _gameTask = Task.Run(GameLoopAsync);
+        Console.WriteLine("[bridge] Starting hosted server + session");
+        AgentLog.Instance.Write("[bridge] starting hosted server + session");
+        // 托管 server + 会话 + 订阅在后台线程初始化（StartHostedSessionAsync）——
+        // 避免 UI 线程上 sync-over-async（HttpListenerHost 构造 / SessionRegistry 锁 + Start）。
+        _ = Task.Run(StartHostedSessionAsync);
     }
 
     /// <summary>
-    /// 游戏循环主体——封装 <see cref="GameLoopComposer.RunAsync"/> 的异常边界。
+    /// 后台初始化托管 server + 共享会话（issue 05）——<see cref="Start"/> 的异步主体，UI 线程不阻塞。
     /// <para>
-    /// <b>buildProtocol lambda（spec ID12）</b>：构造 <c>AgentJsonlProtocol</c> 时传 <c>DisplayState(console, defaultFontName)</c>，
-    /// <c>defaultFontName</c> 从 <c>ConfigData.GetConfigValue&lt;string&gt;(ConfigCode.FontName) ?? ""</c> 读
-    /// （与 <c>Session.cs:100</c> HTTP 模式一致，修正原 spec 空字符串 bug）。
+    /// 顺序：建 <see cref="HttpListenerHost"/>（port=0 自动选空闲端口）→
+    /// <see cref="SessionRegistry.CreateMauiSessionAsync"/> 建共享会话 →
+    /// 订阅 OutputHub turn 广播（<see cref="TurnPumpAsync"/>）+ 起 <see cref="ControlPumpAsync"/> →
+    /// 写 agent 发现记录。
     /// </para>
     /// <para>
-    /// <b>runLoop lambda</b>：调 <c>((AgentJsonlProtocol)p).RunLoopAsync(enableTimeout: true, _cts.Token)</c>。
-    /// <c>enableTimeout: true</c> 启用 TINPUT 超时分支（spec ID14：Windows 桌面窗口最小化不影响进程调度，
-    /// 超时正常触发；Android 后台 Doze 冻结进程，超时延迟到回前台）。
-    /// </para>
-    /// <para>
-    /// <b>异常分支</b>：
-    /// <list type="bullet">
-    ///   <item><see cref="GameExitException"/>——ERB QUIT/EXIT 正常退出，静默</item>
-    ///   <item>其他 <see cref="Exception"/>——游戏循环整体崩溃，调 <see cref="ShowFatalError"/></item>
-    /// </list>
-    /// </para>
-    /// <para>
-    /// 单 step 脚本异常（ERB THROW / 除零等）由 <c>AgentJsonlProtocol.StepAsync</c> 内 catch 处理，
-    /// <c>RunLoopAsync</c> 写 error turn 后 <c>Stop()</c> 让循环下一轮退出——不抛到此 catch。
-    /// 此 catch 是 <c>console.Initialize()</c> / <c>GlobalStatic.OpenScope</c> 等同步路径的兜底。
+    /// <b>Dispose 竞态</b>：Dispose（UI 线程）可能先于本方法完成执行——每步检查 <see cref="_disposed"/>；
+    /// 已建的 host 在发现 _disposed 后立即释放（含赋值与检查之间的窗口），避免泄漏。
     /// </para>
     /// </summary>
-    private async Task GameLoopAsync()
+    private async Task StartHostedSessionAsync()
     {
+        HttpListenerHost? serverHost = null;
         try
         {
-            await GameLoopComposer.RunAsync(
-                _configData,
+            if (_disposed)
+                return;
+
+            // 1. 建 HttpListener 宿主（port=0 自动选空闲端口，issue 05 MAUI 托管 server）。
+            //    共享层会话由宿主内 SessionRegistry 持有——agent 经 localhost HTTP+WS 连接同一会话。
+            serverHost = new HttpListenerHost(
+                port: 0,
                 _terminalSetup,
-                (console, ui, ts) =>
-                {
-                    // 与 Session.cs:100 HTTP 模式一致——从 ConfigData 读默认字体名传给 DisplayState，
-                    // 避免 BuildPrintOpsForLine 访问 Config.FontName 时 NRE
-                    // （HTTP/MAUI 线程上 Config.Current AsyncLocal 不可用，仅游戏循环 task 内设置）。
-                    var defaultFontName = _configData.GetConfigValue<string>(ConfigCode.FontName) ?? "";
-                    // MAUI 模式无 GET /snapshot 端点——首帧 diff 是唯一画面来源，
-                    // fullDiffOnFirstTurn=true 让 ComputeDiff 首帧返回全量 AppendLinesOp 而非 null。
-                    // HTTP 模式靠 GET /snapshot 拿画面，首帧 diff=null 正确（默认 false）。
-                    var displayState = new DisplayState(console, defaultFontName, fullDiffOnFirstTurn: true);
-                    return new AgentJsonlProtocol(console, ui, _bridgeIO, displayState);
-                },
-                async p =>
-                {
-                    Console.WriteLine("[bridge] GameLoopAsync starting RunLoopAsync");
+                _configData,
+                overrideDisplayReport: _configData.OverrideDisplayReport);
+            _serverHost = serverHost;
+            if (_disposed)
+            {
+                // Dispose 先到且已读过 _serverHost（null）——这里释放刚建的 host 防止泄漏
+                _serverHost = null;
+                serverHost.Dispose();
+                return;
+            }
+
+            // 2. 建共享 session——游戏已由 OnReloadGame 初始化（GamePaths.Current 已 Resolve + ConfigData 已加载），
+            //    CreateMauiSessionAsync 允许注册表为空（区别于 HTTP 的 /load-game 建首个 session）。
+            //    fullDiffOnFirstTurn=true：MAUI WebView 桥接无 GET /snapshot 入口，首帧 diff 须全量。
+            var createResult = await serverHost.Sessions.CreateMauiSessionAsync(fullDiffOnFirstTurn: true);
+            if (_disposed)
+                return;
+            if (createResult.Status != SessionCreateStatus.Created)
+            {
+                ShowError("创建游戏会话失败: " + createResult.Status);
+                return;
+            }
+
+            // 3. 订阅 turn 广播 → WebView。订阅发生在 session 首帧之前（Initialize 在后台 Task 跑），
+            //    首帧全量 diff 不会丢。同时起控制事件泵同步前端控制状态（旁观/可操作切换）。
+            var subscription = await serverHost.Sessions.TryGetWsSubscriptionAsync();
+            if (_disposed)
+                return;
+            if (subscription == null)
+            {
+                ShowError("订阅游戏会话失败");
+                return;
+            }
+            _session = subscription.Session;
+            _sessionIO = _session.IO;
+            _turnPump = Task.Run(() => TurnPumpAsync(subscription.Reader, subscription.Hub));
+            _controlPump = Task.Run(() => ControlPumpAsync(_session));
+
+            // 4. 写 agent 发现记录（端口 + token + gameDir）——emuera_agent start 侦测后复用本会话
+            WriteDiscoveryRecord();
+
+            Console.WriteLine($"[bridge] hosted server on port {_serverHost.Port}, session {createResult.SessionId}");
+            AgentLog.Instance.Write($"[bridge] hosted server on port {_serverHost.Port}, session {createResult.SessionId}");
 #if ANDROID
-                    // O4：游戏加载完成（console.Initialize 已返回，TITLE 已跑完）→ 后台预热
-                    // sav + 游戏根目录子项缓存，使进存档界面时首查命中（0 次枚举 IPC）。
-                    // 同步取值（纯字符串 getter，无 IPC），全部 IPC 移后台线程——
-                    // 在 scope 内完成路径捕获，避免后台线程重读全局状态（如热重载换目录）
-                    // 导致根/sav 预取目标不一致。
-                    var prefetchExeDir = GamePaths.Current?.ExeDir;
-                    if (!string.IsNullOrEmpty(prefetchExeDir))
-                        _ = Task.Run(() => TryPrefetchSaveDirectories(prefetchExeDir));
+            // O4：游戏加载完成 → 后台预热 sav + 游戏根目录子项缓存（原 GameLoopAsync runLoop 开头逻辑，托管后移此）
+            var prefetchExeDir = GamePaths.Current?.ExeDir;
+            if (!string.IsNullOrEmpty(prefetchExeDir))
+                _ = Task.Run(() => TryPrefetchSaveDirectories(prefetchExeDir));
 #endif
-					await ((AgentJsonlProtocol)p).RunLoopAsync(enableTimeout: true, _cts.Token);
-					Console.WriteLine("[bridge] GameLoopAsync RunLoopAsync exited");
-                });
-            Console.WriteLine("[bridge] game loop completed normally");
-            AgentLog.Instance.Write("[bridge] game loop completed normally");
-        }
-        catch (GameExitException)
-        {
-            // ERB QUIT/EXIT：脚本请求正常退出，静默
-            Console.WriteLine("[bridge] game loop exited via QUIT/EXIT");
-            AgentLog.Instance.Write("[bridge] game loop exited via QUIT/EXIT");
-        }
-        catch (OperationCanceledException) when (_disposed)
-        {
-            // issue 09 hot-swap reload / 页面销毁：Dispose → CTS.Cancel → ReadLineAsync 抛 OperationCanceledException。
-            // 这是预期行为，完全静默——不打 fatal 日志（避免干扰 debug），不推 error turn（Vue 已由新 host 接管）。
-            // 用 when(_disposed) 子句确保只有 dispose 触发的取消走此路径，其他意外取消仍走下方 fatal 分支。
-            Console.WriteLine("[bridge] game loop cancelled via Dispose (reload/page close)");
-            AgentLog.Instance.Write("[bridge] game loop cancelled via Dispose (reload/page close)");
         }
         catch (Exception ex)
         {
-            // 游戏循环整体崩溃（Initialize 失败 / OpenScope 失败 / protocol 未捕获异常等）
-            Console.WriteLine($"[bridge] game loop fatal: {ex}");
-            AgentLog.Instance.Write($"[bridge] game loop fatal: {ex}");
+            Console.WriteLine($"[bridge] hosted session start failed: {ex}");
+            AgentLog.Instance.Write($"[bridge] hosted session start failed: {ex}");
             ShowFatalError(ex);
+            // 失败路径：释放尚未挂到 _serverHost 的局部 host（已挂载的由 Dispose 收尾）
+            if (serverHost != null && !ReferenceEquals(serverHost, _serverHost))
+            {
+                try { serverHost.Dispose(); }
+                catch (Exception disposeEx)
+                {
+                    AgentLog.Instance.Write($"[bridge] hosted session start cleanup dispose failed: {disposeEx.Message}");
+                }
+            }
         }
+    }
+
+    /// <summary>
+    /// turn 泵：从 OutputHub 订阅 reader 读 turn，转发给 WebView（<see cref="OnTurnFromGame"/> 内
+    /// Dispatcher.Dispatch 切 UI 线程 PostTurn）。reader 完成（session 结束 hub.Complete）或取消（Dispose）即退出。
+    /// </summary>
+    private async Task TurnPumpAsync(ChannelReader<string> reader, OutputHub hub)
+    {
+        try
+        {
+            await foreach (var turn in reader.ReadAllAsync(_cts.Token))
+                OnTurnFromGame(turn);
+        }
+        catch (OperationCanceledException)
+        {
+            // Dispose 取消，正常退出
+        }
+        catch (ChannelClosedException)
+        {
+            // session 结束 hub.Complete，正常退出
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[bridge] turn pump error: {ex.Message}");
+            AgentLog.Instance.Write($"[bridge] turn pump error: {ex.Message}");
+        }
+        finally
+        {
+            hub.Unsubscribe(reader);
+        }
+    }
+
+    /// <summary>
+    /// 控制事件泵：长轮询 Controller 控制事件，事件发生时把当前控制状态推给 WebView
+    /// （前端据此切 旁观/可操作 UI，输入栏启用/禁用）。首帧先推一次，保证 WebView 就绪即同步。
+    /// </summary>
+    private async Task ControlPumpAsync(Session session)
+    {
+        PushControlStatus(session);
+        while (!_cts.IsCancellationRequested)
+        {
+            ControlEvent? ev;
+            try
+            {
+                ev = await session.Controller.WaitForEventAsync(timeoutMs: 25000, _cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[bridge] control pump error: {ex.Message}");
+                AgentLog.Instance.Write($"[bridge] control pump error: {ex.Message}");
+                break;
+            }
+            if (ev != null)
+                PushControlStatus(session);
+        }
+    }
+
+    /// <summary>
+    /// 推控制状态给 Vue——<c>{"type":"controlStatus","controller":{kind,leaseExpiresAt}|null,"state":"idle"|"held"}</c>。
+    /// 前端 useAppInit 的 handleMauiMessage 调 conn.applyControlStatus 同步 controller ref。
+    /// </summary>
+    private void PushControlStatus(Session session)
+    {
+        try
+        {
+            var controller = session.Controller.CurrentInfo;
+            var msg = new JsonObject
+            {
+                ["type"] = "controlStatus",
+                ["controller"] = controller == null
+                    ? null
+                    : new JsonObject
+                    {
+                        ["kind"] = controller.Kind,
+                        ["leaseExpiresAt"] = controller.LeaseExpiresAt,
+                    },
+                ["state"] = session.Controller.State,
+            }.ToJsonString();
+            _dispatcher.Dispatch(() => _jsBridge.PostMessage(msg));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[bridge] PushControlStatus failed: {ex.Message}");
+            AgentLog.Instance.Write($"[bridge] PushControlStatus failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// issue 05：处理 WebView 的控制权桥接消息 <c>{"type":"control","action":"acquire"|"release"|"status"}</c>——
+    /// 用户身份（无 token）acquire = 直取/强夺（agent 持有时 steal），与 HTTP POST /control/acquire 用户语义一致。
+    /// 操作后推回 controlStatus 让前端同步。
+    /// </summary>
+    private void HandleControlMessage(JsonElement root)
+    {
+        var session = _session;
+        if (session == null)
+            return;
+        var action = root.TryGetProperty("action", out var a) && a.ValueKind == JsonValueKind.String
+            ? a.GetString()
+            : null;
+        switch (action)
+        {
+            case "acquire":
+                session.Controller.Acquire(ControlIdentity.User);
+                break;
+            case "release":
+                session.Controller.Release(ControlIdentity.User);
+                break;
+        }
+        PushControlStatus(session);
+    }
+
+    // ===== agent 发现记录（issue 05）：MAUI 托管 server 的端口 + token 供 emuera_agent 侦测复用 =====
+
+    /// <summary>发现记录路径——Windows <c>%LOCALAPPDATA%\Emuera\emuera-maui-server.json</c>（Android 托管后置）。</summary>
+    private static string? DiscoveryFilePath()
+    {
+        try
+        {
+            var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return string.IsNullOrEmpty(dir) ? null : Path.Combine(dir, "Emuera", "emuera-maui-server.json");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>写发现记录：<c>{host,port,token,gameDir,startedByAgent:false,mauiHosted:true}</c>。
+    /// token 由 MAUI 生成（所有权翻转——不再由 agent 生成），agent 读取后作为身份凭证。</summary>
+    private void WriteDiscoveryRecord()
+    {
+        try
+        {
+            var path = DiscoveryFilePath();
+            if (path == null || _serverHost == null)
+                return;
+            var dir = Path.GetDirectoryName(path);
+            if (dir != null)
+                Directory.CreateDirectory(dir);
+            _discoveryToken ??= Guid.NewGuid().ToString("N");
+            var record = new JsonObject
+            {
+                ["host"] = "127.0.0.1",
+                ["port"] = _serverHost.Port,
+                ["token"] = _discoveryToken,
+                ["gameDir"] = GamePaths.Current?.ExeDir,
+                ["startedByAgent"] = false,
+                ["mauiHosted"] = true,
+            }.ToJsonString();
+            File.WriteAllText(path, record);
+            _discoveryPath = path;
+            Console.WriteLine($"[bridge] discovery record written: {path} port={_serverHost.Port}");
+            AgentLog.Instance.Write($"[bridge] discovery record written: {path} port={_serverHost.Port}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[bridge] discovery record write failed: {ex.Message}");
+            AgentLog.Instance.Write($"[bridge] discovery record write failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>删发现记录（Dispose / 退出游戏时）——server 随会话结束，agent 不应再连。</summary>
+    private void DeleteDiscoveryRecord()
+    {
+        if (_discoveryPath == null)
+            return;
+        try
+        {
+            File.Delete(_discoveryPath);
+        }
+        catch
+        {
+            // 删除失败无害——agent 探活失败会自然放弃
+        }
+        _discoveryPath = null;
     }
 
 #if ANDROID
@@ -1192,17 +1468,15 @@ internal sealed class BridgeHost : IDisposable
     /// 释放桥接资源——fire-and-forget，不阻塞 UI 线程（spec ID9）。
     /// <para>
     /// <b>关键约束</b>：UI 线程不阻塞——不调 <see cref="Task.Wait()"/> / <c>GetAwaiter().GetResult()</c>。
-    /// 正常关闭路径（用户点关闭，游戏循环在 <c>ReadLineAsync</c> await）游戏循环毫秒级退出，
-    /// <c>using (var scope = GlobalStatic.OpenScope(...))</c> 的 finally 跑 scope Dispose，I-11 退出存活覆盖。
-    /// 异常路径（卡在同步 ERB）进程强杀，scope Dispose 不跑——I-11 不覆盖异常退出，可接受。
+    /// 托管 server 的 Dispose（join 游戏循环）移到后台线程执行。
     /// </para>
     /// <para>
     /// <b>步骤</b>：
     /// <list type="number">
-    ///   <item><see cref="CancellationTokenSource.Cancel()"/>——通知 <c>RunLoopAsync</c> 退出
-    ///     （<c>externalCt.IsCancellationRequested</c> 跳出循环）</item>
-    ///   <item><see cref="MauiBridgeIO.Close"/>——关 Channel，<c>ReadLineAsync</c> 返回 null 让循环退出</item>
-    ///   <item><see cref="Task.ContinueWith(System.Action{System.Threading.Tasks.Task, object?}, object?)"/>——诊断日志，<see cref="TaskScheduler.Default"/> 在线程池跑</item>
+    ///   <item><see cref="CancellationTokenSource.Cancel()"/>——通知 turn/control 泵退出</item>
+    ///   <item><see cref="HttpSessionIO.Close"/>——关 session 输入/输出 Channel，<c>ReadLineAsync</c> 返回 null 让游戏循环退出</item>
+    ///   <item>删 agent 发现记录——server 随会话结束</item>
+    ///   <item>后台线程 <see cref="HttpListenerHost.Dispose"/>——join 游戏循环 + 关监听（不阻塞 UI）</item>
     /// </list>
     /// </para>
     /// <para>
@@ -1217,44 +1491,51 @@ internal sealed class BridgeHost : IDisposable
         _disposed = true;
         _jsBridge.InputReceived -= OnInputFromJs;
 
-        // 1. 取消 CTS——RunLoopAsync 内 externalCt.IsCancellationRequested 跳出循环
+        // 1. 取消泵（turn/control）——Task.Run 的泵读 _cts.Token，取消即退出
         try
         {
             _cts.Cancel();
         }
         catch (Exception ex)
         {
-            // CTS 已 Dispose / 其他异常——日志吞掉，不阻断 Close
+            // CTS 已 Dispose / 其他异常——日志吞掉，不阻断后续清理
             AgentLog.Instance.Write($"[bridge] Dispose CTS.Cancel failed: {ex.Message}");
         }
 
-        // 2. 关闭 IO——Channel.Reader.ReadAsync 返回 null 让 ReadLineAsync 退出
-        _bridgeIO.Close();
-
-        // 3. fire-and-forget 诊断日志——不阻塞 UI 线程
-        // spec ID9：不调 GetAwaiter().GetResult() 阻塞 UI。
-        var task = _gameTask;
-        if (task != null)
+        // 2. 关 session 输入——ReadLineAsync 返回 null 让游戏循环退出（幂等；session 结束也安全）
+        try
         {
-            _ = task.ContinueWith(t =>
-            {
-                if (t.IsFaulted)
-                {
-                    AgentLog.Instance.Write($"[bridge] game task faulted on dispose: {t.Exception}");
-                    Console.WriteLine($"[bridge] game task faulted on dispose: {t.Exception}");
-                }
-                else if (t.IsCanceled)
-                {
-                    AgentLog.Instance.Write("[bridge] game task canceled on dispose");
-                }
-                else
-                {
-                    AgentLog.Instance.Write("[bridge] game task completed on dispose");
-                }
-            }, TaskScheduler.Default);
+            _sessionIO?.Close();
+        }
+        catch (Exception ex)
+        {
+            AgentLog.Instance.Write($"[bridge] Dispose session IO close failed: {ex.Message}");
         }
 
-        // CTS 不在 Dispose 中释放——_gameTask 后台观察者可能在 ContinueWith 内访问 _cts，
-        // 让 GC 自然回收（BridgeHost 是 MainPage 级单例，不频繁分配，无泄漏风险）。
+        // 3. 删 agent 发现记录——server 随会话结束，agent 不再连
+        DeleteDiscoveryRecord();
+
+        // 4. 停托管 server——后台线程 join session（spec ID9：不阻塞 UI）。
+        //    Session.Dispose 会 GetAwaiter().GetResult() join 游戏循环；游戏循环多在
+        //    ReadLineAsync await，IO.Close 后毫秒级退出。
+        var host = _serverHost;
+        _serverHost = null;
+        _session = null;
+        _sessionIO = null;
+        if (host != null)
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    host.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    AgentLog.Instance.Write($"[bridge] server host dispose failed: {ex.Message}");
+                    Console.WriteLine($"[bridge] server host dispose failed: {ex}");
+                }
+            });
+        }
     }
 }

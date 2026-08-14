@@ -4,6 +4,7 @@ import { useConnectionStore, MAX_RECONNECT_ATTEMPTS } from '../stores/connection
 import { useGameStore } from '../stores/game';
 import { useUiStore } from '../stores/ui';
 import { deriveDisplayStatus } from '../lib/loadingStatus';
+import { isMauiEnvironment } from '../lib/mauiBridge';
 import TerminalDisplay from '../components/TerminalDisplay.vue';
 import InputBar from '../components/InputBar.vue';
 import TinputCountdown from '../components/TinputCountdown.vue';
@@ -13,6 +14,10 @@ import SpectatorBanner from '../components/SpectatorBanner.vue';
 const conn = useConnectionStore();
 const game = useGameStore();
 const ui = useUiStore();
+
+/** MAUI 全屏游戏页：右上角两个常驻悬浮按钮（⌨ ⋮）占据顶部右侧，
+ *  顶部状态条（含旁观横幅的「接管」按钮）须为其让出空间，否则被遮挡无法点击。 */
+const isMaui = isMauiEnvironment();
 
 /**
  * Issue 11 D5：连接状态条派生显示状态。
@@ -61,7 +66,7 @@ const showInputBar = computed<boolean>(() => {
     </div>
 
     <!-- 顶部状态提示条（spec §6.4：重连 / 加载 / 错误用顶部窄条，不常驻大条幅） -->
-    <div class="overlay-status">
+    <div class="overlay-status" :class="{ 'maui-topbar': isMaui }">
       <StatusBanner
         v-if="game.lastError && !dismissedError"
         kind="error"
@@ -136,7 +141,15 @@ const showInputBar = computed<boolean>(() => {
   z-index: 6;
   pointer-events: none;
 }
+/* MAUI 全屏游戏页：右侧让出两个常驻悬浮按钮（⌨ ⋮，各 48px + 间距 + 右缘 8px）——
+   否则旁观横幅的「接管」按钮被盖住无法点击（issue 05 手测发现）。 */
+.overlay-status.maui-topbar {
+  right: calc(var(--touch-target) * 2 + var(--space-1) + var(--space-2));
+}
 .overlay-status :deep(.status-banner) {
+  pointer-events: auto;
+}
+.overlay-status :deep(.spectator-banner) {
   pointer-events: auto;
 }
 .overlay-bottom {

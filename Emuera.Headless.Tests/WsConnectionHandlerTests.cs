@@ -66,7 +66,7 @@ public class WsConnectionHandlerTests
         var (session, io, hub) = CreateSessionAndIo();
         var sub = new WsSubscription(session, hub.Subscribe(), hub);
         var ws = new RecordingWebSocket();
-        var task = WsConnectionHandler.RunConnectionAsync(ws, sub);
+        var task = WsRelay.RunConnectionAsync(ws, sub);
 
         io.WriteLine("turn-1");
         await WaitUntilAsync(() => ws.SentFrames.Count > 0, TimeSpan.FromSeconds(5));
@@ -86,7 +86,7 @@ public class WsConnectionHandlerTests
         var reader = hub.Subscribe();
         var sub = new WsSubscription(SessionFixture(), reader, hub);
         var ws = new RecordingWebSocket();
-        var task = WsConnectionHandler.RunConnectionAsync(ws, sub);
+        var task = WsRelay.RunConnectionAsync(ws, sub);
 
         hub.Unsubscribe(reader); // 完成 reader → 发送循环退出
         await task;
@@ -100,7 +100,7 @@ public class WsConnectionHandlerTests
         var (session, io, hub) = CreateSessionAndIo();
         var sub = new WsSubscription(session, hub.Subscribe(), hub);
         var ws = new RecordingWebSocket();
-        var task = WsConnectionHandler.RunConnectionAsync(ws, sub);
+        var task = WsRelay.RunConnectionAsync(ws, sub);
 
         // 接收循环首次调用 ReceiveAsync 后置位——证明连接已建立并进入双循环
         await ws.FirstReceiveTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));

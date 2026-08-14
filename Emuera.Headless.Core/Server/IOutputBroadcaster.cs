@@ -8,8 +8,8 @@ namespace MinorShift.Emuera.Server;
 /// 抽出此接口后，<see cref="HttpSessionIO"/> 构造函数接 <see cref="IOutputBroadcaster"/>，
 /// 测试可注入 mock 实现；<see cref="OutputHub"/> 仍是唯一生产实现。
 ///
-/// 注意：本接口**仅为 <see cref="HttpSessionIO"/> 可测性服务**，
-/// <c>MauiBridgeIO</c> 是独立 <c>SessionIO</c> 实现，不引此接口。
+/// 注意：本接口**仅为 <see cref="HttpSessionIO"/> 可测性服务**，<see cref="OutputHub"/> 是唯一生产实现
+/// （HTTP 与 MAUI 托管共用；原 MauiBridgeIO 已随 issue 05 托管架构删除）。
 /// </summary>
 internal interface IOutputBroadcaster
 {

@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime.Config;
@@ -67,6 +69,36 @@ public class GameConfigServiceTests
         var first = svc.Current;
         var second = svc.Current;
         Assert.Same(first, second);
+    }
+
+    /// <summary>
+    /// --no-loading-report 覆盖：临时游戏目录的 emuera.config 把 DisplayReport 置 true，
+    /// Reload 带 overrideDisplayReport=true 时被强制压回 false；不带时保持 true。
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Reload_override_display_report(bool overrideReport, bool expected)
+    {
+        var gameDir = Path.Combine(Path.GetTempPath(), "emuera_override_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(gameDir);
+        try
+        {
+            // 配置行格式：显示名 : 值（; 是注释）。DisplayReport 显示名见 ConfigData.setDefault。
+            File.WriteAllText(
+                Path.Combine(gameDir, "emuera.config"),
+                "; test\nロード時にレポートを表示する : TRUE\n",
+                System.Text.Encoding.UTF8);
+
+            var svc = new GameConfigService(new ConfigData(), overrideReport);
+            var reloaded = svc.Reload(gameDir);
+
+            Assert.Equal(expected, reloaded.GetConfigValue<bool>(ConfigCode.DisplayReport));
+        }
+        finally
+        {
+            Directory.Delete(gameDir, recursive: true);
+        }
     }
 }
 

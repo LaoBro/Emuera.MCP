@@ -8,6 +8,7 @@ import {
   pickGameFolder,
   loadGameFromPath,
   setAgentLogEnabled,
+  setNoLoadingReport,
   getAgentLog,
   exportAgentLog,
 } from '../mauiBridge';
@@ -351,6 +352,36 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
 
     it('无桥接对象时静默 no-op（不抛错）', () => {
       expect(() => setAgentLogEnabled(true)).not.toThrow();
+    });
+  });
+
+  // ===== setNoLoadingReport (issue 07：启动日志覆盖) =====
+
+  describe('setNoLoadingReport', () => {
+    it('true → 投递 {"type":"setNoLoadingReport","enabled":true} 消息（Windows chrome.webview）', () => {
+      const postMessage = vi.fn();
+      mockWindow.chrome = { webview: { postMessage } };
+
+      setNoLoadingReport(true);
+
+      expect(postMessage).toHaveBeenCalledOnce();
+      const sent = postMessage.mock.calls[0][0];
+      expect(JSON.parse(sent)).toEqual({ type: 'setNoLoadingReport', enabled: true });
+    });
+
+    it('false → 投递 {"type":"setNoLoadingReport","enabled":false} 消息（Android emueraBridge）', () => {
+      const postMessage = vi.fn();
+      mockWindow.emueraBridge = { postMessage };
+
+      setNoLoadingReport(false);
+
+      expect(postMessage).toHaveBeenCalledOnce();
+      const sent = postMessage.mock.calls[0][0];
+      expect(JSON.parse(sent)).toEqual({ type: 'setNoLoadingReport', enabled: false });
+    });
+
+    it('无桥接对象时静默 no-op（不抛错）', () => {
+      expect(() => setNoLoadingReport(true)).not.toThrow();
     });
   });
 

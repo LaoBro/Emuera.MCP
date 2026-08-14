@@ -519,6 +519,12 @@ export const useGameStore = defineStore('game', () => {
    */
   const agentLogEnabled = ref<boolean>(false);
   /**
+   * issue 07：启动日志覆盖开关——C# 权威状态（来自 config 消息的 noLoadingReport 字段）。
+   * 设置页开关据此渲染初始值；切换时投递 setNoLoadingReport 请求 C# 切换 + 持久化，
+   * C# 推回 config 消息后同步回此值。默认 true（覆盖 DisplayReport 为 off，隐藏启动读取日志）。
+   */
+  const noLoadingReport = ref<boolean>(true);
+  /**
    * A0 补充（真机无 adb）：app 内日志查看器——agent.log 内容（来自 getAgentLog 回复的 agentLog 消息）。
    * 设置页「查看日志」按钮触发读取；truncated 表示内容因超过 200K 字符被截断为尾部。
    */
@@ -1410,6 +1416,7 @@ export const useGameStore = defineStore('game', () => {
     fontName,
     maxLog,
     agentLogEnabled,
+    noLoadingReport,
     agentLogContent,
     agentLogTruncated,
     fetchConfig,

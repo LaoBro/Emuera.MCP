@@ -151,12 +151,12 @@ agent
   └─ emuera_agent   (python -m emuera_gateway <subcommand>
                      或安装后的 emuera_agent)
        └─ HTTP      /load-game /turn /input /state /control/*
-            └─ Emuera.Headless.Server
-                 ├─ Emuera.Headless.Core
-                 └─ GET /ws  →  Web / MAUI 旁观与接管
+            └─ Emuera.Headless.Server 或 MAUI 托管的 HttpListenerHost（issue 05，agent 自动侦测复用）
+                 ├─ Emuera.Headless.Core（共享层 Server/：协议 + 控制状态机 + 会话）
+                 └─ GET /ws  →  Web 旁观（MAUI 托管 server 亦暴露同契约 /ws）
 ```
 
-`start` 自己拉起 `Emuera.Headless.Cli --server`，或复用已经在跑的实例。
+`start` 自己拉起 `Emuera.Headless.Cli --server`，或复用已经在跑的实例（含 MAUI 应用托管的 server——读 `%LOCALAPPDATA%\Emuera\emuera-maui-server.json` 发现记录）。
 
 ```bash
 python -m emuera_gateway start --game-dir test_game

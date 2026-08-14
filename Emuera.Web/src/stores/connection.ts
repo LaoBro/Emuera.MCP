@@ -556,6 +556,13 @@ export const useConnectionStore = defineStore('connection', () => {
   }
 
   async function acquireControl(): Promise<void> {
+    // Issue 05（MAUI 托管）：WebView 无 HTTP 可达（同源桥接），控制权经桥接投递——
+    // C# BridgeHost.HandleControlMessage 以用户身份 acquire（agent 持有时即 steal），
+    // 状态由 C# 经 controlStatus 消息推回（useAppInit handleMauiMessage 应用）。
+    if (isMauiEnvironment()) {
+      postInput(JSON.stringify({ type: 'control', action: 'acquire' }));
+      return;
+    }
     const httpBase = deriveHttpBase(serverUrl.value);
     try {
       const resp = await fetch(`${httpBase}/control/acquire`, { method: 'POST' });

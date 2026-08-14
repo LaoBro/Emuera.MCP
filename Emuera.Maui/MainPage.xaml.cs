@@ -21,16 +21,15 @@ namespace Emuera.Maui;
 /// </list>
 /// </para>
 /// <para>
-/// URL 平台分叉（spec ID6 + control-handoff M4）：
+/// URL 平台分叉（spec ID6 + control-handoff M4 / issue 05）：
 /// <list type="bullet">
-///   <item>Windows 远程：启动探测 <c>GET http://localhost:8080/state</c>，有活跃会话且用户确认后
-///     导航到 <c>http://localhost:8080/</c>（同源 <c>ws://localhost:8080/ws</c>），复用 Vue HTTP 旁观/接管。
-///     不启动进程内游戏循环，与本机桥接模式互斥。</item>
 ///   <item>Windows 本机: <c>https://app.local/index.html</c>（unpackaged 模式下用 WebView2 虚拟主机映射，
 ///     <c>WindowsJsBridge.Attach</c> 内调 <c>SetVirtualHostNameToFolderMapping</c> 把
 ///     <c>app.local</c> 映射到输出目录 wwwroot/）</item>
-///   <item>Android: <c>https://game.local/wwwroot/index.html</c>（远程模式不在本票范围）</item>
+///   <item>Android: <c>https://game.local/wwwroot/index.html</c></item>
 /// </list>
+/// 注：issue 05 起 MAUI 托管 server（HttpListenerHost）承载共享会话，WebView 仍经 JS 桥接渲染该会话；
+/// 原「Windows 远程导航到外部 server 同源页」模式已废弃（RemoteSessionProbe 已删）。
 /// </para>
 /// <para>
 /// <b>issue 09 hot-swap reload</b>：Vue 端 <c>pickGameFolder()</c> → C# <c>BridgeHost.HandlePickFolder</c>
@@ -49,13 +48,10 @@ namespace Emuera.Maui;
 public partial class MainPage : ContentPage
 {
     private readonly IJsBridge _jsBridge;
-    private readonly CancellationTokenSource _probeCts = new();
     private BridgeHost? _host;
     private ConfigData _configData;
     private ITerminalSetup _terminalSetup;
     private bool _urlSet;
-    /// <summary>Windows 远程模式：WebView 已切到 Headless Server 同源页，不再跑进程内游戏循环。</summary>
-    private bool _remoteMode;
 
     /// <summary>
     /// DI 注入构造——<see cref="MauiProgram"/> 注册的 <see cref="ConfigData"/> + <see cref="ITerminalSetup"/> 单例经 MAUI DI 容器注入。
@@ -72,11 +68,10 @@ public partial class MainPage : ContentPage
         _jsBridge = JsBridgeFactory.Create();
         _configData = configData;
         _terminalSetup = terminalSetup;
-        // Windows：等 HandlerChanged 里远程探测结束后再 RecreateHost。
-        // 远程模式不创建 BridgeHost，避免先建本机循环再拆掉。
-#if !WINDOWS
+        // issue 05：远程模式已废弃（RemoteSessionProbe 已删），无需再等 HandlerChanged 里的探测——
+        // 全平台（Windows/Android）都在构造时创建 BridgeHost，保证 Vue 的 ready/scanGames 消息
+        // 一来即有 InputReceived 订阅者处理（否则 Windows 会卡在「正在扫描游戏列表…」）。
         RecreateHost();
-#endif
 
         // HandlerChanged 是 MAUI WebView 平台原生视图就绪的最早可靠时机（spec ID8）。
         // 在此 Attach IJsBridge（订阅 WebMessageReceived / AddJavascriptInterface）+ 设 URL 加载 Vue。
@@ -100,15 +95,6 @@ public partial class MainPage : ContentPage
         if (!_urlSet)
         {
             _urlSet = true;
-#if WINDOWS
-            // M4：先探测 localhost:8080。有活跃会话则询问是否旁观/接管；
-            // 同意后导航到 server 同源页（http://localhost:8080/），Vue 默认
-            // serverUrl=ws://localhost:8080/ws，走 HTTP 旁观/接管（issue 04）。
-            // 不能留在 https://app.local 再跨源打 HTTP——混合内容会被 WebView2 拦截。
-            if (await TryEnterRemoteModeAsync())
-                return;
-            RecreateHost();
-#endif
             var url = ResolveWebViewUrl();
 #if ANDROID
             Android.Util.Log.Info("EmueraMaui", $"Setting WebView URL: {url}");
@@ -153,56 +139,12 @@ public partial class MainPage : ContentPage
     /// 页面与资源同 https 域），实测图片直接走真实网络 →
     /// <c>ERR_NAME_NOT_RESOLVED</c> → 图片全空。整页迁到 https 虚拟域后与 Windows 模式对称。
     /// </para>
+    /// <para>
+    /// 注：issue 05 起 MAUI 托管 server 是「桥接渲染 + 托管会话」双轨——WebView 仍加载本机 Vue
+    /// （https://app.local / game.local），经 JS 桥接渲染托管会话；不再导航到外部 server 同源页
+    /// （原远程模式已废弃，RemoteSessionProbe/TryEnterRemoteModeAsync 已删）。
+    /// </para>
     /// </summary>
-#if WINDOWS
-    /// <summary>
-    /// 探测本机 Headless Server；发现活跃会话则询问用户并切到 HTTP 远程模式。
-    /// </summary>
-    /// <returns>已进入远程模式则为 <c>true</c>，调用方不再加载本机 Vue。</returns>
-    private async Task<bool> TryEnterRemoteModeAsync()
-    {
-        try
-        {
-            using var http = RemoteSessionProbe.CreateClient();
-            var snapshot = await RemoteSessionProbe.ProbeAsync(http, _probeCts.Token);
-            if (snapshot is null)
-                return false;
-
-            var accept = await DisplayAlertAsync(
-                "远程游戏会话",
-                $"检测到远程游戏会话，旁观/接管？\n\n{snapshot.GameDir}\n状态：{snapshot.State}",
-                "旁观/接管",
-                "本机游戏");
-            if (!accept)
-                return false;
-
-            EnterRemoteMode();
-            return true;
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[maui] remote-mode prompt failed: {ex.Message}");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// 切到远程模式：丢掉进程内 BridgeHost，WebView 加载 server 提供的 Vue。
-    /// 两模式互斥、不共享状态——新页是全新 HTTP Pinia，本机游戏循环不启动。
-    /// </summary>
-    private void EnterRemoteMode()
-    {
-        _remoteMode = true;
-        _host?.Dispose();
-        _host = null;
-        Console.WriteLine($"[maui] remote mode: navigating to {RemoteSessionProbe.HttpPageUrl} ({RemoteSessionProbe.WebSocketUrl})");
-        MainWebView.Source = new UrlWebViewSource { Url = RemoteSessionProbe.HttpPageUrl };
-    }
-#endif
 
     private static string ResolveWebViewUrl()
     {
@@ -228,8 +170,6 @@ public partial class MainPage : ContentPage
     /// </summary>
     private void RecreateHost()
     {
-        if (_remoteMode)
-            return;
         _host?.Dispose();
         _host = new BridgeHost(Dispatcher, _configData, _terminalSetup, _jsBridge, OnReloadGame, OnGameExited);
     }
@@ -252,13 +192,28 @@ public partial class MainPage : ContentPage
     /// </summary>
     private void OnGameExited()
     {
-        if (_remoteMode)
-            return;
         Console.WriteLine("[maui] OnGameExited: recreating BridgeHost without starting game loop");
         // RecreateHost 内已 Dispose 旧 host——但此时我们正处在旧 host 的 HandleExitGame 调用栈内，
         // RecreateHost 会 Dispose 当前 host（_disposed=true）。这是安全的——HandleExitGame 后续无访问 host 字段。
         // 新 host 订阅 InputReceived 后接管后续消息（Vue 发的 scanGames）。
         RecreateHost();
+    }
+
+    /// <summary>
+    /// 读取启动日志覆盖开关（issue 07）。默认 <see langword="true"/>（覆盖游戏 <c>DisplayReport</c> 为 off，
+    /// 隐藏启动读取日志）；用户在设置页关闭后持久化到 Preferences，此处读取供游戏加载时前置位。
+    /// </summary>
+    private static bool ReadNoLoadingReportPreference()
+    {
+        try
+        {
+            return Preferences.Get(BridgeHost.NoLoadingReportKey, true);
+        }
+        catch
+        {
+            // Preferences 不可用（极少见）——保持默认开启覆盖
+            return true;
+        }
     }
 
     /// <summary>
@@ -282,8 +237,6 @@ public partial class MainPage : ContentPage
     /// <param name="gamePath">用户选中的游戏目录绝对路径。</param>
     private void OnReloadGame(string gamePath)
     {
-        if (_remoteMode)
-            return;
         Console.WriteLine($"[maui] OnReloadGame: {gamePath}");
 #if ANDROID
         Android.Util.Log.Info("EmueraMaui", $"OnReloadGame: {gamePath}");
@@ -330,7 +283,10 @@ public partial class MainPage : ContentPage
                         $"OnReloadGame SAF write probe OK: {probeDetail}");
                 }
 #endif
-                (newConfig, newTerminal) = EmueraRuntimeInitializer.Initialize(paths, dirAccessor);
+                (newConfig, newTerminal) = EmueraRuntimeInitializer.Initialize(
+                    paths,
+                    dirAccessor,
+                    ReadNoLoadingReportPreference());
                 var hasWrite = dirAccessor.HasWriteAccess();
                 Console.WriteLine($"[maui] OnReloadGame init completed: ExeDir={paths.ExeDir}, hasWrite={hasWrite}");
 #if ANDROID
@@ -372,7 +328,6 @@ public partial class MainPage : ContentPage
 
     protected override void OnDisappearing()
     {
-        _probeCts.Cancel();
         base.OnDisappearing();
         _host?.Dispose();
     }

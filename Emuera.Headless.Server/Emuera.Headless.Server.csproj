@@ -31,16 +31,19 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Server 的 internal 类型（KestrelGameServer / HttpSessionIO / OutputHub / Session 等）
+    <!-- Server 剩余的 internal 类型（KestrelGameServer / WsConnectionHandler / ServerJsonContext）
          被 Cli（ServerRunner 直接构造 KestrelGameServer）和 Tests（KestrelGameServerIdleTests
-         直接构造 server handler）访问——必须 InternalsVisibleTo 给两者。-->
+         直接构造 server handler）访问——必须 InternalsVisibleTo 给两者。
+         （共享层类型 Session/SessionRegistry/OutputHub/HttpSessionIO/GameConfigService/Controller
+         已迁至 Emuera.Headless.Core，Core 的 InternalsVisibleTo 已覆盖 Server/Cli/Tests/Maui。）-->
     <InternalsVisibleTo Include="Emuera.Headless.Cli" />
     <InternalsVisibleTo Include="Emuera.Headless.Tests" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Server 引用 Core：经 InternalsVisibleTo 访问 internal 成员
-         （GameLoopComposer.RunAsync / AgentJsonlProtocol / DisplayState / EmueraConsole 等）-->
+         （GameLoopComposer.RunAsync / AgentJsonlProtocol / DisplayState / EmueraConsole 等，
+         以及共享层 Session/SessionRegistry/OutputHub/HttpSessionIO/GameConfigService/Controller）-->
     <ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
   </ItemGroup>
 

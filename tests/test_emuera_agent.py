@@ -186,6 +186,16 @@ def main():
         if step_json is not None:
             check("state" in step_json, "step turn has state")
 
+        advance = run_agent(["advance"], env, timeout=30)
+        advance_json = parse_json_stdout(advance)
+        check(advance.returncode == 0, f"advance exits 0 (got {advance.returncode})")
+        check(advance_json is not None, "advance stdout is JSON")
+        if advance_json is not None:
+            check("turns" in advance_json, "advance has turns list")
+            check("stopped" in advance_json, "advance has stopped")
+            check("advancedCount" in advance_json, "advance has advancedCount")
+            check("limitReached" in advance_json, "advance has limitReached")
+
         status = run_agent(["status"], env, timeout=15)
         status_json = parse_json_stdout(status)
         check(status.returncode == 0, f"status exits 0 (got {status.returncode})")

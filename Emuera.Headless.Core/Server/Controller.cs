@@ -227,33 +227,27 @@ internal sealed class Controller : IDisposable
     public ControlGateResult CheckInput(ControlIdentity identity, bool sessionEnded)
     {
         lock (_lock)
-        {
-            var expiredEvent = ExpireLeaseLocked();
-            if (sessionEnded || !_current.HasValue || _current.Value.Matches(identity))
-                return new ControlGateResult(ControlGateStatus.Allowed, string.Empty, _current, expiredEvent);
-
-            return new ControlGateResult(
-                ControlGateStatus.NotController,
-                _current.Value.Kind == ControllerKind.User ? "CONTROL_HELD_BY_USER" : "CONTROL_HELD_BY_AGENT",
-                _current,
-                expiredEvent);
-        }
+            return CheckGateLocked(identity, sessionEnded);
     }
 
     public ControlGateResult CheckLifecycle(ControlIdentity identity, bool sessionEnded)
     {
         lock (_lock)
-        {
-            var expiredEvent = ExpireLeaseLocked();
-            if (sessionEnded || !_current.HasValue || _current.Value.Matches(identity))
-                return new ControlGateResult(ControlGateStatus.Allowed, string.Empty, _current, expiredEvent);
+            return CheckGateLocked(identity, sessionEnded);
+    }
 
-            return new ControlGateResult(
-                ControlGateStatus.NotController,
-                _current.Value.Kind == ControllerKind.User ? "CONTROL_HELD_BY_USER" : "CONTROL_HELD_BY_AGENT",
-                _current,
-                expiredEvent);
-        }
+    /// <summary>输入/生命周期门禁共用判定（两 public 方法体同构去重）：session 已结束、无持有者或持有者匹配 → 放行，否则拒绝。</summary>
+    private ControlGateResult CheckGateLocked(ControlIdentity identity, bool sessionEnded)
+    {
+        var expiredEvent = ExpireLeaseLocked();
+        if (sessionEnded || !_current.HasValue || _current.Value.Matches(identity))
+            return new ControlGateResult(ControlGateStatus.Allowed, string.Empty, _current, expiredEvent);
+
+        return new ControlGateResult(
+            ControlGateStatus.NotController,
+            _current.Value.Kind == ControllerKind.User ? "CONTROL_HELD_BY_USER" : "CONTROL_HELD_BY_AGENT",
+            _current,
+            expiredEvent);
     }
 
     public ControlEvent End(string type)

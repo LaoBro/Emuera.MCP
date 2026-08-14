@@ -12,6 +12,7 @@ from .config import (
     PROJECT_DIR,
     delete_server_record,
     load_config,
+    load_maui_server_record,
     load_server_record,
     resolve_path,
     save_server_record,
@@ -106,6 +107,9 @@ def _start_emuera_server(binary_path: str, game_dir: str | None, port: int) -> s
     cmd.extend(["--server", "--port", str(port)])
     if game_dir:
         cmd.extend(["--ExeDir", game_dir])
+    # 隐藏启动读取日志（agent 用）：覆盖游戏配置 DisplayReport=false，见 spec「启动日志覆盖」。
+    # 仅对 agent 自己拉起的 server 生效；复用已运行 server 时不受影响。
+    cmd.extend(["--no-loading-report"])
 
     kwargs = {
         "stdout": subprocess.DEVNULL,
@@ -174,6 +178,7 @@ def cmd_start(args) -> int:
     existing = load_server_record()
     reused = False
     started_by_agent = False
+    maui_hosted = False
     token = None
     pid = None
 
@@ -186,8 +191,28 @@ def cmd_start(args) -> int:
             host = existing.get("host") or host
             pid = existing.get("pid")
             started_by_agent = bool(existing.get("startedByAgent"))
+            maui_hosted = bool(existing.get("mauiHosted"))
             if not token:
                 token = secrets.token_urlsafe(24)
+
+    if not reused:
+        # issue 05：MAUI 托管 server 发现——MAUI 应用跑游戏时在 %LOCALAPPDATA%\Emuera 写发现记录
+        # （emuera-maui-server.json，含动态端口 + MAUI 生成的 token + gameDir）。
+        # 探活成功即复用该会话（单实例共享，agent 连的是用户正在玩的那一局），不另起 server。
+        maui_record = load_maui_server_record()
+        if maui_record and maui_record.get("port"):
+            maui_host = maui_record.get("host") or "127.0.0.1"
+            maui_client = EmueraClient(
+                f"http://{maui_host}:{maui_record['port']}", token=maui_record.get("token"))
+            if _probe(maui_client) is not None:
+                reused = True
+                port = maui_record["port"]
+                host = maui_host
+                token = maui_record.get("token") or secrets.token_urlsafe(24)
+                started_by_agent = False
+                maui_hosted = True
+                pid = None
+                game_dir = maui_record.get("gameDir") or game_dir
 
     if not reused:
         probe_client = EmueraClient(f"http://{host}:{port}")
@@ -216,12 +241,15 @@ def cmd_start(args) -> int:
         "token": token,
         "gameDir": game_dir,
         "startedByAgent": started_by_agent,
+        "mauiHosted": maui_hosted,
     }
     save_server_record(record)
 
     client = EmueraClient(f"http://{host}:{port}", token=token)
     state = _wait_for_state(client)
-    if not _session_active(state):
+    # issue 05：MAUI 托管 server 的会话生命周期归 MAUI 应用——即便当前无活跃会话（用户退出/结束）
+    # 也不自动 load_game 抢占（避免替用户重开一局）；直接上报当前状态。
+    if not _session_active(state) and not maui_hosted:
         try:
             client.load_game(game_dir)
         except EmueraHttpError as exc:
@@ -288,6 +316,56 @@ def cmd_release(_args) -> int:
     return 0
 
 
+# 自动推进只针对"按回车/任意键显示下一句"的翻页等待（needValue=false）。
+_AUTO_ADVANCE_TYPES = {"EnterKey", "AnyKey"}
+
+
+def _is_auto_advanceable(state: dict) -> bool:
+    """是否需要真实输入之外的空输入推进（EnterKey/AnyKey 且 needValue=false）。"""
+    return state.get("needValue") is False and state.get("inputType") in _AUTO_ADVANCE_TYPES
+
+
+def cmd_advance(args) -> int:
+    client, _record = _require_server()
+    try:
+        control = client.get_control()
+    except EmueraHttpError as exc:
+        _fail_http(exc)
+    controller = control.get("controller") or {}
+    if controller.get("kind") != "agent":
+        _die("当前未持有控制权，先 `emuera_agent acquire`")
+
+    # 当前等待态：若已是真实输入（或非翻页），不推进，直接返回当前态。
+    try:
+        snap = client.get_snapshot()
+    except EmueraHttpError as exc:
+        _fail_http(exc)
+    if not _is_auto_advanceable(snap):
+        _emit({"turns": [], "stopped": snap, "advancedCount": 0, "limitReached": False})
+        return 0
+
+    turns: list = []
+    count = 0
+    max_steps = args.max_steps
+    # 循环推进：每次提交空输入（回车），收集被推进回合；直到需真实输入或离开 WaitInput。
+    while count < max_steps:
+        try:
+            client.post_input("")
+            turn = _read_turn(client)
+        except EmueraHttpError as exc:
+            # CONTROL_LOST / CONTROL_HELD_* 等走 _fail_http：立即停止并原样上报，不重试。
+            _fail_http(exc)
+        count += 1
+        if _is_auto_advanceable(turn):
+            turns.append(turn)
+            continue
+        _emit({"turns": turns, "stopped": turn, "advancedCount": count, "limitReached": False})
+        return 0
+
+    _emit({"turns": turns, "stopped": None, "advancedCount": count, "limitReached": True})
+    return 0
+
+
 def _kill_pid(pid) -> None:
     if not pid:
         return
@@ -312,6 +390,12 @@ def cmd_stop(_args) -> int:
     record = load_server_record()
     if not record or "port" not in record:
         _die(SERVER_NOT_RUNNING)
+    # issue 05：MAUI 托管的 server 生命周期归 MAUI 应用（用户关闭游戏/退出应用时随会话结束）——
+    # stop 只清本地 .emuera-server.json，不 DELETE /session（会杀掉用户正在玩的会话）、不杀进程。
+    if record.get("mauiHosted"):
+        delete_server_record()
+        _emit({"stopped": True, "session": None, "serverStopped": False, "mauiHosted": True})
+        return 0
     client = EmueraClient(_base_url(record), token=record.get("token"))
     result = {"removed": False}
     if _probe(client) is not None:
@@ -371,6 +455,10 @@ def build_parser() -> argparse.ArgumentParser:
     step = sub.add_parser("step", help="提交输入并读取下一回合")
     step.add_argument("--value", required=True, help="提交给游戏的输入值")
     step.set_defaults(func=cmd_step)
+
+    advance = sub.add_parser("advance", help="自动代按回车推进翻页，直到需真实输入；返回全部被推进回合")
+    advance.add_argument("--max-steps", type=int, default=50, help="推进步数上限（默认 50）")
+    advance.set_defaults(func=cmd_advance)
 
     release = sub.add_parser("release", help="释放控制权")
     release.set_defaults(func=cmd_release)

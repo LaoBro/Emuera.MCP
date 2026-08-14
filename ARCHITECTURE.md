@@ -27,16 +27,22 @@
                                     |
                     +---------------+----------------+
                     |                                |
-              HTTP/WebSocket                      MAUI Bridge
+              HTTP/WebSocket                    WebView JS 桥
                     |                                |
        +------------v-------------+       +----------v----------+
        | Emuera.Headless.Server   |       |    Emuera.Maui      |
-       +------------+-------------+       +----------+----------+
-                    |                                |
+       |  (Kestrel 宿主壳)         |       |  (BridgeHost +      |
+       +------------+-------------+       |   HttpListenerHost) |
+                    |                      +----------+----------+
+                    |   HTTP/WS (agent)  ────────────┘
                     +---------------+----------------+
                                     |
                          +----------v-----------+
                          | Emuera.Headless.Core |
+                         |  (共享层 Server/:      |
+                         |   GameServerProtocol /|
+                         |   WsRelay / Session   |
+                         |   / Controller ...)   |
                          +----------------------+
 
        Emuera.Headless.Cli -> Core + Server
@@ -47,9 +53,9 @@
 依赖边界：
 
 - `Core` 不依赖 ASP.NET Core 或 MAUI。
-- `Server` 依赖 `Core`，提供 Kestrel、HTTP 会话、WebSocket 广播和输入队列。
+- `Server` 依赖 `Core`，提供 Kestrel 宿主壳（路由 + 静态资源 + WS 升级），业务协议委托给 Core 共享层 `Server/`。
 - `Cli` 依赖 `Core` 和 `Server`；Android RID 下通过条件编译排除 Server。
-- `Maui` 只依赖 `Core`，通过 `MauiBridgeIO` 和 `BridgeHost` 连接游戏循环。
+- `Maui` 只依赖 `Core`，经 `BridgeHost` 桥接 WebView 渲染共享层会话，并用 `HttpListenerHost`（BCL，Core 内）托管 Server 供 agent 经 HTTP/WS 连接同一会话。
 - `Web` 通过 HTTP/WS 或 MAUI JavaScript bridge 消费同一套回合/显示语义。
 
 ## Core
@@ -59,7 +65,7 @@
 - 游戏路径、配置、预加载和运行时初始化。
 - `EmueraConsole`、显示状态、输入请求和按钮状态。
 - Agent 协议、CLI 终端循环和终端渲染。
-- `MauiBridgeIO` 等不依赖 ASP.NET Core 的输入/输出抽象。
+- **共享层 `Server/`**（issue 05「抽共享层 + 双宿主」）：回合协议（`GameServerProtocol`）、控制状态机（`Controller`）、会话（`Session` / `SessionRegistry` / `HttpSessionIO` / `OutputHub` / `WsRelay`）与 `HttpListenerHost`（BCL 托管宿主）——不依赖 ASP.NET Core，供 Kestrel 与 MAUI 双宿主复用。
 - 从旧 WinForms 源码迁移而来的共享运行时，位于 `Shared/`。
 
 主要区域：
@@ -68,7 +74,7 @@
 |---|---|
 | `Agent/` | Agent 协议、回合生成和按钮逻辑 |
 | `Terminal/` | CLI/VT 输入、终端解析、渲染和滚动 |
-| `Server/` | Core 内的传输抽象，例如 `MauiBridgeIO` |
+| `Server/` | 共享层：回合协议 + 控制状态机 + 会话 + WS 旁路 + `HttpListenerHost`（MAUI 托管宿主），双宿主复用的传输无关逻辑 |
 | `UI/Game/` | `EmueraConsole` 和游戏控制台状态 |
 | `Shared/` | 从旧 WinForms 迁移的共享运行时和 UI 代码 |
 | `Headless/` | 无头替换实现，如声音、剪贴板和字符串测量 |
@@ -77,12 +83,11 @@
 
 ## Server
 
-`Emuera.Headless.Server/` 提供单进程、单活跃会话的 HTTP 服务：
+`Emuera.Headless.Server/` 提供单进程、单活跃会话的 HTTP 服务（**Kestrel 宿主壳**——路由、静态资源、body/token 解析与 HttpResult→IResult 映射，业务协议委托给 Core 共享层）：
 
-- `KestrelGameServer`：路由、会话生命周期和 `/load-game`。
-- `Session`：持有一次游戏会话的 console、protocol 和 IO。
-- `HttpSessionIO`：HTTP 输入队列、输出队列和超时处理。
-- `OutputHub`：向 WebSocket 客户端旁路广播输出。
+- `KestrelGameServer`：Kestrel 构建 + 路由注册 + 静态资源，端点委托 `GameServerProtocol`。
+- 共享层会话与传输（在 `Emuera.Headless.Core/Server/`）：`Session`（一次游戏会话的 console/protocol/IO）、`HttpSessionIO`（HTTP 输入/输出队列）、`OutputHub`（向 WS 客户端旁路广播）、`WsRelay`（WS 旁路循环）、`SessionRegistry`（会话生命周期 + /load-game 原子序列）、`GameServerProtocol`（传输无关回合协议 + 控制状态机）、`Controller`（控制权状态机）。
+- `HttpListenerHost`（Core 内，BCL `System.Net.HttpListener`）：MAUI 托管宿主，与 Kestrel 共用同一 `GameServerProtocol`/`WsRelay`，wire 契约逐字节一致。
 
 服务器会话约束：
 
@@ -108,27 +113,28 @@ T-024 后已删除 stdin pipe 和 JSONL stdin/stdout 模式。脚本、自动化
 `Emuera.Maui/` 是 Windows/Android 应用壳：
 
 - `MainPage` 承载 WebView。
-- `BridgeHost` 管理 C# 游戏循环、输入和前端消息。
+- `BridgeHost` 编排托管会话（issue 05）：起 `HttpListenerHost`、建共享层 `Session`、订阅 `OutputHub` turn 转发 WebView、`HttpSessionIO` 入输入、`ControlPumpAsync` 推控制状态、写 agent 发现记录。
+- `HttpListenerHost`（Core 内，BCL `System.Net.HttpListener`）：MAUI 托管 Server，起 HTTP+WS，agent 经 localhost 连接**同一会话**（单实例共享）。
 - `JsBridge/` 提供 Windows/Android 平台桥接实现。
 - `MauiProgram` 负责 MAUI 依赖注入和应用启动。
-- `MauiBridgeIO` 使核心游戏循环通过内存 Channel 与前端交互。
 
 MAUI 启动和游戏选择流程：
 
 ```text
 MainPage / MauiProgram
-  -> 初始化 BridgeHost，但不自动启动游戏
+  -> 初始化 BridgeHost，但不启动托管 server
   -> Vue 注册 window.__emueraOnTurn / window.__emueraOnMessage
   -> MauiGameList 扫描游戏目录
   -> 用户选择游戏
   -> loadGameFromPath(fullPath)
-  -> C# 重建运行时并启动游戏循环
-  -> BridgeHost.PostTurn()
-  -> Vue game store.applyTurn()
-  -> TerminalDisplay 渲染
+  -> C# 重建运行时 → BridgeHost.Start()
+  -> 起 HttpListenerHost(动态端口) → CreateMauiSessionAsync 建会话
+  -> TurnPumpAsync(OutputHub) → BridgeHost.PostTurn()
+  -> Vue game store.applyTurn() → TerminalDisplay 渲染
+  -> 写 %LOCALAPPDATA%\Emuera\emuera-maui-server.json（agent 发现）
 ```
 
-MAUI 不加载 `Emuera.Headless.Server` 或 `Emuera.Headless.Cli`，以避免 Android 目标引入 ASP.NET Core 依赖。
+MAUI 不加载 `Emuera.Headless.Server` 或 `Emuera.Headless.Cli`——`HttpListenerHost` 在 Core 内用 BCL，避免 Android 目标引入 ASP.NET Core 依赖。托管 server 生命周期随游戏会话（退出/关闭即 Dispose 并删发现记录）。
 
 ## Web
 
@@ -138,10 +144,11 @@ MAUI 不加载 `Emuera.Headless.Server` 或 `Emuera.Headless.Cli`，以避免 An
 
 ```text
 HTTP 模式:
-Web -> WebSocket/HTTP -> Headless.Server -> Core
+Web -> WebSocket/HTTP -> Headless.Server (Kestrel 宿主) -> Core 共享层
 
 MAUI 模式:
-WebView -> IJsBridge/BridgeHost -> Core
+WebView -> IJsBridge/BridgeHost -> 共享层会话 (OutputHub 订阅 / session.IO)
+agent   -> HTTP/WS -> HttpListenerHost (同一共享层会话)
 ```
 
 两种模式共享：
@@ -150,7 +157,7 @@ WebView -> IJsBridge/BridgeHost -> Core
 - 输入类型、按钮值和终端推进语义。
 - 图片、图形和背景的结构化显示模型。
 
-差异只在传输层：HTTP 模式使用网络端点，MAUI 模式使用进程内桥接。
+差异只在传输层：HTTP 模式走网络端点；MAUI 模式 WebView 用进程内桥接渲染、同时托管 Server 供 agent 连同一会话。控制状态（谁在操控）在 MAUI 端经 `controlStatus` 桥接消息同步（对应 HTTP 模式 `/control` 轮询）。
 
 ## 协议和状态流
 
@@ -161,7 +168,7 @@ WebView -> IJsBridge/BridgeHost -> Core
   -> EmueraConsole / GameLoop
   -> AgentJsonlProtocol
   -> TurnRecord
-  -> HTTP/WS 或 MauiBridgeIO
+  -> HTTP/WS (Kestrel) 或 WebView 桥接 (MAUI, 经 OutputHub 订阅)
   -> game store
   -> DisplayState / TerminalDisplay
 ```

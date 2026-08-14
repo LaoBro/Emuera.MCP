@@ -36,6 +36,18 @@ python -m emuera_gateway step --value <输入>
 
 完成标准：每一次 `step` 都对应自己刚提交的输入；不要在未读确认时连打。
 
+### 2.1 自动推进（advance）
+
+遇到 `EnterKey` / `AnyKey`（`needValue=false`）且判定为无聊翻页时，用 `advance` 一次推进到需要真实输入，不必逐条 `step --value ""`：
+
+```bash
+python -m emuera_gateway advance --max-steps 50
+```
+
+- 返回单行 JSON：`{"turns":[...], "stopped":{...}, "advancedCount":N}`，`turns` 是每个被推进回合（含内容），`stopped` 是需要真实输入的回合。
+- 结束后读 `stopped` 回合再决定下一步；被强夺时 advance 自动停止并报 `CONTROL_LOST`，照第 3 步处理。
+- 只在确认是翻页时用；若该 EnterKey 是确认框/剧情节点，就正常 `step` 停下处理。
+
 ## 3. 被强夺
 
 `step` / `GET /turn` 报 `CONTROL_LOST`，或 `GET /control/wait` 收到 `stolen`：
