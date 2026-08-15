@@ -397,12 +397,10 @@ internal static partial class FunctionMethodCreator
 				{
 					if (fixedLength == -1 && array[i] == 0)
 						break;
-					if (array[i] < long.MinValue || array[i] > long.MaxValue)
-						return 0;
 					sortList.Add(new KeyValuePair<long, int>(array[i], i));
 				}
 				//素ではintの範囲しか扱えないので一工夫
-				sortList.Sort((a, b) => { return (isAscending ? 1 : -1) * Math.Sign(a.Key - b.Key); });
+				sortList.Sort((a, b) => isAscending ? a.Key.CompareTo(b.Key) : b.Key.CompareTo(a.Key));
 				sortedArray = sortList.Select(p => p.Value).ToArray();
 			}
 			else
@@ -416,7 +414,7 @@ internal static partial class FunctionMethodCreator
 						return 0;
 					sortList.Add(new KeyValuePair<string, int>(array[i], i));
 				}
-				sortList.Sort((a, b) => { return (isAscending ? 1 : -1) * a.Key.CompareTo(b.Key); });
+				sortList.Sort((a, b) => isAscending ? a.Key.CompareTo(b.Key) : b.Key.CompareTo(a.Key));
 				sortedArray = sortList.Select(p => p.Value).ToArray();
 			}
 			List<VariableTerm> varTerms = [];
@@ -4128,12 +4126,10 @@ internal static partial class FunctionMethodCreator
 				{
 					if (array[i] == 0)
 						break;
-					if (array[i] < long.MinValue || array[i] > long.MaxValue)
-						return 0;
 					sortList.Add(new KeyValuePair<long, int>(array[i], i));
 				}
 				//素ではintの範囲しか扱えないので一工夫
-				sortList.Sort((a, b) => { return Math.Sign(a.Key - b.Key); });
+				sortList.Sort((a, b) => a.Key.CompareTo(b.Key));
 				sortedArray = new int[sortList.Count];
 				for (int i = 0; i < sortedArray.Length; i++)
 					sortedArray[i] = sortList[i].Value;
@@ -5417,7 +5413,7 @@ internal static partial class FunctionMethodCreator
 			if (!g.IsCreated)
 				return -1;
 			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
-			if (p.X < 0 || p.X >= g.Width || p.X < 0 || p.Y >= g.Height)
+			if (p.X < 0 || p.X >= g.Width || p.Y < 0 || p.Y >= g.Height)
 				return -1;
 			EmuColor c = GraphicsImage.GGetColor(p.X, p.Y);
 			//Color.ToArgb()はInt32の負の値をとることがあり、Int64にうまく変換できない?（と思ったが気のせいだった
@@ -5443,7 +5439,7 @@ internal static partial class FunctionMethodCreator
 				return 0;
 			EmuColor c = ReadColor(Name, exm, arguments, 1);
 			EmuPoint p = ReadPoint(Name, exm, arguments, 2);
-			if (p.X < 0 || p.X >= g.Width || p.X < 0 || p.Y >= g.Height)
+			if (p.X < 0 || p.X >= g.Width || p.Y < 0 || p.Y >= g.Height)
 				return 0;
 			GraphicsImage.GSetColor(c, p.X, p.Y);
 			return 1;

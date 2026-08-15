@@ -108,7 +108,13 @@ python -m emuera_gateway stop
 
 ## 环境陷阱
 
-在 Windows/TRAE 环境中，不要使用 `Start-Process -RedirectStandardOutput ... -Wait` 捕获全量 `dotnet build` 输出。重定向管道可能因缓冲区填满而死锁。直接运行 `dotnet build`，或使用不会阻塞输出读取的方式。
+- 在 Windows/TRAE 环境中，不要使用 `Start-Process -RedirectStandardOutput ... -Wait` 捕获全量 `dotnet build` 输出。重定向管道可能因缓冲区填满而死锁。直接运行 `dotnet build`，或使用不会阻塞输出读取的方式。
+- 在 WSL 中直接运行 Windows `dotnet.exe` 并通过管道读取输出可能卡住/超时。可将 stdout/stderr 重定向到文件再查看，例如：
+  ```bash
+  '/mnt/c/Program Files/dotnet/dotnet.exe' test Emuera.Headless.Tests/Emuera.Headless.Tests.csproj > /tmp/dotnet-test.log 2>&1
+  ```
+- 从 WSL 启动 Windows 二进制做 Python e2e 时，传入 `/mnt/d/...` 这类 WSL 路径可能导致 server 起不来。应使用 Windows Python（如 `/mnt/c/Python314/python.exe`）运行 `tests/` 脚本，让路径自动变成 `D:\...`。
+- `tests/run_all.py` 在 WSL/Windows 混合环境下可能出现偶发性能护栏抖动、409 时序问题或文件锁；单项测试通常可稳定通过。若 `dotnet build` 报 DLL 被占用，先结束残留的 `Emuera.Headless.Cli` 进程（如 `taskkill.exe /PID <pid> /F`）再重试。
 
 ## 文档索引
 

@@ -69,7 +69,7 @@ internal abstract class FunctionMethod
 		public bool Array { get { return (type & ArgType.Array) != 0; } }
 		public bool Array1D { get { return (type & ArgType.Array1D) != 0; } }
 		public bool Array2D { get { return (type & ArgType.Array2D) != 0; } }
-		public bool Array3D { get { return (type & ArgType.Array2D) != 0; } }
+		public bool Array3D { get { return (type & ArgType.Array3D) != 0; } }
 		public bool String { get { return (type & ArgType.String) != 0; } }
 		public bool Variadic { get { return (type & ArgType.Variadic) != 0; } }
 		public bool SameAsFirst { get { return (type & ArgType.SameAsFirst) != 0; } }

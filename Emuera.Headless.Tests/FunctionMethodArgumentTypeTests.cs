@@ -241,21 +241,28 @@ public sealed class FunctionMethodArgumentTypeTests
     }
 
     [Fact]
-    public void CheckArgumentType_RefString3D_accepts_3D_and_rejects_2D_string_variables()
+    public void CheckArgumentType_RefString3D_accepts_3D_and_rejects_scalar_1D_and_2D_string_variables()
     {
         var method = new TestMethod(["RefString3D"]);
 
         Assert.Null(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__STRING__ | VariableCode.__ARRAY_3D__) }));
+        Assert.NotNull(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__STRING__) }));
+        Assert.NotNull(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__STRING__ | VariableCode.__ARRAY_1D__) }));
         Assert.NotNull(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__STRING__ | VariableCode.__ARRAY_2D__) }));
     }
 
     [Fact]
-    public void CheckArgumentType_RefAny3D_accepts_3D_and_rejects_scalar()
+    public void CheckArgumentType_RefAny3D_accepts_3D_and_rejects_scalar_1D_and_2D_variables()
     {
         var method = new TestMethod(["RefAny3D"]);
 
         Assert.Null(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__INTEGER__ | VariableCode.__ARRAY_3D__) }));
         Assert.Null(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__STRING__ | VariableCode.__ARRAY_3D__) }));
         Assert.NotNull(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__INTEGER__) }));
+        Assert.NotNull(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__INTEGER__ | VariableCode.__ARRAY_1D__) }));
+        Assert.NotNull(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__INTEGER__ | VariableCode.__ARRAY_2D__) }));
+        Assert.NotNull(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__STRING__) }));
+        Assert.NotNull(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__STRING__ | VariableCode.__ARRAY_1D__) }));
+        Assert.NotNull(method.CheckArgumentType("TEST", new List<AExpression> { ArrayVar(VariableCode.__STRING__ | VariableCode.__ARRAY_2D__) }));
     }
 }

@@ -358,7 +358,7 @@ internal static partial class FunctionMethodCreator
 	}
 
 	private static readonly Dictionary<string, FunctionMethod> methodList;
-	public static Dictionary<string, FunctionMethod> GetMethodList()
+	public static IReadOnlyDictionary<string, FunctionMethod> GetMethodList()
 	{
 		return methodList;
 	}

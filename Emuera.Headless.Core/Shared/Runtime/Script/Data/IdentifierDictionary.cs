@@ -120,7 +120,7 @@ internal partial class IdentifierDictionary
 	readonly Dictionary<string, VariableToken> varTokenDic;
 	readonly Dictionary<string, VariableLocal> localvarTokenDic;
 	readonly Dictionary<string, FunctionIdentifier> instructionDic;
-	readonly Dictionary<string, FunctionMethod> methodDic;
+	readonly IReadOnlyDictionary<string, FunctionMethod> methodDic;
 	readonly Dictionary<string, UserDefinedRefMethod> refmethodDic;
 	public List<UserDefinedCharaVariableToken> CharaDimList = [];
 

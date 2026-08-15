@@ -449,7 +449,7 @@ internal sealed partial class FunctionIdentifier
 		addPrintFunction(FunctionCode.PRINTFORMSN);
 		#endregion
 
-		Dictionary<string, FunctionMethod> methodList = FunctionMethodCreator.GetMethodList();
+		IReadOnlyDictionary<string, FunctionMethod> methodList = FunctionMethodCreator.GetMethodList();
 		foreach (KeyValuePair<string, FunctionMethod> pair in methodList)
 		{
 			string key = pair.Key;
