@@ -96,11 +96,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated || GraphicsImage.Bitmap == null)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null || GraphicsImage.Bitmap == null)
 				return 0;
 			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			long z64 = arguments[3].GetIntValue(exm);
@@ -122,11 +119,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated || GraphicsImage.Bitmap == null)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null || GraphicsImage.Bitmap == null)
 				return 0;
 			// CBG_SetButtonMap: WinForms-only stub removed in Headless
 			return 1;
@@ -171,8 +165,7 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
+			RequireGDIPlus(Name);
 
 			long b64 = arguments[0].GetIntValue(exm);
 			if (b64 < 0 || b64 > 0xFFFFFF)

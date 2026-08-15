@@ -122,16 +122,15 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
+			RequireGDIPlus(Name);
 			string imgname = arguments[0].GetStrValue(exm);
 			if (string.IsNullOrEmpty(imgname))
 				return 0;
 			ASprite img = AppContents.GetSprite(imgname);
 			if (img != null && img.IsCreated)
 				return 0;
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 1);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 1);
+			if (g == null)
 				return 0;
 
 			EmuRectangle rect = new(0, 0, g.Width, g.Height);
@@ -199,10 +198,8 @@ internal static partial class FunctionMethodCreator
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage dest = ReadGraphics(Name, exm, arguments, 0);
-			if (!dest.IsCreated)
+			GraphicsImage? dest = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (dest == null)
 				return 0;
 
 			string imgname = arguments[1].GetStrValue(exm);
@@ -261,8 +258,7 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
+			RequireGDIPlus(Name);
 			string imgname = arguments[0].GetStrValue(exm);
 			if (string.IsNullOrEmpty(imgname))
 				return 0;
@@ -295,8 +291,7 @@ internal static partial class FunctionMethodCreator
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
+			RequireGDIPlus(Name);
 			string imgname = arguments[0].GetStrValue(exm);
 			if (string.IsNullOrEmpty(imgname))
 				return 0;
@@ -305,8 +300,8 @@ internal static partial class FunctionMethodCreator
 			SpriteAnime img = (AppContents.GetSprite(imgname) as SpriteAnime)!;
 			if (img == null || !img.IsCreated)
 				return 0;
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 1);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 1);
+			if (g == null)
 				return 0;
 			EmuRectangle rect = ReadRectangle(Name, exm, arguments, 2);
 			//四角形は正でなければならず、かつ親画像の外を指してはいけない

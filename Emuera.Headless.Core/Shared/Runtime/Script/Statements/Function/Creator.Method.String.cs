@@ -1,4 +1,6 @@
 using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameView;
+
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -687,9 +689,12 @@ internal static partial class FunctionMethodCreator
 				if (!strForm.IsConst)
 					return false;
 			}
-			catch
+			catch (Exception e)
 			{
+				if (e is CodeEE)
+					throw;
 				//パースできないのはエラーがあるかここではわからないからとりあえず考えない
+				EmueraLog.Debug(Name, e.Message);
 				return false;
 			}
 			return true;

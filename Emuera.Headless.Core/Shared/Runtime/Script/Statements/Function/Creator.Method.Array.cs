@@ -21,6 +21,77 @@ namespace MinorShift.Emuera.GameData.Function;
 
 internal static partial class FunctionMethodCreator
 {
+	/// <summary>
+	/// 按排序索引重排一维数组。返回 false 表示目标数组长度不足以容纳全部排序索引，不修改数组。
+	/// </summary>
+	internal static bool ArrayReorder<T>(T[] array, int[] sortedArray)
+	{
+		if (array.Length < sortedArray.Length)
+			return false;
+		var clone = (T[])array.Clone();
+		for (int i = 0; i < sortedArray.Length; i++)
+			array[i] = clone[sortedArray[i]];
+		return true;
+	}
+
+	/// <summary>
+	/// 按排序索引重排二维数组的第一维。返回 false 表示目标数组长度不足，不修改数组。
+	/// </summary>
+	internal static bool ArrayReorder(long[,] array, int[] sortedArray)
+	{
+		if (array.GetLength(0) < sortedArray.Length)
+			return false;
+		var clone = (long[,])array.Clone();
+		for (int i = 0; i < sortedArray.Length; i++)
+			for (int x = 0; x < array.GetLength(1); x++)
+				array[i, x] = clone[sortedArray[i], x];
+		return true;
+	}
+
+	/// <summary>
+	/// 按排序索引重排二维数组的第一维。返回 false 表示目标数组长度不足，不修改数组。
+	/// </summary>
+	internal static bool ArrayReorder(string[,] array, int[] sortedArray)
+	{
+		if (array.GetLength(0) < sortedArray.Length)
+			return false;
+		var clone = (string[,])array.Clone();
+		for (int i = 0; i < sortedArray.Length; i++)
+			for (int x = 0; x < array.GetLength(1); x++)
+				array[i, x] = clone[sortedArray[i], x];
+		return true;
+	}
+
+	/// <summary>
+	/// 按排序索引重排三维数组的第一维。返回 false 表示目标数组长度不足，不修改数组。
+	/// </summary>
+	internal static bool ArrayReorder(long[,,] array, int[] sortedArray)
+	{
+		if (array.GetLength(0) < sortedArray.Length)
+			return false;
+		var clone = (long[,,])array.Clone();
+		for (int i = 0; i < sortedArray.Length; i++)
+			for (int x = 0; x < array.GetLength(1); x++)
+				for (int y = 0; y < array.GetLength(2); y++)
+					array[i, x, y] = clone[sortedArray[i], x, y];
+		return true;
+	}
+
+	/// <summary>
+	/// 按排序索引重排三维数组的第一维。返回 false 表示目标数组长度不足，不修改数组。
+	/// </summary>
+	internal static bool ArrayReorder(string[,,] array, int[] sortedArray)
+	{
+		if (array.GetLength(0) < sortedArray.Length)
+			return false;
+		var clone = (string[,,])array.Clone();
+		for (int i = 0; i < sortedArray.Length; i++)
+			for (int x = 0; x < array.GetLength(1); x++)
+				for (int y = 0; y < array.GetLength(2); y++)
+					array[i, x, y] = clone[sortedArray[i], x, y];
+		return true;
+	}
+
 	private sealed class ArrayMultiSortExMethod : FunctionMethod
 	{
 		public ArrayMultiSortExMethod()
@@ -99,69 +170,39 @@ internal static partial class FunctionMethodCreator
 				{
 					if (term.IsInteger)
 					{
-						var array = (long[])term.Identifier.GetArray();
-						var clone = (long[])array.Clone();
-						if (array.Length < sortedArray.Length)
+						if (!ArrayReorder((long[])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							array[i] = clone[sortedArray[i]];
 					}
 					else
 					{
-						var array = (string[])term.Identifier.GetArray();
-						var clone = (string[])array.Clone();
-						if (array.Length < sortedArray.Length)
+						if (!ArrayReorder((string[])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							array[i] = clone[sortedArray[i]];
 					}
 				}
 				else if (term.Identifier.IsArray2D)
 				{
 					if (term.IsInteger)
 					{
-						var array = (long[,])term.Identifier.GetArray();
-						var clone = (long[,])array.Clone();
-						if (array.GetLength(0) < sortedArray.Length)
+						if (!ArrayReorder((long[,])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							for (int x = 0; x < array.GetLength(1); x++)
-								array[i, x] = clone[sortedArray[i], x];
 					}
 					else
 					{
-						var array = (string[,])term.Identifier.GetArray();
-						var clone = (string[,])array.Clone();
-						if (array.GetLength(0) < sortedArray.Length)
+						if (!ArrayReorder((string[,])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							for (int x = 0; x < array.GetLength(1); x++)
-								array[i, x] = clone[sortedArray[i], x];
 					}
 				}
 				else if (term.Identifier.IsArray3D)
 				{
 					if (term.IsInteger)
 					{
-						var array = (long[,,])term.Identifier.GetArray();
-						var clone = (long[,,])array.Clone();
-						if (array.GetLength(0) < sortedArray.Length)
+						if (!ArrayReorder((long[,,])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							for (int x = 0; x < array.GetLength(1); x++)
-								for (int y = 0; y < array.GetLength(2); y++)
-									array[i, x, y] = clone[sortedArray[i], x, y];
 					}
 					else
 					{
-						var array = (string[,,])term.Identifier.GetArray();
-						var clone = (string[,,])array.Clone();
-						if (array.GetLength(0) < sortedArray.Length)
+						if (!ArrayReorder((string[,,])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							for (int x = 0; x < array.GetLength(1); x++)
-								for (int y = 0; y < array.GetLength(2); y++)
-									array[i, x, y] = clone[sortedArray[i], x, y];
 					}
 				}
 				else { throw new ExeEE(trerror.AbnormalArray.Text); }
@@ -470,69 +511,39 @@ internal static partial class FunctionMethodCreator
 				{
 					if (term.IsInteger)
 					{
-						var array = (long[])term.Identifier.GetArray();
-						var clone = (long[])array.Clone();
-						if (array.Length < sortedArray.Length)
+						if (!ArrayReorder((long[])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							array[i] = clone[sortedArray[i]];
 					}
 					else
 					{
-						var array = (string[])term.Identifier.GetArray();
-						var clone = (string[])array.Clone();
-						if (array.Length < sortedArray.Length)
+						if (!ArrayReorder((string[])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							array[i] = clone[sortedArray[i]];
 					}
 				}
 				else if (term.Identifier.IsArray2D)
 				{
 					if (term.IsInteger)
 					{
-						var array = (long[,])term.Identifier.GetArray();
-						var clone = (long[,])array.Clone();
-						if (array.GetLength(0) < sortedArray.Length)
+						if (!ArrayReorder((long[,])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							for (int x = 0; x < array.GetLength(1); x++)
-								array[i, x] = clone[sortedArray[i], x];
 					}
 					else
 					{
-						var array = (string[,])term.Identifier.GetArray();
-						var clone = (string[,])array.Clone();
-						if (array.GetLength(0) < sortedArray.Length)
+						if (!ArrayReorder((string[,])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							for (int x = 0; x < array.GetLength(1); x++)
-								array[i, x] = clone[sortedArray[i], x];
 					}
 				}
 				else if (term.Identifier.IsArray3D)
 				{
 					if (term.IsInteger)
 					{
-						var array = (long[,,])term.Identifier.GetArray();
-						var clone = (long[,,])array.Clone();
-						if (array.GetLength(0) < sortedArray.Length)
+						if (!ArrayReorder((long[,,])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							for (int x = 0; x < array.GetLength(1); x++)
-								for (int y = 0; y < array.GetLength(2); y++)
-									array[i, x, y] = clone[sortedArray[i], x, y];
 					}
 					else
 					{
-						var array = (string[,,])term.Identifier.GetArray();
-						var clone = (string[,,])array.Clone();
-						if (array.GetLength(0) < sortedArray.Length)
+						if (!ArrayReorder((string[,,])term.Identifier.GetArray(), sortedArray))
 							return 0;
-						for (int i = 0; i < sortedArray.Length; i++)
-							for (int x = 0; x < array.GetLength(1); x++)
-								for (int y = 0; y < array.GetLength(2); y++)
-									array[i, x, y] = clone[sortedArray[i], x, y];
 					}
 				}
 				else { throw new ExeEE(trerror.AbnormalArray.Text); }

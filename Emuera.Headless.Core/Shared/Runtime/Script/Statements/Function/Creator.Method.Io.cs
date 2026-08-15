@@ -1,4 +1,6 @@
 using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameView;
+
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -51,10 +53,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (g.IsCreated)
+			GraphicsImage? g = TryGetUncreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 #if HEADLESS
 			// Headless 模式下不支持图片加载
@@ -90,6 +90,7 @@ internal static partial class FunctionMethodCreator
 			{
 				if (e is CodeEE)
 					throw;
+				EmueraLog.Warn(Name, e.Message);
 			}
 			finally
 			{
@@ -102,6 +103,29 @@ internal static partial class FunctionMethodCreator
 			return 1;
 #endif
 		}
+	}
+
+	private static bool TryResolveTextPath(ExpressionMediator exm, AExpression argument, bool forceSavdir, bool createParentDirectories, out string filepath, out long i64)
+	{
+		i64 = -1;
+		filepath = "";
+
+		if (argument.GetOperandType() == typeof(long))
+		{
+			long value = argument.GetIntValue(exm);
+			if (value < 0 || value > int.MaxValue)
+				return false;
+			i64 = value;
+			int fileIndex = (int)value;
+			filepath = GetSaveDataPathText(fileIndex, forceSavdir ? Config.ForceSavDir : Config.SavDir);
+			return true;
+		}
+
+		string relativePath = argument.GetStrValue(exm);
+		string extension = Path.HasExtension(relativePath) ? Path.GetExtension(relativePath).ToLowerInvariant().Substring(1) : "";
+		if (!Config.ValidExtension.Contains(extension))
+			relativePath = Path.ChangeExtension(relativePath, "txt");
+		return SafCompat.TryResolveGameRelativePath(relativePath, createParentDirectories, out filepath);
 	}
 
 	private sealed class SaveTextMethod : FunctionMethod
@@ -117,31 +141,12 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			#region EM_私家版_LoadText＆SaveText機能拡張
-			string savText = arguments[0].GetStrValue(exm), filepath;
-			long i64 = -1;
+			string savText = arguments[0].GetStrValue(exm);
 			bool forceSavdir = arguments.Count > 2 && (arguments[2].GetIntValue(exm) != 0);
 			bool forceUTF8 = arguments.Count > 3 && (arguments[3].GetIntValue(exm) != 0);
 
-
-			if (arguments[1].GetOperandType() == typeof(long))
-			{
-				i64 = arguments[1].GetIntValue(exm);
-				if (i64 < 0 || i64 > int.MaxValue)
-					return 0;
-				int fileIndex = (int)i64;
-				filepath = forceSavdir ?
-				GetSaveDataPathText(fileIndex, Config.ForceSavDir) :
-				GetSaveDataPathText(fileIndex, Config.SavDir);
-			}
-			else
-			{
-				string relativePath = arguments[1].GetStrValue(exm);
-				string tmp = Path.HasExtension(relativePath) ? Path.GetExtension(relativePath).ToLowerInvariant().Substring(1) : "";
-				if (!Config.ValidExtension.Contains(tmp))
-					relativePath = Path.ChangeExtension(relativePath, "txt");
-				if (!SafCompat.TryResolveGameRelativePath(relativePath, createParentDirectories: true, out filepath))
-					return 0;
-			}
+			if (!TryResolveTextPath(exm, arguments[1], forceSavdir, createParentDirectories: true, out var filepath, out var i64))
+				return 0;
 
 			Encoding encoding = forceUTF8 ? EncodingHandler.UTF8BOMEncoding : Config.SaveEncode;
 			try
@@ -155,7 +160,13 @@ internal static partial class FunctionMethodCreator
 				}
 				SafCompat.WriteAllText(filepath, savText, encoding);
 			}
-			catch { return 0; }
+			catch (Exception e)
+			{
+				if (e is CodeEE)
+					throw;
+				EmueraLog.Warn(Name, e.Message);
+				return 0;
+			}
 			#endregion
 			return 1;
 		}
@@ -174,29 +185,12 @@ internal static partial class FunctionMethodCreator
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			#region EM_私家版_LoadText＆SaveText機能拡張
-			string ret = "", filepath;
-			long i64 = -1;
+			string ret = "";
 			bool forceSavdir = arguments.Count > 1 && (arguments[1].GetIntValue(exm) != 0);
 			bool forceUTF8 = arguments.Count > 2 && (arguments[2].GetIntValue(exm) != 0);
-			if (arguments[0].GetOperandType() == typeof(long))
-			{
-				i64 = arguments[0].GetIntValue(exm);
-				if (i64 < 0 || i64 > int.MaxValue)
-					return "";
-				int fileIndex = (int)i64;
-				filepath = forceSavdir ?
-				GetSaveDataPathText(fileIndex, Config.ForceSavDir) :
-				GetSaveDataPathText(fileIndex, Config.SavDir);
-			}
-			else
-			{
-				string relativePath = arguments[0].GetStrValue(exm);
-				if (!SafCompat.TryResolveGameRelativePath(relativePath, createParentDirectories: false, out filepath))
-					return string.Empty;
-				string tmp = Path.HasExtension(relativePath) ? Path.GetExtension(relativePath).ToLowerInvariant().Substring(1) : "";
-				if (!Config.ValidExtension.Contains(tmp))
-					return "";
-			}
+
+			if (!TryResolveTextPath(exm, arguments[0], forceSavdir, createParentDirectories: false, out var filepath, out _))
+				return "";
 
 			if (!SafCompat.FileExists(filepath))
 				return "";
@@ -207,7 +201,13 @@ internal static partial class FunctionMethodCreator
 					: EncodingHandler.DetectEncoding(SafCompat.ReadAllBytes(filepath) ?? []);
 				ret = SafCompat.ReadAllText(filepath, encoding);
 			}
-			catch { return ""; }
+			catch (Exception e)
+			{
+				if (e is CodeEE)
+					throw;
+				EmueraLog.Warn(Name, e.Message);
+				return "";
+			}
 			//一貫性の観点で\rには死んでもらう
 			return ret.Replace("\r", "");
 			#endregion
@@ -230,10 +230,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 
 			long i64 = arguments[1].GetIntValue(exm);
@@ -250,8 +248,11 @@ internal static partial class FunctionMethodCreator
 				g.Bitmap.Save(filepath);
 #endif
 			}
-			catch
+			catch (Exception e)
 			{
+				if (e is CodeEE)
+					throw;
+				EmueraLog.Warn(Name, e.Message);
 				return 0;
 			}
 			return 1;
@@ -268,10 +269,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (g.IsCreated)
+			GraphicsImage? g = TryGetUncreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 #if HEADLESS
 			// Headless 模式下不支持图片加载
@@ -299,6 +298,7 @@ internal static partial class FunctionMethodCreator
 			{
 				if (e is CodeEE)
 					throw;
+				EmueraLog.Warn(Name, e.Message);
 			}
 			finally
 			{

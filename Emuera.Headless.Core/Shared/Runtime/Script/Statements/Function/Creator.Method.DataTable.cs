@@ -1,4 +1,6 @@
 using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameView;
+
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -546,8 +548,11 @@ internal static partial class FunctionMethodCreator
 					dt.ReadXml(reader);
 				}
 			}
-			catch
+			catch (Exception e)
 			{
+				if (e is CodeEE)
+					throw;
+				EmueraLog.Warn(Name, e.Message);
 				return 0;
 			}
 			dict[key] = dt;

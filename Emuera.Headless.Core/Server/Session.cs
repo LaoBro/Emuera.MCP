@@ -69,7 +69,7 @@ internal sealed class Session : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly object _turnLock = new();
     private readonly SemaphoreSlim _turnAccessLock = new(1, 1);
-    private bool _finalTurnReady;
+    private volatile bool _finalTurnReady;
     private bool _finalTurnDelivered;
     private bool _disposed;
     /// <summary>
@@ -212,13 +212,13 @@ internal sealed class Session : IDisposable
             await _turnAccessLock.WaitAsync(ct);
             try
             {
-                if (ownerChangedTask.IsCompleted ||
+                if ((ownerChangedTask.IsCompleted && !_finalTurnReady) ||
                     (identity.HasValue && waitSnapshot.Controller.HasValue && !Controller.IsCurrent(identity.Value)))
                     return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
 
                 var readTask = _io.ReadOutputAsync(ct);
                 await Task.WhenAny(readTask, ownerChangedTask);
-                if (ownerChangedTask.IsCompleted)
+                if (ownerChangedTask.IsCompleted && !_finalTurnReady)
                 {
                     if (readTask.IsCompleted)
                     {
@@ -264,7 +264,7 @@ internal sealed class Session : IDisposable
                 if (turn == null)
                     return new TurnWaitResult(TurnWaitStatus.Closed, null);
 
-                if (ownerChangedTask.IsCompleted ||
+                if ((ownerChangedTask.IsCompleted && !_finalTurnReady) ||
                     (identity.HasValue && waitSnapshot.Controller.HasValue && !Controller.IsCurrent(identity.Value)))
                 {
                     _io.UnreadOutput(turn);

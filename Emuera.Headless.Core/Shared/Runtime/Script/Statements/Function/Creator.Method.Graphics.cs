@@ -1,4 +1,6 @@
 using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameView;
+
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -37,6 +39,26 @@ internal static partial class FunctionMethodCreator
 		else if (target > int.MaxValue)//funcname + "関数:GraphicsIDの値(" + target.ToString() + ")が大きすぎます"
 			throw new CodeEE(string.Format(trerror.GIdIsTooLarge.Text, "HTML_PRINT", target));
 		return AppContents.GetGraphics(target);
+	}
+
+	private static void RequireGDIPlus(string name)
+	{
+		if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
+			throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, name));
+	}
+
+	private static GraphicsImage? TryGetCreatedGraphics(string name, ExpressionMediator exm, List<AExpression> arguments, int argNo)
+	{
+		RequireGDIPlus(name);
+		var g = ReadGraphics(name, exm, arguments, argNo);
+		return g.IsCreated ? g : null;
+	}
+
+	private static GraphicsImage? TryGetUncreatedGraphics(string name, ExpressionMediator exm, List<AExpression> arguments, int argNo)
+	{
+		RequireGDIPlus(name);
+		var g = ReadGraphics(name, exm, arguments, argNo);
+		return g.IsCreated ? null : g;
 	}
 
 	private static EmuColor ReadColor(string Name, ExpressionMediator exm, List<AExpression> arguments, int argNo)
@@ -80,6 +102,9 @@ internal static partial class FunctionMethodCreator
 	{
 		//数値型二次元以上配列変数のはず
 		FixedVariableTerm p = ((VariableTerm)arguments[argNo]).GetFixedVariableTerm(exm);
+		if (!p.Identifier.IsArray2D && !p.Identifier.IsArray3D)
+			throw new CodeEE(string.Format(trerror.ArgIsNotNDArray.Text, Name, argNo + 1, "2または3"));
+
 		long e1, e2;
 		float[][] cm = new float[5][];
 		if (p.Identifier.IsArray2D)
@@ -148,10 +173,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 			switch (Name)
 			{
@@ -201,10 +224,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return "";
 			switch (Name)
 			{
@@ -225,11 +246,9 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
 			//失敗したら負の値を返す。他と戻り値違うけど仕方ないね
-			if (!g.IsCreated)
+			if (g == null)
 				return -1;
 			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			if (p.X < 0 || p.X >= g.Width || p.Y < 0 || p.Y >= g.Height)
@@ -250,10 +269,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 			EmuColor c = ReadColor(Name, exm, arguments, 1);
 			EmuPoint p = ReadPoint(Name, exm, arguments, 2);
@@ -274,10 +291,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 			EmuColor c = ReadColor(Name, exm, arguments, 1);
 #if HEADLESS
@@ -301,10 +316,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 #if HEADLESS
 			// Headless 模式下不支持字体设置
@@ -341,8 +354,11 @@ internal static partial class FunctionMethodCreator
 				}
 				styledFont = new Font(fontname, fontsize, fs, GraphicsUnit.Pixel);
 			}
-			catch
+			catch (Exception e)
 			{
+				if (e is CodeEE)
+					throw;
+				EmueraLog.Warn(Name, e.Message);
 				return 0;
 			}
 		foundfont:
@@ -364,10 +380,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 			EmuColor c = ReadColor(Name, exm, arguments, 1);
 			long width = arguments[2].GetIntValue(exm);
@@ -390,10 +404,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 
 			GraphicsImage.GDashStyle(arguments[1].GetIntValue(exm), arguments[2].GetIntValue(exm));
@@ -415,10 +427,8 @@ internal static partial class FunctionMethodCreator
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 			string text = arguments[1].GetStrValue(exm);
 			if (arguments.Count == 2)
@@ -465,8 +475,7 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
+			RequireGDIPlus(Name);
 			string text = arguments[0].GetStrValue(exm);
 #if HEADLESS
 			// Headless 模式下无法测量文本尺寸，返回 0
@@ -514,13 +523,11 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage dest = ReadGraphics(Name, exm, arguments, 0);
-			if (!dest.IsCreated)
+			GraphicsImage? dest = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (dest == null)
 				return 0;
-			GraphicsImage src = ReadGraphics(Name, exm, arguments, 1);
-			if (!src.IsCreated)
+			GraphicsImage? src = TryGetCreatedGraphics(Name, exm, arguments, 1);
+			if (src == null)
 				return 0;
 			long angle = arguments[2].GetIntValue(exm);
 
@@ -550,10 +557,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 			EmuPoint fromP = ReadPoint(Name, exm, arguments, 1);
 			EmuPoint forP = ReadPoint(Name, exm, arguments, 3);
@@ -572,10 +577,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (g.IsCreated)
+			GraphicsImage? g = TryGetUncreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 
 			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
@@ -609,8 +612,7 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
+			RequireGDIPlus(Name);
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			EmuColor c = ReadColor(Name, exm, arguments, 1);
 			if (!g.IsCreated)
@@ -634,10 +636,8 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			if (!g.IsCreated)
+			GraphicsImage? g = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (g == null)
 				return 0;
 			EmuRectangle rect = ReadRectangle(Name, exm, arguments, 1);
 			GraphicsImage.GFillRectangle(rect);
@@ -664,13 +664,11 @@ internal static partial class FunctionMethodCreator
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage dest = ReadGraphics(Name, exm, arguments, 0);
-			if (!dest.IsCreated)
+			GraphicsImage? dest = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (dest == null)
 				return 0;
-			GraphicsImage src = ReadGraphics(Name, exm, arguments, 1);
-			if (!src.IsCreated)
+			GraphicsImage? src = TryGetCreatedGraphics(Name, exm, arguments, 1);
+			if (src == null)
 				return 0;
 			EmuRectangle destRect = ReadRectangle(Name, exm, arguments, 2);
 			EmuRectangle srcRect = ReadRectangle(Name, exm, arguments, 6);
@@ -712,16 +710,14 @@ internal static partial class FunctionMethodCreator
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
-			GraphicsImage dest = ReadGraphics(Name, exm, arguments, 0);
-			if (!dest.IsCreated)
+			GraphicsImage? dest = TryGetCreatedGraphics(Name, exm, arguments, 0);
+			if (dest == null)
 				return 0;
-			GraphicsImage src = ReadGraphics(Name, exm, arguments, 1);
-			if (!src.IsCreated)
+			GraphicsImage? src = TryGetCreatedGraphics(Name, exm, arguments, 1);
+			if (src == null)
 				return 0;
-			GraphicsImage mask = ReadGraphics(Name, exm, arguments, 2);
-			if (!mask.IsCreated)
+			GraphicsImage? mask = TryGetCreatedGraphics(Name, exm, arguments, 2);
+			if (mask == null)
 				return 0;
 			if (src.Width != mask.Width || src.Height != mask.Height)
 				return 0;

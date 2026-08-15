@@ -1,4 +1,6 @@
 using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.GameView;
+
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -136,8 +138,11 @@ internal static partial class FunctionMethodCreator
 				}
 
 			}
-			catch
+			catch (Exception e)
 			{
+				if (e is CodeEE)
+					throw;
+				EmueraLog.Warn(Name, e.Message);
 				return -1;
 			}
 			string[] output;
@@ -387,7 +392,7 @@ internal static partial class FunctionMethodCreator
 		{
 			long i64 = arguments[0].GetIntValue(exm);
 			if (i64 < int.MinValue || i64 > short.MaxValue)
-				throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, 1, i64, int.MinValue, int.MaxValue));
+				throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, 1, i64, int.MinValue, short.MaxValue));
 			exm.Console.setRedrawTimer((int)i64);
 			return 1;
 		}

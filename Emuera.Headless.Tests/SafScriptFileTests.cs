@@ -126,4 +126,22 @@ public class SafScriptFileTests
             Config.SaveEncode = originalSaveEncoding;
         }
     }
+
+	[Fact]
+	public void SaveText_and_LoadText_share_relative_extension_normalization()
+	{
+		var accessor = new SafCompatContentUriTests.InMemoryContentDirAccessor(Root);
+		using var gamePaths = new GamePathsScope(accessor);
+		using var scope = GlobalStatic.OpenScope(new ConfigData());
+		var saveText = FunctionMethodCreator.GetMethodList()["SAVETEXT"];
+		var loadText = FunctionMethodCreator.GetMethodList()["LOADTEXT"];
+
+		Assert.Equal(1, saveText.GetIntValue(null!,
+		[
+			new SingleStrTerm("shared"), new SingleStrTerm("sav/profiles/shared"),
+			new SingleLongTerm(0), new SingleLongTerm(1),
+		]));
+		Assert.Equal("shared", loadText.GetStrValue(null!, [new SingleStrTerm("sav/profiles/shared")]));
+	}
+
 }
