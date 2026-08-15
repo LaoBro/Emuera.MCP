@@ -22,6 +22,7 @@ namespace Emuera.Headless.Tests;
 /// 将生产目标 5ms 作为 Phase 1 的优化任务：按 ConsoleDisplayLine 引用 memoize BuildPrintOpsForLine 结果。
 /// Phase 1 落地 memoize 后，本测试阈值应收紧到 5ms。
 /// </summary>
+[Collection("PerformanceIsolated")]
 public class BuildSnapshotPerformanceTests
 {
     private const string DefaultFontName = "MS Gothic";
