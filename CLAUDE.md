@@ -109,6 +109,11 @@ python -m emuera_gateway stop
 ## 环境陷阱
 
 - 在 Windows/TRAE 环境中，不要使用 `Start-Process -RedirectStandardOutput ... -Wait` 捕获全量 `dotnet build` 输出。重定向管道可能因缓冲区填满而死锁。直接运行 `dotnet build`，或使用不会阻塞输出读取的方式。
+- 当前 Windows 沙箱中直接运行 `dotnet build` / `dotnet test` 可能在并行 MSBuild 项目引用解析阶段以“0 错误”但退出码 1 静默失败。遇到时加 `-m:1` 单节点构建/测试，例如：
+  ```bash
+  dotnet test Emuera.Headless.Tests/Emuera.Headless.Tests.csproj --no-restore -m:1
+  ```
+- 在受限沙箱中运行 `dotnet test` 时，testhost 可能因无法打开进程句柄而报 `Win32Exception (5): 拒绝访问`（`System.Diagnostics.Process.EnableRaisingEvents` 路径）。需要给测试运行授予完整进程访问权限（例如沙箱的 `danger-full-access`）才能执行测试。
 - 在 WSL 中直接运行 Windows `dotnet.exe` 并通过管道读取输出可能卡住/超时。可将 stdout/stderr 重定向到文件再查看，例如：
   ```bash
   '/mnt/c/Program Files/dotnet/dotnet.exe' test Emuera.Headless.Tests/Emuera.Headless.Tests.csproj > /tmp/dotnet-test.log 2>&1

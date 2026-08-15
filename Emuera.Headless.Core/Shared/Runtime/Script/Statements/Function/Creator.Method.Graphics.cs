@@ -143,7 +143,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsStateMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -196,7 +196,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsStateStrMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -220,7 +220,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsGetColorMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -245,7 +245,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsSetColorMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -269,7 +269,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsSetBrushMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -359,7 +359,7 @@ internal static partial class FunctionMethodCreator
 		{
 			ReturnType = typeof(long);
 			// 私家版のバグだと思う
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -385,7 +385,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsSetDashStyleMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -545,7 +545,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsDrawLineMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -567,7 +567,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsCreateMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -605,7 +605,6 @@ internal static partial class FunctionMethodCreator
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int } },
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int } }
 				];
-			argumentTypeArray = null!;
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -630,7 +629,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsFillRectangleMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -706,7 +705,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsDrawGWithMaskMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 

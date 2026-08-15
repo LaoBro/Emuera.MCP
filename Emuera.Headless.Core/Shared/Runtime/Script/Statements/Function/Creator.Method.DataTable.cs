@@ -32,9 +32,9 @@ internal static partial class FunctionMethodCreator
 		{
 			ReturnType = typeof(long);
 			if (type == Operation.Case)
-				argumentTypeArray = [typeof(string), typeof(long)];
+				argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			else
-				argumentTypeArray = [typeof(string)];
+				argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 			op = type;
 		}
@@ -96,7 +96,7 @@ internal static partial class FunctionMethodCreator
 						new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.RefString1D }, OmitStart = 1 },
 					];
 			else
-				argumentTypeArray = [typeof(string), typeof(string)];
+				argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 			op = type;
 		}
@@ -280,7 +280,7 @@ internal static partial class FunctionMethodCreator
 		public DataTableLengthMethod(Operation type)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 			op = type;
 		}
@@ -522,7 +522,7 @@ internal static partial class FunctionMethodCreator
 		public DataTableFromXmlMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string), typeof(string), typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.String | ArgType.DisallowVoid, ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		// NativeAOT 豁免（已登记：nativeaot-verify-report.md §5.2）：DataTable.ReadXmlSchema/ReadXml

@@ -25,7 +25,7 @@ internal static partial class FunctionMethodCreator
 		public GetVarMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 
@@ -55,7 +55,7 @@ internal static partial class FunctionMethodCreator
 		public GetVarsMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -84,7 +84,7 @@ internal static partial class FunctionMethodCreator
 		public ExistVarMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 
@@ -296,7 +296,7 @@ internal static partial class FunctionMethodCreator
 		public CheckfontMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;//起動中に変わることもそうそうないはず……
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -337,7 +337,7 @@ internal static partial class FunctionMethodCreator
 		public CheckdataMethod(EraSaveFileType type)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 			this.type = type;
 		}
@@ -361,7 +361,7 @@ internal static partial class FunctionMethodCreator
 		public CheckdataStrMethod(EraSaveFileType type)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 			this.type = type;
 		}
@@ -411,7 +411,7 @@ internal static partial class FunctionMethodCreator
 		public IsSkipMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -425,7 +425,6 @@ internal static partial class FunctionMethodCreator
 		public MesSkipMethod(bool warn)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = null!;
 			CanRestructure = false;
 			this.warn = warn;
 		}
@@ -450,7 +449,7 @@ internal static partial class FunctionMethodCreator
 		public GetColorMethod(bool isDef)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = isDef;
 			defaultColor = isDef;
 		}
@@ -468,7 +467,7 @@ internal static partial class FunctionMethodCreator
 		public GetFocusColorMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -482,7 +481,7 @@ internal static partial class FunctionMethodCreator
 		public GetBGColorMethod(bool isDef)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = isDef;
 			defaultColor = isDef;
 		}
@@ -500,7 +499,7 @@ internal static partial class FunctionMethodCreator
 		public GetStyleMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 
@@ -525,7 +524,7 @@ internal static partial class FunctionMethodCreator
 		public GetFontMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -539,7 +538,7 @@ internal static partial class FunctionMethodCreator
 		public CurrentAlignMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -558,7 +557,7 @@ internal static partial class FunctionMethodCreator
 		public CurrentRedrawMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -572,7 +571,7 @@ internal static partial class FunctionMethodCreator
 		public ColorFromNameMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -598,7 +597,7 @@ internal static partial class FunctionMethodCreator
 		public ColorFromRGBMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -621,7 +620,7 @@ internal static partial class FunctionMethodCreator
 		public GetPrintCPerLineMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)

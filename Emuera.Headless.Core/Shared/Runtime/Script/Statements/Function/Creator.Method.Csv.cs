@@ -60,7 +60,7 @@ internal static partial class FunctionMethodCreator
 		public GetspcharaMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -78,7 +78,6 @@ internal static partial class FunctionMethodCreator
 		public CsvStrDataMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = null!;
 			charaStr = CharacterStrData.NAME;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int }, OmitStart = 1 },

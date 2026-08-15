@@ -28,7 +28,7 @@ internal static partial class FunctionMethodCreator
 		public MapManagementMethod(Operation type)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 			op = type;
 		}
@@ -58,12 +58,12 @@ internal static partial class FunctionMethodCreator
 			switch (type)
 			{
 				case Operation.Set:
-					argumentTypeArray = [typeof(string), typeof(string), typeof(string)]; break;
+					argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.String | ArgType.DisallowVoid, ArgType.String | ArgType.DisallowVoid } }]; break;
 				case Operation.Has:
 				case Operation.Remove:
-					argumentTypeArray = [typeof(string), typeof(string)]; break;
+					argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.String | ArgType.DisallowVoid } }]; break;
 				default:
-					argumentTypeArray = [typeof(string)]; break;
+					argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }]; break;
 			}
 			CanRestructure = false;
 			op = type;
@@ -99,9 +99,9 @@ internal static partial class FunctionMethodCreator
 			switch (type)
 			{
 				case Operation.Get:
-					argumentTypeArray = [typeof(string), typeof(string)]; break;
+					argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.String | ArgType.DisallowVoid } }]; break;
 				case Operation.ToXml:
-					argumentTypeArray = [typeof(string)]; break;
+					argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }]; break;
 				case Operation.GetKeys:
 					argumentTypeArrayEx = [
 							new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int }, OmitStart = 1 },
@@ -178,7 +178,7 @@ internal static partial class FunctionMethodCreator
 		public MapFromXmlMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string), typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)

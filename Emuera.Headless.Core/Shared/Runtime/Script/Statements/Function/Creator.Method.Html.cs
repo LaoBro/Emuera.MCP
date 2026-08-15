@@ -49,7 +49,7 @@ internal static partial class FunctionMethodCreator
 		public HtmlSubStringMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 
@@ -69,7 +69,7 @@ internal static partial class FunctionMethodCreator
 		public HtmlStringLinesMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 
@@ -118,7 +118,7 @@ internal static partial class FunctionMethodCreator
 		public HtmlPopPrintingStrMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 
@@ -136,7 +136,7 @@ internal static partial class FunctionMethodCreator
 		public HtmlToPlainTextMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -150,7 +150,7 @@ internal static partial class FunctionMethodCreator
 		public HtmlEscapeMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)

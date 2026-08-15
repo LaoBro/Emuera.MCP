@@ -221,7 +221,6 @@ internal sealed class StrForm
 		{
 			CanRestructure = true;
 			ReturnType = typeof(string);
-			argumentTypeArray = null!;
 		}
 		public override string CheckArgumentType(string name, List<AExpression> arguments) { throw new ExeEE("型チェックは呼び出し元が行うこと"); }
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments) { throw new ExeEE("戻り値の型が違う"); }

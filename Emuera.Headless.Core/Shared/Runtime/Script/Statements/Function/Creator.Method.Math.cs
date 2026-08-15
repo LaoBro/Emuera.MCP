@@ -54,7 +54,7 @@ internal static partial class FunctionMethodCreator
 		public GettimeMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -75,7 +75,7 @@ internal static partial class FunctionMethodCreator
 		public GettimesMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -89,7 +89,7 @@ internal static partial class FunctionMethodCreator
 		public GetmsMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -104,7 +104,7 @@ internal static partial class FunctionMethodCreator
 		public GetSecondMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -197,7 +197,7 @@ internal static partial class FunctionMethodCreator
 		public AbsMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -215,7 +215,7 @@ internal static partial class FunctionMethodCreator
 		public PowerMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -238,7 +238,7 @@ internal static partial class FunctionMethodCreator
 		public SqrtMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -255,7 +255,7 @@ internal static partial class FunctionMethodCreator
 		public CbrtMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -273,14 +273,14 @@ internal static partial class FunctionMethodCreator
 		public LogMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			Base = Math.E;
 			CanRestructure = true;
 		}
 		public LogMethod(double b)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			Base = b;
 			CanRestructure = true;
 		}
@@ -310,7 +310,7 @@ internal static partial class FunctionMethodCreator
 		public ExpMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -334,7 +334,7 @@ internal static partial class FunctionMethodCreator
 		public SignMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -349,7 +349,7 @@ internal static partial class FunctionMethodCreator
 		public GetLimitMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)

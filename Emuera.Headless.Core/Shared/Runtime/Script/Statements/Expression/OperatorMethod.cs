@@ -15,7 +15,6 @@ internal abstract class OperatorMethod : FunctionMethod
 {
 	public OperatorMethod()
 	{
-		argumentTypeArray = null!;
 	}
 	public override string CheckArgumentType(string name, List<AExpression> arguments) { throw new ExeEE("型チェックは呼び出し元が行うこと"); }
 }
@@ -210,7 +209,7 @@ internal static class OperatorMethodManager
 		{
 			CanRestructure = true;
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string), typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.String | ArgType.DisallowVoid } }];
 		}
 
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)

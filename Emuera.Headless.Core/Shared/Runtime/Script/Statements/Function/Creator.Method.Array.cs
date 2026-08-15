@@ -358,7 +358,7 @@ internal static partial class FunctionMethodCreator
 		public InRangeMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)

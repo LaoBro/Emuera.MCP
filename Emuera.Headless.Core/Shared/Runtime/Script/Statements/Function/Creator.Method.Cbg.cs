@@ -25,7 +25,7 @@ internal static partial class FunctionMethodCreator
 		public CBGClearMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -40,7 +40,7 @@ internal static partial class FunctionMethodCreator
 		public CBGRemoveRangeMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -61,7 +61,7 @@ internal static partial class FunctionMethodCreator
 		public CBGClearButtonMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -76,7 +76,7 @@ internal static partial class FunctionMethodCreator
 		public CBGRemoveBMapMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -91,7 +91,7 @@ internal static partial class FunctionMethodCreator
 		public CBGSetGraphicsMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -117,7 +117,7 @@ internal static partial class FunctionMethodCreator
 		public CBGSetBMapGMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -139,7 +139,7 @@ internal static partial class FunctionMethodCreator
 		public CBGSetCIMGMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string), typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Script.Statements.Function;
@@ -32,6 +33,16 @@ public sealed class FunctionMethodArgumentTypeTests
         }
 
         public static int ArrayDimsOf(string spec) => Parse(spec).ArrayDims;
+
+        public static int LastVariadicCount(string[] specs) => BuildRule(specs, -1, false).LastVariadics?.Length ?? 0;
+
+        public static string LastVariadicsSummary(string[] specs)
+        {
+            var vs = BuildRule(specs, -1, false).LastVariadics;
+            return vs == null ? "" : string.Join(",", vs.Select(v => v.type.ToString()));
+        }
+
+        public static Type TypeOf(string spec) => Parse(spec).Type;
 
         private static ArgTypeList BuildRule(string[] specs, int omitStart, bool matchVariadicGroup)
         {
@@ -217,6 +228,81 @@ public sealed class FunctionMethodArgumentTypeTests
 
         Assert.Null(method.CheckArgumentType("TEST", matchesSecond));
         Assert.NotNull(method.CheckArgumentType("TEST", matchesNone));
+    }
+
+    [Fact]
+    public void CheckArgumentType_fixed_args_rejects_null_for_required_arg()
+    {
+        var method = new TestMethod(["Int", "String"]);
+        var nullFirst = new List<AExpression> { null!, new SingleStrTerm("x") };
+        var nullSecond = new List<AExpression> { new SingleLongTerm(1), null! };
+
+        Assert.NotNull(method.CheckArgumentType("TEST", nullFirst));
+        Assert.NotNull(method.CheckArgumentType("TEST", nullSecond));
+    }
+
+    [Fact]
+    public void CheckArgumentType_empty_rule_rejects_any_arg()
+    {
+        var method = new TestMethod(Array.Empty<string>());
+        var oneArg = new List<AExpression> { new SingleLongTerm(1) };
+
+        Assert.Null(method.CheckArgumentType("TEST", new List<AExpression>()));
+        Assert.NotNull(method.CheckArgumentType("TEST", oneArg));
+    }
+
+    // ---------- LastVariadics / MatchVariadicGroup ----------
+
+    [Fact]
+    public void LastVariadics_returns_only_trailing_variadic_rules()
+    {
+        Assert.Equal(0, TestMethod.LastVariadicCount(["Int", "String"]));
+        Assert.Equal(1, TestMethod.LastVariadicCount(["Int", "VariadicInt"]));
+        Assert.Equal(2, TestMethod.LastVariadicCount(["Int", "VariadicString", "VariadicInt"]));
+        Assert.Equal("VariadicString,VariadicInt", TestMethod.LastVariadicsSummary(["Int", "VariadicString", "VariadicInt"]));
+    }
+
+    [Fact]
+    public void CheckArgumentType_match_variadic_group_accepts_complete_groups()
+    {
+        var method = new TestMethod(["Int", "VariadicString", "VariadicInt"], omitStart: 1, matchVariadicGroup: true);
+        var oneFixed = new List<AExpression> { new SingleLongTerm(1) };
+        var oneGroup = new List<AExpression> { new SingleLongTerm(1), new SingleStrTerm("a"), new SingleLongTerm(2) };
+        var twoGroups = new List<AExpression>
+        {
+            new SingleLongTerm(1),
+            new SingleStrTerm("a"), new SingleLongTerm(2),
+            new SingleStrTerm("b"), new SingleLongTerm(3),
+        };
+
+        Assert.Null(method.CheckArgumentType("TEST", oneFixed));
+        Assert.Null(method.CheckArgumentType("TEST", oneGroup));
+        Assert.Null(method.CheckArgumentType("TEST", twoGroups));
+    }
+
+    [Fact]
+    public void CheckArgumentType_match_variadic_group_rejects_partial_group()
+    {
+        var method = new TestMethod(["Int", "VariadicString", "VariadicInt"], omitStart: 1, matchVariadicGroup: true);
+        var partialGroup = new List<AExpression> { new SingleLongTerm(1), new SingleStrTerm("a") };
+
+        Assert.NotNull(method.CheckArgumentType("TEST", partialGroup));
+    }
+
+    // ---------- _ArgType.Type 语义 ----------
+
+    [Fact]
+    public void ArgType_Type_returns_long_for_int_and_string_for_string()
+    {
+        Assert.Equal(typeof(long), TestMethod.TypeOf("Int"));
+        Assert.Equal(typeof(string), TestMethod.TypeOf("String"));
+    }
+
+    [Fact]
+    public void ArgType_Type_throws_for_any_or_same_as_first()
+    {
+        Assert.Throws<InvalidOperationException>(() => TestMethod.TypeOf("Any"));
+        Assert.Throws<InvalidOperationException>(() => TestMethod.TypeOf("SameAsFirst"));
     }
 
     // ---------- 三维数组参数（修复前为红） ----------

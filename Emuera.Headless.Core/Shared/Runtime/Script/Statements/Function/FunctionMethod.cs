@@ -10,8 +10,8 @@ namespace MinorShift.Emuera.Runtime.Script.Statements.Function;
 
 internal abstract class FunctionMethod
 {
+	// 唯一参数规则源为 argumentTypeArrayEx；旧 argumentTypeArray 已废弃。
 	public Type ReturnType { get; protected set; } = null!;
-	protected Type[] argumentTypeArray = null!;
 	protected string Name { get; private set; } = null!;
 	#region EM_私家版_Emuera多言語化改造
 	protected enum ArgType
@@ -59,7 +59,15 @@ internal abstract class FunctionMethod
 		{
 			type = t;
 		}
-		public Type Type { get { return Int ? typeof(long) : typeof(string); } }
+		public Type Type
+		{
+			get
+			{
+				if (Int) return typeof(long);
+				if (String) return typeof(string);
+				throw new InvalidOperationException("_ArgType.Type is only valid for Int or String rules.");
+			}
+		}
 		public ArgType type = ArgType.Invalid;
 		public bool AllowConstRef { get { return (type & ArgType.AllowConstRef) != 0; } }
 		public bool DisallowVoid { get { return (type & ArgType.DisallowVoid) != 0; } }
@@ -96,7 +104,7 @@ internal abstract class FunctionMethod
 		public int OmitStart { get; set; } = -1;
 		public bool MatchVariadicGroup { get; set; }
 
-		public _ArgType[] LastVariadics
+		public _ArgType[]? LastVariadics
 		{
 			get
 			{
@@ -106,7 +114,7 @@ internal abstract class FunctionMethod
 					if (!ArgTypes[i].Variadic) break;
 					count++;
 				}
-				if (count == 0) return null!;
+				if (count == 0) return null;
 				var ret = new _ArgType[count];
 				for (int i = 0; i < count; i++)
 				{
@@ -116,6 +124,7 @@ internal abstract class FunctionMethod
 			}
 		}
 	}
+	// 唯一参数规则源为 argumentTypeArrayEx；旧 argumentTypeArray 已废弃并删除。
 	protected ArgTypeList[] argumentTypeArrayEx = null!;
 
 	//引数の数・型が一致するかどうかのテスト
@@ -145,12 +154,14 @@ internal abstract class FunctionMethod
 				// 引数の数が有効
 				for (int i = 0; i < (variadic ? arguments.Count : Math.Min(arguments.Count, list.ArgTypes.Count)); i++)
 				{
-					#pragma warning disable CS8602
-				var rule = variadic && i >= list!.ArgTypes.Count ? vs[(i - list!.ArgTypes.Count) % vs.Length] : list!.ArgTypes[i];
-			#pragma warning restore CS8602
-					if (arguments[i]! == null)
+					var rule = variadic && i >= list.ArgTypes.Count
+						? vs![(i - list.ArgTypes.Count) % vs.Length]
+						: list.ArgTypes[i];
+					if (arguments[i] is null)
 					{
-						if (i < list.OmitStart || list.OmitStart > -1 && i >= list.OmitStart && rule.DisallowVoid)
+						// OmitStart < 0 表示没有可省略参数；OmitStart 之前的参数也不可省略。
+						// 可省略区间内的 null 仅在规则显式 DisallowVoid 时拒绝。
+						if (list.OmitStart < 0 || i < list.OmitStart || i >= list.OmitStart && rule.DisallowVoid)
 						{
 							errMsg[idx] = string.Format(trerror.ArgCanNotBeNull.Text, name, i + 1);
 							break;
@@ -230,13 +241,16 @@ internal abstract class FunctionMethod
 				}
 				if (errMsg[idx] == null) return null!;
 			}
+			else if (list.OmitStart == -1 && list.ArgTypes.Count == 0 && !variadic)
+			{
+				// 0 参数规则：不接受任何实参（保持旧 argumentTypeArray = [] 的错误消息）
+				errMsg[idx] = string.Format(trerror.ArgsNotNeeded.Text, name);
+				continue;
+			}
 			else if (list.OmitStart == -1 && list.ArgTypes.Count > 0 && !variadic)
 			{
 				// 数固定の引数が必要
-				if (list.ArgTypes.Count > 0)
-					errMsg[idx] = string.Format(trerror.ArgsCountNotMatches.Text, name, list.ArgTypes.Count, arguments.Count);
-				else
-					errMsg[idx] = string.Format(trerror.ArgsNotNeeded.Text, name);
+				errMsg[idx] = string.Format(trerror.ArgsCountNotMatches.Text, name, list.ArgTypes.Count, arguments.Count);
 				continue;
 			}
 			// 可変長引数
@@ -265,29 +279,8 @@ internal abstract class FunctionMethod
 	}
 	public virtual string CheckArgumentType(string name, List<AExpression> arguments)
 	{
-		if (argumentTypeArrayEx != null)
-		{
-			return CheckArgumentTypeEx(name, arguments);
-		}
-		else if (argumentTypeArray != null)
-		{
-			if (arguments.Count != argumentTypeArray.Length)
-			{
-				if (argumentTypeArray.Length > 0)
-					return string.Format(trerror.ArgsCountNotMatches.Text, name, argumentTypeArray.Length, arguments.Count);
-				else
-					return string.Format(trerror.ArgsNotNeeded.Text, name);
-			}
-			for (int i = 0; i < argumentTypeArray.Length; i++)
-			{
-				if (arguments[i] == null)
-					return string.Format(trerror.ArgCanNotBeNull.Text, name, i + 1);
-				if (argumentTypeArray[i] != arguments[i].GetOperandType())
-					return argumentTypeArray[i] == typeof(string) ? string.Format(trerror.ArgIsNotStr.Text, name, i + 1)
-							: string.Format(trerror.ArgIsNotInt.Text, name, i + 1);
-			}
-		}
-		return null!;
+		// 唯一参数规则源为 argumentTypeArrayEx；未设置规则时保持旧的“不校验”行为。
+		return argumentTypeArrayEx != null ? CheckArgumentTypeEx(name, arguments) : null!;
 	}
 	#endregion
 

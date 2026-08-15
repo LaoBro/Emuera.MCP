@@ -26,7 +26,7 @@ internal static partial class FunctionMethodCreator
 		public IsDefinedMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 
@@ -156,7 +156,7 @@ internal static partial class FunctionMethodCreator
 		public MoveTextBoxMethod(bool b = false)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 			resume = b;
 		}
@@ -177,7 +177,7 @@ internal static partial class FunctionMethodCreator
 		public GetSaveNosMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -200,7 +200,7 @@ internal static partial class FunctionMethodCreator
 				funcname = "GETCONFIGS";
 				ReturnType = typeof(string);
 			}
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		private readonly string funcname;
@@ -240,7 +240,7 @@ internal static partial class FunctionMethodCreator
 		public ClientSizeMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -261,7 +261,7 @@ internal static partial class FunctionMethodCreator
 		public GraphicsDisposeMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -283,7 +283,7 @@ internal static partial class FunctionMethodCreator
 		public GetKeyStateMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -314,7 +314,7 @@ internal static partial class FunctionMethodCreator
 		public MousePosMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -333,7 +333,7 @@ internal static partial class FunctionMethodCreator
 		public MouseButtonMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -366,7 +366,7 @@ internal static partial class FunctionMethodCreator
 		public IsActiveMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -380,7 +380,7 @@ internal static partial class FunctionMethodCreator
 		public SetAnimeTimerMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -398,7 +398,7 @@ internal static partial class FunctionMethodCreator
 		public ExistSoundMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -473,7 +473,7 @@ internal static partial class FunctionMethodCreator
 		public GetUsingMemoryMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -490,7 +490,7 @@ internal static partial class FunctionMethodCreator
 		public ClearMemoryMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -512,7 +512,7 @@ internal static partial class FunctionMethodCreator
 		public GetTextBoxMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -526,7 +526,7 @@ internal static partial class FunctionMethodCreator
 		public ChangeTextBoxMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -594,7 +594,7 @@ internal static partial class FunctionMethodCreator
 		public GetDoingFunctionMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = true;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -716,7 +716,7 @@ internal static partial class FunctionMethodCreator
 		public ExistMethMethod()
 		{
 			ReturnType = typeof(Int64);
-			argumentTypeArray = new Type[] { typeof(string) };
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 

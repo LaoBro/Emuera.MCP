@@ -78,7 +78,7 @@ internal static partial class FunctionMethodCreator
 		public BarStringMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -95,7 +95,7 @@ internal static partial class FunctionMethodCreator
 		public PrintCLengthMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -109,7 +109,7 @@ internal static partial class FunctionMethodCreator
 		public StrlenMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -124,7 +124,7 @@ internal static partial class FunctionMethodCreator
 		public StrlenuMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -202,7 +202,6 @@ internal static partial class FunctionMethodCreator
 		public StrfindMethod(bool unicode)
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = null!;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.String, ArgType.Int}, OmitStart = 2 }
 				];
@@ -245,7 +244,7 @@ internal static partial class FunctionMethodCreator
 		public StrCountMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string), typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -298,7 +297,7 @@ internal static partial class FunctionMethodCreator
 		public ToIntMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 
@@ -349,14 +348,14 @@ internal static partial class FunctionMethodCreator
 		public StrChangeStyleMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			strType = StrFormType.Upper;
 			CanRestructure = true;
 		}
 		public StrChangeStyleMethod(StrFormType type)
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			strType = type;
 			CanRestructure = true;
 		}
@@ -385,7 +384,7 @@ internal static partial class FunctionMethodCreator
 		public LineIsEmptyMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [];
+			argumentTypeArrayEx = [new ArgTypeList()];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -463,7 +462,7 @@ internal static partial class FunctionMethodCreator
 		public UnicodeMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -496,7 +495,7 @@ internal static partial class FunctionMethodCreator
 		public UnicodeByteMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -516,7 +515,7 @@ internal static partial class FunctionMethodCreator
 		public ConvertIntMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(long), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.Int | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -533,7 +532,7 @@ internal static partial class FunctionMethodCreator
 		public IsNumericMethod()
 		{
 			ReturnType = typeof(long);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -574,7 +573,7 @@ internal static partial class FunctionMethodCreator
 		public EscapeMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -612,7 +611,7 @@ internal static partial class FunctionMethodCreator
 		public CharAtMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string), typeof(long)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid, ArgType.Int | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -630,7 +629,7 @@ internal static partial class FunctionMethodCreator
 		public GetLineStrMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			CanRestructure = true;
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
@@ -647,7 +646,7 @@ internal static partial class FunctionMethodCreator
 		public StrFormMethod()
 		{
 			ReturnType = typeof(string);
-			argumentTypeArray = [typeof(string)];
+			argumentTypeArrayEx = [new ArgTypeList{ ArgTypes = { ArgType.String | ArgType.DisallowVoid } }];
 			HasUniqueRestructure = true;
 			CanRestructure = true;
 		}
