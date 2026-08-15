@@ -93,31 +93,18 @@ internal static partial class FunctionMethodCreator
 		public HtmlGetPrintedStrMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int }, OmitStart = 0 }
 				];
 			CanRestructure = false;
 		}
 
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	//通常１つ。省略可能。
-		//	if (arguments.Count > 1)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments.Count == 0|| arguments[0] == null)
-		//		return null!;
-		//	if (arguments[0].GetOperandType() != typeof(Int64))
-		//		return name + "関数の1番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			long lineNo = 0;
 			if (arguments.Count > 0)
 				lineNo = arguments[0].GetIntValue(exm);
 			if (lineNo < 0)
-				// throw new CodeEE("引数を0未満にできません");
 				throw new CodeEE(string.Format(trerror.ArgIsNegative.Text, Name, 1, lineNo));
 			ConsoleDisplayLine[] dispLines = exm.Console.GetDisplayLines(lineNo)!;
 			if (dispLines == null)

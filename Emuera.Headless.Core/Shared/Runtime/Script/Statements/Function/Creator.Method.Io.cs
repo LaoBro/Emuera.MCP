@@ -52,7 +52,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (g.IsCreated)
@@ -80,7 +79,6 @@ internal static partial class FunctionMethodCreator
 				if (!SafCompat.FileExists(filepath))
 					return 0;
 				#region EM_私家版_webp
-				// bmp = new Bitmap(filepath);
 				bmp = Utils.LoadImage(filepath);
 				if (bmp == null) return 0;
 				#endregion
@@ -111,56 +109,14 @@ internal static partial class FunctionMethodCreator
 		public SaveTextMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = new Type[] { typeof(string) ,typeof(Int64), typeof(Int64), typeof(Int64) };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Any, ArgType.Int, ArgType.Int }, OmitStart = 2 },
 				];
 			CanRestructure = false;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-
-		//	if (arguments.Count < 2)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum1, name, 2);
-		//	if (arguments.Count > 4)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum2, name);
-		//	for (int i = 0; i < arguments.Count; i++)
-		//	{
-		//		if (arguments[i] == null)
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, i + 1);
-		//		#region EM_私家版_LoadText＆SaveText機能拡張
-		//		if (i == 1 && arguments[i].GetOperandType() == typeof(string)) continue;
-		//		#endregion
-		//		if (i < argumentTypeArray.Length && argumentTypeArray[i] != arguments[i].GetOperandType())
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, i + 1);
-		//	}
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			#region EM_私家版_LoadText＆SaveText機能拡張
-			//string savText = arguments[0].GetStrValue(exm);
-			//Int64 i64 = arguments[1].GetIntValue(exm);
-			//if (i64 < 0 || i64 > int.MaxValue)
-			//	return 0;
-			//bool forceSavdir = arguments.Count > 2 && (arguments[2].GetIntValue(exm) != 0);
-			//bool forceUTF8 = arguments.Count > 3 && (arguments[3].GetIntValue(exm) != 0);
-			//int fileIndex = (int)i64;
-			//string filepath = forceSavdir ?
-			//	GetSaveDataPathText(fileIndex, Config.ForceSavDir) :
-			//	GetSaveDataPathText(fileIndex, Config.SavDir);
-			//Encoding encoding = forceUTF8 ?
-			//	Encoding.GetEncoding("UTF-8") :
-			//	Config.SaveEncode;
-			//try
-			//{
-			//	if (forceSavdir)
-			//		Config.ForceCreateSavDir();
-			//	else
-			//		Config.Config.CreateSavDir();
-			//	System.IO.SafCompat.WriteAllText(filepath, savText, encoding);
-			//}
-			//catch { return 0; }
 			string savText = arguments[0].GetStrValue(exm), filepath;
 			long i64 = -1;
 			bool forceSavdir = arguments.Count > 2 && (arguments[2].GetIntValue(exm) != 0);
@@ -210,55 +166,14 @@ internal static partial class FunctionMethodCreator
 		public LoadTextMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = new Type[] { typeof(Int64), typeof(Int64), typeof(Int64) };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Any, ArgType.Int, ArgType.Int }, OmitStart = 1 },
 				];
 			CanRestructure = false;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-
-		//	if (arguments.Count < 1)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum1, name, 1);
-		//	if (arguments.Count > 3)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum2, name);
-		//	for (int i = 0; i < arguments.Count; i++)
-		//	{
-		//		if (arguments[i] == null)
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, i + 1);
-		//		#region EM_私家版_LoadText＆SaveText機能拡張
-		//		if (i == 0 && arguments[i].GetOperandType() == typeof(string)) continue;
-		//		#endregion
-		//		if (i < argumentTypeArray.Length && argumentTypeArray[i] != arguments[i].GetOperandType())
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, i + 1);
-		//	}
-		//	return null!;
-		//}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			#region EM_私家版_LoadText＆SaveText機能拡張
-			//Int64 i64 = arguments[0].GetIntValue(exm);
-			//if (i64 < 0 || i64 > int.MaxValue)
-			//	return "";
-			//bool forceSavdir = arguments.Count > 1 && (arguments[1].GetIntValue(exm) != 0);
-			//bool forceUTF8 = arguments.Count > 2 && (arguments[2].GetIntValue(exm) != 0);
-			//int fileIndex = (int)i64;
-			//string filepath = forceSavdir ?
-			//	GetSaveDataPathText(fileIndex, Config.ForceSavDir) :
-			//	GetSaveDataPathText(fileIndex, Config.SavDir);
-			//Encoding encoding = forceUTF8 ?
-			//	Encoding.GetEncoding("UTF-8") :
-			//	Config.SaveEncode;
-			//if (!System.IO.SafCompat.FileExists(filepath))
-			//	return "";
-			//string ret;
-			//try
-			//{
-			//	ret = System.IO.SafCompat.ReadAllText(filepath, encoding);
-			//}
-			//catch { return ""; }
-			//return ret;
 			string ret = "", filepath;
 			long i64 = -1;
 			bool forceSavdir = arguments.Count > 1 && (arguments[1].GetIntValue(exm) != 0);
@@ -316,7 +231,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -355,7 +269,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (g.IsCreated)
@@ -375,7 +288,6 @@ internal static partial class FunctionMethodCreator
 				if (!SafCompat.FileExists(filepath))
 					return 0;
 				#region EM_私家版_webp
-				// bmp = new Bitmap(filepath);
 				bmp = Utils.LoadImage(filepath);
 				if (bmp == null) return 0;
 				#endregion

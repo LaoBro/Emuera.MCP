@@ -96,7 +96,6 @@ internal static partial class FunctionMethodCreator
 							break;
 					}
 				}
-			// strs.Sort();
 			string[] output;
 			if (arguments.Count == 2)
 				output = ((arguments[1] as VariableTerm)!.Identifier.GetArray() as string[])!;
@@ -209,12 +208,10 @@ internal static partial class FunctionMethodCreator
 		{
 			string str = arguments[0].GetStrValue(exm);
 			if (str == null || str.Length == 0)
-				// throw new CodeEE(funcname + "関数に空文字列が渡されました");
 				throw new CodeEE(string.Format(trerror.ArgIsEmptyString.Text, Name, 1));
 			string errMes = null!;
 			SingleTerm term = ConfigData.GetConfigValueInERB(str, ref errMes)!;
 			if (errMes != null)
-				// throw new CodeEE(funcname + "関数:" + errMes);
 				throw new CodeEE(errMes);
 			return term;
 		}
@@ -224,7 +221,6 @@ internal static partial class FunctionMethodCreator
 				throw new ExeEE(funcname + "関数:不正な呼び出し");
 			SingleTerm term = GetSingleTerm(exm, arguments);
 			if (term is not SingleLongTerm singleLongTerm)
-				// throw new CodeEE(funcname + "関数:型が違います（GETCONFIGS関数を使用してください）");
 				throw new CodeEE(string.Format(trerror.InvalidType.Text, Name, "GETCONFIGS"));
 			return singleLongTerm.Int;
 		}
@@ -234,7 +230,6 @@ internal static partial class FunctionMethodCreator
 				throw new ExeEE(funcname + "関数:不正な呼び出し");
 			SingleTerm term = GetSingleTerm(exm, arguments);
 			if (term is not SingleStrTerm singleStrTerm)
-				// throw new CodeEE(funcname + "関数:型が違います（GETCONFIG関数を使用してください）");
 				throw new CodeEE(string.Format(trerror.InvalidType.Text, Name, "GETCONFIG"));
 			return singleStrTerm.Str;
 		}
@@ -272,7 +267,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -344,8 +338,6 @@ internal static partial class FunctionMethodCreator
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			//if (exm.Console.SelectingButton != null)
-			//	return exm.Console.SelectingButton.ToString();
 #if HEADLESS
 			// Headless 模式下无鼠标交互
 			return "";
@@ -395,7 +387,6 @@ internal static partial class FunctionMethodCreator
 		{
 			long i64 = arguments[0].GetIntValue(exm);
 			if (i64 < int.MinValue || i64 > short.MaxValue)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, i64, 1));
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, 1, i64, int.MinValue, int.MaxValue));
 			exm.Console.setRedrawTimer((int)i64);
 			return 1;
@@ -550,7 +541,6 @@ internal static partial class FunctionMethodCreator
 		public ErdNameMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.RefAny | ArgType.AllowConstRef, ArgType.Int, ArgType.Int }, OmitStart = 2 },
 				];
@@ -583,7 +573,6 @@ internal static partial class FunctionMethodCreator
 		public GetDisplayLineMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int }},
 				];
@@ -592,7 +581,6 @@ internal static partial class FunctionMethodCreator
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			//修正に失敗したので差し戻す
-			//long num = arguments[0].GetIntValue(exm)-exm.Console.DeletedLines;
 			long num = arguments[0].GetIntValue(exm);
 			if (num < 0 || num >= exm.Console.DisplayLineList.Count)
 				return "";
@@ -667,7 +655,6 @@ internal static partial class FunctionMethodCreator
 		public GetMethMethod()
 		{
 			ReturnType = typeof(Int64);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = new ArgTypeList[] {
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int, ArgType.VariadicAny }, OmitStart = 1 },
 				};
@@ -699,7 +686,6 @@ internal static partial class FunctionMethodCreator
 		public GetMethsMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = new ArgTypeList[] {
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.String, ArgType.VariadicAny }, OmitStart = 1 },
 				};
@@ -766,7 +752,6 @@ internal static partial class FunctionMethodCreator
 		public BitmapCacheEnableMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int }, OmitStart = 1 },
 				];
@@ -785,7 +770,6 @@ internal static partial class FunctionMethodCreator
 		public HotkeyStateMethod()
 		{
 			ReturnType = typeof(Int64);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int}, OmitStart = 1 },
 				];
@@ -807,7 +791,6 @@ internal static partial class FunctionMethodCreator
 		public HotkeyStateInitMethod()
 		{
 			ReturnType = typeof(Int64);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int}, OmitStart = 1 },
 				];
@@ -828,7 +811,6 @@ internal static partial class FunctionMethodCreator
 		public OutputlogMethod()
 		{
 			ReturnType = typeof(Int64);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int}, OmitStart = 0 },
 				];

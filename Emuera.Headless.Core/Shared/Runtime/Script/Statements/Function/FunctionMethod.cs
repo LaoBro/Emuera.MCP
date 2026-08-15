@@ -272,7 +272,6 @@ internal abstract class FunctionMethod
 		else if (argumentTypeArray != null)
 		{
 			if (arguments.Count != argumentTypeArray.Length)
-			// return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum0, name);
 			{
 				if (argumentTypeArray.Length > 0)
 					return string.Format(trerror.ArgsCountNotMatches.Text, name, argumentTypeArray.Length, arguments.Count);
@@ -282,10 +281,8 @@ internal abstract class FunctionMethod
 			for (int i = 0; i < argumentTypeArray.Length; i++)
 			{
 				if (arguments[i] == null)
-					// return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, i + 1);
 					return string.Format(trerror.ArgCanNotBeNull.Text, name, i + 1);
 				if (argumentTypeArray[i] != arguments[i].GetOperandType())
-					// return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, i + 1);
 					return argumentTypeArray[i] == typeof(string) ? string.Format(trerror.ArgIsNotStr.Text, name, i + 1)
 							: string.Format(trerror.ArgIsNotInt.Text, name, i + 1);
 			}

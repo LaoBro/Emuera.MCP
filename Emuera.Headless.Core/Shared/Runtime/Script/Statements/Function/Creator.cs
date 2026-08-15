@@ -53,11 +53,7 @@ internal static partial class FunctionMethodCreator
 			["COLOR_FROMNAME"] = new ColorFromNameMethod(),
 			["COLOR_FROMRGB"] = new ColorFromRGBMethod(),
 
-			//TODO:1810
-			//methodList["CHKVARDATA"] = new CheckdataStrMethod(EraSaveFileType.Var);
 			["CHKCHARADATA"] = new CheckdataStrMethod(EraSaveFileType.CharVar),
-			//methodList["CHKGLOBALDATA"] = new CheckdataMethod(EraSaveFileType.Global);
-			//methodList["FIND_VARDATA"] = new FindFilesMethod(EraSaveFileType.Var);
 			["FIND_CHARADATA"] = new FindFilesMethod(EraSaveFileType.CharVar),
 
 			//定数取得
@@ -312,7 +308,6 @@ internal static partial class FunctionMethodCreator
 			#region EEで追加されたやつ
 			["EXISTSOUND"] = new ExistSoundMethod(),
 			["EXISTFUNCTION"] = new ExistFunctionMethod(),
-			//["GROTATE"] = new GraphicsRotateMethod(),
 			["GDRAWGWITHROTATE"] = new GraphicsDrawGWithRotateMethod(),
 			["GDRAWTEXT"] = new GraphicsDrawStringMethod(),
 			["GGETFONT"] = new GraphicsStateStrMethod(),//("GGETFONT")

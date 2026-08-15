@@ -24,10 +24,8 @@ internal static partial class FunctionMethodCreator
 	{
 		long target = arguments[argNo].GetIntValue(exm);
 		if (target < 0)//funcname + "関数:GraphicsIDに負の値(" + target.ToString() + ")が指定されました"
-					   // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGraphicsID0, Name, target));
 			throw new CodeEE(string.Format(trerror.GIdIsNegative.Text, Name, target));
 		else if (target > int.MaxValue)//funcname + "関数:GraphicsIDの値(" + target.ToString() + ")が大きすぎます"
-									   // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGraphicsID1, Name, target));
 			throw new CodeEE(string.Format(trerror.GIdIsTooLarge.Text, Name, target));
 		return AppContents.GetGraphics((int)target);
 	}
@@ -35,10 +33,8 @@ internal static partial class FunctionMethodCreator
 	public static GraphicsImage ReadGraphics(int target)
 	{
 		if (target < 0)//funcname + "関数:GraphicsIDに負の値(" + target.ToString() + ")が指定されました"
-					   // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGraphicsID0, Name, target));
 			throw new CodeEE(string.Format(trerror.GIdIsNegative.Text, "HTML_PRINT", target));
 		else if (target > int.MaxValue)//funcname + "関数:GraphicsIDの値(" + target.ToString() + ")が大きすぎます"
-									   // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGraphicsID1, Name, target));
 			throw new CodeEE(string.Format(trerror.GIdIsTooLarge.Text, "HTML_PRINT", target));
 		return AppContents.GetGraphics(target);
 	}
@@ -47,7 +43,6 @@ internal static partial class FunctionMethodCreator
 	{
 		long c64 = arguments[argNo].GetIntValue(exm);
 		if (c64 < 0 || c64 > 0xFFFFFFFF)
-			// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodColorARGB0, Name, c64));
 			throw new CodeEE(string.Format(trerror.InvalidColorARGB.Text, Name, c64));
 		return EmuColor.FromArgb((int)(c64 >> 24) & 0xFF, (int)(c64 >> 16) & 0xFF, (int)(c64 >> 8) & 0xFF, (int)c64 & 0xFF);
 	}
@@ -56,11 +51,9 @@ internal static partial class FunctionMethodCreator
 	{
 		long x64 = arguments[argNo].GetIntValue(exm);
 		if (x64 < int.MinValue || x64 > int.MaxValue)
-			// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name,x64, argNo+1));
 			throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, argNo + 1, x64, int.MinValue, int.MaxValue));
 		long y64 = arguments[argNo + 1].GetIntValue(exm);
 		if (y64 < int.MinValue || y64 > int.MaxValue)
-			// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name,y64, argNo+1+1));
 			throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, argNo + 2, y64, int.MinValue, int.MaxValue));
 		return new EmuPoint((int)x64, (int)y64);
 	}
@@ -69,20 +62,16 @@ internal static partial class FunctionMethodCreator
 	{
 		long x64 = arguments[argNo].GetIntValue(exm);
 		if (x64 < int.MinValue || x64 > int.MaxValue)
-			// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, x64, argNo + 1));
 			throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, argNo + 1, x64, int.MinValue, int.MaxValue));
 		long y64 = arguments[argNo + 1].GetIntValue(exm);
 		if (y64 < int.MinValue || y64 > int.MaxValue)
-			// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, y64, argNo + 1 + 1));
 			throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, argNo + 2, y64, int.MinValue, int.MaxValue));
 
 		long w64 = arguments[argNo + 2].GetIntValue(exm);
 		if (w64 < int.MinValue || w64 > int.MaxValue || w64 == 0)
-			// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, w64, argNo + 2 + 1));
 			throw new CodeEE(string.Format(trerror.ArgIsOutOfRangeExcept.Text, Name, argNo + 3, w64, int.MinValue, int.MaxValue, 0));
 		long h64 = arguments[argNo + 3].GetIntValue(exm);
 		if (h64 < int.MinValue || h64 > int.MaxValue || h64 == 0)
-			// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, h64, argNo + 3 + 1));
 			throw new CodeEE(string.Format(trerror.ArgIsOutOfRangeExcept.Text, Name, argNo + 4, h64, int.MinValue, int.MaxValue, 0));
 		return new EmuRectangle((int)x64, (int)y64, (int)w64, (int)h64);
 	}
@@ -109,7 +98,6 @@ internal static partial class FunctionMethodCreator
 				e2 = p.Index2;
 			}
 			if (e1 < 0 || e2 < 0 || e1 + 5 > array.GetLength(0) || e2 + 5 > array.GetLength(1))
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGColorMatrix0, Name, e1, e2));
 				throw new CodeEE(string.Format(trerror.InvalidColorMatrix.Text, Name, e1, e2));
 			for (int x = 0; x < 5; x++)
 			{
@@ -135,10 +123,8 @@ internal static partial class FunctionMethodCreator
 				e3 = p.Index3;
 			}
 			if (e1 < 0 || e1 >= array.GetLength(0))
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGColorMatrix0, Name, e2, e3));
 				throw new CodeEE(string.Format(trerror.InvalidColorMatrix.Text, Name, e2, e3));
 			if (e2 < 0 || e3 < 0 || e2 + 5 > array.GetLength(1) || e3 + 5 > array.GetLength(2))
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGColorMatrix0, Name, e2, e3));
 				throw new CodeEE(string.Format(trerror.InvalidColorMatrix.Text, Name, e2, e3));
 			for (int x = 0; x < 5; x++)
 			{
@@ -163,7 +149,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -217,7 +202,6 @@ internal static partial class FunctionMethodCreator
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -242,7 +226,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			//失敗したら負の値を返す。他と戻り値違うけど仕方ないね
@@ -268,7 +251,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -293,7 +275,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -313,23 +294,14 @@ internal static partial class FunctionMethodCreator
 		public GraphicsSetFontMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = new Type[] { typeof(Int64), typeof(string), typeof(Int64) };
-			// argumentTypeArray = new Type[] { typeof(Int64), typeof(string), typeof(Int64), typeof(Int64) };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.String, ArgType.Int, ArgType.Int }, OmitStart = 2 }
 				];
 			CanRestructure = false;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count > 2)
-		//		return null!;
-		//	return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum1, name, 2);
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -367,7 +339,6 @@ internal static partial class FunctionMethodCreator
 						goto foundfont;
 					}
 				}
-				// styledFont = new Font(fontname, fontsize, FontStyle.Regular, GraphicsUnit.Pixel);
 				styledFont = new Font(fontname, fontsize, fs, GraphicsUnit.Pixel);
 			}
 			catch
@@ -376,7 +347,6 @@ internal static partial class FunctionMethodCreator
 			}
 		foundfont:
 			#endregion
-			// g.GSetFont(styledFont);
 			g.GSetFont(styledFont, fs);
 			return 1;
 #endif
@@ -389,14 +359,12 @@ internal static partial class FunctionMethodCreator
 		{
 			ReturnType = typeof(long);
 			// 私家版のバグだと思う
-			// argumentTypeArray = new Type[] { typeof(Int64), typeof(Int64) };
 			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
 			CanRestructure = false;
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -423,7 +391,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -439,39 +406,16 @@ internal static partial class FunctionMethodCreator
 		public GraphicsDrawStringMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = new Type[] { typeof(Int64), typeof(string), typeof(Int64), typeof(Int64) };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.String, ArgType.Int, ArgType.Int }, OmitStart = 2 }
 				];
 			CanRestructure = false;
 		}
 
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 2)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum1, name, 2);
-		//	if (arguments.Count > 4)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum2, name);
-		//	if (arguments.Count != 2 && arguments.Count != 4)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum0, name);
-
-		//	for (int i = 0; i < arguments.Count; i++)
-		//	{
-		//		if (arguments[i] == null)
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, i + 1);
-
-		//		if (i < argumentTypeArray.Length && argumentTypeArray[i] != arguments[i].GetOperandType())
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, i + 1);
-		//	}
-		//	if (arguments.Count <= 4)
-		//		return null!;
-		//	return null!;
-		//}
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -495,17 +439,12 @@ internal static partial class FunctionMethodCreator
 #else
 			//生成する画像のサイズを取得
 			var bitmap = new Bitmap(16, 16);
-			//Graphics canvas = Graphics.FromImage(bitmap);
 			var graphics = Graphics.FromImage(bitmap);
 			Font font = g.Fnt;
 			if (font == null)
 				font = new Font(Config.FontName, 100, GlobalStatic.Console.StringStyle.FontStyle, GraphicsUnit.Pixel);
 			var size = graphics.MeasureString(text, font, int.MaxValue, StringFormat.GenericTypographic);
 
-			//TextRenderer
-			//Size tsize = TextRenderer.MeasureText(canvas, text, g.Fnt,
-			//    new Size(2000, 2000), TextFormatFlags.NoPadding);
-			//test用
 			long[] resultArray = exm.VEvaluator.RESULT_ARRAY;
 			resultArray[1] = (long)size.Width;
 			resultArray[2] = (long)size.Height;
@@ -519,22 +458,14 @@ internal static partial class FunctionMethodCreator
 		public GraphicsGetTextSizeMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = new Type[] { typeof(string), typeof(string), typeof(Int64), typeof(Int64) };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.String, ArgType.Int, ArgType.Int }, OmitStart = 3 }
 				];
 			CanRestructure = false;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count > 2)
-		//		return null!;
-		//	return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum1, name, 2);
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			string text = arguments[0].GetStrValue(exm);
 #if HEADLESS
@@ -561,15 +492,10 @@ internal static partial class FunctionMethodCreator
 			}
 			Font fnt = new(fontname, fontsize, fs, GraphicsUnit.Pixel);
 			var bitmap = new Bitmap(16, 16);
-			//Graphics canvas = Graphics.FromImage(bitmap);
 			var graphics = Graphics.FromImage(bitmap);
 			var size = graphics.MeasureString(text, fnt, int.MaxValue, StringFormat.GenericTypographic);
 
-			//TextRenderer
-			//Size tsize = TextRenderer.MeasureText(canvas, text, fnt,
-			//    new Size(2000, 2000), TextFormatFlags.NoPadding);
 			long[] resultArray = exm.VEvaluator.RESULT_ARRAY;
-			//resultArray[1] = (Int64)tsize.Width;
 			resultArray[1] = (long)size.Height;
 			return (long)size.Width;
 #endif
@@ -581,26 +507,14 @@ internal static partial class FunctionMethodCreator
 		public GraphicsDrawGWithRotateMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = new Type[] { typeof(Int64), typeof(Int64), typeof(Int64), typeof(Int64), typeof(Int64) };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int }, OmitStart = 3 }
 				];
 			CanRestructure = false;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 3)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum1, name, 3);
-		//	if (arguments.Count > 5)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum2, name);
-		//	if (arguments.Count != 3 && arguments.Count != 5)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum0, name);
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage dest = ReadGraphics(Name, exm, arguments, 0);
 			if (!dest.IsCreated)
@@ -625,23 +539,6 @@ internal static partial class FunctionMethodCreator
 	}
 
 	//brushの参照がうまくいかないので保留
-	/**
-	public sealed class GraphicsGetBrushMethod : FunctionMethod
-	{
-		public GraphicsGetBrushMethod()
-		{
-			ReturnType = typeof(Int64);
-			 argumentTypeArray = [typeof(Int64)];
-			CanRestructure = false;
-		}
-		public override Int64 GetIntValue(ExpressionMediator exm, IOperandTerm[] arguments)
-		{
-			Color c = 
-			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
-			return (SolidBrush());
-		}
-	}
-	**/
 
 	public sealed class GraphicsDrawLineMethod : FunctionMethod
 	{
@@ -676,7 +573,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (g.IsCreated)
@@ -685,16 +581,12 @@ internal static partial class FunctionMethodCreator
 			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			int width = p.X; int height = p.Y;
 			if (width <= 0)//{0}関数:GraphicsのWidthに0以下の値({1})が指定されました
-						   // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGWidth0, Name, width));
 				throw new CodeEE(string.Format(trerror.GParamIsNegative.Text, Name, "Width", width));
 			else if (width > AbstractImage.MAX_IMAGESIZE)//{0}関数:GraphicsのWidthに{2}以上の値({1})が指定されました
-														 // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGWidth1, Name, width, AbstractImage.MAX_IMAGESIZE));
 				throw new CodeEE(string.Format(trerror.GParamTooLarge.Text, Name, "Width", AbstractImage.MAX_IMAGESIZE, width));
 			if (height <= 0)//{0}関数:GraphicsのHeightに0以下の値({1})が指定されました
-							// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGHeight0, Name, height));
 				throw new CodeEE(string.Format(trerror.GParamIsNegative.Text, Name, "Height", height));
 			else if (height > AbstractImage.MAX_IMAGESIZE)//{0}関数:GraphicsのHeightに{2}以上の値({1})が指定されました
-														  // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGHeight1, Name, height, AbstractImage.MAX_IMAGESIZE));
 				throw new CodeEE(string.Format(trerror.GParamTooLarge.Text, Name, "Height", AbstractImage.MAX_IMAGESIZE, height));
 
 			g.GCreate(width, height, false);
@@ -709,7 +601,6 @@ internal static partial class FunctionMethodCreator
 		public GraphicsClearMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = new Type[] { typeof(Int64), typeof(Int64) };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int } },
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int } }
@@ -717,24 +608,9 @@ internal static partial class FunctionMethodCreator
 			argumentTypeArray = null!;
 			CanRestructure = false;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-
-		//	if (arguments.Count != 2 && arguments.Count != 6)
-		//		return string.Format("{0}関数には2つもしくは6つの引数が必要です", name);
-		//	for (int i = 0; i < arguments.Count; i++)
-		//	{
-		//		if (arguments[i] == null)
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, i + 1);
-		//		if (arguments[i].GetOperandType() != typeof(Int64))
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, i + 1);
-		//	}
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			EmuColor c = ReadColor(Name, exm, arguments, 1);
@@ -760,7 +636,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
 			if (!g.IsCreated)
@@ -776,7 +651,6 @@ internal static partial class FunctionMethodCreator
 		public GraphicsDrawGMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int,
 							ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int,
@@ -789,29 +663,9 @@ internal static partial class FunctionMethodCreator
 			HasUniqueRestructure = true;
 		}
 
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 10)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum1, name, 10);
-		//	if (arguments.Count > 11)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum2, name);
-		//	for (int i = 0; i < 10; i++)
-		//	{
-		//		if (arguments[i] == null)
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, i + 1);
-		//		if (typeof(Int64) != arguments[i].GetOperandType())
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, i + 1);
-		//	}
-		//	if (arguments.Count == 10)
-		//		return null!;
-		//	if (!(arguments[10] is VariableTerm varToken) || !varToken.IsInteger || (!varToken.Identifier.IsArray2D && !varToken.Identifier.IsArray3D))
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodGraphicsColorMatrix0, name);
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage dest = ReadGraphics(Name, exm, arguments, 0);
 			if (!dest.IsCreated)
@@ -860,7 +714,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage dest = ReadGraphics(Name, exm, arguments, 0);
 			if (!dest.IsCreated)

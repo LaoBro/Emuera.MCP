@@ -105,7 +105,6 @@ internal static partial class FunctionMethodCreator
 				return -1;
 			EmuColor c = img.SpriteGetColor(p.X, p.Y);
 			//Color.ToArgb()はInt32の負の値をとることがあり、Int64にうまく変換できない？（と思ったが気のせいだった
-			//return ((long)c.A) << 24 + c.R << 16 + c.G << 8 + c.B;
 			return c.ToArgb() & 0xFFFFFFFFL;
 		}
 	}
@@ -115,45 +114,15 @@ internal static partial class FunctionMethodCreator
 		public SpriteCreateMethod()
 		{
 			ReturnType = typeof(long);
-			//  argumentTypeArray = [typeof(string)];
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int } },
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int } },
 				];
 			CanRestructure = false;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-
-		//	if (arguments.Count < 2)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum1, name, 2);
-		//	if (arguments.Count > 6)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum2, name);
-		//	if (arguments[0] == null)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, 0 + 1);
-		//	if (arguments[1] == null)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, 1 + 1);
-		//	if (arguments[0].GetOperandType() != typeof(string))
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, 0 + 1);
-		//	if (arguments[1].GetOperandType() != typeof(Int64))
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, 1 + 1);
-		//	if (arguments.Count == 2)
-		//		return null!;
-		//	if (arguments.Count != 6)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum0, name);
-		//	for (int i = 2; i < arguments.Count; i++)
-		//	{
-		//		if (arguments[i] == null)
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, i + 1);
-		//		if (arguments[i].GetOperandType() != typeof(Int64))
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, i + 1);
-		//	}
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			string imgname = arguments[0].GetStrValue(exm);
 			if (string.IsNullOrEmpty(imgname))
@@ -170,11 +139,8 @@ internal static partial class FunctionMethodCreator
 			{//四角形は正でも負でもよいが親画像の外を指してはいけない
 				rect = ReadRectangle(Name, exm, arguments, 2);
 				#region EM_私家版_SPRITECREATE範囲制限緩和
-				//if (rect.X + rect.Width < 0 || rect.X + rect.Width > g.Width || rect.Y + rect.Height < 0 || rect.Y + rect.Height > g.Height)
-				//	throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodCIMGCreateOutOfRange0, Name));
 
 				if (!rect.IntersectsWith(new EmuRectangle(0, 0, g.Width, g.Height)))
-					// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodCIMGCreateOutOfRange0, Name));
 					throw new CodeEE(string.Format(trerror.ImgRefOutOfRange.Text, Name));
 				#endregion
 			}
@@ -221,7 +187,6 @@ internal static partial class FunctionMethodCreator
 		public GraphicsDrawSpriteMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = new Type[] { typeof(Int64), typeof(string), typeof(Int64), typeof(Int64), typeof(Int64), typeof(Int64) };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.String } },
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.String, ArgType.Int, ArgType.Int } },
@@ -232,33 +197,9 @@ internal static partial class FunctionMethodCreator
 			HasUniqueRestructure = true;
 		}
 
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 2)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum1, name, 2);
-		//	if (arguments.Count > 7)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum2, name);
-		//	if (arguments.Count != 2 && arguments.Count != 4 && arguments.Count != 6 && arguments.Count != 7)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum0, name);
-
-		//	for (int i = 0; i < arguments.Count; i++)
-		//	{
-		//		if (arguments[i] == null)
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, i + 1);
-
-		//		if (i < argumentTypeArray.Length && argumentTypeArray[i] != arguments[i].GetOperandType())
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, i + 1);
-		//	}
-		//	if (arguments.Count <= 6)
-		//		return null!;
-		//	if (!(arguments[6] is VariableTerm varToken) || !varToken.IsInteger || (!varToken.Identifier.IsArray2D && !varToken.Identifier.IsArray3D))
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodGraphicsColorMatrix0, name);
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			GraphicsImage dest = ReadGraphics(Name, exm, arguments, 0);
 			if (!dest.IsCreated)
@@ -288,7 +229,6 @@ internal static partial class FunctionMethodCreator
 				GraphicsImage.GDrawCImg(img, destRect);
 				return 1;
 			}
-			//if (arguments.Count == 7)
 			destRect = ReadRectangle(Name, exm, arguments, 2);
 			float[][] cm = ReadColormatrix(Name, exm, arguments, 6);
 			GraphicsImage.GDrawCImg(img, destRect, cm);
@@ -322,7 +262,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			string imgname = arguments[0].GetStrValue(exm);
 			if (string.IsNullOrEmpty(imgname))
@@ -333,16 +272,12 @@ internal static partial class FunctionMethodCreator
 				return 0;
 			EmuPoint pos = ReadPoint(Name, exm, arguments, 1);
 			if (pos.X <= 0)//{0}関数:GraphicsのWidthに0以下の値({1})が指定されました
-						   // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGWidth0, Name, pos.X));
 				throw new CodeEE(string.Format(trerror.GParamIsNegative.Text, Name, "Width", pos.X));
 			else if (pos.X > AbstractImage.MAX_IMAGESIZE)//{0}関数:GraphicsのWidthに{2}以上の値({1})が指定されました
-														 // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGWidth1, Name, pos.X, AbstractImage.MAX_IMAGESIZE));
 				throw new CodeEE(string.Format(trerror.GParamTooLarge.Text, Name, "Width", AbstractImage.MAX_IMAGESIZE, pos.X));
 			if (pos.Y <= 0)//{0}関数:GraphicsのHeightに0以下の値({1})が指定されました
-						   // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGHeight0, Name, pos.Y));
 				throw new CodeEE(string.Format(trerror.GParamIsNegative.Text, Name, "Height", pos.Y));
 			else if (pos.Y > AbstractImage.MAX_IMAGESIZE)//{0}関数:GraphicsのHeightに{2}以上の値({1})が指定されました
-														 // throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGHeight1, Name, pos.Y, AbstractImage.MAX_IMAGESIZE));
 				throw new CodeEE(string.Format(trerror.GParamTooLarge.Text, Name, "Height", AbstractImage.MAX_IMAGESIZE, pos.Y));
 			AppContents.CreateSpriteAnime(imgname, pos.X, pos.Y);
 			return 1;
@@ -361,7 +296,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 			string imgname = arguments[0].GetStrValue(exm);
 			if (string.IsNullOrEmpty(imgname))
@@ -379,7 +313,6 @@ internal static partial class FunctionMethodCreator
 			if (rect.Width <= 0 || rect.Height <= 0 ||
 				rect.X < 0 || rect.X + rect.Width > g.Width || rect.Y < 0 || rect.Y + rect.Height > g.Height)
 				return 0;
-			//throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodCIMGCreateOutOfRange0, Name));
 			EmuPoint offset = ReadPoint(Name, exm, arguments, 6);
 			long delay = arguments[8].GetIntValue(exm);
 			if (delay <= 0 || delay > int.MaxValue)

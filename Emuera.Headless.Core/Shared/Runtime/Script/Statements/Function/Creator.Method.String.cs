@@ -139,32 +139,12 @@ internal static partial class FunctionMethodCreator
 		public SubstringMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int, ArgType.Int}, OmitStart = 1 }
 				];
 			CanRestructure = true;
 		}
 
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	//通常３つ、２つ省略可能で１～３の引数が必要。
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	if (arguments.Count > 3)
-		//		return name + "関数の引数が多すぎます";
-
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (arguments[0].GetOperandType() != typeof(string))
-		//		return name + "関数の1番目の引数の型が正しくありません";
-		//	//2、３は省略可能
-		//	if ((arguments.Count >= 2) && (arguments[1] != null) && (arguments[1].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の2番目の引数の型が正しくありません";
-		//	if ((arguments.Count >= 3) && (arguments[2] != null) && (arguments[2].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の3番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string str = arguments[0].GetStrValue(exm);
@@ -184,32 +164,12 @@ internal static partial class FunctionMethodCreator
 		public SubstringuMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int, ArgType.Int}, OmitStart = 1 }
 				];
 			CanRestructure = true;
 		}
 
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	//通常３つ、２つ省略可能で１～３の引数が必要。
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	if (arguments.Count > 3)
-		//		return name + "関数の引数が多すぎます";
-
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (arguments[0].GetOperandType() != typeof(string))
-		//		return name + "関数の1番目の引数の型が正しくありません";
-		//	//2、３は省略可能
-		//	if ((arguments.Count >= 2) && (arguments[1] != null) && (arguments[1].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の2番目の引数の型が正しくありません";
-		//	if ((arguments.Count >= 3) && (arguments[2] != null) && (arguments[2].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の3番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string str = arguments[0].GetStrValue(exm);
@@ -243,7 +203,6 @@ internal static partial class FunctionMethodCreator
 		{
 			ReturnType = typeof(long);
 			argumentTypeArray = null!;
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.String, ArgType.Int}, OmitStart = 2 }
 				];
@@ -252,26 +211,6 @@ internal static partial class FunctionMethodCreator
 		}
 
 		readonly bool unicode;
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	//通常３つ、１つ省略可能で２～３の引数が必要。
-		//	if (arguments.Count < 2)
-		//		return name + "関数には少なくとも2つの引数が必要です";
-		//	if (arguments.Count > 3)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (arguments[0].GetOperandType() != typeof(string))
-		//		return name + "関数の1番目の引数の型が正しくありません";
-		//	if (arguments[1] == null)
-		//		return name + "関数の2番目の引数は省略できません";
-		//	if (arguments[1].GetOperandType() != typeof(string))
-		//		return name + "関数の2番目の引数の型が正しくありません";
-		//	//3つ目は省略可能
-		//	if ((arguments.Count >= 3) && (arguments[2] != null) && (arguments[2].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の3番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 
@@ -318,7 +257,6 @@ internal static partial class FunctionMethodCreator
 			}
 			catch (ArgumentException e)
 			{
-				// throw new CodeEE("第2引数が正規表現として不正です：" + e.Message);
 				throw new CodeEE(string.Format(trerror.InvalidRegexArg.Text, Name, 2, e.Message));
 			}
 			return reg.Count(arguments[0].GetStrValue(exm));
@@ -330,28 +268,12 @@ internal static partial class FunctionMethodCreator
 		public ToStrMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.String }, OmitStart = 1 }
 				];
 			CanRestructure = true;
 		}
 
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	//通常2つ、1つ省略可能で1～2の引数が必要。
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	if (arguments.Count > 2)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (arguments[0].GetOperandType() != typeof(Int64))
-		//		return name + "関数の1番目の引数の型が正しくありません";
-		//	if ((arguments.Count >= 2) && (arguments[1] != null) && (arguments[1].GetOperandType() != typeof(string)))
-		//		return name + "関数の2番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			long i = arguments[0].GetIntValue(exm);
@@ -365,7 +287,6 @@ internal static partial class FunctionMethodCreator
 			}
 			catch (FormatException)
 			{
-				// throw new CodeEE("TOSTR関数の書式指定が間違っています");
 				throw new CodeEE(string.Format(trerror.InvalidFormat.Text, Name, 2));
 			}
 			return ret;
@@ -478,7 +399,6 @@ internal static partial class FunctionMethodCreator
 		public ReplaceMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = new Type[] { typeof(string), typeof(string), typeof(string) };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.String, ArgType.String, ArgType.Int }, OmitStart = 3 },
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.String, ArgType.RefString1D | ArgType.AllowConstRef, ArgType.Int } },
@@ -491,20 +411,6 @@ internal static partial class FunctionMethodCreator
 		{
 			return arguments.Count < 4 || arguments[3].GetIntValue(exm) != 1;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	//通常2つ、1つ省略可能で1～2の引数が必要。
-		//	if (arguments.Count < 3)
-		//		return name + "関数には少なくとも3つの引数が必要です";
-		//	if (arguments.Count > 4)
-		//		return name + "関数の引数が多すぎます";
-		//	for (int i = 0; i < 3; i++)
-		//		if (arguments[i].GetOperandType() != typeof(string))
-		//			return string.Format("{0}関数:{1}番目の引数が文字列ではありません", name, i + 1);
-		//	if (arguments.Count == 4 && arguments[3].GetOperandType() != typeof(Int64))
-		//		return string.Format("{0}関数:4番目の引数が整数ではありません", name);
-		//	return null!;
-		//}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string baseString = arguments[0].GetStrValue(exm);
@@ -518,7 +424,6 @@ internal static partial class FunctionMethodCreator
 				}
 				catch (ArgumentException e)
 				{
-					// throw new CodeEE("第２引数が正規表現として不正です：" + e.Message);
 					throw new CodeEE(string.Format(trerror.InvalidRegexArg.Text, Name, 2, e.Message));
 				}
 			}
@@ -565,7 +470,6 @@ internal static partial class FunctionMethodCreator
 		{
 			long i = arguments[0].GetIntValue(exm);
 			if ((i < 0) || (i > 0xFFFF))
-				// throw new CodeEE("UNICODE関数に範囲外の値(" + i.ToString() + ")が渡されました");
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, 1, i, 0, 0xFFFF));
 			//改行関係以外の制御文字は警告扱いに変更
 			//とはいえ、改行以外の制御文字を意図的に渡すのはそもそもコーディングに問題がありすぎるので、エラーでもいい気はする
@@ -573,13 +477,11 @@ internal static partial class FunctionMethodCreator
 			{
 				//コード実行中の場合
 				if (GlobalStatic.Process.getCurrentLine != null)
-					// GlobalStatic.Console.PrintSystemLine("注意:" + GlobalStatic.Process.getCurrentLine.Position!.Value.Filename + "の" + GlobalStatic.Process.getCurrentLine.Position!.Value.LineNo.ToString() + "行目でUNICODE関数に制御文字に対応する値(0x" + String.Format("{0:X}", i) + ")が渡されました");
 					GlobalStatic.Console.PrintSystemLine(string.Format(trerror.WarnPrefix.Text,
 						GlobalStatic.Process.getCurrentLine.Position!.Value.Filename,
 						GlobalStatic.Process.getCurrentLine.Position!.Value.LineNo,
 						string.Format(trerror.InvalidUnicode.Text, Name, i)));
 				else
-					//ParserMediator.Warn("UNICODE関数に制御文字に対応する値(0x" + String.Format("{0:X}", i) + ")が渡されました", GlobalStatic.Process.scaningLine, 1, false, false, null);
 					ParserMediator.Warn(string.Format(trerror.InvalidUnicode.Text, Name, i), GlobalStatic.Process.scaningLine, 1, false, false, null!);
 				return "";
 			}
@@ -621,7 +523,6 @@ internal static partial class FunctionMethodCreator
 		{
 			long toBase = arguments[1].GetIntValue(exm);
 			if ((toBase != 2) && (toBase != 8) && (toBase != 10) && (toBase != 16))
-				// new CodeEE("CONVERT関数の第２引数は2, 8, 10, 16のいずれかでなければなりません");
 				throw new CodeEE(string.Format(trerror.ArgShouldBeSpecificValue.Text, Name, 2, "2, 8, 10, 16"));
 			return Convert.ToString(arguments[0].GetIntValue(exm), (int)toBase);
 		}
@@ -687,27 +588,11 @@ internal static partial class FunctionMethodCreator
 		public EncodeToUniMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = new Type[] { null };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int }, OmitStart = 1 },
 				];
 			CanRestructure = true;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	//通常2つ、1つ省略可能で1～2の引数が必要。
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	if (arguments.Count > 2)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (arguments[0].GetOperandType() != typeof(string))
-		//		return name + "関数の1番目の引数の型が正しくありません";
-		//	if ((arguments.Count >= 2) && (arguments[1] != null) && (arguments[1].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の2番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string baseStr = arguments[0].GetStrValue(exm);
@@ -715,10 +600,8 @@ internal static partial class FunctionMethodCreator
 				return -1;
 			long position = (arguments.Count > 1 && arguments[1] != null) ? arguments[1].GetIntValue(exm) : 0;
 			if (position < 0)
-				// throw new CodeEE("ENCOIDETOUNI関数の第２引数(" + position.ToString() + ")が負の値です");
 				throw new CodeEE(string.Format(trerror.ArgIsNegative.Text, Name, 2, position));
 			if (position >= baseStr.Length)
-				// throw new CodeEE("ENCOIDETOUNI関数の第２引数(" + position.ToString() + ")が第１引数の文字列(" + baseStr + ")の文字数を超えています");
 				throw new CodeEE(string.Format(trerror.EncodeToUni2ndArgError.Text, Name, position, baseStr));
 			return char.ConvertToUtf32(baseStr, (int)position);
 		}
@@ -754,7 +637,6 @@ internal static partial class FunctionMethodCreator
 		{
 			string str = arguments[0].GetStrValue(exm);
 			if (string.IsNullOrEmpty(str))
-				// throw new CodeEE("GETLINESTR関数の引数が空文字列です");
 				throw new CodeEE(string.Format(trerror.ArgIsEmptyString.Text, Name, 1));
 			return exm.Console.getStBar(str);
 		}
@@ -781,12 +663,10 @@ internal static partial class FunctionMethodCreator
 			}
 			catch (CodeEE e)
 			{
-				// throw new CodeEE("STRFORM関数:文字列\"" + str + "\"の展開エラー:" + e.Message);
 				throw new CodeEE(string.Format(trerror.InvalidFormString.Text, Name, str, e.Message));
 			}
 			catch
 			{
-				// throw new CodeEE("STRFORM関数:文字列\"" + str+ "\"の展開処理中にエラーが発生しました");
 				throw new CodeEE(string.Format(trerror.UnexectedFormStringErr.Text, Name, str));
 			}
 			return destStr;
@@ -822,40 +702,12 @@ internal static partial class FunctionMethodCreator
 		public JoinMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.RefAnyArray | ArgType.AllowConstRef, ArgType.String, ArgType.Int, ArgType.Int }, OmitStart = 1 },
 				];
 			HasUniqueRestructure = true;
 			CanRestructure = true;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	if (arguments.Count > 4)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (!(arguments[0] is VariableTerm))
-		//		return name + "関数の1番目の引数が変数ではありません";
-		//	VariableTerm varToken = (VariableTerm)arguments[0];
-		//	if (!varToken.Identifier.IsArray1D && !varToken.Identifier.IsArray2D && !varToken.Identifier.IsArray3D)
-		//		return name + "関数の1番目の引数が配列変数ではありません";
-		//	if (arguments.Count == 1)
-		//		return null!;
-		//	if ((arguments[1] != null) && (arguments[1].GetOperandType() != typeof(string)))
-		//		return name + "関数の2番目の変数が文字列ではありません";
-		//	if (arguments.Count == 2)
-		//		return null!;
-		//	if ((arguments[2] != null) && (arguments[2].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の3番目の変数が数値ではありません";
-		//	if (arguments.Count == 3)
-		//		return null!;
-		//	if ((arguments[3] != null) && (arguments[3].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の4番目の変数が数値ではありません";
-		//	return null!;
-		//}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			VariableTerm varTerm = (VariableTerm)arguments[0];
@@ -866,7 +718,6 @@ internal static partial class FunctionMethodCreator
 			FixedVariableTerm p = varTerm.GetFixedVariableTerm(exm);
 
 			if (index2 < 0)
-				// throw new CodeEE("STRJOINの第4引数(" + index2.ToString()+ ")が負の値になっています");
 				throw new CodeEE(string.Format(trerror.ArgIsNegative.Text, Name, 4, index2));
 
 			p.IsArrayRangeValid(index1, index1 + index2, "STRJOIN", 2L, 3L);

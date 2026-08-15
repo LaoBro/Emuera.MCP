@@ -30,8 +30,6 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			//if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-			//	throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 			// CBG_Clear: WinForms-only stub removed in Headless
 			return 1;
 		}
@@ -68,8 +66,6 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			//if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-			//	throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 			// CBG_ClearButton: WinForms-only stub removed in Headless
 			return 1;
 		}
@@ -85,8 +81,6 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			//if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-			//	throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 			// CBG_ClearBMap: WinForms-only stub removed in Headless
 			return 1;
 		}
@@ -103,7 +97,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
@@ -112,7 +105,6 @@ internal static partial class FunctionMethodCreator
 			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			long z64 = arguments[3].GetIntValue(exm);
 			if (z64 < int.MinValue || z64 > int.MaxValue || z64 == 0)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, z64, 3 + 1));
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRangeExcept.Text, Name, 4, z64, int.MinValue, int.MaxValue, 0));
 			// CBG_SetGraphics: WinForms-only stub removed in Headless
 			return 1;
@@ -131,7 +123,6 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 
 			GraphicsImage g = ReadGraphics(Name, exm, arguments, 0);
@@ -153,8 +144,6 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			//if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-			//	throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 
 			string imgname = arguments[0].GetStrValue(exm);
 			ASprite img = AppContents.GetSprite(imgname);
@@ -163,7 +152,6 @@ internal static partial class FunctionMethodCreator
 			EmuPoint p = ReadPoint(Name, exm, arguments, 1);
 			long z64 = arguments[3].GetIntValue(exm);
 			if (z64 < int.MinValue || z64 > int.MaxValue || z64 == 0)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, z64, 3 + 1));
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRangeExcept.Text, Name, 4, z64, int.MinValue, int.MaxValue, 0));
 			// CBG_SetImage: WinForms-only stub removed in Headless
 			return 1;
@@ -176,36 +164,14 @@ internal static partial class FunctionMethodCreator
 		public CBGSETButtonSpriteMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = new Type[] { typeof(Int64), typeof(string), typeof(string), typeof(Int64), typeof(Int64), typeof(Int64), typeof(string) };
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.String, ArgType.String, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.String }, OmitStart = 6 },
 				];
 			CanRestructure = false;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-
-		//	if (arguments.Count < 6)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum1, name, 6);
-		//	if (arguments.Count > 7)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum2, name);
-		//	if (arguments.Count != 6 && arguments.Count != 7)
-		//		return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNum0, name);
-
-		//	for (int i = 0; i < arguments.Count; i++)
-		//	{
-		//		if (arguments[i] == null)
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentNotNullable0, name, i + 1);
-
-		//		if (i < argumentTypeArray.Length && argumentTypeArray[i] != arguments[i].GetOperandType())
-		//			return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, i + 1);
-		//	}
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodGDIPLUSOnly, Name));
 				throw new CodeEE(string.Format(trerror.GDIPlusOnly.Text, Name));
 
 			long b64 = arguments[0].GetIntValue(exm);
@@ -219,7 +185,6 @@ internal static partial class FunctionMethodCreator
 			EmuPoint p = ReadPoint(Name, exm, arguments, 3);
 			long z64 = arguments[5].GetIntValue(exm);
 			if (z64 < int.MinValue || z64 > int.MaxValue || z64 == 0)
-				// throw new CodeEE(string.Format(Properties.Resources.RuntimeErrMesMethodDefaultArgumentOutOfRange0, Name, z64, 5 + 1));
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRangeExcept.Text, Name, 6, z64, int.MinValue, int.MaxValue, 0));
 			string tooltip = null!;
 			if (arguments.Count > 6)

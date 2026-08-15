@@ -256,7 +256,6 @@ internal static partial class FunctionMethodCreator
 		public VarsizeMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int }, OmitStart = 1 },
 				];
@@ -264,35 +263,10 @@ internal static partial class FunctionMethodCreator
 			//1808beta009 参照型変数の追加によりちょっと面倒になった
 			HasUniqueRestructure = true;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	if (arguments.Count > 2)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (!arguments[0].IsString)
-		//		return name + "関数の1番目の引数が文字列ではありません";
-		//	if (arguments[0] is SingleTerm)
-		//	{
-		//		string varName = ((SingleTerm)arguments[0]).Text;
-		//		if (GlobalStatic.IdentifierDictionary.GetVariableToken(varName, null, true) == null)
-		//			return name + "関数の1番目の引数が変数名ではありません";
-		//	}
-		//	if (arguments.Count == 1)
-		//		return null!;
-		//	if ((arguments[1] != null) && (arguments[1].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の2番目の変数が数値ではありません";
-		//	if (arguments.Count == 2)
-		//		return null!;
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			VariableToken var = GlobalStatic.IdentifierDictionary.GetVariableToken(arguments[0].GetStrValue(exm), null!, true);
 			if (var == null)
-				// throw new CodeEE("VARSIZEの1番目の引数(\"" + arguments[0].GetStrValue(exm) + "\")が変数名ではありません");
 				throw new CodeEE(string.Format(trerror.NotVariableName.Text, Name, 1, arguments[0].GetStrValue(exm)));
 			int dim = 0;
 			if (arguments.Count == 2 && arguments[1] != null)
@@ -373,10 +347,8 @@ internal static partial class FunctionMethodCreator
 		{
 			long target = arguments[0].GetIntValue(exm);
 			if (target < 0)
-				// throw new CodeEE(Name + "の引数に負の値(" + target.ToString() + ")が指定されました");
 				throw new CodeEE(string.Format(trerror.ArgIsNegative.Text, Name, 1, target));
 			else if (target > int.MaxValue)
-				// throw new CodeEE(Name + "の引数(" + target.ToString() + ")が大きすぎます");
 				throw new CodeEE(string.Format(trerror.ArgIsTooLarge.Text, Name, 1, target));
 			EraDataResult result = exm.VEvaluator.CheckData((int)target, type);
 			exm.VEvaluator.RESULTS = result.DataMes;
@@ -409,7 +381,6 @@ internal static partial class FunctionMethodCreator
 		public FindFilesMethod(EraSaveFileType type)
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.String }, OmitStart = 0 },
 				];
@@ -419,16 +390,6 @@ internal static partial class FunctionMethodCreator
 
 		readonly EraSaveFileType type;
 
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count > 1)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments.Count == 0 || arguments[0] == null)
-		//		return null!;
-		//	if (!arguments[0].IsString)
-		//		return name + "関数の1番目の引数が文字列ではありません";
-		//	return null!;
-		//}
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
@@ -473,10 +434,8 @@ internal static partial class FunctionMethodCreator
 		public override string CheckArgumentType(string name, List<AExpression> arguments)
 		{
 			if (arguments.Count > 0)
-				// return name + "関数の引数が多すぎます";
 				return string.Format(trerror.TooManyFuncArgs.Text, name);
 			if (warn)
-				// ParserMediator.Warn("関数MOUSESKIP()は推奨されません。代わりに関数MESSKIP()を使用してください", GlobalStatic.Process.GetScaningLine(), 1, false, false, null);
 				ParserMediator.Warn(string.Format(trerror.FuncDeprecated.Text, name, "MESSKIP"), GlobalStatic.Process.GetScaningLine(), 1, false, false, null!);
 			return null!;
 		}
@@ -627,9 +586,7 @@ internal static partial class FunctionMethodCreator
 			else
 			{
 				if (colorName.Equals("transparent", StringComparison.OrdinalIgnoreCase))
-					// throw new CodeEE("無色透明(Transparent)は色として指定できません");
 					throw new CodeEE(trerror.TransparentUnsupported.Text);
-				//throw new CodeEE("指定された色名\"" + colorName + "\"は無効な色名です");
 				i = -1;
 			}
 			return i;
@@ -648,15 +605,12 @@ internal static partial class FunctionMethodCreator
 		{
 			long r = arguments[0].GetIntValue(exm);
 			if (r < 0 || r > 255)
-				// throw new CodeEE("第１引数が0から255の範囲外です");
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, 1, r, 0, 255));
 			long g = arguments[1].GetIntValue(exm);
 			if (g < 0 || g > 255)
-				// throw new CodeEE("第２引数が0から255の範囲外です");
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, 2, g, 0, 255));
 			long b = arguments[2].GetIntValue(exm);
 			if (b < 0 || b > 255)
-				// throw new CodeEE("第３引数が0から255の範囲外です");
 				throw new CodeEE(string.Format(trerror.ArgIsOutOfRange.Text, Name, 3, b, 0, 255));
 			return (r << 16) + (g << 8) + b;
 		}

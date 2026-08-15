@@ -182,7 +182,6 @@ internal static partial class FunctionMethodCreator
 		public SumArrayMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.RefIntArray, ArgType.Int, ArgType.Int }, OmitStart = 1 },
 				];
@@ -192,40 +191,12 @@ internal static partial class FunctionMethodCreator
 		public SumArrayMethod(bool isChara)
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.CharacterData | ArgType.RefIntArray | ArgType.AllowConstRef, ArgType.Int, ArgType.Int }, OmitStart = 1 }
 				];
 			isCharaRange = isChara;
 			CanRestructure = false;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	if (arguments.Count > 3)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (!(arguments[0] is VariableTerm))
-		//		return name + "関数の1番目の引数が変数ではありません";
-		//	VariableTerm varToken = (VariableTerm)arguments[0];
-		//	if (varToken.IsString)
-		//		return name + "関数の1番目の引数が数値変数ではありません";
-		//	if (isCharaRange && !varToken.Identifier.IsCharacterData)
-		//		return name + "関数の1番目の引数がキャラクタ変数ではありません";
-		//	if (!isCharaRange && !varToken.Identifier.IsArray1D && !varToken.Identifier.IsArray2D && !varToken.Identifier.IsArray3D)
-		//		return name + "関数の1番目の引数が配列変数ではありません";
-		//	if (arguments.Count == 1)
-		//		return null!;
-		//	if ((arguments[1] != null) && (arguments[1].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の2番目の変数が数値ではありません";
-		//	if (arguments.Count == 2)
-		//		return null!;
-		//	if ((arguments[2] != null) && (arguments[2].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の3番目の変数が数値ではありません";
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			VariableTerm varTerm = (VariableTerm)arguments[0];
@@ -242,7 +213,6 @@ internal static partial class FunctionMethodCreator
 			{
 				long charaNum = exm.VEvaluator.CHARANUM;
 				if (index1 >= charaNum || index1 < 0 || index2 > charaNum || index2 < 0)
-					// throw new CodeEE("SUMCARRAY関数の範囲指定がキャラクタ配列の範囲を超えています(" + index1.ToString() + "～" + index2.ToString() + ")");
 					throw new CodeEE(string.Format(trerror.CharacterRangeInvalid.Text, Name, index1, index2));
 				return VariableEvaluator.GetArraySumChara(p, index1, index2);
 			}
@@ -257,7 +227,6 @@ internal static partial class FunctionMethodCreator
 		public MaxArrayMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int }, OmitStart = 1 },
 				];
@@ -269,7 +238,6 @@ internal static partial class FunctionMethodCreator
 		public MaxArrayMethod(bool isChara)
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.CharacterData | ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int }, OmitStart = 1 },
 				];
@@ -284,7 +252,6 @@ internal static partial class FunctionMethodCreator
 		public MaxArrayMethod(bool isChara, bool isMaxFunc)
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = isChara
 				? [
 						new ArgTypeList{ ArgTypes = { ArgType.CharacterData | ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int }, OmitStart = 1 },
@@ -297,31 +264,6 @@ internal static partial class FunctionMethodCreator
 			funcName = (isMax ? "MAX" : "MIN") + (isCharaRange ? "C" : "") + "ARRAY";
 			CanRestructure = false;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	if (arguments.Count > 3)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (!(arguments[0] is VariableTerm))
-		//		return name + "関数の1番目の引数が変数ではありません";
-		//	VariableTerm varToken = (VariableTerm)arguments[0];
-		//	if (isCharaRange && !varToken.Identifier.IsCharacterData)
-		//		return name + "関数の1番目の引数がキャラクタ変数ではありません";
-		//	if (!varToken.IsInteger)
-		//		return name + "関数の1番目の引数が数値変数ではありません";
-		//	if (!isCharaRange && (varToken.Identifier.IsArray2D || varToken.Identifier.IsArray3D))
-		//		return name + "関数は二重配列・三重配列には対応していません";
-		//	if (!varToken.Identifier.IsArray1D)
-		//		return name + "関数の1番目の引数が配列変数ではありません";
-		//	if ((arguments.Count >= 2) && (arguments[1] != null) && (arguments[1].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の2番目の引数の型が正しくありません";
-		//	if ((arguments.Count >= 3) && (arguments[2] != null) && (arguments[2].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の3番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			VariableTerm vTerm = (VariableTerm)arguments[0];
@@ -348,7 +290,6 @@ internal static partial class FunctionMethodCreator
 		public FindElementMethod(bool last)
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.RefAny1D | ArgType.AllowConstRef, ArgType.SameAsFirst, ArgType.Int, ArgType.Int, ArgType.Int }, OmitStart = 2 },
 				];
@@ -360,33 +301,6 @@ internal static partial class FunctionMethodCreator
 
 		readonly bool isLast;
 		readonly string funcName;
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 2)
-		//		return name + "関数には少なくとも2つの引数が必要です";
-		//	if (arguments.Count > 5)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (!(arguments[0] is VariableTerm varToken))
-		//		return name + "関数の1番目の引数が変数ではありません";
-		//	if (varToken.Identifier.IsArray2D || varToken.Identifier.IsArray3D)
-		//		return name + "関数は二重配列・三重配列には対応していません";
-		//	if (!varToken.Identifier.IsArray1D)
-		//		return name + "関数の1番目の引数が配列変数ではありません";
-		//	Type baseType = arguments[0].GetOperandType();
-		//	if (arguments[1] == null)
-		//		return name + "関数の2番目の引数は省略できません";
-		//	if (arguments[1].GetOperandType() != baseType)
-		//		return name + "関数の2番目の引数の型が正しくありません";
-		//	if ((arguments.Count >= 3) && (arguments[2] != null) && (arguments[2].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の3番目の引数の型が正しくありません";
-		//	if ((arguments.Count >= 4) && (arguments[3] != null) && (arguments[3].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の4番目の引数の型が正しくありません";
-		//	if ((arguments.Count >= 5) && (arguments[4] != null) && (arguments[4].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の5番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
@@ -415,7 +329,6 @@ internal static partial class FunctionMethodCreator
 				}
 				catch (ArgumentException e)
 				{
-					// throw new CodeEE("第2引数が正規表現として不正です");
 					throw new CodeEE(string.Format(trerror.InvalidRegexArg.Text, Name, 2, e.Message));
 				}
 				return VariableEvaluator.FindElement(p, targetString, start, end, isExact, isLast);
@@ -462,7 +375,6 @@ internal static partial class FunctionMethodCreator
 		public InRangeArrayMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int }, OmitStart = 3 },
 				];
@@ -471,7 +383,6 @@ internal static partial class FunctionMethodCreator
 		public InRangeArrayMethod(bool isChara)
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.CharacterData | ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int }, OmitStart = 3 },
 				];
@@ -479,39 +390,6 @@ internal static partial class FunctionMethodCreator
 			CanRestructure = false;
 		}
 		private readonly bool isCharaRange;
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 2)
-		//		return name + "関数には少なくとも2つの引数が必要です";
-		//	if (arguments.Count > 6)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (!(arguments[0] is VariableTerm))
-		//		return name + "関数の1番目の引数が変数ではありません";
-		//	VariableTerm varToken = (VariableTerm)arguments[0];
-		//	if (isCharaRange && !varToken.Identifier.IsCharacterData)
-		//		return name + "関数の1番目の引数がキャラクタ変数ではありません";
-		//	if (!isCharaRange && (varToken.Identifier.IsArray2D || varToken.Identifier.IsArray3D))
-		//		return name + "関数は二重配列・三重配列には対応していません";
-		//	if (!isCharaRange && !varToken.Identifier.IsArray1D)
-		//		return name + "関数の1番目の引数が配列変数ではありません";
-		//	if (!varToken.IsInteger)
-		//		return name + "関数の1番目の引数が数値型変数ではありません";
-		//	if (arguments[1] == null)
-		//		return name + "関数の2番目の引数は省略できません";
-		//	if (arguments[1].GetOperandType() != typeof(Int64))
-		//		return name + "関数の2番目の引数が数値型ではありません";
-		//	if (arguments[2] == null)
-		//		return name + "関数の3番目の引数は省略できません";
-		//	if (arguments[2].GetOperandType() != typeof(Int64))
-		//		return name + "関数の3番目の引数が数値型ではありません";
-		//	if ((arguments.Count >= 4) && (arguments[3] != null) && (arguments[3].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の4番目の引数の型が正しくありません";
-		//	if ((arguments.Count >= 5) && (arguments[4] != null) && (arguments[4].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の5番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			long min = arguments[1].GetIntValue(exm);
@@ -532,7 +410,6 @@ internal static partial class FunctionMethodCreator
 			{
 				long charaNum = exm.VEvaluator.CHARANUM;
 				if (start >= charaNum || start < 0 || end > charaNum || end < 0)
-					// throw new CodeEE("INRANGECARRAY関数の範囲指定がキャラクタ配列の範囲を超えています(" + start.ToString() + "～" + end.ToString() + ")");
 					throw new CodeEE(string.Format(trerror.CharacterRangeInvalid.Text, Name, start, end));
 				return VariableEvaluator.GetInRangeArrayChara(p, min, max, start, end);
 			}
@@ -544,35 +421,12 @@ internal static partial class FunctionMethodCreator
 		public ArrayMultiSortMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.RefAny1D, ArgType.RefAnyArray | ArgType.Variadic }, OmitStart = 1 },
 				];
 			CanRestructure = false;
 			HasUniqueRestructure = true;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 2)
-		//		return string.Format("{0}関数:少なくとも{1}の引数が必要です", name, 2);
-		//	for (int i = 0; i < arguments.Count; i++)
-		//	{
-		//		if (arguments[i] == null)
-		//			return string.Format("{0}関数:{1}番目の引数は省略できません", name, i + 1);
-		//		if (!(arguments[i] is VariableTerm varTerm) || varTerm.Identifier.IsCalc || varTerm.Identifier.IsConst)
-		//			return string.Format("{0}関数:{1}番目の引数が変数ではありません", name, i + 1);
-		//		if (varTerm.Identifier.IsCharacterData)
-		//			return string.Format("{0}関数:{1}番目の引数がキャラクタ変数です", name, i + 1);
-		//		if (i == 0 && !varTerm.Identifier.IsArray1D)
-		//			return string.Format("{0}関数:{1}番目の引数が一次元配列ではありません", name, i + 1);
-		//		#region EM_私家版_ARRAYMSORT_三次元配列修正
-		//		//if (!varTerm.Identifier.IsArray1D && !varTerm.Identifier.IsArray2D && !varTerm.Identifier.IsArray2D)
-		//		if (!varTerm.Identifier.IsArray1D && !varTerm.Identifier.IsArray2D && !varTerm.Identifier.IsArray3D)
-		//			return string.Format("{0}関数:{1}番目の引数が配列変数ではありません", name, i + 1);
-		//		#endregion
-		//	}
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			VariableTerm varTerm = (arguments[0] as VariableTerm)!;
@@ -601,7 +455,6 @@ internal static partial class FunctionMethodCreator
 				{
 					if (string.IsNullOrEmpty(array[i]))
 						#region EM_私家版_ARRAYMSORT_文字列配列処理修正
-						//return 0;
 						break;
 					#endregion
 					sortList.Add(new KeyValuePair<string, int>(array[i], i));
@@ -682,7 +535,6 @@ internal static partial class FunctionMethodCreator
 									array[i, x, y] = clone[sortedArray[i], x, y];
 					}
 				}
-				// else { throw new ExeEE("異常な配列"); }
 				else { throw new ExeEE(trerror.AbnormalArray.Text); }
 			}
 			return 1;

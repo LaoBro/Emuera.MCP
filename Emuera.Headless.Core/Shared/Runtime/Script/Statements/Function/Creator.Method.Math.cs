@@ -25,27 +25,11 @@ internal static partial class FunctionMethodCreator
 		public MoneyStrMethod()
 		{
 			ReturnType = typeof(string);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.String}, OmitStart = 1 }
 				];
 			CanRestructure = true;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	//通常2つ、1つ省略可能で1～2の引数が必要。
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	if (arguments.Count > 2)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments[0] == null)
-		//		return name + "関数の1番目の引数は省略できません";
-		//	if (arguments[0].GetOperandType() != typeof(Int64))
-		//		return name + "関数の1番目の引数の型が正しくありません";
-		//	if ((arguments.Count >= 2) && (arguments[1] != null) && (arguments[1].GetOperandType() != typeof(string)))
-		//		return name + "関数の2番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			long money = arguments[0].GetIntValue(exm);
@@ -59,7 +43,6 @@ internal static partial class FunctionMethodCreator
 			}
 			catch (FormatException)
 			{
-				// throw new CodeEE("MONEYSTR関数の第2引数の書式指定が間違っています");
 				throw new CodeEE(string.Format(trerror.InvalidFormat.Text, Name, 2));
 			}
 			return Config.MoneyFirst ? Config.MoneyLabel + ret : ret + Config.MoneyLabel;
@@ -137,35 +120,12 @@ internal static partial class FunctionMethodCreator
 		public RandMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int}, OmitStart = 1 }
 				];
 			CanRestructure = false;
 		}
 
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	//通常2つ、1つ省略可能で1～2の引数が必要。
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	if (arguments.Count > 2)
-		//		return name + "関数の引数が多すぎます";
-		//	if (arguments.Count == 1)
-		//	{
-		//		if (arguments[0] == null)
-		//			return name + "関数には少なくとも1つの引数が必要です";
-		//		if ((arguments[0].GetOperandType() != typeof(Int64)))
-		//			return name + "関数の1番目の引数の型が正しくありません";
-		//		return null!;
-		//	}
-		//	//1番目は省略可能
-		//	if ((arguments[0] != null) && (arguments[0].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の1番目の引数の型が正しくありません";
-		//	if ((arguments[1] != null) && (arguments[1].GetOperandType() != typeof(Int64)))
-		//		return name + "関数の2番目の引数の型が正しくありません";
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			long min = 0;
@@ -181,10 +141,8 @@ internal static partial class FunctionMethodCreator
 			if (max <= min)
 			{
 				if (min == 0)
-					// throw new CodeEE("RANDの最大値に0以下の値(" + max.ToString() + ")が指定されました");
 					throw new CodeEE(string.Format(trerror.NegativeMaximum.Text, Name, max));
 				else
-					// throw new CodeEE("RANDの最大値に最小値以下の値(" + max.ToString() + ")が指定されました");
 					throw new CodeEE(string.Format(trerror.MaximumLowerThanMinimum.Text, Name, max));
 			}
 			return exm.VEvaluator.GetNextRand(max - min) + min;
@@ -197,7 +155,6 @@ internal static partial class FunctionMethodCreator
 		public MaxMethod()
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.VariadicInt}, OmitStart = 1 }
 				];
@@ -207,26 +164,12 @@ internal static partial class FunctionMethodCreator
 		public MaxMethod(bool max)
 		{
 			ReturnType = typeof(long);
-			// argumentTypeArray = null;
 			argumentTypeArrayEx = [
 					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.VariadicInt}, OmitStart = 1 }
 				];
 			isMax = max;
 			CanRestructure = true;
 		}
-		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
-		//{
-		//	if (arguments.Count < 1)
-		//		return name + "関数には少なくとも1つの引数が必要です";
-		//	for (int i = 0; i < arguments.Count; i++)
-		//	{
-		//		if (arguments[i] == null)
-		//			return name + "関数の" + (i + 1).ToString() + "番目の引数は省略できません";
-		//		if (arguments[i].GetOperandType() != typeof(Int64))
-		//			return name + "関数の" + (i + 1).ToString() + "番目の引数の型が正しくありません";
-		//	}
-		//	return null!;
-		//}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			long ret = arguments[0].GetIntValue(exm);
@@ -281,13 +224,10 @@ internal static partial class FunctionMethodCreator
 			long y = arguments[1].GetIntValue(exm);
 			double pow = Math.Pow(x, y);
 			if (double.IsNaN(pow))
-				// throw new CodeEE("累乗結果が非数値です");
 				throw new CodeEE(string.Format(trerror.ResultIsNaN.Text, Name));
 			else if (double.IsInfinity(pow))
-				//throw new CodeEE("累乗結果が無限大です");
 				throw new CodeEE(string.Format(trerror.ResultIsInfinity.Text, Name));
 			else if ((pow >= long.MaxValue) || (pow <= long.MinValue))
-				//throw new CodeEE("累乗結果(" + pow.ToString() + ")が64ビット符号付き整数の範囲外です");
 				throw new CodeEE(string.Format(trerror.ResultIsOutOfTheRangeOfInt64.Text, Name, pow));
 			return (long)pow;
 		}
@@ -305,7 +245,6 @@ internal static partial class FunctionMethodCreator
 		{
 			long ret = arguments[0].GetIntValue(exm);
 			if (ret < 0)
-				// throw new CodeEE("SQRT関数の引数に負の値が指定されました");
 				throw new CodeEE(string.Format(trerror.ArgIsNegative.Text, Name, 1, ret));
 			return (long)Math.Sqrt(ret);
 		}
@@ -323,7 +262,6 @@ internal static partial class FunctionMethodCreator
 		{
 			long ret = arguments[0].GetIntValue(exm);
 			if (ret < 0)
-				// throw new CodeEE("CBRT関数の引数に負の値が指定されました");
 				throw new CodeEE(string.Format(trerror.ArgIsNegative.Text, Name, 1, ret));
 			return (long)Math.Pow(ret, 1.0 / 3.0);
 		}
@@ -350,24 +288,18 @@ internal static partial class FunctionMethodCreator
 		{
 			long ret = arguments[0].GetIntValue(exm);
 			if (ret <= 0)
-				// throw new CodeEE("対数関数の引数に0以下の値が指定されました");
 				throw new CodeEE(string.Format(trerror.ArgIsNotMoreThan0.Text, Name, 1, ret));
 			//　今の段階は発生しない
-			//if (Base <= 0.0d)
-			//	throw new CodeEE("対数関数の底に0以下の値が指定されました");
 			double dret = ret;
 			if (Base == Math.E)
 				dret = Math.Log(dret);
 			else
 				dret = Math.Log10(dret);
 			if (double.IsNaN(dret))
-				// throw new CodeEE("計算値が非数値です");
 				throw new CodeEE(string.Format(trerror.ResultIsNaN.Text, Name));
 			else if (double.IsInfinity(dret))
-				// throw new CodeEE("計算値が無限大です");
 				throw new CodeEE(string.Format(trerror.ResultIsInfinity.Text, Name));
 			else if ((dret >= long.MaxValue) || (dret <= long.MinValue))
-				// throw new CodeEE("計算結果(" + dret.ToString() + ")が64ビット符号付き整数の範囲外です");
 				throw new CodeEE(string.Format(trerror.ResultIsOutOfTheRangeOfInt64.Text, Name, dret));
 			return (long)dret;
 		}
@@ -386,13 +318,10 @@ internal static partial class FunctionMethodCreator
 			long ret = arguments[0].GetIntValue(exm);
 			double dret = Math.Exp(ret);
 			if (double.IsNaN(dret))
-				// throw new CodeEE("計算値が非数値です");
 				throw new CodeEE(string.Format(trerror.ResultIsNaN.Text, Name));
 			else if (double.IsInfinity(dret))
-				// throw new CodeEE("計算値が無限大です");
 				throw new CodeEE(string.Format(trerror.ResultIsInfinity.Text, Name));
 			else if ((dret >= long.MaxValue) || (dret <= long.MinValue))
-				// throw new CodeEE("計算結果(" + dret.ToString() + ")が64ビット符号付き整数の範囲外です");
 				throw new CodeEE(string.Format(trerror.ResultIsOutOfTheRangeOfInt64.Text, Name, dret));
 
 			return (long)dret;
