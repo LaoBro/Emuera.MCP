@@ -1,0 +1,697 @@
+using MinorShift.Emuera.GameData.Variable;
+using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Script.Data;
+using MinorShift.Emuera.Runtime.Script.Parser;
+using MinorShift.Emuera.Runtime.Script.Statements;
+using MinorShift.Emuera.Runtime.Script.Statements.Expression;
+using MinorShift.Emuera.Runtime.Script.Statements.Function;
+using MinorShift.Emuera.Runtime.Script.Statements.Variable;
+using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils.EvilMask;
+using MinorShift.Emuera.Primitives;
+using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.UI.Game.Image;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
+
+namespace MinorShift.Emuera.GameData.Function;
+
+internal static partial class FunctionMethodCreator
+{
+	private sealed class ArrayMultiSortExMethod : FunctionMethod
+	{
+		public ArrayMultiSortExMethod()
+		{
+			ReturnType = typeof(long);
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.RefString1D, ArgType.Int, ArgType.Int | ArgType.DisallowVoid }, OmitStart = 2 },
+					new ArgTypeList{ ArgTypes = { ArgType.RefInt1D, ArgType.RefString1D, ArgType.Int, ArgType.Int | ArgType.DisallowVoid }, OmitStart = 2 },
+				];
+			CanRestructure = false;
+		}
+		private string CheckVariableTerm(AExpression arg, string v)
+		{
+			var vname = v == null ? trerror.FirstArg.Text : v;
+			if (!(arg is VariableTerm varTerm) || varTerm.Identifier.IsCalc || varTerm.Identifier.IsConst)
+				return string.Format(trerror.NotVarFunc.Text, Name, vname);
+			if (v == null && !varTerm.Identifier.IsArray1D)
+				return string.Format(trerror.Not1DFuncArg.Text, Name, "1");
+			if (varTerm.Identifier.IsCharacterData)
+				return string.Format(trerror.IsCharaVarFunc.Text, Name, vname);
+			if (!varTerm.Identifier.IsArray1D && !varTerm.Identifier.IsArray2D && !varTerm.Identifier.IsArray3D)
+				return string.Format(trerror.NotDimVarFunc.Text, Name, vname);
+			return null!;
+		}
+		private VariableTerm GetConvertedTerm(ExpressionMediator exm, string name)
+		{
+			WordCollection wc = LexicalAnalyzer.Analyse(new CharStream(name), LexEndWith.EoL, LexAnalyzeFlag.None);
+			var term = ExpressionParser.ReduceExpressionTerm(wc, TermEndWith.EoL);
+			var err = CheckVariableTerm(term, name);
+			if (err != null)
+				throw new CodeEE(err);
+			return (term as VariableTerm)!;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			bool isAscending = arguments.Count < 3 || arguments[2] == null || arguments[2].GetIntValue(exm) != 0;
+			long fixedLength = arguments.Count < 4 ? -1 : arguments[3].GetIntValue(exm);
+			if (fixedLength == 0) return 0;
+			VariableTerm varTerm = arguments[0] is VariableTerm ? (VariableTerm)arguments[0] : GetConvertedTerm(exm, arguments[0].GetStrValue(exm));
+			int[] sortedArray;
+			if (varTerm.Identifier.IsInteger)
+			{
+				List<KeyValuePair<long, int>> sortList = [];
+				long[] array = (long[])varTerm.Identifier.GetArray();
+				var length = fixedLength > 0 ? Math.Min(fixedLength, array.Length) : array.Length;
+				for (int i = 0; i < length; i++)
+				{
+					if (fixedLength == -1 && array[i] == 0)
+						break;
+					sortList.Add(new KeyValuePair<long, int>(array[i], i));
+				}
+				//素ではintの範囲しか扱えないので一工夫
+				sortList.Sort((a, b) => isAscending ? a.Key.CompareTo(b.Key) : b.Key.CompareTo(a.Key));
+				sortedArray = sortList.Select(p => p.Value).ToArray();
+			}
+			else
+			{
+				List<KeyValuePair<string, int>> sortList = [];
+				string[] array = (string[])varTerm.Identifier.GetArray();
+				var length = fixedLength > 0 ? Math.Min(fixedLength, array.Length) : array.Length;
+				for (int i = 0; i < length; i++)
+				{
+					if (fixedLength == -1 && string.IsNullOrEmpty(array[i]))
+						return 0;
+					sortList.Add(new KeyValuePair<string, int>(array[i], i));
+				}
+				sortList.Sort((a, b) => isAscending ? a.Key.CompareTo(b.Key) : b.Key.CompareTo(a.Key));
+				sortedArray = sortList.Select(p => p.Value).ToArray();
+			}
+			List<VariableTerm> varTerms = [];
+			foreach (var nTerm in (string[])(arguments[1] as VariableTerm)!.Identifier.GetArray())
+				varTerms.Add(GetConvertedTerm(exm, nTerm));
+			foreach (var term in varTerms)
+			{
+				if (term.Identifier.IsArray1D)
+				{
+					if (term.IsInteger)
+					{
+						var array = (long[])term.Identifier.GetArray();
+						var clone = (long[])array.Clone();
+						if (array.Length < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							array[i] = clone[sortedArray[i]];
+					}
+					else
+					{
+						var array = (string[])term.Identifier.GetArray();
+						var clone = (string[])array.Clone();
+						if (array.Length < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							array[i] = clone[sortedArray[i]];
+					}
+				}
+				else if (term.Identifier.IsArray2D)
+				{
+					if (term.IsInteger)
+					{
+						var array = (long[,])term.Identifier.GetArray();
+						var clone = (long[,])array.Clone();
+						if (array.GetLength(0) < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							for (int x = 0; x < array.GetLength(1); x++)
+								array[i, x] = clone[sortedArray[i], x];
+					}
+					else
+					{
+						var array = (string[,])term.Identifier.GetArray();
+						var clone = (string[,])array.Clone();
+						if (array.GetLength(0) < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							for (int x = 0; x < array.GetLength(1); x++)
+								array[i, x] = clone[sortedArray[i], x];
+					}
+				}
+				else if (term.Identifier.IsArray3D)
+				{
+					if (term.IsInteger)
+					{
+						var array = (long[,,])term.Identifier.GetArray();
+						var clone = (long[,,])array.Clone();
+						if (array.GetLength(0) < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							for (int x = 0; x < array.GetLength(1); x++)
+								for (int y = 0; y < array.GetLength(2); y++)
+									array[i, x, y] = clone[sortedArray[i], x, y];
+					}
+					else
+					{
+						var array = (string[,,])term.Identifier.GetArray();
+						var clone = (string[,,])array.Clone();
+						if (array.GetLength(0) < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							for (int x = 0; x < array.GetLength(1); x++)
+								for (int y = 0; y < array.GetLength(2); y++)
+									array[i, x, y] = clone[sortedArray[i], x, y];
+					}
+				}
+				else { throw new ExeEE(trerror.AbnormalArray.Text); }
+			}
+			return 1;
+		}
+		public override bool UniqueRestructure(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			for (int i = 0; i < arguments.Count; i++)
+				arguments[i] = arguments[i].Restructure(exm);
+			return false;
+		}
+	}
+
+	private sealed class SumArrayMethod : FunctionMethod
+	{
+		readonly bool isCharaRange;
+		public SumArrayMethod()
+		{
+			ReturnType = typeof(long);
+			// argumentTypeArray = null;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.RefIntArray, ArgType.Int, ArgType.Int }, OmitStart = 1 },
+				];
+			isCharaRange = false;
+			CanRestructure = false;
+		}
+		public SumArrayMethod(bool isChara)
+		{
+			ReturnType = typeof(long);
+			// argumentTypeArray = null;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.CharacterData | ArgType.RefIntArray | ArgType.AllowConstRef, ArgType.Int, ArgType.Int }, OmitStart = 1 }
+				];
+			isCharaRange = isChara;
+			CanRestructure = false;
+		}
+		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
+		//{
+		//	if (arguments.Count < 1)
+		//		return name + "関数には少なくとも1つの引数が必要です";
+		//	if (arguments.Count > 3)
+		//		return name + "関数の引数が多すぎます";
+		//	if (arguments[0] == null)
+		//		return name + "関数の1番目の引数は省略できません";
+		//	if (!(arguments[0] is VariableTerm))
+		//		return name + "関数の1番目の引数が変数ではありません";
+		//	VariableTerm varToken = (VariableTerm)arguments[0];
+		//	if (varToken.IsString)
+		//		return name + "関数の1番目の引数が数値変数ではありません";
+		//	if (isCharaRange && !varToken.Identifier.IsCharacterData)
+		//		return name + "関数の1番目の引数がキャラクタ変数ではありません";
+		//	if (!isCharaRange && !varToken.Identifier.IsArray1D && !varToken.Identifier.IsArray2D && !varToken.Identifier.IsArray3D)
+		//		return name + "関数の1番目の引数が配列変数ではありません";
+		//	if (arguments.Count == 1)
+		//		return null!;
+		//	if ((arguments[1] != null) && (arguments[1].GetOperandType() != typeof(Int64)))
+		//		return name + "関数の2番目の変数が数値ではありません";
+		//	if (arguments.Count == 2)
+		//		return null!;
+		//	if ((arguments[2] != null) && (arguments[2].GetOperandType() != typeof(Int64)))
+		//		return name + "関数の3番目の変数が数値ではありません";
+		//	return null!;
+		//}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			VariableTerm varTerm = (VariableTerm)arguments[0];
+			long index1 = (arguments.Count >= 2 && arguments[1] != null) ? arguments[1].GetIntValue(exm) : 0;
+			long index2 = (arguments.Count == 3 && arguments[2] != null) ? arguments[2].GetIntValue(exm) : (isCharaRange ? exm.VEvaluator.CHARANUM : varTerm.GetLastLength());
+
+			FixedVariableTerm p = varTerm.GetFixedVariableTerm(exm);
+			if (!isCharaRange)
+			{
+				p.IsArrayRangeValid(index1, index2, "SUMARRAY", 2L, 3L);
+				return VariableEvaluator.GetArraySum(p, index1, index2);
+			}
+			else
+			{
+				long charaNum = exm.VEvaluator.CHARANUM;
+				if (index1 >= charaNum || index1 < 0 || index2 > charaNum || index2 < 0)
+					// throw new CodeEE("SUMCARRAY関数の範囲指定がキャラクタ配列の範囲を超えています(" + index1.ToString() + "～" + index2.ToString() + ")");
+					throw new CodeEE(string.Format(trerror.CharacterRangeInvalid.Text, Name, index1, index2));
+				return VariableEvaluator.GetArraySumChara(p, index1, index2);
+			}
+		}
+	}
+
+	private sealed class MaxArrayMethod : FunctionMethod
+	{
+		readonly bool isCharaRange;
+		readonly bool isMax;
+		readonly string funcName;
+		public MaxArrayMethod()
+		{
+			ReturnType = typeof(long);
+			// argumentTypeArray = null;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int }, OmitStart = 1 },
+				];
+			isCharaRange = false;
+			isMax = true;
+			funcName = "MAXARRAY";
+			CanRestructure = false;
+		}
+		public MaxArrayMethod(bool isChara)
+		{
+			ReturnType = typeof(long);
+			// argumentTypeArray = null;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.CharacterData | ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int }, OmitStart = 1 },
+				];
+			isCharaRange = isChara;
+			isMax = true;
+			if (isCharaRange)
+				funcName = "MAXCARRAY";
+			else
+				funcName = "MAXARRAY";
+			CanRestructure = false;
+		}
+		public MaxArrayMethod(bool isChara, bool isMaxFunc)
+		{
+			ReturnType = typeof(long);
+			// argumentTypeArray = null;
+			argumentTypeArrayEx = isChara
+				? [
+						new ArgTypeList{ ArgTypes = { ArgType.CharacterData | ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int }, OmitStart = 1 },
+				]
+				: [
+						new ArgTypeList{ ArgTypes = { ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int }, OmitStart = 1 },
+				];
+			isCharaRange = isChara;
+			isMax = isMaxFunc;
+			funcName = (isMax ? "MAX" : "MIN") + (isCharaRange ? "C" : "") + "ARRAY";
+			CanRestructure = false;
+		}
+		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
+		//{
+		//	if (arguments.Count < 1)
+		//		return name + "関数には少なくとも1つの引数が必要です";
+		//	if (arguments.Count > 3)
+		//		return name + "関数の引数が多すぎます";
+		//	if (arguments[0] == null)
+		//		return name + "関数の1番目の引数は省略できません";
+		//	if (!(arguments[0] is VariableTerm))
+		//		return name + "関数の1番目の引数が変数ではありません";
+		//	VariableTerm varToken = (VariableTerm)arguments[0];
+		//	if (isCharaRange && !varToken.Identifier.IsCharacterData)
+		//		return name + "関数の1番目の引数がキャラクタ変数ではありません";
+		//	if (!varToken.IsInteger)
+		//		return name + "関数の1番目の引数が数値変数ではありません";
+		//	if (!isCharaRange && (varToken.Identifier.IsArray2D || varToken.Identifier.IsArray3D))
+		//		return name + "関数は二重配列・三重配列には対応していません";
+		//	if (!varToken.Identifier.IsArray1D)
+		//		return name + "関数の1番目の引数が配列変数ではありません";
+		//	if ((arguments.Count >= 2) && (arguments[1] != null) && (arguments[1].GetOperandType() != typeof(Int64)))
+		//		return name + "関数の2番目の引数の型が正しくありません";
+		//	if ((arguments.Count >= 3) && (arguments[2] != null) && (arguments[2].GetOperandType() != typeof(Int64)))
+		//		return name + "関数の3番目の引数の型が正しくありません";
+		//	return null!;
+		//}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			VariableTerm vTerm = (VariableTerm)arguments[0];
+			long start = (arguments.Count > 1 && arguments[1] != null) ? arguments[1].GetIntValue(exm) : 0;
+			long end = (arguments.Count > 2 && arguments[2] != null) ? arguments[2].GetIntValue(exm) : (isCharaRange ? exm.VEvaluator.CHARANUM : vTerm.GetLength());
+			FixedVariableTerm p = vTerm.GetFixedVariableTerm(exm);
+			if (!isCharaRange)
+			{
+				p.IsArrayRangeValid(start, end, funcName, 2L, 3L);
+				return VariableEvaluator.GetMaxArray(p, start, end, isMax);
+			}
+			else
+			{
+				long charaNum = exm.VEvaluator.CHARANUM;
+				if (start >= charaNum || start < 0 || end > charaNum || end < 0)
+					throw new CodeEE(string.Format(trerror.CharacterRangeInvalid.Text, funcName, start, end));
+				return VariableEvaluator.GetMaxArrayChara(p, start, end, isMax);
+			}
+		}
+	}
+
+	private sealed class FindElementMethod : FunctionMethod
+	{
+		public FindElementMethod(bool last)
+		{
+			ReturnType = typeof(long);
+			// argumentTypeArray = null;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.RefAny1D | ArgType.AllowConstRef, ArgType.SameAsFirst, ArgType.Int, ArgType.Int, ArgType.Int }, OmitStart = 2 },
+				];
+			CanRestructure = true; //すべて定数項ならできるはず
+			HasUniqueRestructure = true;
+			isLast = last;
+			funcName = isLast ? "FINDLASTELEMENT" : "FINDELEMENT";
+		}
+
+		readonly bool isLast;
+		readonly string funcName;
+		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
+		//{
+		//	if (arguments.Count < 2)
+		//		return name + "関数には少なくとも2つの引数が必要です";
+		//	if (arguments.Count > 5)
+		//		return name + "関数の引数が多すぎます";
+		//	if (arguments[0] == null)
+		//		return name + "関数の1番目の引数は省略できません";
+		//	if (!(arguments[0] is VariableTerm varToken))
+		//		return name + "関数の1番目の引数が変数ではありません";
+		//	if (varToken.Identifier.IsArray2D || varToken.Identifier.IsArray3D)
+		//		return name + "関数は二重配列・三重配列には対応していません";
+		//	if (!varToken.Identifier.IsArray1D)
+		//		return name + "関数の1番目の引数が配列変数ではありません";
+		//	Type baseType = arguments[0].GetOperandType();
+		//	if (arguments[1] == null)
+		//		return name + "関数の2番目の引数は省略できません";
+		//	if (arguments[1].GetOperandType() != baseType)
+		//		return name + "関数の2番目の引数の型が正しくありません";
+		//	if ((arguments.Count >= 3) && (arguments[2] != null) && (arguments[2].GetOperandType() != typeof(Int64)))
+		//		return name + "関数の3番目の引数の型が正しくありません";
+		//	if ((arguments.Count >= 4) && (arguments[3] != null) && (arguments[3].GetOperandType() != typeof(Int64)))
+		//		return name + "関数の4番目の引数の型が正しくありません";
+		//	if ((arguments.Count >= 5) && (arguments[4] != null) && (arguments[4].GetOperandType() != typeof(Int64)))
+		//		return name + "関数の5番目の引数の型が正しくありません";
+		//	return null!;
+		//}
+
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			bool isExact = false;
+			VariableTerm varTerm = (VariableTerm)arguments[0];
+
+			long start = (arguments.Count > 2 && arguments[2] != null) ? arguments[2].GetIntValue(exm) : 0;
+			long end = (arguments.Count > 3 && arguments[3] != null) ? arguments[3].GetIntValue(exm) : varTerm.GetLength();
+			if (arguments.Count > 4 && arguments[4] != null)
+				isExact = arguments[4].GetIntValue(exm) != 0;
+
+			FixedVariableTerm p = varTerm.GetFixedVariableTerm(exm);
+			p.IsArrayRangeValid(start, end, funcName, 3L, 4L);
+
+			if (arguments[0].GetOperandType() == typeof(long))
+			{
+				long targetValue = arguments[1].GetIntValue(exm);
+				return VariableEvaluator.FindElement(p, targetValue, start, end, isExact, isLast);
+			}
+			else
+			{
+				Regex targetString;
+				try
+				{
+					targetString = RegexFactory.GetRegex(arguments[1].GetStrValue(exm));
+				}
+				catch (ArgumentException e)
+				{
+					// throw new CodeEE("第2引数が正規表現として不正です");
+					throw new CodeEE(string.Format(trerror.InvalidRegexArg.Text, Name, 2, e.Message));
+				}
+				return VariableEvaluator.FindElement(p, targetString, start, end, isExact, isLast);
+			}
+		}
+
+
+		public override bool UniqueRestructure(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			arguments[0].Restructure(exm);
+			VariableTerm varToken = (arguments[0] as VariableTerm)!;
+			bool isConst = varToken.Identifier.IsConst;
+			for (int i = 1; i < arguments.Count; i++)
+			{
+				if (arguments[i] == null)
+					continue;
+				arguments[i] = arguments[i].Restructure(exm);
+				if (isConst && !(arguments[i] is SingleTerm))
+					isConst = false;
+			}
+			return isConst;
+		}
+	}
+
+	private sealed class InRangeMethod : FunctionMethod
+	{
+		public InRangeMethod()
+		{
+			ReturnType = typeof(long);
+			argumentTypeArray = [typeof(long), typeof(long), typeof(long)];
+			CanRestructure = true;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			long value = arguments[0].GetIntValue(exm);
+			long min = arguments[1].GetIntValue(exm);
+			long max = arguments[2].GetIntValue(exm);
+			return ((value >= min) && (value <= max)) ? 1L : 0L;
+		}
+	}
+
+	private sealed class InRangeArrayMethod : FunctionMethod
+	{
+		public InRangeArrayMethod()
+		{
+			ReturnType = typeof(long);
+			// argumentTypeArray = null;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int }, OmitStart = 3 },
+				];
+			CanRestructure = false;
+		}
+		public InRangeArrayMethod(bool isChara)
+		{
+			ReturnType = typeof(long);
+			// argumentTypeArray = null;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.CharacterData | ArgType.RefInt1D | ArgType.AllowConstRef, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int }, OmitStart = 3 },
+				];
+			isCharaRange = isChara;
+			CanRestructure = false;
+		}
+		private readonly bool isCharaRange;
+		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
+		//{
+		//	if (arguments.Count < 2)
+		//		return name + "関数には少なくとも2つの引数が必要です";
+		//	if (arguments.Count > 6)
+		//		return name + "関数の引数が多すぎます";
+		//	if (arguments[0] == null)
+		//		return name + "関数の1番目の引数は省略できません";
+		//	if (!(arguments[0] is VariableTerm))
+		//		return name + "関数の1番目の引数が変数ではありません";
+		//	VariableTerm varToken = (VariableTerm)arguments[0];
+		//	if (isCharaRange && !varToken.Identifier.IsCharacterData)
+		//		return name + "関数の1番目の引数がキャラクタ変数ではありません";
+		//	if (!isCharaRange && (varToken.Identifier.IsArray2D || varToken.Identifier.IsArray3D))
+		//		return name + "関数は二重配列・三重配列には対応していません";
+		//	if (!isCharaRange && !varToken.Identifier.IsArray1D)
+		//		return name + "関数の1番目の引数が配列変数ではありません";
+		//	if (!varToken.IsInteger)
+		//		return name + "関数の1番目の引数が数値型変数ではありません";
+		//	if (arguments[1] == null)
+		//		return name + "関数の2番目の引数は省略できません";
+		//	if (arguments[1].GetOperandType() != typeof(Int64))
+		//		return name + "関数の2番目の引数が数値型ではありません";
+		//	if (arguments[2] == null)
+		//		return name + "関数の3番目の引数は省略できません";
+		//	if (arguments[2].GetOperandType() != typeof(Int64))
+		//		return name + "関数の3番目の引数が数値型ではありません";
+		//	if ((arguments.Count >= 4) && (arguments[3] != null) && (arguments[3].GetOperandType() != typeof(Int64)))
+		//		return name + "関数の4番目の引数の型が正しくありません";
+		//	if ((arguments.Count >= 5) && (arguments[4] != null) && (arguments[4].GetOperandType() != typeof(Int64)))
+		//		return name + "関数の5番目の引数の型が正しくありません";
+		//	return null!;
+		//}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			long min = arguments[1].GetIntValue(exm);
+			long max = arguments[2].GetIntValue(exm);
+
+			VariableTerm varTerm = (arguments[0] as VariableTerm)!;
+			long start = (arguments.Count > 3 && arguments[3] != null) ? arguments[3].GetIntValue(exm) : 0;
+			long end = (arguments.Count > 4 && arguments[4] != null) ? arguments[4].GetIntValue(exm) : (isCharaRange ? exm.VEvaluator.CHARANUM : varTerm.GetLength());
+
+			FixedVariableTerm p = varTerm.GetFixedVariableTerm(exm);
+
+			if (!isCharaRange)
+			{
+				p.IsArrayRangeValid(start, end, "INRANGEARRAY", 4L, 5L);
+				return VariableEvaluator.GetInRangeArray(p, min, max, start, end);
+			}
+			else
+			{
+				long charaNum = exm.VEvaluator.CHARANUM;
+				if (start >= charaNum || start < 0 || end > charaNum || end < 0)
+					// throw new CodeEE("INRANGECARRAY関数の範囲指定がキャラクタ配列の範囲を超えています(" + start.ToString() + "～" + end.ToString() + ")");
+					throw new CodeEE(string.Format(trerror.CharacterRangeInvalid.Text, Name, start, end));
+				return VariableEvaluator.GetInRangeArrayChara(p, min, max, start, end);
+			}
+		}
+	}
+
+	private sealed class ArrayMultiSortMethod : FunctionMethod
+	{
+		public ArrayMultiSortMethod()
+		{
+			ReturnType = typeof(long);
+			// argumentTypeArray = null;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.RefAny1D, ArgType.RefAnyArray | ArgType.Variadic }, OmitStart = 1 },
+				];
+			CanRestructure = false;
+			HasUniqueRestructure = true;
+		}
+		//public override string CheckArgumentType(string name, IOperandTerm[] arguments)
+		//{
+		//	if (arguments.Count < 2)
+		//		return string.Format("{0}関数:少なくとも{1}の引数が必要です", name, 2);
+		//	for (int i = 0; i < arguments.Count; i++)
+		//	{
+		//		if (arguments[i] == null)
+		//			return string.Format("{0}関数:{1}番目の引数は省略できません", name, i + 1);
+		//		if (!(arguments[i] is VariableTerm varTerm) || varTerm.Identifier.IsCalc || varTerm.Identifier.IsConst)
+		//			return string.Format("{0}関数:{1}番目の引数が変数ではありません", name, i + 1);
+		//		if (varTerm.Identifier.IsCharacterData)
+		//			return string.Format("{0}関数:{1}番目の引数がキャラクタ変数です", name, i + 1);
+		//		if (i == 0 && !varTerm.Identifier.IsArray1D)
+		//			return string.Format("{0}関数:{1}番目の引数が一次元配列ではありません", name, i + 1);
+		//		#region EM_私家版_ARRAYMSORT_三次元配列修正
+		//		//if (!varTerm.Identifier.IsArray1D && !varTerm.Identifier.IsArray2D && !varTerm.Identifier.IsArray2D)
+		//		if (!varTerm.Identifier.IsArray1D && !varTerm.Identifier.IsArray2D && !varTerm.Identifier.IsArray3D)
+		//			return string.Format("{0}関数:{1}番目の引数が配列変数ではありません", name, i + 1);
+		//		#endregion
+		//	}
+		//	return null!;
+		//}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			VariableTerm varTerm = (arguments[0] as VariableTerm)!;
+			int[] sortedArray;
+			if (varTerm.Identifier.IsInteger)
+			{
+				List<KeyValuePair<long, int>> sortList = [];
+				long[] array = (long[])varTerm.Identifier.GetArray();
+				for (int i = 0; i < array.Length; i++)
+				{
+					if (array[i] == 0)
+						break;
+					sortList.Add(new KeyValuePair<long, int>(array[i], i));
+				}
+				//素ではintの範囲しか扱えないので一工夫
+				sortList.Sort((a, b) => a.Key.CompareTo(b.Key));
+				sortedArray = new int[sortList.Count];
+				for (int i = 0; i < sortedArray.Length; i++)
+					sortedArray[i] = sortList[i].Value;
+			}
+			else
+			{
+				List<KeyValuePair<string, int>> sortList = [];
+				string[] array = (string[])varTerm.Identifier.GetArray();
+				for (int i = 0; i < array.Length; i++)
+				{
+					if (string.IsNullOrEmpty(array[i]))
+						#region EM_私家版_ARRAYMSORT_文字列配列処理修正
+						//return 0;
+						break;
+					#endregion
+					sortList.Add(new KeyValuePair<string, int>(array[i], i));
+				}
+				sortList.Sort((a, b) => { return a.Key.CompareTo(b.Key); });
+				sortedArray = new int[sortList.Count];
+				for (int i = 0; i < sortedArray.Length; i++)
+					sortedArray[i] = sortList[i].Value;
+			}
+			foreach (VariableTerm term in arguments.Cast<VariableTerm>())//もう少し賢い方法はないものだろうか
+			{
+				if (term.Identifier.IsArray1D)
+				{
+					if (term.IsInteger)
+					{
+						var array = (long[])term.Identifier.GetArray();
+						var clone = (long[])array.Clone();
+						if (array.Length < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							array[i] = clone[sortedArray[i]];
+					}
+					else
+					{
+						var array = (string[])term.Identifier.GetArray();
+						var clone = (string[])array.Clone();
+						if (array.Length < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							array[i] = clone[sortedArray[i]];
+					}
+				}
+				else if (term.Identifier.IsArray2D)
+				{
+					if (term.IsInteger)
+					{
+						var array = (long[,])term.Identifier.GetArray();
+						var clone = (long[,])array.Clone();
+						if (array.GetLength(0) < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							for (int x = 0; x < array.GetLength(1); x++)
+								array[i, x] = clone[sortedArray[i], x];
+					}
+					else
+					{
+						var array = (string[,])term.Identifier.GetArray();
+						var clone = (string[,])array.Clone();
+						if (array.GetLength(0) < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							for (int x = 0; x < array.GetLength(1); x++)
+								array[i, x] = clone[sortedArray[i], x];
+					}
+				}
+				else if (term.Identifier.IsArray3D)
+				{
+					if (term.IsInteger)
+					{
+						var array = (long[,,])term.Identifier.GetArray();
+						var clone = (long[,,])array.Clone();
+						if (array.GetLength(0) < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							for (int x = 0; x < array.GetLength(1); x++)
+								for (int y = 0; y < array.GetLength(2); y++)
+									array[i, x, y] = clone[sortedArray[i], x, y];
+					}
+					else
+					{
+						var array = (string[,,])term.Identifier.GetArray();
+						var clone = (string[,,])array.Clone();
+						if (array.GetLength(0) < sortedArray.Length)
+							return 0;
+						for (int i = 0; i < sortedArray.Length; i++)
+							for (int x = 0; x < array.GetLength(1); x++)
+								for (int y = 0; y < array.GetLength(2); y++)
+									array[i, x, y] = clone[sortedArray[i], x, y];
+					}
+				}
+				// else { throw new ExeEE("異常な配列"); }
+				else { throw new ExeEE(trerror.AbnormalArray.Text); }
+			}
+			return 1;
+		}
+		public override bool UniqueRestructure(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			for (int i = 0; i < arguments.Count; i++)
+				arguments[i] = arguments[i].Restructure(exm);
+			return false;
+		}
+	}
+}
