@@ -110,6 +110,11 @@ const showInputBar = computed<boolean>(() => {
   width: 100%;
   background: var(--color-bg);
   position: relative;
+  /* 截断输入栏进场 translateY(+12px) 产生的底缘溢出。必须用 clip 而非 hidden：
+     hidden 仍是可编程滚动的 scroll container，focus() 的 scroll-into-view 依旧会
+     滚动它把游戏输出顶起；clip 不创建滚动容器且溢出不向祖先（.app-main）传播，
+     focus 无处可滚。动画起始帧被裁的 12px 处于 opacity:0 状态，无视觉影响。 */
+  overflow: clip;
 }
 .terminal-area {
   position: absolute;
