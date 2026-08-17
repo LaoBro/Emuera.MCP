@@ -296,13 +296,6 @@ export interface TurnRecord {
   generation: number;
 }
 
-/**
- * 当前协议版本（与 C# `TurnRecord.CurrentProtocolVersion = 11` 对称，v11 加 PrintSegment.strikeout）。
- *
- * 用于前端校验：WS 帧 protocolVersion 与本常量不匹配时给出降级提示。
- */
-export const CURRENT_PROTOCOL_VERSION = 11;
-
 // ---------- DisplayState：前端内部可变状态 ----------
 //
 // 与 C# `TestAdapter`（Emuera.Headless.Tests/TestAdapter.cs:23）字段对称：

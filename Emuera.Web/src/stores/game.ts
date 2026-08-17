@@ -50,19 +50,6 @@ export interface GameEntry {
 }
 
 /**
- * game-library spec ID2：目录列举结果（与 C# `DirectoryListResult` record 对称）。
- * 用于 Android 目录浏览器弹窗导航。
- */
-export interface DirectoryListResult {
-  /** 当前目录绝对路径。 */
-  currentPath: string;
-  /** 父目录绝对路径——null 表示已在根，不可再上。 */
-  parentPath: string | null;
-  /** 子目录名排序后的列表。 */
-  subDirectories: string[];
-}
-
-/**
  * Issue 05：结构化错误码——与 C# `KestrelGameServer.HandleLoadGameAsync` 错误契约对齐。
  *
  * 路径级错误（400）：
@@ -310,11 +297,6 @@ export const useGameStore = defineStore('game', () => {
    * 收到 gameExited 消息后置 false。期间 UI 禁用退出按钮避免重复点击。
    */
   const exitStatus = ref<'idle' | 'exiting'>('idle');
-  /**
-   * game-library spec ID8：目录浏览器当前结果——DirectoryBrowser.vue 弹窗渲染依据。
-   * null 表示弹窗未打开。listDirectories 消息回复后写入。
-   */
-  const directoryList = ref<DirectoryListResult | null>(null);
   /**
    * game-library spec ID6：Android 存储权限状态——
    * 'unknown' = 尚未检查（首启动），'granted' = 已授权 MANAGE_EXTERNAL_STORAGE，
@@ -1002,10 +984,10 @@ export const useGameStore = defineStore('game', () => {
 
   /**
    * game-library spec ID5 / ID7：设置主目录——
-   * 用户通过「更改主目录」按钮（Windows FolderPicker / Android 目录浏览器）选中后调用。
+   * 用户通过「更改主目录」按钮（Windows FolderPicker / Android SAF 选择器）选中后调用。
    *
    * 更新 `mainGameDir` ref + 持久化到 localStorage。
-   * **不**触发 scanGames——调用方（useAppInit）收到 folderPicked / directoriesListed 后
+   * **不**触发 scanGames——调用方（useAppInit）收到 folderPicked / safDirectoryPicked 后
    * 自行投递 scanGames，store 仅管状态。
    *
    * @param dir 用户选中的主目录绝对路径。
@@ -1051,23 +1033,6 @@ export const useGameStore = defineStore('game', () => {
       mainGameDir.value = rootDir;
       writeMainGameDirToStorage(rootDir);
     }
-  }
-
-  /**
-   * game-library spec ID8：写入 listDirectories 消息回复结果——
-   * `useAppInit` 收到 C# 推来的 `directoriesListed` 消息后调此方法。
-   *
-   * DirectoryBrowser.vue 弹窗 watch directoryList 重新渲染子目录列表。
-   *
-   * @param result C# DirectoryLister.ListDirectories 返回的目录列举结果
-   */
-  function setDirectoryList(result: DirectoryListResult): void {
-    directoryList.value = result;
-  }
-
-  /** game-library spec ID8：关闭目录浏览器弹窗——清空 directoryList。 */
-  function clearDirectoryList(): void {
-    directoryList.value = null;
   }
 
   /**
@@ -1395,12 +1360,9 @@ export const useGameStore = defineStore('game', () => {
     scanRootDirExists,
     scanStatus,
     exitStatus,
-    directoryList,
     setMainGameDir,
     setLastPlayedGame,
     setScannedGames,
-    setDirectoryList,
-    clearDirectoryList,
     beginExitGame,
     completeExitGame,
     // T-025 D14：快速重开 + server 状态

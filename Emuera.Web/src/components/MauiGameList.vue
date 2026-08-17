@@ -14,7 +14,6 @@ import {
   MAUI_WINDOWS_VIRTUAL_HOST,
   MAUI_GAME_VIRTUAL_HOST,
 } from '../lib/mauiBridge';
-import DirectoryBrowser from './DirectoryBrowser.vue';
 import GameRow from './GameRow.vue';
 import StatusBanner from './StatusBanner.vue';
 
@@ -37,9 +36,6 @@ const heroOpacity = ref(1);
 const menuRoot = ref<HTMLElement | null>(null);
 let heroIntroTimer: ReturnType<typeof setTimeout> | null = null;
 const heroIntro = ref(true);
-
-/** DirectoryBrowser 弹窗可见性——v-model 控制。 */
-const showDirectoryBrowser = ref(false);
 
 /** 错误 banner 自动消失定时器。 */
 let errorBannerTimer: ReturnType<typeof setTimeout> | null = null;
@@ -114,19 +110,6 @@ function onChangeMainDir(): void {
     return;
   }
   console.warn('[MauiGameList] onChangeMainDir: not in MAUI environment');
-}
-
-/** DirectoryBrowser 确认——更新主目录并重扫。 */
-function onDirectoryConfirm(path: string): void {
-  console.log('[MauiGameList] directory confirmed:', path);
-  game.setMainGameDir(path);
-  game.scanStatus = 'scanning';
-  scanGamesBridge(path);
-}
-
-/** DirectoryBrowser 取消——no-op（弹窗已自关闭）。 */
-function onDirectoryCancel(): void {
-  console.log('[MauiGameList] directory browse cancelled');
 }
 
 /** 点击列表项——加载该游戏。 */
@@ -297,14 +280,6 @@ onUnmounted(() => {
         </ul>
       </div>
     </div>
-
-    <!-- Android 目录浏览器弹窗（SAF 不可用的兜底） -->
-    <DirectoryBrowser
-      v-if="isAndroidMaui"
-      v-model:visible="showDirectoryBrowser"
-      @confirm="onDirectoryConfirm"
-      @cancel="onDirectoryCancel"
-    />
   </div>
 </template>
 

@@ -6,7 +6,6 @@ import {
   readLastPlayedGameFromStorage,
   formatMainGameDirForDisplay,
   type GameEntry,
-  type DirectoryListResult,
 } from '../game';
 
 /**
@@ -18,7 +17,6 @@ import {
  * - setMainGameDir：更新 ref + 持久化 localStorage
  * - setLastPlayedGame：更新 ref + 持久化 localStorage
  * - setScannedGames：写入 scannedGames + scanRootDir + scanStatus='idle' + 同步 mainGameDir
- * - setDirectoryList / clearDirectoryList：写入 / 清空 directoryList
  * - beginExitGame：成功 / 二次进入保护
  * - completeExitGame：清 gameDir + displayState + serverState='Idle' + exitStatus='idle'，
  *   不清 lastPlayedGame（列表高亮仍需）
@@ -151,11 +149,6 @@ describe('useGameStore game-library 状态与动作', () => {
       expect(game.scanStatus).toBe('idle');
     });
 
-    it('directoryList 初始为 null', () => {
-      const game = useGameStore();
-      expect(game.directoryList).toBeNull();
-    });
-
     it('exitStatus 初始为 idle', () => {
       const game = useGameStore();
       expect(game.exitStatus).toBe('idle');
@@ -262,32 +255,6 @@ describe('useGameStore game-library 状态与动作', () => {
 
       expect(game.scannedGames).toEqual([]);
       expect(game.scanRootDir).toBe('D:/empty/emuera');
-    });
-  });
-
-  describe('setDirectoryList / clearDirectoryList', () => {
-    it('setDirectoryList 写入 directoryList', () => {
-      const game = useGameStore();
-      const result: DirectoryListResult = {
-        currentPath: 'D:/storage',
-        parentPath: null,
-        subDirectories: ['emuera', 'DCIM', 'Download'],
-      };
-      game.setDirectoryList(result);
-
-      expect(game.directoryList).toEqual(result);
-    });
-
-    it('clearDirectoryList 清空 directoryList', () => {
-      const game = useGameStore();
-      game.setDirectoryList({
-        currentPath: 'D:/storage',
-        parentPath: null,
-        subDirectories: ['emuera'],
-      });
-      game.clearDirectoryList();
-
-      expect(game.directoryList).toBeNull();
     });
   });
 

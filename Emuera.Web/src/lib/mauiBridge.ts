@@ -139,7 +139,7 @@ export function sendReady(): void {
  * 由 `registerMessageHandler` 注册的 handler 接收——
  * game-library spec ID9 后语义改为「更改主目录」：handler 调 `setMainGameDir(path)` + `scanGames(path)`。
  *
- * Android 不走此路径——Android 改用 `listDirectories` + Vue 端 `DirectoryBrowser.vue` 弹窗导航。
+ * Android 不走此路径——Android 改用 `pickSafDirectory`（ADR-0019：SAF 原生目录选择器）。
  *
  * 用户取消时 C# 不推消息——Vue 端无需处理取消（原生 picker 模态结束后自然回到 UI）。
  */
@@ -189,7 +189,7 @@ export function sendBridgeUrl(action: string, data?: string): boolean {
  * - `{"type":"folderPicked","path":...}`——文件选择器成功，调 `setMainGameDir(path)` + `scanGames(path)`（spec ID9 修订）
  * - `{"type":"folderPicked","error":...}`——文件选择器失败，展示错误
  * - `{"type":"gamesScanned",...}`——scanGames 回复，写入 store 渲染列表
- * - `{"type":"directoriesListed",...}`——listDirectories 回复，渲染 DirectoryBrowser
+ * - `{"type":"safDirectoryPicked",...}`——Android SAF 目录选择结果（ADR-0019）
  * - `{"type":"gameExited"}`——exitGame 完成，清状态 + 自动 rescan
  *
  * 与 `registerTurnHandler` 分流——turn 经 `__emueraOnTurn` 推 `applyTurn` 协议消费链路，
@@ -221,17 +221,15 @@ export function loadGameFromPath(path: string): void {
 
 // ---------- game-library spec ID3：MAUI 桥接新消息（JS → C#）----------
 //
-// 三个新消息投递函数：
+// 两个新消息投递函数：
 // - scanGames：扫描主目录下的游戏列表
-// - listDirectories：列举目录下的子目录（Android 目录浏览器弹窗用）
 // - exitGame：退出当前游戏回到列表态
 //
 // 与 C# `BridgeHost.OnInputFromJs` 内的 type 分发分支对齐：
-//   "scanGames" / "listDirectories" / "exitGame"
+//   "scanGames" / "exitGame"
 //
 // 投递后 C# 异步处理并经 `__emueraOnMessage` 回复对应消息：
 // - scanGames → gamesScanned（含 games 数组 + rootDir）
-// - listDirectories → directoriesListed（含 currentPath/parentPath/subDirectories）
 // - exitGame → gameExited（无 payload）
 
 /**
@@ -254,29 +252,6 @@ export function scanGames(rootDir?: string | null): void {
   const payload: Record<string, unknown> = { type: 'scanGames' };
   if (rootDir && rootDir.trim()) {
     payload.rootDir = rootDir.trim();
-  }
-  postInput(JSON.stringify(payload));
-}
-
-/**
- * game-library spec ID3 / ID8：请求 C# 列举目录下的子目录。
- *
- * Android 目录浏览器弹窗（`DirectoryBrowser.vue`）用此方法导航：
- * - 打开弹窗时调 `listDirectories(currentMainDir)` 拿初始列表
- * - 点击子目录项时调 `listDirectories(selectedPath)` 进入下一级
- * - 点击「返回上级」时调 `listDirectories(parentPath)`
- *
- * C# `BridgeHost.HandleListDirectories` 收到后：
- * 1. 读 dirPath——若未提供则用 C# 端 `_mainGameDir` 字段
- * 2. 调 `DirectoryLister.ListDirectories(dirPath)` 列举
- * 3. 回复 `{"type":"directoriesListed","currentPath":...,"parentPath":...|"null","subDirectories":[...]}`
- *
- * @param dirPath 要列举的目录绝对路径——null/undefined/空串时 C# 用已存的主目录
- */
-export function listDirectories(dirPath?: string | null): void {
-  const payload: Record<string, unknown> = { type: 'listDirectories' };
-  if (dirPath && dirPath.trim()) {
-    payload.dirPath = dirPath.trim();
   }
   postInput(JSON.stringify(payload));
 }

@@ -108,7 +108,6 @@ function parseBridgeController(raw: unknown): { kind: 'agent' | 'user'; leaseExp
  *   game-library spec ID9 后语义改为「更改主目录」——保存为 mainGameDir + 重新 scanGames
  * - `{"type":"folderPicked","error":"..."}`——文件选择器失败，写 `mauiError` 让 UI 展示
  * - `{"type":"gamesScanned","games":[{name,fullPath}],"rootDir":...}`——scanGames 回复，写入 store
- * - `{"type":"directoriesListed","currentPath":...,"parentPath":...|"null","subDirectories":[...]}`——listDirectories 回复
  * - `{"type":"gameExited"}`——exitGame 处理完成，清状态 + 自动重新 scanGames
  * - `{"type":"gameThreadStatus","alive":true/false}`——前端静默监控的线程存活探测回复，
  *   写入 gameStatusHint（'running'/'stopped'），App.vue 据此显示半透明状态提示
@@ -126,9 +125,6 @@ function parseBridgeController(raw: unknown): { kind: 'agent' | 'user'; leaseExp
  * 收到 `gamesScanned` 时的处理（game-library spec ID7）：
  * - `game.setScannedGames(games, rootDir)`——写入 store，列表页据此渲染
  * - **不**自动加载游戏——列表页等用户点击项再触发
- *
- * 收到 `directoriesListed` 时的处理（game-library spec ID8）：
- * - `game.setDirectoryList(result)`——写入 store，DirectoryBrowser.vue 弹窗据此渲染
  *
  * 收到 `gameExited` 时的处理（game-library spec ID10 / ID12）：
  * 1. `game.completeExitGame()`——清 gameDir + displayState + serverState + exitStatus
@@ -208,20 +204,6 @@ function handleMauiMessage(msg: unknown, game: ReturnType<typeof useGameStore>):
       `[useAppInit] gamesScanned: ${games.length} games, rootDir=${rootDir}, rootDirExists=${rootDirExists}`,
     );
     game.setScannedGames(games, rootDir, rootDirExists);
-    return;
-  }
-
-  // game-library spec ID3 / ID8：listDirectories 回复——写入 store 让 DirectoryBrowser 渲染
-  if (type === 'directoriesListed') {
-    const currentPath = typeof m.currentPath === 'string' ? m.currentPath : '';
-    const parentPath = typeof m.parentPath === 'string' ? m.parentPath : null;
-    const subDirectories = Array.isArray(m.subDirectories)
-      ? m.subDirectories.filter((s): s is string => typeof s === 'string')
-      : [];
-    console.log(
-      `[useAppInit] directoriesListed: currentPath=${currentPath}, subDirectories.length=${subDirectories.length}`,
-    );
-    game.setDirectoryList({ currentPath, parentPath, subDirectories });
     return;
   }
 
