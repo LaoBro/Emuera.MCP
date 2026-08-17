@@ -202,88 +202,89 @@ const popupItems = computed<PopupMenuItem[]>(() => [
 
 <template>
   <AppShell :scrollable="showMauiGameList">
-    <!-- MAUI 全屏游戏选择界面——游戏未加载时独占整个页面 -->
-    <MauiGameList v-if="showMauiGameList" />
+    <!-- 页面过渡动画（方案一+四）：out-in 模式 + scale(0.97) + fade -->
+    <Transition name="page" mode="out-in">
+      <MauiGameList v-if="showMauiGameList" key="game-list" />
+      <div v-else class="game-view-wrapper" key="game-view">
+        <!-- 桌面：应用栏（连接状态 + 缩放/快速重开 + SegmentedNav） -->
+        <AppBar v-if="!isMaui">
+          <template #left>
+            <ConnectionPanel />
+          </template>
+          <template #actions>
+            <div class="zoom-controls">
+              <button
+                class="icon-btn sm"
+                :disabled="game.isMinScale"
+                aria-label="缩小"
+                title="缩小"
+                @click="game.setScale(game.effectiveScale - 0.1)"
+              >−</button>
+              <span class="zoom-label tabular-nums">{{ Math.round(game.effectiveScale * 100) }}%</span>
+              <button
+                class="icon-btn sm"
+                :disabled="game.isMaxScale"
+                aria-label="放大"
+                title="放大"
+                @click="game.setScale(game.effectiveScale + 0.1)"
+              >+</button>
+            </div>
+            <button
+              v-if="canQuickRestart"
+              class="btn-outline action-btn"
+              :disabled="isRestarting || !conn.canMutateLifecycle"
+              :title="!conn.canMutateLifecycle ? '旁观中，请先接管再重开' : `重开当前游戏：${game.gameDir ?? ''}`"
+              @click="onQuickRestart"
+            >
+              {{ isRestarting ? '重开中…' : '快速重开' }}
+            </button>
+          </template>
+          <template #nav>
+            <SegmentedNav />
+          </template>
+        </AppBar>
 
-    <template v-else>
-      <!-- 桌面：应用栏（连接状态 + 缩放/快速重开 + SegmentedNav） -->
-      <AppBar v-if="!isMaui">
-        <template #left>
-          <ConnectionPanel />
-        </template>
-        <template #actions>
-          <div class="zoom-controls">
-            <button
-              class="icon-btn sm"
-              :disabled="game.isMinScale"
-              aria-label="缩小"
-              title="缩小"
-              @click="game.setScale(game.effectiveScale - 0.1)"
-            >−</button>
-            <span class="zoom-label tabular-nums">{{ Math.round(game.effectiveScale * 100) }}%</span>
-            <button
-              class="icon-btn sm"
-              :disabled="game.isMaxScale"
-              aria-label="放大"
-              title="放大"
-              @click="game.setScale(game.effectiveScale + 0.1)"
-            >+</button>
-          </div>
+        <!-- 桌面：目录选择条（spec §5.5——路径输入行不塞进应用栏） -->
+        <div v-if="!isMaui" class="picker-bar">
+          <GamePickerMobile v-if="ui.platform === 'android'" />
+          <GamePicker v-else />
+        </div>
+
+        <!-- MAUI 全屏游戏页：两个常驻无边框图标（spec §6.1），fixed 不占布局。
+             DOM 顺序在 main 之前——满足 §9 Tab 顺序「更多 → 主要内容」。 -->
+        <div v-if="isMaui" class="game-shell-controls">
           <button
-            v-if="canQuickRestart"
-            class="btn-outline action-btn"
-            :disabled="isRestarting || !conn.canMutateLifecycle"
-            :title="!conn.canMutateLifecycle ? '旁观中，请先接管再重开' : `重开当前游戏：${game.gameDir ?? ''}`"
-            @click="onQuickRestart"
-          >
-            {{ isRestarting ? '重开中…' : '快速重开' }}
-          </button>
-        </template>
-        <template #nav>
-          <SegmentedNav />
-        </template>
-      </AppBar>
+            class="icon-btn"
+            :class="{ active: keyboardActive }"
+            aria-label="手动输入"
+            title="手动输入"
+            @click="ui.toggleManualInput()"
+          >⌨</button>
+          <button
+            class="icon-btn"
+            :class="{ active: showFloatMenu }"
+            aria-label="更多操作"
+            title="更多操作"
+            @mousedown.stop
+            @click="showFloatMenu = !showFloatMenu"
+          >⋮</button>
+        </div>
 
-      <!-- 桌面：目录选择条（spec §5.5——路径输入行不塞进应用栏） -->
-      <div v-if="!isMaui" class="picker-bar">
-        <GamePickerMobile v-if="ui.platform === 'android'" />
-        <GamePicker v-else />
+        <Transition name="popup">
+          <PopupMenu
+            v-if="isMaui && showFloatMenu"
+            :items="popupItems"
+            @close="showFloatMenu = false"
+          />
+        </Transition>
+
+        <main class="app-main">
+          <DebugView v-if="ui.currentView === 'debug'" />
+          <SettingsView v-else-if="ui.currentView === 'settings'" />
+          <TerminalView v-else />
+        </main>
       </div>
-
-      <!-- MAUI 全屏游戏页：两个常驻无边框图标（spec §6.1），fixed 不占布局。
-           DOM 顺序在 main 之前——满足 §9 Tab 顺序「更多 → 主要内容」。 -->
-      <div v-if="isMaui" class="game-shell-controls">
-        <button
-          class="icon-btn"
-          :class="{ active: keyboardActive }"
-          aria-label="手动输入"
-          title="手动输入"
-          @click="ui.toggleManualInput()"
-        >⌨</button>
-        <button
-          class="icon-btn"
-          :class="{ active: showFloatMenu }"
-          aria-label="更多操作"
-          title="更多操作"
-          @mousedown.stop
-          @click="showFloatMenu = !showFloatMenu"
-        >⋮</button>
-      </div>
-
-      <Transition name="popup">
-        <PopupMenu
-          v-if="isMaui && showFloatMenu"
-          :items="popupItems"
-          @close="showFloatMenu = false"
-        />
-      </Transition>
-
-      <main class="app-main">
-        <DebugView v-if="ui.currentView === 'debug'" />
-        <SettingsView v-else-if="ui.currentView === 'settings'" />
-        <TerminalView v-else />
-      </main>
-    </template>
+    </Transition>
 
     <!-- 退出确认（Android 风格 Alert Dialog，spec §6.1）——挂载于 AppShell #dialogs -->
     <template #dialogs>
@@ -422,5 +423,28 @@ const popupItems = computed<PopupMenuItem[]>(() => [
 }
 .status-hint.stopped {
   color: var(--color-error);
+}
+
+/* 游戏视图包裹层——在 AppShell flex 布局中撑满剩余空间，与 MauiGameList 平级 */
+.game-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 页面过渡动画（方案一+四）：opacity + scale(0.97) + --motion-slow 时长 */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity var(--motion-slow) var(--fx-curve),
+              transform var(--motion-slow) var(--fx-curve);
+}
+.page-enter-from {
+  opacity: 0;
+  transform: scale(0.97);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
 }
 </style>
