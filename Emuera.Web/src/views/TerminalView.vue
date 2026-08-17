@@ -157,6 +157,7 @@ const showInputBar = computed<boolean>(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 5;
+  /* 高 z 序：确保输入栏作为覆盖层浮在终端最上方、不参与文档流（避免顶开游戏文本） */
+  z-index: 40;
 }
 </style>

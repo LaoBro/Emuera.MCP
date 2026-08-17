@@ -16,6 +16,7 @@ import {
 } from '../lib/mauiBridge';
 import GameRow from './GameRow.vue';
 import StatusBanner from './StatusBanner.vue';
+import PopupMenu, { type PopupMenuItem } from './PopupMenu.vue';
 
 /**
  * MauiGameList — MAUI 游戏选择页（PickerShell，ui-redesign-spec §4.2 / §5 + 原型3）。
@@ -33,9 +34,26 @@ const compactTitleScrollThreshold = 24;
 const showMenu = ref(false);
 const isScrolled = ref(false);
 const heroOpacity = ref(1);
-const menuRoot = ref<HTMLElement | null>(null);
 let heroIntroTimer: ReturnType<typeof setTimeout> | null = null;
 const heroIntro = ref(true);
+
+/** 目录操作菜单项（spec §6.1）——扫描中禁用；点击后由组件自动关闭。 */
+const dirMenuItems = computed<PopupMenuItem[]>(() => [
+  {
+    type: 'item',
+    id: 'change-dir',
+    label: isScanning.value ? '扫描中…' : '更改目录...',
+    disabled: isScanning.value,
+    onClick: onChangeMainDir,
+  },
+  {
+    type: 'item',
+    id: 'rescan',
+    label: '重新扫描游戏',
+    disabled: isScanning.value,
+    onClick: onRescan,
+  },
+]);
 
 /** 错误 banner 自动消失定时器。 */
 let errorBannerTimer: ReturnType<typeof setTimeout> | null = null;
@@ -146,20 +164,6 @@ function scheduleErrorBannerAutoDismiss(): void {
 
 watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true });
 
-function onDocumentPointerDown(event: PointerEvent): void {
-  if (!showMenu.value) return;
-  const target = event.target;
-  if (!(target instanceof Node) || !menuRoot.value?.contains(target)) {
-    showMenu.value = false;
-  }
-}
-
-function onDocumentKeyDown(event: KeyboardEvent): void {
-  if (event.key === 'Escape' && showMenu.value) {
-    showMenu.value = false;
-  }
-}
-
 function onWindowScroll(): void {
   const scrollY = Math.max(0, window.scrollY);
   isScrolled.value = scrollY >= compactTitleScrollThreshold;
@@ -173,8 +177,6 @@ function onWindowScroll(): void {
 }
 
 onMounted(() => {
-  document.addEventListener('pointerdown', onDocumentPointerDown);
-  document.addEventListener('keydown', onDocumentKeyDown);
   window.addEventListener('scroll', onWindowScroll, { passive: true });
   onWindowScroll();
   heroIntroTimer = setTimeout(() => {
@@ -183,15 +185,13 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  document.removeEventListener('pointerdown', onDocumentPointerDown);
-  document.removeEventListener('keydown', onDocumentKeyDown);
   window.removeEventListener('scroll', onWindowScroll);
   if (heroIntroTimer) clearTimeout(heroIntroTimer);
 });
 </script>
 
 <template>
-  <div ref="menuRoot" class="maui-game-list" :class="{ 'is-scrolled': isScrolled }">
+  <div class="maui-game-list" :class="{ 'is-scrolled': isScrolled }">
     <!-- 原型3：顶部仅保留右侧三点菜单，菜单不改变页面布局。 -->
     <header class="picker-appbar">
       <span class="compact-title" aria-hidden="true">选择游戏</span>
@@ -201,20 +201,20 @@ onUnmounted(() => {
         :aria-label="showMenu ? '关闭目录操作菜单' : '目录操作菜单'"
         aria-haspopup="true"
         :aria-expanded="showMenu"
+        @mousedown.stop
         @click="showMenu = !showMenu"
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 5v.01M12 12v.01M12 19v.01" />
         </svg>
       </button>
-      <div v-if="showMenu" class="directory-menu" role="menu">
-        <button type="button" role="menuitem" :disabled="isScanning" @click="showMenu = false; onChangeMainDir()">
-          {{ isScanning ? '扫描中…' : '更改目录...' }}
-        </button>
-        <button type="button" role="menuitem" :disabled="isScanning" @click="showMenu = false; onRescan()">
-          重新扫描游戏
-        </button>
-      </div>
+      <Transition name="popup">
+        <PopupMenu
+          v-if="showMenu"
+          :items="dirMenuItems"
+          @close="showMenu = false"
+        />
+      </Transition>
     </header>
 
     <!-- hero 大标题（原型3）：功能标题，不显示产品名 -->
@@ -370,46 +370,6 @@ onUnmounted(() => {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-.directory-menu {
-  position: absolute;
-  top: var(--appbar-height);
-  right: var(--space-5);
-  z-index: 10;
-  width: 200px;
-  padding: var(--space-2) 0;
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-surface);
-  box-shadow: var(--elevation-menu);
-}
-.directory-menu button {
-  display: flex;
-  align-items: center;
-  width: calc(100% - 16px);
-  min-height: var(--touch-target);
-  margin: 0 var(--space-2);
-  padding: 0 var(--space-3);
-  border: 0;
-  background: transparent;
-  color: var(--color-text);
-  font-size: var(--font-size-base);
-  text-align: left;
-  border-radius: var(--radius-control);
-  cursor: pointer;
-}
-.directory-menu button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-text) 8%, transparent);
-}
-.directory-menu button:focus-visible {
-  background: color-mix(in srgb, var(--color-text) 12%, transparent);
-  outline: 2px solid var(--color-focus);
-  outline-offset: -2px;
-}
-.directory-menu button:disabled {
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 
 /* hero 大标题（原型3）：功能标题，不显示产品名 */

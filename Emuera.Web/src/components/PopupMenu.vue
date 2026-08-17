@@ -1,9 +1,10 @@
 <script lang="ts">
 /**
  * PopupMenu.vue — Android 风格 Popup Menu（ui-redesign-spec §6.1）。
- * 高不透明度 --color-surface-raised、单档 --elevation-menu、--radius-surface(8px)；
+ * 高不透明度 --color-surface-raised、单档 --elevation-menu、--radius-surface(12px)；
  * 菜单项最小高度 48px，左侧图标、右侧文字；缩放作为菜单项（当前百分比 + 缩/放）；
  * 退出项与其它项之间用分隔线；点击外部或按 Escape 关闭（spec §6.1）。
+ * 普通菜单项点击后自动关闭；出入场缩放动画由父级 <Transition name="popup"> 驱动。
  */
 export type PopupMenuItem =
   | {
@@ -67,7 +68,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="rootEl" class="popup-menu" role="menu">
+  <div class="popup-root" role="presentation">
+    <div ref="rootEl" class="popup-menu" role="menu">
     <template v-for="(it, i) in items" :key="i">
       <div v-if="it.type === 'separator'" class="popup-separator" role="separator" />
 
@@ -110,16 +112,27 @@ onUnmounted(() => {
         :class="{ danger: it.danger, active: it.active }"
         :disabled="it.disabled"
         role="menuitem"
-        @click="it.onClick()"
+        @click="it.onClick(); emit('close')"
       >
         <span v-if="it.icon" class="popup-item-icon" aria-hidden="true">{{ it.icon }}</span>
         <span class="popup-item-label">{{ it.label }}</span>
       </button>
     </template>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* 全屏遮罩（scrim）：作为 Transition 根元素，淡入淡出；点击遮罩区域走
+   onDocPointerDown 的「rootEl 之外」分支关闭菜单。
+   非模态浮层用轻档 --color-scrim-menu，强模态 ConfirmDialog 用 --color-overlay
+   （浮层层级：dialog ≥1000 > menu 面板 900 > menu 遮罩 899） */
+.popup-root {
+  position: fixed;
+  inset: 0;
+  z-index: 899;
+  background: var(--color-scrim-menu);
+}
 .popup-menu {
   position: fixed;
   top: calc(var(--appbar-height) + var(--space-2));
@@ -134,7 +147,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  animation: popup-in var(--motion-fast) ease-out;
 }
 .popup-item {
   display: flex;

@@ -305,7 +305,6 @@ const submitLabel = computed<string>(() => {
   flex-direction: column;
   gap: var(--space-1);
   min-height: 40px;
-  transition: opacity var(--motion-slow), transform var(--motion-slow);
 }
 
 /* TINPUT 超时通知——warning 语义窄状态行 */
@@ -414,14 +413,27 @@ const submitLabel = computed<string>(() => {
 }
 </style>
 
-<!-- 输入栏出现/消失过渡（spec §6.3：短过渡，仅 opacity，避免遮挡最新游戏文本） -->
+<!-- 输入栏出现/消失过渡：淡入 + 上浮/下沉，位移与整套浮层统一（--fx-rise=12px）。
+     曲线同样用统一 --fx-curve。 -->
 <style>
+/* 输入栏作为终端底部覆盖层（overlay-bottom）时的可靠定位——absolute 盖在最上、
+   不参与文档流，从而不顶开游戏文本。非 scoped 兜底，避免生效依赖父级 scoped 传导。 */
+.input-bar.overlay-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
 .inputbar-enter-active,
 .inputbar-leave-active {
-  transition: opacity var(--motion-slow);
+  transition: opacity var(--motion-slow) var(--fx-curve), transform var(--motion-slow) var(--fx-curve);
 }
-.inputbar-enter-from,
+.inputbar-enter-from {
+  opacity: 0;
+  transform: translateY(var(--fx-rise));
+}
 .inputbar-leave-to {
   opacity: 0;
+  transform: translateY(var(--fx-rise));
 }
 </style>

@@ -143,7 +143,6 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     disabled: !canQuickRestart.value || isRestarting.value,
     onClick: () => {
       void onQuickRestart();
-      showFloatMenu.value = false;
     },
   },
   {
@@ -164,7 +163,6 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     active: ui.currentView === 'terminal',
     onClick: () => {
       ui.switchView('terminal');
-      showFloatMenu.value = false;
     },
   },
   {
@@ -175,7 +173,6 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     active: ui.currentView === 'debug',
     onClick: () => {
       ui.switchView('debug');
-      showFloatMenu.value = false;
     },
   },
   {
@@ -186,7 +183,6 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     active: ui.currentView === 'settings',
     onClick: () => {
       ui.switchView('settings');
-      showFloatMenu.value = false;
     },
   },
   { type: 'separator' },
@@ -199,7 +195,6 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     disabled: !canExitGame.value || isExiting.value,
     onClick: () => {
       onExitClick();
-      showFloatMenu.value = false;
     },
   },
 ]);
@@ -270,15 +265,18 @@ const popupItems = computed<PopupMenuItem[]>(() => [
           :class="{ active: showFloatMenu }"
           aria-label="更多操作"
           title="更多操作"
+          @mousedown.stop
           @click="showFloatMenu = !showFloatMenu"
         >⋮</button>
       </div>
 
-      <PopupMenu
-        v-if="isMaui && showFloatMenu"
-        :items="popupItems"
-        @close="showFloatMenu = false"
-      />
+      <Transition name="popup">
+        <PopupMenu
+          v-if="isMaui && showFloatMenu"
+          :items="popupItems"
+          @close="showFloatMenu = false"
+        />
+      </Transition>
 
       <main class="app-main">
         <DebugView v-if="ui.currentView === 'debug'" />

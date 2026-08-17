@@ -45,34 +45,36 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown));
 </script>
 
 <template>
-  <div
-    v-if="visible"
-    class="confirm-overlay"
-    @click.self="onCancel"
-  >
+  <Transition name="dialog">
     <div
-      class="confirm-dialog"
-      role="alertdialog"
-      aria-modal="true"
-      :aria-label="title"
+      v-if="visible"
+      class="confirm-overlay"
+      @click.self="onCancel"
     >
-      <h2 class="confirm-title">{{ title }}</h2>
-      <p v-if="message" class="confirm-message">{{ message }}</p>
-      <div class="confirm-actions">
-        <button type="button" class="btn-primary confirm-btn text" @click="onCancel">
-          {{ cancelLabel }}
-        </button>
-        <button
-          type="button"
-          class="btn-primary confirm-btn text"
-          :class="{ danger }"
-          @click="onConfirm"
-        >
-          {{ confirmLabel }}
-        </button>
+      <div
+        class="confirm-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        :aria-label="title"
+      >
+        <h2 class="confirm-title">{{ title }}</h2>
+        <p v-if="message" class="confirm-message">{{ message }}</p>
+        <div class="confirm-actions">
+          <button type="button" class="btn-primary confirm-btn text" @click="onCancel">
+            {{ cancelLabel }}
+          </button>
+          <button
+            type="button"
+            class="btn-primary confirm-btn text"
+            :class="{ danger }"
+            @click="onConfirm"
+          >
+            {{ confirmLabel }}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <style scoped>
@@ -85,7 +87,6 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown));
   justify-content: center;
   z-index: 1000;
   padding: var(--space-4);
-  animation: fade-in var(--motion-fast) ease-out;
 }
 .confirm-dialog {
   background: var(--color-surface);
@@ -98,7 +99,6 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown));
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  animation: dialog-in var(--motion-fast) ease-out;
 }
 .confirm-title {
   margin: 0;
