@@ -150,4 +150,20 @@ public class SessionWaitForTurnTests
         Assert.Equal(1, stolen.TurnsAdvanced);
         Assert.Equal("raced-turn", stolen.Turn);
     }
+
+    [Fact]
+    public async Task Dispose_mid_wait_returns_closed()
+    {
+        var (session, _) = CreateSession();
+        using var sessionCleanup = session;
+
+        var waitTask = session.WaitForTurnAsync(5000, CancellationToken.None);
+        await Task.Delay(80);
+        session.Dispose();
+        var result = await waitTask;
+
+        // 拆除期在途等待应稳定 Closed（404），而非与 ControlLost（409）竞争
+        Assert.Equal(TurnWaitStatus.Closed, result.Status);
+        Assert.Null(result.Turn);
+    }
 }

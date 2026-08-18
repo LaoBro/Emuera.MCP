@@ -156,6 +156,88 @@ public class TurnDeliveryTests
         Assert.Equal("game_ended", signal.LastEndedType);
     }
 
+    [Fact]
+    public async Task Dispose_mid_wait_returns_closed()
+    {
+        var (delivery, _, _) = Create();
+
+        var wait = delivery.WaitForTurnAsync(5000, CancellationToken.None);
+        await Task.Yield();
+        delivery.Dispose();
+        var r = await wait;
+
+        // 拆除期在途等待应稳定 404 Closed，而非与 409 ControlLost 竞争
+        Assert.Equal(TurnWaitStatus.Closed, r.Status);
+        Assert.Null(r.Turn);
+    }
+
+    [Fact]
+    public async Task Dispose_while_turn_pending_rolls_back_and_returns_closed()
+    {
+        var (delivery, sink, _) = Create();
+
+        var wait = delivery.WaitForTurnAsync(5000, CancellationToken.None);
+        await Task.Yield();
+        delivery.Dispose();      // 先拆除：End(ownerChanged) + Close
+        sink.ProvideTurn("T");   // 之后到达的 turn 触发 readTask 完成
+        var r = await wait;
+
+        Assert.Equal(TurnWaitStatus.Closed, r.Status);
+        // 已取出但未交付的 turn 经 UnreadOutput 回滚（会话已拆，无新持有者 drain，丢弃无害）
+        Assert.Contains("T", sink.UnreadLog);
+    }
+
+    [Fact]
+    public async Task Game_end_mid_wait_with_identity_delivers_final()
+    {
+        var (delivery, _, signal) = Create();
+        signal.Current = ControlIdentity.Agent("agent-1");
+
+        var wait = delivery.WaitForTurnAsync(5000, ControlIdentity.Agent("agent-1"), CancellationToken.None);
+        await Task.Yield();
+        delivery.EndOfGame("FINAL");
+        var r = await wait;
+
+        // game_end（有 final）应交付 final turn，而非因 End 清空 _current 被误判 409 ControlLost
+        Assert.Equal(TurnWaitStatus.Turn, r.Status);
+        Assert.Equal("FINAL", r.Turn);
+        Assert.True(delivery.IsFinalTurnDelivered);
+    }
+
+    [Fact]
+    public async Task Lease_expired_mid_wait_returns_control_lost()
+    {
+        var (delivery, _, signal) = Create();
+        signal.Current = ControlIdentity.Agent("agent-1");
+
+        var wait = delivery.WaitForTurnAsync(5000, ControlIdentity.Agent("agent-1"), CancellationToken.None);
+        await Task.Yield();
+        signal.Current = null;   // lease 过期：控制权被清空但会话仍在跑
+        signal.FireOwnerChanged();
+        var r = await wait;
+
+        // lease_expired（非 teardown、非 game_end）→ 保持 409 ControlLost，可重新 acquire
+        Assert.Equal(TurnWaitStatus.ControlLost, r.Status);
+        Assert.Equal("control_changed", r.Reason);
+    }
+
+    [Fact]
+    public async Task Teardown_after_game_end_still_delivers_ready_final()
+    {
+        var (delivery, _, _) = Create();
+
+        delivery.EndOfGame("FINAL");   // game_end：final 已就绪并入队
+        delivery.Dispose();            // 随后拆除（teardown 旗标置位）
+
+        var r = await delivery.WaitForTurnAsync(1000, CancellationToken.None);
+
+        // 四种终止态归一：已就绪的 final 优先于拆除（spec L38「game_end → 交付 final」），
+        // 拆除旗标不得在循环顶早退处把它丢弃成 404 Closed。
+        Assert.Equal(TurnWaitStatus.Turn, r.Status);
+        Assert.Equal("FINAL", r.Turn);
+        Assert.True(delivery.IsFinalTurnDelivered);
+    }
+
     private sealed class FakeTurnSink : ITurnSink
     {
         private readonly ConcurrentQueue<string?> _available = new();
@@ -224,9 +306,12 @@ public class TurnDeliveryTests
         public ControlEvent End(string type)
         {
             LastEndedType = type;
-            var info = Current is { } c ? new ControllerInfo(c.KindName, c.Token, null) : null;
+            // 与真实 Controller.End 一致：先清空当前持有者再发事件（事件不带 holder）。
+            // 此前 fake 不清 Current，无法复现真实「game_end 清空 _current → IsCurrent 变 false」的
+            // 第二子句竞态，导致 game_end+身份 分支在旧代码下不会变红。
+            Current = null;
             FireOwnerChanged();
-            return new ControlEvent(type, null, DateTimeOffset.UtcNow, info, "ended");
+            return new ControlEvent(type, null, DateTimeOffset.UtcNow, null, "ended");
         }
 
         public void FireOwnerChanged()

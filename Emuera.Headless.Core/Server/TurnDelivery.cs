@@ -44,6 +44,12 @@ internal sealed class TurnDelivery : IDisposable
     private volatile bool _finalTurnReady;
     private bool _finalTurnDelivered;
     private bool _sessionEnded;
+    /// <summary>
+    /// 拆除中旗标：<see cref="Dispose"/> 首行置位（先于 End/Close），供等待循环把拆除期在途
+    /// /turn 稳定判定为 Closed(404)，不再与 ownerChanged 竞态产生 409/404 不确定返回。
+    /// volatile：Dispose 线程写、等待循环线程读，与 <see cref="_finalTurnReady"/> 同构。
+    /// </summary>
+    private volatile bool _sessionTeardown;
 
     public TurnDelivery(ITurnSink sink, IControlSignal signal)
     {
@@ -108,10 +114,14 @@ internal sealed class TurnDelivery : IDisposable
     /// 会话拆除：End(session_ended) + Close。不 Dispose 共享的 signal/sink（归属 Session）。
     /// 注意：不置 <see cref="_sessionEnded"/>（该旗标只在 EndOfGame/game-ended 置位），以保持
     /// 与原 Session.HasEnded「仅游戏结束后」的快失败判定语义（DELETE-mid-game 仍走 not_controller 409）。
-    /// 拆除期在途 GET /turn 的 409/404 判定为已知问题（见架构评审 C2 记录），此处保现状、不归一。
+    /// 拆除期在途 GET /turn 经 <see cref="_sessionTeardown"/> 稳定归一为 Closed(404)，
+    /// 不再与 ownerChanged 分支竞争产生 409/404 不确定返回。
     /// </summary>
     public void Dispose()
     {
+        // 先置拆除旗标（volatile 写）再 End + Close：等待者观察到 ownerChanged 完成时
+        // 必然已见该旗标（任务完成自带 acquire/release 语义），从而稳定走 Closed(404) 分支。
+        _sessionTeardown = true;
         _signal.End("session_ended");
         _sink.Close();
     }
@@ -138,9 +148,18 @@ internal sealed class TurnDelivery : IDisposable
 
         // 控制权是否已丢失：owner-changed 已触发（且非 final-turn 就绪，game_end 不算失守）或
         // 持身份等待但当前持有者已非本人。循环内多处复用同一判定。
+        // 第二子句同样以 !_finalTurnReady 防护：game_end 会清空 _current 使 IsCurrent 转 false，
+        // 但那是「应交付 final」而非失守，不得据此误判 ControlLost。
         bool IsControlLost(Task ownerChangedTask) =>
             (ownerChangedTask.IsCompleted && !_finalTurnReady) ||
-            (identity.HasValue && waitSnapshot.Controller.HasValue && !_signal.IsCurrent(identity.Value));
+            (identity.HasValue && waitSnapshot.Controller.HasValue && !_signal.IsCurrent(identity.Value) && !_finalTurnReady);
+
+        // 终止态归一：拆除中 → Closed(404)；否则（steal / lease_expired / release）→ ControlLost(409)。
+        // 两处回滚点共用，保证拆除期与易主期的判定一致且确定。
+        TurnWaitResult ClosedOrControlLost() =>
+            _sessionTeardown
+                ? new TurnWaitResult(TurnWaitStatus.Closed, null)
+                : new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
 
         while (true)
         {
@@ -148,8 +167,12 @@ internal sealed class TurnDelivery : IDisposable
             await _turnAccessLock.WaitAsync(ct);
             try
             {
+                // 拆除中且无已就绪 final：会话已删除、无后续 turn → 稳定 Closed(404)，先于 ControlLost 判定。
+                // 若拆除恰逢 game_end 已就绪 final（EndOfGame 先完成），仍走下方交付 final（四种终止态归一）。
+                if (_sessionTeardown && !_finalTurnReady)
+                    return ClosedOrControlLost();
                 if (IsControlLost(ownerChangedTask))
-                    return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
+                    return ClosedOrControlLost();
 
                 var readTask = _sink.ReadOutputAsync(ct);
                 await Task.WhenAny(readTask, ownerChangedTask);
@@ -178,7 +201,7 @@ internal sealed class TurnDelivery : IDisposable
                         {
                         }
                     }
-                    return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
+                    return ClosedOrControlLost();
                 }
 
                 string? turn;
@@ -202,7 +225,7 @@ internal sealed class TurnDelivery : IDisposable
                 if (IsControlLost(ownerChangedTask))
                 {
                     _sink.UnreadOutput(turn);
-                    return new TurnWaitResult(TurnWaitStatus.ControlLost, null, "control_changed", DateTimeOffset.UtcNow);
+                    return ClosedOrControlLost();
                 }
 
                 // 拿到 turn，在 lock 内检查 finalTurn 标记（一次性交付）
