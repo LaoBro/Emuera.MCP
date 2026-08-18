@@ -17,6 +17,7 @@ import {
 import GameRow from './GameRow.vue';
 import StatusBanner from './StatusBanner.vue';
 import PopupMenu, { type PopupMenuItem } from './PopupMenu.vue';
+import { useUiStore } from '../stores/ui';
 
 /**
  * MauiGameList — MAUI 游戏选择页（PickerShell，ui-redesign-spec §4.2 / §5 + 原型3）。
@@ -28,6 +29,7 @@ import PopupMenu, { type PopupMenuItem } from './PopupMenu.vue';
  * 错误使用顶部可关闭 StatusBanner（5 秒自动消失）；空状态提供唯一主操作按钮。
  */
 const game = useGameStore();
+const ui = useUiStore();
 const compactTitleScrollThreshold = 24;
 
 /** 顶部 ⋮ 菜单展开状态。 */
@@ -52,6 +54,13 @@ const dirMenuItems = computed<PopupMenuItem[]>(() => [
     label: '重新扫描游戏',
     disabled: isScanning.value,
     onClick: onRescan,
+  },
+  { type: 'separator' },
+  {
+    type: 'item',
+    id: 'theme',
+    label: ui.theme === 'dark' ? '☀ 亮色主题' : '☾ 暗色主题',
+    onClick: () => ui.toggleTheme(),
   },
 ]);
 
@@ -395,7 +404,6 @@ onUnmounted(() => {
   width: 100%;
   margin: 0 0 18px;
   padding: 0 var(--space-5) var(--space-3);
-  border-bottom: 1px solid var(--color-border);
   background: var(--color-bg);
   display: flex;
   align-items: baseline;

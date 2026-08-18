@@ -39,10 +39,17 @@ onMounted(() => {
   initAppState();
   startGameStatusMonitor();
   window.addEventListener('keydown', onControlHotkey);
+  // 初始化时同步主题到 data-theme
+  document.documentElement.dataset.theme = ui.theme;
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onControlHotkey);
+});
+
+// 同步主题到 <html data-theme>
+watch(() => ui.theme, (t) => {
+  document.documentElement.dataset.theme = t;
 });
 
 const isMaui = isMauiEnvironment();

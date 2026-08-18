@@ -86,6 +86,26 @@ export const useUiStore = defineStore('ui', () => {
     isStickyToBottom.value = v;
   }
 
+  /** 主题：'dark' | 'light'，从 localStorage 读取，默认 'dark'。 */
+  const THEME_STORAGE_KEY = 'emuera.theme';
+  function readThemeFromStorage(): 'dark' | 'light' {
+    try {
+      const v = localStorage.getItem(THEME_STORAGE_KEY);
+      if (v === 'light' || v === 'dark') return v;
+    } catch { /* 静默 */ }
+    return 'dark';
+  }
+  function writeThemeToStorage(t: 'dark' | 'light'): void {
+    try { localStorage.setItem(THEME_STORAGE_KEY, t); } catch { /* 静默 */ }
+  }
+  const theme = ref<'dark' | 'light'>(readThemeFromStorage());
+
+  /** 切换主题并持久化。 */
+  function toggleTheme(): void {
+    theme.value = theme.value === 'dark' ? 'light' : 'dark';
+    writeThemeToStorage(theme.value);
+  }
+
   return {
     currentView,
     platform,
@@ -94,5 +114,7 @@ export const useUiStore = defineStore('ui', () => {
     setStickyToBottom,
     manualInputVisible,
     toggleManualInput,
+    theme,
+    toggleTheme,
   };
 });
