@@ -27,6 +27,9 @@
   /* ---------- 终端颜色（固定不随主题变化——游戏脚本控制的内容） ---------- */
   --term-color-text: #e8eaed;     /* 默认文字颜色 */
   --term-color-bg: #171717;       /* 终端背景 */
+  --term-btn-hover-bg: #2a2b2e;   /* 按钮 hover 背景 */
+  --term-btn-hover-line: #a8c7fa; /* 按钮 hover 下划线 */
+  --term-btn-active: #a8c7fa;     /* 按钮 active 背景 */
 
   /* ---------- 圆角（修订方案 §2.4：DESIGN.md 2/4/8 三档） ---------- */
   --radius-indicator: 2px;        /* 左指示条 */

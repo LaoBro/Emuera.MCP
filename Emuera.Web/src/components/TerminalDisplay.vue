@@ -552,13 +552,13 @@ watch(() => game.inputInFlight, (inFlight) => {
   transition: background var(--motion-fast), text-decoration-color var(--motion-fast);
 }
 .term-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-surface-raised) 60%, transparent);
+  background: color-mix(in srgb, var(--term-btn-hover-bg) 60%, transparent);
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: color-mix(in srgb, var(--color-indicator) 70%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--term-btn-hover-line) 70%, transparent);
 }
 .term-btn:active:not(:disabled) {
-  background: color-mix(in srgb, var(--color-indicator) 25%, transparent);
+  background: color-mix(in srgb, var(--term-btn-active) 25%, transparent);
 }
 .term-btn:disabled {
   cursor: default;
