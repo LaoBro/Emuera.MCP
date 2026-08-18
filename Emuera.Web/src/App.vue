@@ -433,11 +433,14 @@ const popupItems = computed<PopupMenuItem[]>(() => [
   overflow: hidden;
 }
 
-/* 页面过渡动画（方案一+四）：opacity + scale + --page-duration 时长 */
-.page-enter-active,
-.page-leave-active {
+/* 页面过渡动画：进场用 --fx-curve，退场用 ease-out */
+.page-enter-active {
   transition: opacity var(--page-duration) var(--fx-curve),
               transform var(--page-duration) var(--fx-curve);
+}
+.page-leave-active {
+  transition: opacity var(--page-duration) var(--page-easing-leave),
+              transform var(--page-duration) var(--page-easing-leave);
 }
 .page-enter-from {
   opacity: 0;
