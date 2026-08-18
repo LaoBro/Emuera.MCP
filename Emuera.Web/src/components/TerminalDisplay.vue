@@ -43,11 +43,11 @@ import type { ButtonValue, SegmentImage, DisplayLine, DisplayEntry } from '../ty
  * - `isStickyToBottom` 同时控制"新行自动跟随"与"点击推进守卫"——用户向上滚过后
  *   点击非按钮区域不再推进游戏，让用户安心翻看历史。
  *
- * shift_head 协议：
- * - game store 检测到 diff.lineOps 含 shift_head 时写入 lastShiftHeadCount + 自增 shiftHeadTick。
- * - 本组件 watch(shiftHeadTick)：若 isStickyToBottom=false，调 adjustScrollTop(-count * rowHeight)
- *   保持视觉位置（原来第 N 行仍在新位置的同一像素处）。
- * - clear_screen（全清）行为：重置 isStickyToBottom=true + scrollToBottom——全清视为新画面。
+ * shift_head / clear_screen 协议：
+ * - game store 的 applyDiff 归约时产出声明式 DisplaySignal（shift_head/clear_screen），
+ *   存入 lastDisplaySignal；本组件 watch 此信号驱动滚动副作用——
+ *   shift_head：非贴底时调 adjustScrollTop(-count * rowHeight) 保持视觉位置；
+ *   clear_screen（全清）：重置 isStickyToBottom=true + scrollToBottom——全清视为新画面。
  *
  * 布局策略：`.terminal` 容器填满父宽度（`flex: 1`），内容由 `.terminal-content`
  * （`width: windowWidth × scale px; margin: 0`）约束在游戏设计宽度内、靠左对齐。
@@ -340,32 +340,28 @@ function lineAlign(line: DisplayLine): 'left' | 'center' | 'right' {
   return line.align ?? 'left';
 }
 
-// ---------- shift_head 视觉位置补偿 ----------
+// ---------- 显示变更信号：shift_head 补偿 + clear_screen 回底 ----------
 //
-// game store 检测到 diff.lineOps 含 shift_head 时自增 shiftHeadTick + 写入 lastShiftHeadCount。
-// 本 watch 据此调 adjustScrollTop(-count * rowHeight) 保持视口内显示的行内容不变
-// （仅 isStickyToBottom=false 时有意义——用户在底部时新内容自然到达，无需调整）。
-watch(() => game.shiftHeadTick, () => {
-  if (game.lastShiftHeadCount <= 0) return;
-  if (vs.isStickyToBottom.value) return; // 用户在底部——无需补偿
-  vs.adjustScrollTop(-game.lastShiftHeadCount * effectiveRowHeight.value);
-});
-
-// ---------- clear_screen 强制回到底部 ----------
-//
-// 全清视为新画面，强制 isStickyToBottom=true + scrollToBottom——
-// 覆盖 race 降级产生的 ClearScreenOp + Append（spec.md决策五）。
-//
-// 检测策略：watch game.clearScreenTick——game store 在 applyDiff 前扫描 lineOps
-// 检测到 clear_screen op 时自增此 tick。不能直接 watch(lines.length)，因为
-// applyDiff 单 tick 内顺序应用 clear_screen + append，Vue 响应式只观察最终 length
-// （= append 后行数），length 突变到 0 的中间态不可见。
-watch(() => game.clearScreenTick, () => {
-  if (!vs.isStickyToBottom.value) {
-    vs.isStickyToBottom.value = true;
-    ui.setStickyToBottom(true);
+// game store 在 applyDiff 归约时产出声明式 DisplaySignal（shift_head/clear_screen），
+// 本 watch 据此驱动滚动副作用——不再跨 store 传 tick/count/watch 手指 scrollTop：
+// - shift_head：非贴底查看历史时调 adjustScrollTop(-count * rowHeight) 保持视觉位置
+//   （原来第 N 行仍在新位置的同一像素处）；贴底时新内容自然到达，无需补偿。
+// - clear_screen：全清视为新画面，强制 isStickyToBottom=true + scrollToBottom——
+//   覆盖 race 降级产生的 ClearScreenOp + Append（spec.md决策五）。
+// 不能直接 watch(lines.length) 检测全清：applyDiff 单 tick 内顺序应用 clear_screen + append，
+// Vue 响应式只观察最终 length（= append 后行数），length 突变到 0 的中间态不可见。
+watch(() => game.lastDisplaySignal, (signal) => {
+  if (!signal) return; // reset() 置 null——不触发
+  if (signal.type === 'shift_head') {
+    if (vs.isStickyToBottom.value) return; // 用户在底部——无需补偿
+    vs.adjustScrollTop(-signal.count * effectiveRowHeight.value);
+  } else if (signal.type === 'clear_screen') {
+    if (!vs.isStickyToBottom.value) {
+      vs.isStickyToBottom.value = true;
+      ui.setStickyToBottom(true);
+    }
+    vs.scrollToBottom();
   }
-  vs.scrollToBottom();
 });
 
 // ---------- 提交输入后回到底部 ----------

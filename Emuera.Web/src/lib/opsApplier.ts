@@ -100,9 +100,27 @@ export function applyOps(state: DisplayState, ops: TurnOp[]): DisplayState {
 }
 
 /**
+ * 归约产出的高级变更信号——lineOps 中会影响滚动位置的结构性变化摘要。
+ *
+ * - `shift_head`：头部截断 count 行（MaxLog 滚动）——非贴底查看历史时需把
+ *   scrollTop 上移 count × rowHeight 保持视觉位置（scrollTop -= count * rowHeight）。
+ * - `clear_screen`：全清——视为新画面，强制回到底部。
+ *
+ * 单值 union：C# `DisplayState.ComputeDiff` 保证 `shift_head` 与 `clear_screen` 互斥
+ * （TurnRecord.cs「与 ClearScreenOp 互斥：全清已无头部可截」），故无结构性变化时返回 null。
+ *
+ * **注意：signal 是 TS 侧独有派生物**——C# `TestAdapter.ApplyDiff`
+ * （Emuera.Headless.Tests/TestAdapter.cs:72）是 void（可变实例），不产出信号；
+ * 前端从 lineOps 分类摘要得出，用于驱动滚动副作用（归约与滚动后果同处——deep seam）。
+ */
+export type DisplaySignal =
+  | { type: 'shift_head'; count: number }
+  | { type: 'clear_screen' };
+
+/**
  * 应用 `DisplayDiff`（v5 协议增量 + shift_head 扩展）更新状态（issue 02）。
  *
- * 与 C# `TestAdapter.ApplyDiff`（Emuera.Headless.Tests/TestAdapter.cs:58）对称：
+ * 与 C# `TestAdapter.ApplyDiff`（Emuera.Headless.Tests/TestAdapter.cs:72）对称（状态部分）：
  * - `append` → 追加 newLines（diff 已按行结构化，逐条转为内部 DisplayLine）
  * - `clear_line_diff` (clearCount) → 从末尾删除 min(clearCount, length) 行
  * - `clear_screen` → 清空全部行
@@ -121,11 +139,30 @@ export function applyOps(state: DisplayState, ops: TurnOp[]): DisplayState {
  *
  * state/inputType/needValue 不被 applyDiff 修改——它们由 TurnRecord 顶层字段携带。
  *
+ * @returns `{ state, signal }`——signal 为 null 表示本帧无结构性变化（不影响滚动位置）；
+ *   有 clear_screen 时返回 `{type:'clear_screen'}`，否则有 shift_head 时返回
+ *   `{type:'shift_head', count}`（确定性优先级，防御协议不可能的双 op 同帧）。
  * @throws {Error} 未知 LineOp 类型
  */
-export function applyDiff(state: DisplayState, diff: DisplayDiff): DisplayState {
+export function applyDiff(
+  state: DisplayState,
+  diff: DisplayDiff,
+): { state: DisplayState; signal: DisplaySignal | null } {
   const lines: DisplayLine[] = state.lines.slice();
   let bgColor: string | null = state.bgColor;
+
+  // 先扫描结构性变化——在应用 op 前产出信号（不能事后 watch(lines.length) 检测全清：
+  // applyDiff 单 tick 内顺序应用 clear_screen + append，响应式只观察到最终 length，
+  // 突变到 0 的中间态不可见）。确定性优先级：有 clear_screen 即优先（协议保证二者互斥）。
+  let signal: DisplaySignal | null = null;
+  let hasClearScreen = false;
+  let shiftHeadCount = 0;
+  for (const op of diff.lineOps) {
+    if (op.type === 'clear_screen') hasClearScreen = true;
+    else if (op.type === 'shift_head') shiftHeadCount += op.count;
+  }
+  if (hasClearScreen) signal = { type: 'clear_screen' };
+  else if (shiftHeadCount > 0) signal = { type: 'shift_head', count: shiftHeadCount };
 
   for (const op of diff.lineOps) {
     switch (op.type) {
@@ -174,12 +211,15 @@ export function applyDiff(state: DisplayState, diff: DisplayDiff): DisplayState 
   }
 
   return {
-    lines,
-    bgColor,
-    bgImages,
-    state: state.state,
-    inputType: state.inputType,
-    needValue: state.needValue,
+    state: {
+      lines,
+      bgColor,
+      bgImages,
+      state: state.state,
+      inputType: state.inputType,
+      needValue: state.needValue,
+    },
+    signal,
   };
 }
 

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, shallowRef, computed } from 'vue';
 import { parseTurnRecord, ParseTurnRecordError } from '../lib/parseTurnRecord';
-import { applyDiff } from '../lib/opsApplier';
+import { applyDiff, type DisplaySignal } from '../lib/opsApplier';
 import { applySnapshot } from '../lib/snapshotReducer';
 import { EMPTY_DISPLAY_STATE } from '../types/protocol';
 import type { DisplayState, DisplaySnapshot, TurnRecord } from '../types/protocol';
@@ -217,7 +217,8 @@ function writeLastPlayedGameToStorage(name: string): void {
  * 协议消费链路（issue 02 引入纯函数，issue 03 在此 wiring，ADR-0016 加 timer 字段）：
  *   WS 帧原始 JSON
  *     → parseTurnRecord(rawJson)  → TurnRecord（含 timeLimit/displayTime/timeUpMessage/timedOut）
- *     → applyDiff(displayState, turn.diff)  → 新 DisplayState
+ *     → applyDiff(displayState, turn.diff)  → { DisplayState, signal }
+ *        signal 非 null 时写入 lastDisplaySignal（归约层对 shift_head/clear_screen 的分类摘要）
  *     → 顶层 state/inputType/needValue 用 turn 字段覆盖
  *
  * 与 C# `Emuera.Headless/Server/OutputHub` + `AgentJsonlProtocol.RunLoopAsync` 对称：
@@ -364,47 +365,29 @@ export const useGameStore = defineStore('game', () => {
    */
   const protocolVersion = ref<number | null>(null);
 
-  // ---------- shift_head 协议：头部截断跟踪 ----------
+  // ---------- 显示变更信号（shift_head / clear_screen） ----------
   //
   // C# 端 `ConsolePrintManager.RemoveAt(0)` 触发 MaxLog 头部截断时，
-  // `DisplayState.ComputeDiff` 在 lineOps 前置 `ShiftHeadLineOp(count)`。
-  // 前端 `applyDiff` 处理该 op 时 `lines.splice(0, count)`——但若用户正在查看历史
-  // （isStickyToBottom=false），splice 后 scrollTop 仍指向原像素位置，导致视口内
-  // 显示的行内容跳变（原来第 N 行被新位置的第 N 行替换）。
+  // `DisplayState.ComputeDiff` 在 lineOps 前置 `ShiftHeadLineOp(count)`；
+  // CLEAR/全重置则产出 `ClearScreenOp`。这两类结构性变化会改变滚动位置，
+  // 由 `applyDiff` 归约时一并分类为声明式 `DisplaySignal`（见 opsApplier.ts）。
   //
-  // 解决：applyDiff 前检测 diff.lineOps 是否含 shift_head，累加 count 写入
-  // lastShiftHeadCount + 自增 shiftHeadTick（触发响应式）。TerminalDisplay
-  // `watch(shiftHeadTick)` 据此调 `adjustScrollTop(-count * rowHeight)`——
-  // scrollTop 上移 count 行高度，使视口内显示的行内容不变。
+  // 本 ref 只存最近一帧的信号：applyTurn 里 `applyDiff` 返回非 null 信号时才赋值
+  // （每次都是新对象，引用变化天然触发 TerminalDisplay 的 watch）；
+  // 无结构性变化的帧不触碰本 ref——保持「只在相关帧触发」的语义。
+  // reset() / completeExitGame() 置 null，避免重挂载时残留信号触发 watch。
   //
-  // 为什么用 tick + count 两个字段：
-  // - tick 是单调递增整数，watch 它即可触发响应式副作用（避免对 number ref 写相同值不触发 watch）
-  // - lastShiftHeadCount 携带本次 shift_head 的实际行数，供 TerminalDisplay 计算 adjustScrollTop delta
-  // 同一帧内多个 shift_head op（罕见）累加到 count；下一帧 turn 到达时旧值失效，
-  // watch 只在新 tick 触发——避免重复调整。
-  /** shift_head 事件触发器——每次 applyDiff 检测到 shift_head 时自增。 */
-  const shiftHeadTick = ref<number>(0);
-  /** 最近一次 shift_head 的累计行数——TerminalDisplay 据此算 adjustScrollTop delta。 */
-  const lastShiftHeadCount = ref<number>(0);
-
-  // ---------- clear_screen 全清事件跟踪 ----------
-  //
-  // spec.md「### 视觉处理」要求：clear_screen（含 race 降级产生的 ClearScreenOp + Append）
-  // 重置 isStickyToBottom=true + scrollToBottom——全清视为新画面，强制回底部。
-  //
-  // 检测策略：applyDiff 前扫描 diff.lineOps 是否含 clear_screen op，含则自增 clearScreenTick。
-  // TerminalDisplay `watch(clearScreenTick)` 据此 reset sticky + scrollToBottom。
-  //
-  // 为什么不用 `watch(lines.length)` 检测全清：applyDiff 在单 tick 内顺序应用 clear_screen + append，
-  // Vue 响应式只观察到最终 length（= append 后的行数），length 突变到 0 的中间态不可见 →
-  // 检测失败。在 applyDiff 调用前扫描 lineOps 是唯一可靠方式。
-  /** clear_screen 事件触发器——每次 applyDiff 检测到 clear_screen op 时自增。 */
-  const clearScreenTick = ref<number>(0);
+  // 为什么不用 `watch(lines.length)` 检测全清：applyDiff 在单 tick 内顺序应用
+  // clear_screen + append，Vue 响应式只观察到最终 length（= append 后行数），
+  // length 突变到 0 的中间态不可见——信号必须由归约层在应用 op 时同步产出。
+  /** 最近一帧的显示变更信号——TerminalDisplay watch 此 ref 驱动滚动副作用。null 表示无结构性变化。 */
+  const lastDisplaySignal = ref<DisplaySignal | null>(null);
 
   /**
    * game-library spec ID10：Android 物理返回键触发退出确认——计数器。
    * useAppInit 收到 backButtonPressed 消息时自增，App.vue watch 此值弹出确认对话框。
-   * 与 shiftHeadTick / clearScreenTick 同样为单调递增触发器模式。
+   * 单调递增整数 ref 触发器模式——与已移除的 shift/clear 信号 tick 同理：
+   * 避免对同一值重写不触发 watch。
    */
   const backButtonPressedTick = ref<number>(0);
 
@@ -696,30 +679,16 @@ export const useGameStore = defineStore('game', () => {
     // v7：更新 currentTurnGeneration + 清 inputInFlight（新回合到来，解锁）
     acceptGeneration(turn.generation);
 
-    // 应用 diff（若存在）。applyDiff 不修改入参——返回新对象。
-    // 同时检测 shift_head / clear_screen op（applyDiff 前扫描 lineOps）：
-    // - shift_head：累加 count 写入 lastShiftHeadCount + 自增 shiftHeadTick，
-    //   TerminalDisplay watch(shiftHeadTick) 据此调 adjustScrollTop 保持视觉位置。
-    // - clear_screen：自增 clearScreenTick，TerminalDisplay watch(clearScreenTick)
-    //   据此 reset isStickyToBottom=true + scrollToBottom（全清视为新画面）。
-    // 必须在 applyDiff 前扫描——applyDiff 单 tick 内顺序应用 clear_screen + append，
-    // Vue 响应式只观察最终 length，length 突变到 0 的中间态不可见。
+    // 应用 diff（若存在）。applyDiff 不修改入参——返回 {state, signal}：
+    // - signal 是归约层对 lineOps 结构性变化（shift_head/clear_screen）的分类摘要，
+    //   非 null 时写入 lastDisplaySignal，TerminalDisplay watch 据此驱动滚动副作用。
+    //   （必须由归约层产出而非事后 watch(lines.length)——applyDiff 单 tick 内顺序
+    //   应用 clear_screen + append，Vue 响应式只观察最终 length，突变中间态不可见。）
     let afterDiff: DisplayState;
     if (turn.diff) {
-      let shiftHeadCount = 0;
-      let hasClearScreen = false;
-      for (const op of turn.diff.lineOps) {
-        if (op.type === 'shift_head') shiftHeadCount += op.count;
-        else if (op.type === 'clear_screen') hasClearScreen = true;
-      }
-      if (shiftHeadCount > 0) {
-        lastShiftHeadCount.value = shiftHeadCount;
-        shiftHeadTick.value++;
-      }
-      if (hasClearScreen) {
-        clearScreenTick.value++;
-      }
-      afterDiff = applyDiff(displayState.value, turn.diff);
+      const { state: nextState, signal } = applyDiff(displayState.value, turn.diff);
+      if (signal != null) lastDisplaySignal.value = signal;
+      afterDiff = nextState;
     } else {
       afterDiff = displayState.value;
     }
@@ -760,10 +729,8 @@ export const useGameStore = defineStore('game', () => {
     lastSnapshot.value = null;
     displayState.value = { ...EMPTY_DISPLAY_STATE };
     protocolVersion.value = null;
-    // shift_head / clear_screen：重置跟踪状态——避免 reset 后 watch 误触发
-    lastShiftHeadCount.value = 0;
-    shiftHeadTick.value = 0;
-    clearScreenTick.value = 0;
+    // 显示变更信号：置空——避免 reset 后 watch 误触发
+    lastDisplaySignal.value = null;
     // T-025 D14：reset 时 serverState 回 Idle
     serverState.value = 'Idle';
     tinputStartedAt.value = null;
@@ -1072,6 +1039,8 @@ export const useGameStore = defineStore('game', () => {
     lastSnapshot.value = null;
     displayState.value = { ...EMPTY_DISPLAY_STATE };
     protocolVersion.value = null;
+    // 显示变更信号：置空——避免重挂载时残留信号触发 watch
+    lastDisplaySignal.value = null;
     serverState.value = 'Idle';
     // 清 gameDir——回到列表态无活跃游戏
     gameDir.value = null;
@@ -1326,10 +1295,8 @@ export const useGameStore = defineStore('game', () => {
     tinputTimeUpMessage,
     tinputRemainingMs,
     showTinputCountdown,
-    // shift_head / clear_screen：暴露给 TerminalDisplay watch
-    shiftHeadTick,
-    lastShiftHeadCount,
-    clearScreenTick,
+    // 显示变更信号：暴露给 TerminalDisplay watch
+    lastDisplaySignal,
     // game-library spec ID10：Android 物理返回键退出确认
     backButtonPressedTick,
     applyTurn,

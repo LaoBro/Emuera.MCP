@@ -201,21 +201,24 @@ describe('useGameStore.applyTurn', () => {
     expect(game.displayState.bgColor).toBe('#FFFFFF');
   });
 
-  it('clear_screen 帧：clearScreenTick 自增（TerminalDisplay watch 此 tick 触发回底部）', () => {
+  it('clear_screen 帧：lastDisplaySignal = {type:clear_screen}（TerminalDisplay watch 此信号触发回底部）', () => {
     const game = useGameStore();
-    expect(game.clearScreenTick).toBe(0);
+    expect(game.lastDisplaySignal).toBeNull();
 
     game.applyTurn(clearScreenFrameJson());
-    expect(game.clearScreenTick).toBe(1);
+    expect(game.lastDisplaySignal).toEqual({ type: 'clear_screen' });
 
+    // 再次 clear_screen——每次归约都是新对象，引用变化触发 watch
+    const prev = game.lastDisplaySignal;
     game.applyTurn(clearScreenFrameJson());
-    expect(game.clearScreenTick).toBe(2);
+    expect(game.lastDisplaySignal).toEqual({ type: 'clear_screen' });
+    expect(game.lastDisplaySignal).not.toBe(prev);
   });
 
-  it('clear_screen + append 同帧：clearScreenTick 仍自增（race 降级场景）', () => {
+  it('clear_screen + append 同帧：lastDisplaySignal 仍为 clear_screen（race 降级场景）', () => {
     // spec.md「### 视觉处理」要求 clear_screen（含 race 降级产生的 ClearScreenOp + Append）
     // 重置 isStickyToBottom=true + scrollToBottom。applyDiff 单 tick 内顺序应用 clear_screen + append，
-    // watch(lines.length) 检测不到全清——必须用 clearScreenTick。
+    // watch(lines.length) 检测不到全清——信号必须由归约层在应用 op 时同步产出。
     const game = useGameStore();
     const json = JSON.stringify({
       state: 'WaitInput',
@@ -231,21 +234,58 @@ describe('useGameStore.applyTurn', () => {
     });
     game.applyTurn(json);
 
-    // lines 已追加新行（clear_screen + append 同帧后 length=1），但 clearScreenTick 仍自增
+    // lines 已追加新行（clear_screen + append 同帧后 length=1），但信号仍是 clear_screen
     expect(game.displayState.lines).toHaveLength(1);
     expect(game.displayState.lines[0].entries[0].segments[0].text).toBe('after-clear');
-    expect(game.clearScreenTick).toBe(1);
+    expect(game.lastDisplaySignal).toEqual({ type: 'clear_screen' });
   });
 
-  it('非 clear_screen 帧：clearScreenTick 不变', () => {
+  it('shift_head 帧：lastDisplaySignal = {type:shift_head, count}', () => {
     const game = useGameStore();
-    expect(game.clearScreenTick).toBe(0);
+    // 先铺 3 行
+    game.applyTurn(appendFrameJson(['A', 'B', 'C']));
+    expect(game.lastDisplaySignal).toBeNull(); // append-only 帧不产信号
+
+    game.applyTurn(JSON.stringify({
+      state: 'WaitInput',
+      needValue: false,
+      generation: 0,
+      diff: {
+        lineOps: [{ type: 'shift_head', count: 2 }],
+        bgColor: null,
+      },
+    }));
+    expect(game.lastDisplaySignal).toEqual({ type: 'shift_head', count: 2 });
+    expect(game.displayState.lines).toHaveLength(1); // 头部删 2 行，剩 C
+  });
+
+  it('非结构性变化帧（append / clear_line_diff）：lastDisplaySignal 保持 null', () => {
+    const game = useGameStore();
+    expect(game.lastDisplaySignal).toBeNull();
 
     game.applyTurn(appendFrameJson(['A']));
-    expect(game.clearScreenTick).toBe(0);
+    expect(game.lastDisplaySignal).toBeNull();
 
     game.applyTurn(clearLineFrameJson(1));
-    expect(game.clearScreenTick).toBe(0);
+    expect(game.lastDisplaySignal).toBeNull();
+  });
+
+  it('reset() 清空 lastDisplaySignal（避免重挂载残留触发 watch）', () => {
+    const game = useGameStore();
+    game.applyTurn(clearScreenFrameJson());
+    expect(game.lastDisplaySignal).toEqual({ type: 'clear_screen' });
+
+    game.reset();
+    expect(game.lastDisplaySignal).toBeNull();
+  });
+
+  it('completeExitGame() 清空 lastDisplaySignal（同 reset——重挂载不残留）', () => {
+    const game = useGameStore();
+    game.applyTurn(clearScreenFrameJson());
+    expect(game.lastDisplaySignal).toEqual({ type: 'clear_screen' });
+
+    game.completeExitGame();
+    expect(game.lastDisplaySignal).toBeNull();
   });
 
   it('diff=null 帧：仅更新 state/inputType/needValue，lines 不变', () => {

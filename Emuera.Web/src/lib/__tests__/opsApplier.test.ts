@@ -62,6 +62,15 @@ function makeState(partial: Partial<DisplayState> = {}): DisplayState {
   };
 }
 
+/**
+ * 只取 `applyDiff` 返回的状态——T_diff_* 系列只关心状态，信号单独在
+ * 「applyDiff: DisplaySignal」describe 中直接断言。`applyDiff` 自 C3 起
+ * 返回 `{ state, signal }`，此辅助避免 27 处调用点逐个加 `.state`。
+ */
+function applyDiffState(state: DisplayState, diff: DisplayDiff): DisplayState {
+  return applyDiff(state, diff).state;
+}
+
 // ---------- print + newline ----------
 
 describe('applyOps: print + newline', () => {
@@ -436,7 +445,7 @@ describe('applyDiff', () => {
     const d = diff({
       lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b')] }],
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, d);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, d);
 
     expect(state.lines).toHaveLength(2);
     expect(state.lines[0].entries[0].segments[0].text).toBe('a');
@@ -448,11 +457,11 @@ describe('applyDiff', () => {
     const setup = diff({
       lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b'), diffLine('c')] }],
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, setup);
     expect(state.lines).toHaveLength(3);
 
     // 再 clear_line_diff 删除 2 行
-    const cleared = applyDiff(state, diff({ lineOps: [{ type: 'clear_line_diff', clearCount: 2 }] }));
+    const cleared = applyDiffState(state, diff({ lineOps: [{ type: 'clear_line_diff', clearCount: 2 }] }));
     expect(cleared.lines).toHaveLength(1);
     expect(cleared.lines[0].entries[0].segments[0].text).toBe('a');
   });
@@ -461,9 +470,9 @@ describe('applyDiff', () => {
     const setup = diff({
       lineOps: [{ type: 'append', newLines: [diffLine('data')] }],
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, setup);
 
-    const cleared = applyDiff(state, diff({
+    const cleared = applyDiffState(state, diff({
       lineOps: [{ type: 'clear_screen' }],
       bgColor: '#FF0000',
     }));
@@ -475,10 +484,10 @@ describe('applyDiff', () => {
     const setup = diff({
       lineOps: [{ type: 'append', newLines: [diffLine('old')] }],
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, setup);
 
     // CLEAR + 重印新行：等价于引擎 CLEAR 后打印
-    const rebuilt = applyDiff(state, diff({
+    const rebuilt = applyDiffState(state, diff({
       lineOps: [
         { type: 'clear_screen' },
         { type: 'append', newLines: [diffLine('new')] },
@@ -493,9 +502,9 @@ describe('applyDiff', () => {
       lineOps: [{ type: 'append', newLines: [diffLine('keep')] }],
       bgColor: '#00FF00',
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, setup);
 
-    const updated = applyDiff(state, diff({ lineOps: [], bgColor: '#0000FF' }));
+    const updated = applyDiffState(state, diff({ lineOps: [], bgColor: '#0000FF' }));
     expect(updated.lines).toHaveLength(1);
     expect(updated.lines[0].entries[0].segments[0].text).toBe('keep');
     expect(updated.bgColor).toBe('#0000FF');
@@ -504,14 +513,14 @@ describe('applyDiff', () => {
   it('diff.bgColor=null 时保留原 bgColor', () => {
     const state = makeState({ bgColor: '#FF0000', lines: [{ entries: [entry('keep')], isLineEnd: true }] });
     const d = diff({ lineOps: [{ type: 'append', newLines: [diffLine('extra')] }] });
-    const updated = applyDiff(state, d);
+    const updated = applyDiffState(state, d);
     expect(updated.bgColor).toBe('#FF0000');
     expect(updated.lines).toHaveLength(2);
   });
 
   it('T_diff_bgimages 对称：diff.bgImages 整体替换（与 C# DisplayDiff.bgImages 对称）', () => {
     const state = makeState({ bgImages: [{ src: 'bg/old.png', depth: 0, opacity: 1 }] });
-    const updated = applyDiff(state, diff({
+    const updated = applyDiffState(state, diff({
       lineOps: [],
       bgImages: [{ src: 'bg/new.png', depth: 2, opacity: 0.5 }],
     }));
@@ -520,13 +529,13 @@ describe('applyDiff', () => {
 
   it('T_diff_bgimages_clear 对称：[] 表达清空（与 bgColor null=未变区分）', () => {
     const state = makeState({ bgImages: [{ src: 'bg/a.png', depth: 0, opacity: 1 }] });
-    const updated = applyDiff(state, diff({ lineOps: [], bgImages: [] }));
+    const updated = applyDiffState(state, diff({ lineOps: [], bgImages: [] }));
     expect(updated.bgImages).toEqual([]);
   });
 
   it('T_diff_bgimages_omitted 对称：bgImages 缺省（null）保留原状态', () => {
     const state = makeState({ bgImages: [{ src: 'bg/a.png', depth: 0, opacity: 1 }] });
-    const updated = applyDiff(state, diff({ lineOps: [] }));
+    const updated = applyDiffState(state, diff({ lineOps: [] }));
     expect(updated.bgImages).toEqual([{ src: 'bg/a.png', depth: 0, opacity: 1 }]);
   });
 
@@ -558,13 +567,13 @@ describe('applyDiff', () => {
       lineOps: [{ type: 'unknown_diff_op' }],
       bgColor: null,
     } as unknown as DisplayDiff;
-    expect(() => applyDiff(EMPTY_DISPLAY_STATE, bogus)).toThrow(/Unknown LineOp type/);
+    expect(() => applyDiffState(EMPTY_DISPLAY_STATE, bogus)).toThrow(/Unknown LineOp type/);
   });
 
   it('applyDiff 不与入参共享 segments 引用（深拷贝隔离）', () => {
     const newLine: DisplayLine = { entries: [entry('orig')], isLineEnd: true };
     const d = diff({ lineOps: [{ type: 'append', newLines: [newLine] }] });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, d);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, d);
 
     // 修改原 newLine.entries[0].segments[0].text——不应影响已应用的状态
     newLine.entries[0].segments[0].text = 'mutated';
@@ -594,11 +603,11 @@ describe('applyDiff: shift_head', () => {
     const setup = diff({
       lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b'), diffLine('c')] }],
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, setup);
     expect(state.lines).toHaveLength(3);
 
     // shift_head 删除头部 1 行——剩 [b, c]
-    const shifted = applyDiff(state, diff({ lineOps: [{ type: 'shift_head', count: 1 }] }));
+    const shifted = applyDiffState(state, diff({ lineOps: [{ type: 'shift_head', count: 1 }] }));
     expect(shifted.lines).toHaveLength(2);
     expect(shifted.lines[0].entries[0].segments[0].text).toBe('b');
     expect(shifted.lines[1].entries[0].segments[0].text).toBe('c');
@@ -608,10 +617,10 @@ describe('applyDiff: shift_head', () => {
     const setup = diff({
       lineOps: [{ type: 'append', newLines: [diffLine('only')] }],
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, setup);
     expect(state.lines).toHaveLength(1);
 
-    const shifted = applyDiff(state, diff({ lineOps: [{ type: 'shift_head', count: 5 }] }));
+    const shifted = applyDiffState(state, diff({ lineOps: [{ type: 'shift_head', count: 5 }] }));
     expect(shifted.lines).toEqual([]);
   });
 
@@ -619,9 +628,9 @@ describe('applyDiff: shift_head', () => {
     const setup = diff({
       lineOps: [{ type: 'append', newLines: [diffLine('keep')] }],
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, setup);
 
-    const shifted = applyDiff(state, diff({ lineOps: [{ type: 'shift_head', count: 0 }] }));
+    const shifted = applyDiffState(state, diff({ lineOps: [{ type: 'shift_head', count: 0 }] }));
     expect(shifted.lines).toHaveLength(1);
     expect(shifted.lines[0].entries[0].segments[0].text).toBe('keep');
   });
@@ -631,9 +640,9 @@ describe('applyDiff: shift_head', () => {
     const setup = diff({
       lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b')] }],
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, setup);
 
-    const shifted = applyDiff(state, diff({
+    const shifted = applyDiffState(state, diff({
       lineOps: [
         { type: 'shift_head', count: 1 },
         { type: 'append', newLines: [diffLine('c')] },
@@ -650,9 +659,9 @@ describe('applyDiff: shift_head', () => {
     const setup = diff({
       lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b'), diffLine('c'), diffLine('d')] }],
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, setup);
 
-    const shifted = applyDiff(state, diff({
+    const shifted = applyDiffState(state, diff({
       lineOps: [
         { type: 'shift_head', count: 1 },          // 删 a → [b, c, d]
         { type: 'clear_line_diff', clearCount: 1 }, // 删 d → [b, c]
@@ -667,13 +676,120 @@ describe('applyDiff: shift_head', () => {
     const setup = diff({
       lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b')] }],
     });
-    const state = applyDiff(EMPTY_DISPLAY_STATE, setup);
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, setup);
     const originalLinesLen = state.lines.length;
 
-    applyDiff(state, diff({ lineOps: [{ type: 'shift_head', count: 1 }] }));
+    applyDiffState(state, diff({ lineOps: [{ type: 'shift_head', count: 1 }] }));
 
     // applyDiff 不应修改入参 state——state.lines 仍为 2 行
     expect(state.lines).toHaveLength(originalLinesLen);
+  });
+});
+
+// ---------- applyDiff: DisplaySignal（归约产出的变更信号，C3） ----------
+//
+// signal 是 TS 侧独有派生物——从 lineOps 分类摘要得出，驱动滚动副作用：
+// - shift_head → {type:'shift_head', count}（count 为同帧多个 shift_head op 的累加）
+// - clear_screen → {type:'clear_screen'}
+// - 无结构性变化（append / clear_line_diff / 纯 bg 变更）→ null
+// 确定性优先级：有 clear_screen 即优先（协议保证二者互斥，此为防御）。
+describe('applyDiff: DisplaySignal', () => {
+  function diffLine(text: string): DisplayLine {
+    return { entries: [entry(text)], align: 'left', isLineEnd: true };
+  }
+
+  function diff(partial: Partial<DisplayDiff>): DisplayDiff {
+    return {
+      lineOps: partial.lineOps ?? [],
+      bgColor: partial.bgColor ?? null,
+      bgImages: partial.bgImages ?? undefined,
+    };
+  }
+
+  it('shift_head 帧 → {type:shift_head, count}', () => {
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b')] }],
+    }));
+    const { signal } = applyDiff(state, diff({ lineOps: [{ type: 'shift_head', count: 2 }] }));
+    expect(signal).toEqual({ type: 'shift_head', count: 2 });
+  });
+
+  it('同帧多个 shift_head op（防御）→ count 累加', () => {
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b'), diffLine('c')] }],
+    }));
+    const { signal } = applyDiff(state, diff({
+      lineOps: [
+        { type: 'shift_head', count: 1 },
+        { type: 'shift_head', count: 1 },
+      ],
+    }));
+    expect(signal).toEqual({ type: 'shift_head', count: 2 });
+  });
+
+  it('shift_head + append 同帧（MaxLog 滚动）→ 仍为 shift_head 信号', () => {
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b')] }],
+    }));
+    const { signal } = applyDiff(state, diff({
+      lineOps: [
+        { type: 'shift_head', count: 1 },
+        { type: 'append', newLines: [diffLine('c')] },
+      ],
+    }));
+    expect(signal).toEqual({ type: 'shift_head', count: 1 });
+  });
+
+  it('clear_screen 帧 → {type:clear_screen}', () => {
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a')] }],
+    }));
+    const { signal } = applyDiff(state, diff({ lineOps: [{ type: 'clear_screen' }] }));
+    expect(signal).toEqual({ type: 'clear_screen' });
+  });
+
+  it('clear_screen + append 同帧（race 降级）→ 仍为 clear_screen 信号', () => {
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('old')] }],
+    }));
+    const { signal } = applyDiff(state, diff({
+      lineOps: [
+        { type: 'clear_screen' },
+        { type: 'append', newLines: [diffLine('new')] },
+      ],
+    }));
+    expect(signal).toEqual({ type: 'clear_screen' });
+  });
+
+  it('无结构性变化（append / clear_line_diff / 纯 bg 变更）→ signal null', () => {
+    // append-only
+    const { signal: s1 } = applyDiff(EMPTY_DISPLAY_STATE, diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a')] }],
+    }));
+    expect(s1).toBeNull();
+
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b'), diffLine('c')] }],
+    }));
+    // clear_line_diff（尾部截断不影响视口上方内容）
+    const { signal: s2 } = applyDiff(state, diff({ lineOps: [{ type: 'clear_line_diff', clearCount: 2 }] }));
+    expect(s2).toBeNull();
+    // 纯 bg 变更
+    const { signal: s3 } = applyDiff(state, diff({ lineOps: [], bgColor: '#FF0000' }));
+    expect(s3).toBeNull();
+  });
+
+  it('shift_head + clear_screen 同帧（协议不可能，防御）→ clear_screen 优先', () => {
+    const state = applyDiffState(EMPTY_DISPLAY_STATE, diff({
+      lineOps: [{ type: 'append', newLines: [diffLine('a'), diffLine('b')] }],
+    }));
+    const { signal } = applyDiff(state, diff({
+      lineOps: [
+        { type: 'shift_head', count: 1 },
+        { type: 'clear_screen' },
+      ],
+    }));
+    expect(signal).toEqual({ type: 'clear_screen' });
   });
 });
 
