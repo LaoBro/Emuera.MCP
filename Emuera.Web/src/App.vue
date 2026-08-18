@@ -401,15 +401,15 @@ const popupItems = computed<PopupMenuItem[]>(() => [
 .game-shell-controls .icon-btn {
   border-radius: 9999px;
   background: transparent;
-  color: var(--color-text);
+  color: var(--term-color-text);
 }
 .game-shell-controls .icon-btn:hover:not(:disabled),
 .game-shell-controls .icon-btn:active:not(:disabled) {
   background: var(--color-control-hover);
-  color: var(--color-text);
+  color: var(--term-color-text);
 }
 .game-shell-controls .icon-btn.active {
-  color: var(--color-text);
+  color: var(--term-color-text);
 }
 
 /* 游戏静默状态提示（MAUI）——顶部半透明窄条，pointer-events:none */
