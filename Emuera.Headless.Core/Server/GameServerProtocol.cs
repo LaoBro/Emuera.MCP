@@ -300,26 +300,8 @@ internal sealed class GameServerProtocol
     }
 
     // ===== 宿主共用的小工具：错误 / 序列化 / 节点构造（Kestrel 与 HttpListener 复用同一 wire）=====
-
-    /// <summary>POST /input body 非法 JSON 的 400 响应（宿主解析失败后调用）。</summary>
-    public static HttpResult InvalidJsonInput()
-        => Json(new JsonObject { ["error"] = "Invalid JSON, expected {\"value\":\"...\"}" }, 400);
-
-    /// <summary>POST /input 缺 value 的 400 响应。</summary>
-    public static HttpResult MissingInputValue()
-        => Json(new JsonObject { ["error"] = "Missing 'value' field" }, 400);
-
-    /// <summary>POST /load-game body 非法 JSON 的 400 响应。</summary>
-    public static HttpResult InvalidJsonLoadGame()
-        => Json(
-            new JsonObject { ["error"] = new JsonObject { ["code"] = "INVALID_JSON", ["message"] = "Invalid JSON, expected {\"gameDir\":\"...\"}" } },
-            400);
-
-    /// <summary>POST /load-game 缺 gameDir 的 400 响应。</summary>
-    public static HttpResult MissingGameDir()
-        => Json(
-            new JsonObject { ["error"] = new JsonObject { ["code"] = "MISSING_GAME_DIR", ["message"] = "Missing or empty 'gameDir' field" } },
-            400);
+    // 注：/input、/load-game 的 body 解析 + 校验错误助手已上收 HttpRouteDispatcher（C1）；
+    // 此处仅保留协议层自身的响应构造。
 
     public static HttpResult NoGameLoaded()
         => Json(new JsonObject { ["error"] = "No game loaded" }, 503);
@@ -405,27 +387,7 @@ internal sealed class GameServerProtocol
         }, statusCode: 409);
     }
 
-    // ===== 双宿主共用 HTTP body POCO（Kestrel 源生成 / HttpListenerHost 反射复用，消除各宿主私有副本）=====
-
-    /// <summary>POST /input body。</summary>
-    internal sealed class HttpInput
-    {
-        public string? value { get; set; }
-        public string? token { get; set; }
-    }
-
-    /// <summary>POST /control/acquire|release body（token 可选）。</summary>
-    internal sealed class ControlRequest
-    {
-        public string? token { get; set; }
-    }
-
-    /// <summary>POST /load-game body。</summary>
-    internal sealed class LoadGameRequest
-    {
-        public string? gameDir { get; set; }
-        public string? token { get; set; }
-    }
+    // 请求 body POCO（HttpInput/ControlRequest/LoadGameRequest）已上收 HttpRouteDispatcher（C1）。
 }
 
 /// <summary>

@@ -11,12 +11,13 @@ namespace MinorShift.Emuera.Server;
 /// 反射 resolver 被禁用，见 KestrelGameServer 的 ConfigureHttpJsonOptions）。
 /// Encoder 不在此设置（.NET 10 source-gen options 无 encoder 属性）——relaxed 转义
 /// 由 HttpJsonOptions 默认（UnsafeRelaxedJsonEscaping）保证，与托管时代 wire 一致。
+///
+/// C1 后：/input、/load-game、/control/acquire 的 body POCO（HttpInput/ControlRequest/
+/// LoadGameRequest）已上收 Core 的 <see cref="HttpRouteDispatcher"/>，由 dispatcher 负责解析；
+/// Kestrel 宿主只透传 body 文本，本 context 仅需注册 <see cref="JsonObject"/>。
 /// </summary>
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(JsonObject))]
-[JsonSerializable(typeof(GameServerProtocol.HttpInput))]
-[JsonSerializable(typeof(GameServerProtocol.ControlRequest))]
-[JsonSerializable(typeof(GameServerProtocol.LoadGameRequest))]
 internal partial class ServerJsonContext : JsonSerializerContext
 {
 }

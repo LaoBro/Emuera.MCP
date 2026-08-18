@@ -35,6 +35,7 @@ internal sealed class HttpListenerHost : IDisposable
     private readonly GameConfigService _config;
     private readonly SessionRegistry _sessions;
     private readonly GameServerProtocol _protocol;
+    private readonly HttpRouteDispatcher _dispatcher;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _acceptLoop;
     private bool _disposed;
@@ -50,6 +51,7 @@ internal sealed class HttpListenerHost : IDisposable
         _config = new GameConfigService(configData, overrideDisplayReport);
         _sessions = new SessionRegistry(terminalSetup, _config, GameServerProtocol.ReadAgentLease());
         _protocol = new GameServerProtocol(_sessions, _config);
+        _dispatcher = new HttpRouteDispatcher(_protocol);
 
         if (port == 0)
             port = FindFreePort();
@@ -149,101 +151,32 @@ internal sealed class HttpListenerHost : IDisposable
 
         switch ((method, path))
         {
+            // 无 body/token 的纯状态端点直连协议（本就没重复胶水）。
             case ("POST", "/session"):
                 return _protocol.CreateSession();
-            case ("POST", "/control/acquire"):
-                return _protocol.AcquireControl(ReadAcquireIdentity(request));
-            case ("POST", "/control/release"):
-                return _protocol.ReleaseControl(ReadAcquireIdentity(request));
             case ("GET", "/control"):
                 return _protocol.GetControl();
             case ("GET", "/control/wait"):
                 return await _protocol.WaitForControlAsync(ct);
-            case ("GET", "/turn"):
-                return await _protocol.GetTurnAsync(ReadIdentity(request), ct);
-            case ("POST", "/input"):
-                return HandlePostInput(request);
             case ("GET", "/state"):
                 return _protocol.GetState();
             case ("GET", "/config"):
                 return _protocol.GetConfig();
             case ("GET", "/snapshot"):
                 return _protocol.GetSnapshot();
-            case ("DELETE", "/session"):
-                return _protocol.DeleteSession(ReadIdentity(request));
-            case ("POST", "/load-game"):
-                return HandleLoadGame(request);
             case ("POST", "/native/pick-directory"):
                 return GameServerProtocol.PickDirectory();
+            // 触及 body/token 的端点 + 未知路径统一交共享 HttpRouteDispatcher（C1，单点路由/解析/校验/身份）。
             default:
-                return HttpResult.Text("""{"error":"Not found","code":"NOT_FOUND"}""", statusCode: 404);
+                return await _dispatcher.DispatchAsync(BuildRequestData(request), ct);
         }
     }
 
-    private HttpResult HandlePostInput(HttpListenerRequest request)
+    /// <summary>构造传输无关 <see cref="HttpRequestData"/>（读 body + 抽 header/query token）。</summary>
+    private static HttpRequestData BuildRequestData(HttpListenerRequest request)
     {
-        if (!TryReadBody(request, out var body))
-            return GameServerProtocol.InvalidJsonInput();
-
-        GameServerProtocol.HttpInput? input;
-        try
-        {
-            input = JsonSerializer.Deserialize<GameServerProtocol.HttpInput>(body);
-        }
-        catch
-        {
-            return GameServerProtocol.InvalidJsonInput();
-        }
-
-        if (input?.value == null)
-            return GameServerProtocol.MissingInputValue();
-
-        return _protocol.PostInput(input.value, GameServerProtocol.ToIdentity(input.token ?? ReadToken(request)));
-    }
-
-    private HttpResult HandleLoadGame(HttpListenerRequest request)
-    {
-        if (!TryReadBody(request, out var body))
-            return GameServerProtocol.InvalidJsonLoadGame();
-
-        GameServerProtocol.LoadGameRequest? payload;
-        try
-        {
-            payload = JsonSerializer.Deserialize<GameServerProtocol.LoadGameRequest>(body);
-        }
-        catch
-        {
-            return GameServerProtocol.InvalidJsonLoadGame();
-        }
-
-        if (string.IsNullOrWhiteSpace(payload?.gameDir))
-            return GameServerProtocol.MissingGameDir();
-
-        return _protocol.LoadGame(payload!.gameDir, GameServerProtocol.ToIdentity(payload.token ?? ReadToken(request)));
-    }
-
-    /// <summary>
-    /// POST /control/acquire|release 的身份：body 优先（{token}），缺 body / 解析失败回退 header/query
-    /// （与 Kestrel ReadControlRequestAsync + ReadToken 语义一致）。
-    /// </summary>
-    private static ControlIdentity ReadAcquireIdentity(HttpListenerRequest request)
-    {
-        if (!request.HasEntityBody)
-            return ReadIdentity(request);
-        if (!TryReadBody(request, out var body))
-            return ReadIdentity(request);
-
-        GameServerProtocol.ControlRequest? payload;
-        try
-        {
-            payload = JsonSerializer.Deserialize<GameServerProtocol.ControlRequest>(body);
-        }
-        catch (JsonException)
-        {
-            return ReadIdentity(request);
-        }
-
-        return GameServerProtocol.ToIdentity(payload?.token ?? ReadToken(request));
+        _ = TryReadBody(request, out var body);
+        return new HttpRequestData(request.HttpMethod, request.Url?.AbsolutePath ?? "/", body, ReadToken(request));
     }
 
     private async Task HandleWsAsync(HttpListenerContext context, CancellationToken ct)

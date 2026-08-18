@@ -34,6 +34,7 @@ internal sealed class KestrelGameServer : IDisposable
     private readonly GameConfigService _config;
     private readonly SessionRegistry _sessions;
     private readonly GameServerProtocol _protocol;
+    private readonly HttpRouteDispatcher _dispatcher;
     private readonly WsConnectionHandler _ws;
 
     /// <summary>测试接缝：端点测试经此访问当前 session（如注入 turn）。</summary>
@@ -44,6 +45,7 @@ internal sealed class KestrelGameServer : IDisposable
         _config = new GameConfigService(configData, overrideDisplayReport);
         _sessions = new SessionRegistry(terminalSetup, _config, GameServerProtocol.ReadAgentLease());
         _protocol = new GameServerProtocol(_sessions, _config);
+        _dispatcher = new HttpRouteDispatcher(_protocol);
         _ws = new WsConnectionHandler(_sessions);
 
         // issue 10：WebRootPath 显式指向 exe 所在目录的 wwwroot/——
@@ -85,21 +87,25 @@ internal sealed class KestrelGameServer : IDisposable
 
     private void MapRoutes()
     {
-        _app.MapPost("/session", (Delegate)HandleCreateSessionAsync);
+        // JSON API 中触及 body/token 的端点统一经共享 HttpRouteDispatcher（C1）——
+        // 路由匹配 + body 解析 + 校验错误映射 + 身份解析单点，宿主只透传 body/token。
         _app.MapPost("/control/acquire", (Delegate)HandleAcquireControlAsync);
         _app.MapPost("/control/release", (Delegate)HandleReleaseControlAsync);
-        _app.MapGet("/control", (Delegate)HandleGetControlAsync);
-        _app.MapGet("/control/wait", (Delegate)HandleWaitForControlAsync);
         _app.MapGet("/turn", (Delegate)HandleGetTurnAsync);
         _app.MapPost("/input", (Delegate)HandlePostInputAsync);
+        _app.MapDelete("/session", (Delegate)HandleDeleteSessionForHttpAsync);
+        _app.MapPost("/load-game", (Delegate)HandleLoadGameAsync);
+        // 无 body/token 的纯状态端点直连协议（本就没重复胶水，保持薄线程）。
+        _app.MapPost("/session", (Delegate)HandleCreateSessionAsync);
+        _app.MapGet("/control", (Delegate)HandleGetControlAsync);
+        _app.MapGet("/control/wait", (Delegate)HandleWaitForControlAsync);
         _app.MapGet("/state", (Delegate)HandleGetStateAsync);
         _app.MapGet("/config", (Delegate)HandleGetConfigAsync);
         _app.MapGet("/snapshot", (Delegate)HandleGetSnapshotAsync);
-        _app.MapDelete("/session", (Delegate)HandleDeleteSessionForHttpAsync);
-        _app.MapGet("/ws", (Delegate)_ws.HandleAsync);
         // issue 05：游戏选择器端点——/load-game 重载游戏目录，/native/pick-directory 安卓 SAF 桩
-        _app.MapPost("/load-game", (Delegate)HandleLoadGameAsync);
         _app.MapPost("/native/pick-directory", (Delegate)HandlePickDirectoryAsync);
+        // 传输专属端点：WS / 静态资源中间件 / /assets 留宿主侧（不进 dispatcher）。
+        _app.MapGet("/ws", (Delegate)_ws.HandleAsync);
         // issue 03：游戏目录图片资源通道（spec Q5 安全决策）——路径消毒 + 扩展名白名单 + 缓存/CORS 头
         _app.MapGet("/assets/{**path}", (Delegate)HandleGetAssetAsync);
     }
@@ -125,19 +131,11 @@ internal sealed class KestrelGameServer : IDisposable
         return Task.FromResult(ToIResult(_protocol.CreateSession()));
     }
 
-    /// <summary>POST /control/acquire —— 获取控制权（协议语义见 AcquireControl）。</summary>
-    internal async Task<IResult> HandleAcquireControlAsync(HttpContext context)
-    {
-        var request = await ReadControlRequestAsync(context);
-        return ToIResult(_protocol.AcquireControl(GameServerProtocol.ToIdentity(request?.token ?? ReadToken(context))));
-    }
+    /// <summary>POST /control/acquire —— 获取控制权（协议语义见 AcquireControl；解析/身份在 dispatcher）。</summary>
+    internal Task<IResult> HandleAcquireControlAsync(HttpContext context) => DispatchApiAsync("POST", "/control/acquire", context);
 
     /// <summary>POST /control/release —— 释放控制权（协议语义见 ReleaseControl）。</summary>
-    internal async Task<IResult> HandleReleaseControlAsync(HttpContext context)
-    {
-        var request = await ReadControlRequestAsync(context);
-        return ToIResult(_protocol.ReleaseControl(GameServerProtocol.ToIdentity(request?.token ?? ReadToken(context))));
-    }
+    internal Task<IResult> HandleReleaseControlAsync(HttpContext context) => DispatchApiAsync("POST", "/control/release", context);
 
     /// <summary>GET /control —— 当前控制权状态（协议语义见 GetControl）。</summary>
     internal IResult HandleGetControlAsync()
@@ -153,41 +151,12 @@ internal sealed class KestrelGameServer : IDisposable
 
     /// <summary>
     /// GET /turn —— 长轮询等一个 turn（协议语义见 <see cref="GameServerProtocol.GetTurnAsync"/>：
-    /// 200 裸 JSON / 204 超时 / 404 无 session 或已结束 / 409 控制权丢失）。
+    /// 200 裸 JSON / 204 超时 / 404 无 session 或已结束 / 409 控制权丢失；身份解析在 dispatcher）。
     /// </summary>
-    internal async Task<IResult> HandleGetTurnAsync(HttpContext context)
-    {
-        return ToIResult(await _protocol.GetTurnAsync(GameServerProtocol.ToIdentity(ReadToken(context)), context.RequestAborted));
-    }
+    internal Task<IResult> HandleGetTurnAsync(HttpContext context) => DispatchApiAsync("GET", "/turn", context);
 
-    /// <summary>
-    /// POST /input —— 提交输入（协议语义见 PostInput）。body 解析/缺字段校验在此（锁外），
-    /// 协议层做门禁 + 入队。
-    /// </summary>
-    internal async Task<IResult> HandlePostInputAsync(HttpContext context)
-    {
-        string? value;
-        string? bodyToken = null;
-        using (var reader = new StreamReader(context.Request.Body))
-        {
-            var body = await reader.ReadToEndAsync();
-            try
-            {
-                var input = JsonSerializer.Deserialize(body, ServerJsonContext.Default.HttpInput);
-                value = input?.value;
-                bodyToken = input?.token;
-            }
-            catch
-            {
-                return ToIResult(GameServerProtocol.InvalidJsonInput());
-            }
-        }
-
-        if (value == null)
-            return ToIResult(GameServerProtocol.MissingInputValue());
-
-        return ToIResult(_protocol.PostInput(value, GameServerProtocol.ToIdentity(bodyToken ?? ReadToken(context))));
-    }
+    /// <summary>POST /input —— 提交输入（协议语义见 PostInput；body 解析/校验/身份在 dispatcher）。</summary>
+    internal Task<IResult> HandlePostInputAsync(HttpContext context) => DispatchApiAsync("POST", "/input", context);
 
     /// <summary>
     /// GET /state —— 当前会话状态 + gameDir + 窗口布局元信息（协议语义见 GetState）。
@@ -217,11 +186,10 @@ internal sealed class KestrelGameServer : IDisposable
         return HandleDeleteSessionCoreAsync(null);
     }
 
-    private async Task<IResult> HandleDeleteSessionForHttpAsync(HttpContext context)
-    {
-        return await HandleDeleteSessionCoreAsync(GameServerProtocol.ToIdentity(ReadToken(context)));
-    }
+    /// <summary>DELETE /session（HTTP）—— 身份/token 解析在 dispatcher。</summary>
+    internal Task<IResult> HandleDeleteSessionForHttpAsync(HttpContext context) => DispatchApiAsync("DELETE", "/session", context);
 
+    /// <summary>DELETE /session —— 无身份销毁（测试接缝/内部用，协议语义见 DeleteSession(null)）。</summary>
     private Task<IResult> HandleDeleteSessionCoreAsync(ControlIdentity? identity)
     {
         return Task.FromResult(ToIResult(_protocol.DeleteSession(identity)));
@@ -229,34 +197,11 @@ internal sealed class KestrelGameServer : IDisposable
 
     /// <summary>
     /// POST /load-game {gameDir} —— 原子重载游戏目录（协议语义见 <see cref="GameServerProtocol.LoadGame"/>：
-    /// 400 {error:{code,message}} 路径/格式错误、500 LOAD_FAILED、成功 200 {sessionId,state,gameDir}）。
-    /// body 解析与格式校验在此（锁外）；路径校验/拆旧/重建 ConfigData/建新 Session 的原子序列
+    /// 400 {error:{code,message}} 路径/格式错误、500 LOAD_FAILED、成功 200 {sessionId,state,gameDir}；
+    /// body 解析/校验/身份在 dispatcher）。路径校验/拆旧/重建 ConfigData/建新 Session 的原子序列
     /// 见 <see cref="SessionRegistry.ReplaceForLoadGameAsync"/>。
     /// </summary>
-    internal async Task<IResult> HandleLoadGameAsync(HttpContext context)
-    {
-        string? gameDir;
-        string? bodyToken = null;
-        using (var reader = new StreamReader(context.Request.Body))
-        {
-            var body = await reader.ReadToEndAsync();
-            try
-            {
-                var payload = JsonSerializer.Deserialize(body, ServerJsonContext.Default.LoadGameRequest);
-                gameDir = payload?.gameDir;
-                bodyToken = payload?.token;
-            }
-            catch
-            {
-                return ToIResult(GameServerProtocol.InvalidJsonLoadGame());
-            }
-        }
-
-        if (string.IsNullOrWhiteSpace(gameDir))
-            return ToIResult(GameServerProtocol.MissingGameDir());
-
-        return ToIResult(_protocol.LoadGame(gameDir, GameServerProtocol.ToIdentity(bodyToken ?? ReadToken(context))));
-    }
+    internal Task<IResult> HandleLoadGameAsync(HttpContext context) => DispatchApiAsync("POST", "/load-game", context);
 
     /// <summary>POST /native/pick-directory —— 安卓 SAF 目录选择器桩（协议语义见 PickDirectory）。</summary>
     private IResult HandlePickDirectoryAsync()
@@ -266,21 +211,29 @@ internal sealed class KestrelGameServer : IDisposable
 
     // ===== 传输专属辅助：body / token / HttpResult 映射 =====
 
-    private static async Task<GameServerProtocol.ControlRequest?> ReadControlRequestAsync(HttpContext context)
+    /// <summary>
+    /// 统一 API 转发（C1）：用端点已知的 method+path + 从 context 读 body/token 构造传输无关
+    /// <see cref="HttpRequestData"/> → 共享 <see cref="HttpRouteDispatcher"/>（路由/解析/校验/身份单点）
+    /// → 映射 IResult。method+path 固定传入而非从 context 读，保证直连调用的测试接缝（空
+    /// DefaultHttpContext）也稳定命中正确路由。
+    /// </summary>
+    private async Task<IResult> DispatchApiAsync(string method, string path, HttpContext context)
     {
-        if (context.Request.ContentLength is null or 0)
-            return null;
+        var body = await ReadBodyAsync(context);
+        return ToIResult(await _dispatcher.DispatchAsync(new HttpRequestData(method, path, body, ReadToken(context)), context.RequestAborted));
+    }
+
+    /// <summary>读请求体为字符串（无体/空体返回空串；读失败回退空串——与 HttpListener TryReadBody 同语义）。</summary>
+    private static async Task<string> ReadBodyAsync(HttpContext context)
+    {
         try
         {
             using var reader = new StreamReader(context.Request.Body);
-            var body = await reader.ReadToEndAsync();
-            return string.IsNullOrWhiteSpace(body)
-                ? null
-                : JsonSerializer.Deserialize(body, ServerJsonContext.Default.ControlRequest);
+            return await reader.ReadToEndAsync() ?? "";
         }
-        catch (JsonException)
+        catch
         {
-            return null;
+            return "";
         }
     }
 
