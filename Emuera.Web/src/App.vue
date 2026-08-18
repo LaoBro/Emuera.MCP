@@ -433,18 +433,18 @@ const popupItems = computed<PopupMenuItem[]>(() => [
   overflow: hidden;
 }
 
-/* 页面过渡动画（方案一+四）：opacity + scale(0.97) + --motion-slow 时长 */
+/* 页面过渡动画（方案一+四）：opacity + scale + --page-duration 时长 */
 .page-enter-active,
 .page-leave-active {
-  transition: opacity var(--motion-slow) var(--fx-curve),
-              transform var(--motion-slow) var(--fx-curve);
+  transition: opacity var(--page-duration) var(--fx-curve),
+              transform var(--page-duration) var(--fx-curve);
 }
 .page-enter-from {
   opacity: 0;
-  transform: scale(0.97);
+  transform: scale(var(--page-scale));
 }
 .page-leave-to {
   opacity: 0;
-  transform: scale(0.97);
+  transform: scale(var(--page-scale));
 }
 </style>

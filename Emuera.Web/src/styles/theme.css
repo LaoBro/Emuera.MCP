@@ -34,13 +34,17 @@
   --elevation-menu: 0 2px 8px rgba(0, 0, 0, 0.36); /* 仅 Popup Menu / 对话框等浮层 */
 
   /* ---------- 动效（spec §3.4，两档） ---------- */
-  --motion-fast: 120ms;           /* 状态切换、opacity / background */
-  --motion-slow: 180ms;           /* 输入栏高度过渡、表面出现 */
+  --motion-fast: 150ms;           /* 状态切换、opacity / background */
+  --motion-slow: 200ms;           /* 输入栏高度过渡、表面出现 */
 
   /* ---------- 浮层出入场统一参数（PopupMenu / ConfirmDialog / InputBar 共用） ---------- */
   --fx-rise: 12px;                /* 上浮/下沉距离 */
   --fx-scale: 0.85;               /* 缩放起始（进场 from / 退场 to） */
   --fx-curve: cubic-bezier(0.34, 0.8, 0.34, 1); /* 统一缓动曲线（加速-减速无过冲） */
+
+  /* ---------- 页面切换过渡（MauiGameList ↔ 游戏画面） ---------- */
+  --page-duration: 200ms;         /* 过渡时长，与 --motion-slow 一致 */
+  --page-scale: 0.97;             /* 缩放系数，接近 1 则过渡更柔和，远离 1 则动感更强 */
 
   /* ---------- 字体（spec §3.2） ---------- */
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
@@ -200,28 +204,28 @@ html.pointer-interaction :focus-visible {
    内容面板（.popup-menu，缩放）与遮罩同帧出入。
    入场 200ms、退场 150ms，共用统一曲线与缩放参数 */
 .popup-enter-active.popup-root {
-  animation: fade-in 150ms var(--fx-curve) both;
+  animation: fade-in var(--motion-slow) var(--fx-curve) both;
 }
 .popup-leave-active.popup-root {
-  animation: fade-out 150ms var(--fx-curve) forwards;
+  animation: fade-out var(--motion-fast) var(--fx-curve) forwards;
 }
 .popup-enter-active .popup-menu {
-  animation: popup-in 200ms var(--fx-curve) both;
+  animation: popup-in var(--motion-slow) var(--fx-curve) both;
 }
 .popup-leave-active .popup-menu {
-  animation: popup-out 150ms var(--fx-curve) forwards;
+  animation: popup-out var(--motion-fast) var(--fx-curve) forwards;
 }
 
 /* 面板先缩放出现，内容随后作为一个整体浮现（非逐项 stagger）：
    所有项统一 delay = popup-in 时长（200ms），保证面板已呈现再整体淡入内容 */
 @keyframes popup-item-in {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(var(--fx-rise)); }
   to { opacity: 1; transform: translateY(0); }
 }
 .popup-menu .popup-item,
 .popup-menu .popup-zoom,
 .popup-menu .popup-separator {
-  animation: popup-item-in 400ms cubic-bezier(0.34, 0.88, 0.34, 1.00) backwards;
+  animation: popup-item-in calc(var(--motion-slow) * 2) cubic-bezier(0.34, 0.88, 0.34, 1.00) backwards;
 }
 
 /* 无障碍：prefers-reduced-motion 关闭非必要过渡（spec §2.3） */
