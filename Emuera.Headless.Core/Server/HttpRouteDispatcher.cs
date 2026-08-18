@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -36,10 +37,24 @@ internal sealed class HttpRouteDispatcher
     private const string NotFoundBody = """{"error":"Not found","code":"NOT_FOUND"}""";
 
     private readonly GameServerProtocol _protocol;
+    /// <summary>
+    /// 请求 body POCO 的源生成反序列化选项。Kestrel 注入 <c>ServerJsonContext.Default</c> 以保证
+    /// NativeAOT + 大小写不敏感（与原 Kestrel 行为一致）；HttpListener 传 null，走反射（其原行为）。
+    /// </summary>
+    private readonly JsonSerializerOptions? _requestOptions;
 
     public HttpRouteDispatcher(GameServerProtocol protocol)
+        : this(protocol, requestJsonContext: null)
+    {
+    }
+
+    public HttpRouteDispatcher(GameServerProtocol protocol, JsonSerializerContext? requestJsonContext)
     {
         _protocol = protocol;
+        // 拷贝源生成上下文选项：继承其 resolver chain 与 [JsonSourceGenerationOptions]（大小写不敏感）。
+        _requestOptions = requestJsonContext == null
+            ? null
+            : new JsonSerializerOptions(requestJsonContext.Options);
     }
 
     /// <summary>
@@ -99,14 +114,16 @@ internal sealed class HttpRouteDispatcher
         => GameServerProtocol.ToIdentity(bodyToken ?? request.TokenFromHeaderOrQuery);
 
     /// <summary>body 解析：空体/坏 JSON → null（调用方按端点映射校验错误）。</summary>
-    private static T? Parse<T>(string? bodyText) where T : class
+    private T? Parse<T>(string? bodyText) where T : class
     {
         if (string.IsNullOrWhiteSpace(bodyText))
             return null;
         try
         {
-            // 反射反序列化与原 HttpListenerHost 一致（Core 已含该模式，NativeAOT 不新增暴露面）。
-            return JsonSerializer.Deserialize<T>(bodyText);
+            // Kestrel 经源生成 resolver（NativeAOT 安全 + 大小写不敏感）；HttpListener 走反射（原行为）。
+            return _requestOptions == null
+                ? JsonSerializer.Deserialize<T>(bodyText)
+                : JsonSerializer.Deserialize<T>(bodyText, _requestOptions);
         }
         catch (JsonException)
         {

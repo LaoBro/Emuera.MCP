@@ -45,7 +45,7 @@ internal sealed class KestrelGameServer : IDisposable
         _config = new GameConfigService(configData, overrideDisplayReport);
         _sessions = new SessionRegistry(terminalSetup, _config, GameServerProtocol.ReadAgentLease());
         _protocol = new GameServerProtocol(_sessions, _config);
-        _dispatcher = new HttpRouteDispatcher(_protocol);
+        _dispatcher = new HttpRouteDispatcher(_protocol, ServerJsonContext.Default);
         _ws = new WsConnectionHandler(_sessions);
 
         // issue 10：WebRootPath 显式指向 exe 所在目录的 wwwroot/——
@@ -290,7 +290,8 @@ internal sealed class KestrelGameServer : IDisposable
     }
 
     // HTTP body POCO（HttpInput/ControlRequest/LoadGameRequest）已上收共享层
-    // GameServerProtocol 嵌套类型（双宿主去重），见 ServerJsonContext 注册。
+    // HttpRouteDispatcher 嵌套类型（双宿主去重），by dispatcher 解析；本宿主把
+    // ServerJsonContext.Default 注入 dispatcher 作源生成反序列化（NativeAOT + 大小写不敏感）。
 
     public void Dispose()
     {

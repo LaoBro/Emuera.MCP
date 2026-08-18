@@ -11,7 +11,7 @@ namespace MinorShift.Emuera.Server;
 /// 基于内存 Channel 的 SessionIO，用于 HTTP 长轮询模式。
 /// input/output 双 Channel，支持 async 读取与同步写入。
 /// </summary>
-internal sealed class HttpSessionIO : SessionIO
+internal sealed class HttpSessionIO : SessionIO, ITurnSink
 {
     private readonly IOutputBroadcaster _broadcaster;
     private readonly Channel<string> _input = Channel.CreateUnbounded<string>(new UnboundedChannelOptions

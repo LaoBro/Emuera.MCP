@@ -83,7 +83,7 @@ internal readonly record struct ControlGateResult(
 /// Session controller state machine. It owns only control ownership and its
 /// notification signals; turn queues remain owned by <see cref="Session"/>.
 /// </summary>
-internal sealed class Controller : IDisposable
+internal sealed class Controller : IControlSignal, IDisposable
 {
     public const string StateIdle = "idle";
     public const string StateHeld = "held";

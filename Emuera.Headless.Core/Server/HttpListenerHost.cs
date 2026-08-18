@@ -278,7 +278,8 @@ internal sealed class HttpListenerHost : IDisposable
     }
 
     // 响应 JSON 序列化共用 GameServerProtocol.JsonOptions（双宿主去重）；
-    // HTTP body POCO（HttpInput/LoadGameRequest/ControlRequest）复用 GameServerProtocol 嵌套类型。
+    // HTTP body POCO（HttpInput/LoadGameRequest/ControlRequest）位于共享层 HttpRouteDispatcher
+    //（本宿主不注入源生成上下文，反射解析为其原行为）。
 
     public void Dispose()
     {
