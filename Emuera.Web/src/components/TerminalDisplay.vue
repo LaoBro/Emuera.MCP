@@ -466,8 +466,8 @@ watch(() => game.inputInFlight, (inFlight) => {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
   /* font-size / line-height / font-family 由 inline style 动态绑定——
      font-size/line-height 用像素，font-family 首选游戏字体名。 */
-  color: var(--color-text);
-  background-color: var(--color-bg);
+  color: var(--term-color-text);
+  background-color: var(--term-color-bg);
   /* pre：保留 PRINT 输出中的空格 / 缩进，长行不自动换行。
      Emuera 的 ConsoleDisplayLine 语义是"一行不拆分"——WinForms GDI 下字符画按
      FontSize/2 的 ASCII 字符宽度算列数，浏览器 monospace 每字符宽度约 0.6em

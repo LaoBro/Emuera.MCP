@@ -24,6 +24,10 @@
   --color-scrim-menu: rgba(0, 0, 0, 0.32); /* 轻档遮罩：PopupMenu 非模态 scrim，避免整体压暗过重 */
   --color-focus: #38bdf8;         /* 键盘 / 指针焦点环（2px outline），与 indicator 同色 */
 
+  /* ---------- 终端颜色（固定不随主题变化——游戏脚本控制的内容） ---------- */
+  --term-color-text: #e8eaed;     /* 默认文字颜色 */
+  --term-color-bg: #171717;       /* 终端背景 */
+
   /* ---------- 圆角（修订方案 §2.4：DESIGN.md 2/4/8 三档） ---------- */
   --radius-indicator: 2px;        /* 左指示条 */
   --radius-control: 12px;         /* 选择页与游戏页通用大圆角控件 */
