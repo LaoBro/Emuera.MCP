@@ -536,10 +536,10 @@ watch(() => game.inputInFlight, (inFlight) => {
   /* 按钮视觉：与普通文本完全一致；hover 时用下划线 + 低对比背景强调
      （ui-redesign-spec §6.2：文字优先、细边界或下划线，避免大块圆角胶囊）。
      WinForms 中按钮没有下划线/边框，只是悬浮高亮。
-     颜色继承父行——不破坏 segment 自定义颜色。 */
+     color 固定为终端文字色——不继承父行，避免按钮自带阴影/系统色影响。 */
   display: inline;
   background: transparent;
-  color: inherit;
+  color: var(--term-color-text);
   border: none;
   border-radius: 0;
   padding: 0;
