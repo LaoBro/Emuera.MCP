@@ -202,7 +202,7 @@ const popupItems = computed<PopupMenuItem[]>(() => [
 
 <template>
   <AppShell :scrollable="showMauiGameList">
-    <!-- 页面过渡动画（方案一+四）：out-in 模式 + scale(0.97) + fade -->
+    <!-- 页面过渡动画：out-in 模式，进场 --fx-ease-in，退场 --fx-ease-out -->
     <Transition name="page" mode="out-in">
       <MauiGameList v-if="showMauiGameList" key="game-list" />
       <div v-else class="game-view-wrapper" key="game-view">
@@ -433,14 +433,14 @@ const popupItems = computed<PopupMenuItem[]>(() => [
   overflow: hidden;
 }
 
-/* 页面过渡动画：进场用 --fx-curve，退场用 ease-out */
+/* 页面过渡动画：进场用 --fx-ease-in，退场用 --fx-ease-out */
 .page-enter-active {
-  transition: opacity var(--page-duration) var(--fx-curve),
-              transform var(--page-duration) var(--fx-curve);
+  transition: opacity var(--page-duration) var(--fx-ease-in),
+              transform var(--page-duration) var(--fx-ease-in);
 }
 .page-leave-active {
-  transition: opacity var(--page-duration) var(--page-easing-leave),
-              transform var(--page-duration) var(--page-easing-leave);
+  transition: opacity var(--page-duration) var(--fx-ease-out),
+              transform var(--page-duration) var(--fx-ease-out);
 }
 .page-enter-from {
   opacity: 0;

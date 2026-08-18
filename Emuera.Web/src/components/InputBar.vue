@@ -414,7 +414,7 @@ const submitLabel = computed<string>(() => {
 </style>
 
 <!-- 输入栏出现/消失过渡：淡入 + 上浮/下沉，位移与整套浮层统一（--fx-rise=12px）。
-     曲线同样用统一 --fx-curve。 -->
+     进场用 --fx-ease-in，退场用 --fx-ease-out。 -->
 <style>
 /* 输入栏作为终端底部覆盖层（overlay-bottom）时的可靠定位——absolute 盖在最上、
    不参与文档流，从而不顶开游戏文本。非 scoped 兜底，避免生效依赖父级 scoped 传导。 */
@@ -424,9 +424,11 @@ const submitLabel = computed<string>(() => {
   right: 0;
   bottom: 0;
 }
-.inputbar-enter-active,
+.inputbar-enter-active {
+  transition: opacity var(--motion-slow) var(--fx-ease-in), transform var(--motion-slow) var(--fx-ease-in);
+}
 .inputbar-leave-active {
-  transition: opacity var(--motion-slow) var(--fx-curve), transform var(--motion-slow) var(--fx-curve);
+  transition: opacity var(--motion-slow) var(--fx-ease-out), transform var(--motion-slow) var(--fx-ease-out);
 }
 .inputbar-enter-from {
   opacity: 0;
