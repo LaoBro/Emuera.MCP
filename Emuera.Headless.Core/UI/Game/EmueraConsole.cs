@@ -422,15 +422,10 @@ internal sealed class EmueraConsole : IDisposable, IConsoleStateView, IButtonDis
     internal int PendingOpCount => _state._pendingOps.Count;
 
     /// <summary>
-    /// Phase 5-3：消费式清空 _pendingOps（TryUpdate rebuild 后调用，防无限增长）。
-    /// ConcurrentQueue.Clear 跨线程安全——游戏线程 Enqueue 与 HTTP 线程 Clear 可并发。
-    /// </summary>
-    internal void ClearPendingOps() => _state._pendingOps.Clear();
-
-    /// <summary>
-    /// plan C（清空信号溯源）：drain 全部 _pendingOps 并原样返回，供 DisplayState.ComputeDiff
-    /// 分类出权威清空事件（ClearOp/ClearLineOp/SetBgOp）。ConcurrentQueue.TryDequeue 跨线程安全。
-    /// 与 <see cref="ClearPendingOps"/> 互斥——调用方二选一，避免重复 drain。
+    /// ADR-0022（清空信号溯源）：drain 全部 _pendingOps 并原样返回，供 DisplayState
+    /// 累积出权威清空事件（ClearOp/ClearLineOp/SetBgOp）。ConcurrentQueue.TryDequeue 跨线程安全。
+    /// 原 <c>ClearPendingOps</c>（直接丢弃）已随 ADR-0022 移除——消费方统一走本方法累积，
+    /// 不再有"二选一"的重复 drain 语义。
     /// </summary>
     internal List<TurnOp> DrainPendingOps()
     {

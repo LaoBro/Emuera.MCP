@@ -141,6 +141,87 @@ public class DisplayDiffTests : IDisposable
         Assert.Equal("new2", append.newLines[1].entries[0].segments[0].text);
     }
 
+    // ---------- ADR-0022：帧级 TryUpdate 抢先 drain 后 ComputeDiff 仍取权威清空信号 ----------
+
+    [Fact]
+    public void Clear_drained_by_frame_try_update_is_still_emitted_by_compute_diff()
+    {
+        // 回合 1：基线快照
+        PrintLine("line1");
+        PrintLine("line2");
+        BuildDiff();
+
+        // CLEAR：引擎清屏 + 写新内容（enqueue ClearOp + PrintOp，与前例一致）
+        _console.DisplayLineList.Clear();
+        _console.DisplayLineList.Add(Line("new1"));
+        AddPendingOp(new ClearOp());
+        AddPendingOp(new PrintOp(
+            new List<PrintSegment> { new("new1", null, null, null, null) },
+            button: null));
+
+        // ADR-0022：GET /snapshot 帧级 TryUpdate 抢先 drain——清空信号此前会被丢弃
+        Assert.True(_displayState.TryUpdate());
+
+        // 之后 ComputeDiff 走无 pending 分支，但必须仍取到权威 ClearScreenOp
+        var diff = BuildDiff();
+        Assert.NotNull(diff);
+        Assert.Equal(2, diff!.lineOps.Count);
+        Assert.IsType<ClearScreenOp>(diff.lineOps[0]);
+        var append = Assert.IsType<AppendLinesOp>(diff.lineOps[1]);
+        Assert.Single(append.newLines);
+    }
+
+    [Fact]
+    public void Clearline_drained_by_frame_try_update_keeps_authoritative_count()
+    {
+        PrintLine("l1");
+        PrintLine("l2");
+        PrintLine("l3");
+        BuildDiff();
+
+        // CLEARLINE 1：删除末 1 行
+        _console.DisplayLineList.RemoveRange(_console.DisplayLineList.Count - 1, 1);
+        AddPendingOp(new ClearLineOp(1));
+        Assert.True(_displayState.TryUpdate()); // 帧级抢先 drain（原丢弃清空信号）
+
+        // ComputeDiff 取到权威 n=1，而非回退结构推断
+        var diff = BuildDiff();
+        Assert.NotNull(diff);
+        var op = Assert.Single(diff!.lineOps);
+        var clearLine = Assert.IsType<ClearLineDiffOp>(op);
+        Assert.Equal(1, clearLine.clearCount);
+        Assert.Null(diff.bgColor);
+    }
+
+    [Fact]
+    public void Combined_clear_ops_dominate_to_clear_screen()
+    {
+        // ADR-0022 D4：组合 op（CLEAR + CLEARLINE + ShiftHead）——ClearAll 主导，吞掉 CLEARLINE 并覆盖
+        // ShiftHead，输出应退化为干净的 ClearScreenOp + Append，不得残留 ClearLineDiffOp/ShiftHeadLineOp。
+        PrintLine("l1");
+        PrintLine("l2");
+        PrintLine("l3");
+        BuildDiff();
+
+        _console.DisplayLineList.Clear();
+        _console.DisplayLineList.Add(Line("new1"));
+        AddPendingOp(new ClearOp());
+        AddPendingOp(new ClearLineOp(2));
+        AddPendingOp(new ShiftHeadTurnOp(1));
+        AddPendingOp(new PrintOp(
+            new List<PrintSegment> { new("new1", null, null, null, null) },
+            button: null));
+        Assert.True(_displayState.TryUpdate()); // 帧级抢先 drain，累积组合信号
+
+        var diff = BuildDiff();
+        Assert.NotNull(diff);
+        Assert.Equal(2, diff!.lineOps.Count);
+        Assert.IsType<ClearScreenOp>(diff.lineOps[0]);
+        Assert.IsType<AppendLinesOp>(diff.lineOps[1]);
+        Assert.All(diff.lineOps, op => Assert.IsNotType<ShiftHeadLineOp>(op));
+        Assert.All(diff.lineOps, op => Assert.IsNotType<ClearLineDiffOp>(op));
+    }
+
     // ---------- 末行原地编辑（ClearLineDiffOp + Append）----------
 
     [Fact]

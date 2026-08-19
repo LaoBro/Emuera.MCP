@@ -117,6 +117,15 @@ internal sealed class DisplayState : IDisplayState
     private DisplaySnapshot? _previous;
 
     /// <summary>
+    /// ADR-0022：权威清空事件累积器。语义 =「自上一回 <see cref="ComputeDiff"/> 以来、
+    /// 未被取走的权威清空事件」。统一消费语义：谁 drain _pendingOps 谁累积（TryUpdate 与
+    /// ComputeDiff 的 drain 都累进此字段），唯一 flush 方是 ComputeDiff（任一分支都取走+重置）。
+    /// 根治 Q11 race——帧级 TryUpdate（GET /snapshot）抢先 drain 时不再丢弃清空信号。
+    /// 仅 _gate 锁内访问，无并发。
+    /// </summary>
+    private readonly TurnClearAccumulator _pendingClearAccumulator = new();
+
+    /// <summary>
     /// 3.3 增量快照（S0 优化）：引擎行对象 → 已构建 DisplayLine 的引用缓存。
     /// 键为 <see cref="ConsoleDisplayLine"/> 引用（默认引用相等）——行对象入列后内容不可变
     /// （步骤 0 审计：LineNo/IsLineEnd/Align/buttons 的写点均在 Add 之前，见 ConsolePrintManager
@@ -147,6 +156,47 @@ internal sealed class DisplayState : IDisplayState
         public int ClearLineCount;
         public int ShiftHeadCount;
         public string? Bg;
+    }
+
+    /// <summary>
+    /// ADR-0022：权威清空事件累积器（<see cref="_pendingClearAccumulator"/> 字段类型）。
+    /// 与 <see cref="TurnClearSignal"/> 同构，但语义是"自上次 flush 以来累积的事件"，
+    /// 而非"本回合一次性信号"——故由任意 drain 方累加、仅 ComputeDiff 取走并重置。
+    /// </summary>
+    private sealed class TurnClearAccumulator
+    {
+        public bool ClearAll;
+        public int ClearLineCount;
+        public int ShiftHeadCount;
+        public string? Bg;
+
+        public void Add(TurnOp op)
+        {
+            switch (op)
+            {
+                case ClearOp: ClearAll = true; break;
+                case ClearLineOp clo: ClearLineCount += clo.n; break;
+                case SetBgOp sbo: Bg = sbo.color; break;
+                case ShiftHeadTurnOp sho: ShiftHeadCount += sho.count; break;
+            }
+        }
+
+        /// <summary>返回当前累积信号并重置——仅由 ComputeDiff 调用（统一 flush 方）。</summary>
+        public TurnClearSignal TakeSignalAndReset()
+        {
+            var signal = new TurnClearSignal
+            {
+                ClearAll = ClearAll,
+                ClearLineCount = ClearLineCount,
+                ShiftHeadCount = ShiftHeadCount,
+                Bg = Bg
+            };
+            ClearAll = false;
+            ClearLineCount = 0;
+            ShiftHeadCount = 0;
+            Bg = null;
+            return signal;
+        }
     }
 
     /// <summary>
@@ -183,7 +233,9 @@ internal sealed class DisplayState : IDisplayState
     /// <summary>
     /// Phase 5-3：peek _pendingOps 做变更检测，rebuild 后消费式清空（防无限增长）。
     /// _pendingOps 非空 → 重建 _current + Clear → 返回 true；空且 _current 已存在 → 返回 false 且 _current 不变。
-    /// ConcurrentQueue 保证跨线程安全：游戏线程 Enqueue 与此处的 Clear 可并发。
+    /// ConcurrentQueue 保证跨线程安全：游戏线程 Enqueue 与此处的 drain 可并发。
+    /// ADR-0022：消费方式由 ClearPendingOps（丢弃）改为 drain+累积进 <see cref="_pendingClearAccumulator"/>——
+    /// 被本帧抢占的清空信号不再丢失，之后 ComputeDiff 仍能取到（根治 Q11 race）。
     /// </summary>
     internal bool TryUpdate()
     {
@@ -192,18 +244,20 @@ internal sealed class DisplayState : IDisplayState
             if (_current != null && _console.PendingOpCount == 0)
                 return false; // 无变化
             _current = Rebuild();
-            _console.ClearPendingOps();
+            DrainIntoAccumulator();
             return true;
         }
     }
 
     /// <summary>
-    /// 计算本回合 DisplayDiff（Phase 2 / ADR-0014 / plan C v5）。
+    /// 计算本回合 DisplayDiff（Phase 2 / ADR-0014 / plan C v5 / ADR-0022）。
     /// 原子化（持 _gate）：先确保 _current 最新——若 _pendingOps 非空（本回合有显示变更）则 Rebuild
-    /// 并 drain 分类出<b>权威清空信号</b>（ClearOp/ClearLineOp/SetBgOp，见 ConsolePrintManager）；
+    /// 并 drain+累积<b>权威清空信号</b>（ClearOp/ClearLineOp/SetBgOp，见 ConsolePrintManager）；
     /// 再比对 _current（本回合）与 _previous（上一回合）产出 diff。
-    /// 清空语义优先取权威事件（精确行数 n），队列被提前 drain（HTTP/CLI 帧刷新抢先 TryUpdate，见 Q11 race 降级）
-    /// 时回退 k 结构分类（<see cref="StructuralDiff"/>），退化为「快照推导」。
+    ///
+    /// ADR-0022：清空信号经 <see cref="_pendingClearAccumulator"/> 累积、此处<b>无条件</b>取走重置——
+    /// 帧级 TryUpdate 抢先 drain 时不丢弃信号，ComputeDiff 仍取权威清空事件（精确行数 n），
+    /// 不再依赖 Q11 的 <see cref="StructuralDiff"/> 结构推断兜底。
     ///
     /// 返回 null 的三种情况：首次回合（_previous==null）、_current 未构建、本回合显示未变
     /// （ReferenceEquals(_previous, _current)——no-op 回合，仅 state/inputType 变化由 TurnRecord 顶层携带）。
@@ -215,17 +269,18 @@ internal sealed class DisplayState : IDisplayState
     {
         lock (_gate)
         {
-            // 1. 刷新 _current + 分类权威清空信号（仅本回合有变更时 drain）
-            TurnClearSignal signal;
+            // 1. 刷新 _current + drain+累积权威清空信号（有新增 op 时）。
+            //    ADR-0022：帧级 TryUpdate（GET /snapshot）可能已抢先 drain 进累积器（Q11），
+            //    故下面的 TakeSignalAndReset 必须无条件执行，不能被"有/无 pending"分支短路。
             if (_current == null || _console.PendingOpCount > 0)
             {
                 _current = Rebuild();
-                signal = DrainAndClassifyClears();
+                DrainIntoAccumulator();
             }
-            else
-            {
-                signal = new TurnClearSignal(); // 无新变更，无权威清空事件
-            }
+
+            // ADR-0022：统一 flush——无论上支是否 drain，都必须取走+重置累积器，
+            // 否则被帧级 TryUpdate 抢先累积的清空信号会在无 pending 分支漏成 StructuralDiff。
+            var signal = _pendingClearAccumulator.TakeSignalAndReset();
 
             var current = _current;
             if (current == null) return null; // _current 未构建
@@ -326,25 +381,17 @@ internal sealed class DisplayState : IDisplayState
     }
 
     /// <summary>
-    /// plan C + shift_head：drain _pendingOps 并分类出本回合的清空信号。ClearOp 主导（→ClearAll，吞掉 CLEARLINE）；
-    /// 多个 ClearLineOp 的 n 累加；SetBgOp 取最后一次（bg 由 DisplayDiff.bgColor 携带，不计入 lineOps）；
-    /// ShiftHeadTurnOp 的 count 累加为 ShiftHeadCount（MaxLog 头部截断，独立于尾部清空）。
-    /// PrintOp/NewLineOp 不影响清空判定，忽略。
+    /// ADR-0022：drain 全部 _pendingOps 并累积进 <see cref="_pendingClearAccumulator"/>（谁 drain 谁累积）。
+    /// ClearOp 主导（→ClearAll，吞掉 CLEARLINE）；多个 ClearLineOp 的 n 累加；SetBgOp 取最后一次
+    /// （bg 由 DisplayDiff.bgColor 携带，不计入 lineOps）；ShiftHeadTurnOp 的 count 累加为
+    /// ShiftHeadCount（MaxLog 头部截断，独立于尾部清空）。PrintOp/NewLineOp 不影响清空判定，忽略。
+    /// 与旧 DrainAndClassifyClears 的差别：累进累积器而非返回一次性信号——被帧级 TryUpdate
+    /// （GET /snapshot）抢先 drain 的清空信号不再丢失，ComputeDiff 仍能取到（根治 Q11 race）。
     /// </summary>
-    private TurnClearSignal DrainAndClassifyClears()
+    private void DrainIntoAccumulator()
     {
-        var signal = new TurnClearSignal();
         foreach (var op in _console.DrainPendingOps())
-        {
-            switch (op)
-            {
-                case ClearOp: signal.ClearAll = true; break;
-                case ClearLineOp clo: signal.ClearLineCount += clo.n; break;
-                case SetBgOp sbo: signal.Bg = sbo.color; break;
-                case ShiftHeadTurnOp sho: signal.ShiftHeadCount += sho.count; break;
-            }
-        }
-        return signal;
+            _pendingClearAccumulator.Add(op);
     }
 
     /// <summary>
@@ -355,7 +402,11 @@ internal sealed class DisplayState : IDisplayState
     /// k==0 且 prev 非空 → ClearScreenOp + Append（全清后重印，等价于旧 ReplaceAll）。
     /// race 降级路径：_pendingOps 被帧级 TryUpdate 抢先 drain 时，ShiftHeadTurnOp 不可见，
     /// 头部截断会令 CommonPrefix 检测到 k=0 → 退化为 ClearScreenOp + Append 全量重印。
-    /// 这是罕见并发场景，正确性不破坏（前端 applyDiff 正确处理 clear_screen + append），仅性能受损。
+    /// 这是罕见并发场景（ADR-0022 后仅病理性兜底），正确性不破坏，仅性能受损。
+    ///
+    /// ADR-0022（D7 不变量）：本兜底只在如下不变量成立时才保持正确——
+    /// 「引擎的清空/截断全部可被 <see cref="CommonPrefix"/> 结构推断（追加为主、无原地替换/移动型 op）」。
+    /// 新增结构不可推断的显示 op 类型时，必须在此同步设计其消费语义，否则兜底会静默失真。
     /// </summary>
     private static List<LineOp> StructuralDiff(DisplaySnapshot prev, DisplaySnapshot curr)
     {
