@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime;
@@ -12,15 +11,16 @@ namespace MinorShift.Emuera.GameView
 {
     internal sealed class AgentCliProtocol : AgentProtocolBase, IVtHost, IInputTimer
     {
-        private readonly StringBuilder _buf = new();
+        // 职责拆分：输入行缓冲（CliInputBuffer）与 VT 生命周期（VtTerminalLifecycle）独立成类，
+        // 本类只做编排，不再持有输入缓冲与进程级清理钩子的内联状态。
+        private readonly CliInputBuffer _input;
+        private readonly VtTerminalLifecycle _vtLifecycle;
 
         // VT 模式状态（DA1 探测通过后非 null）
         private AgentCliVtScreen? _screen;
         private VtInputHandler? _vtInput;
         private readonly ITerminalInput _terminalInput;
         private readonly ITerminalSetup _terminalSetup;
-        private bool _vtCleanupDone;
-        private bool _vtHooksRegistered;
 
         // ADR-0009：scroll 状态由 ScrollController 持有（纯逻辑，构造时占位，RunVtLoop 内 UpdateVisibleLines）。
         private readonly ScrollController _scroll;
@@ -56,6 +56,9 @@ namespace MinorShift.Emuera.GameView
         {
             _terminalSetup = terminalSetup;
             _terminalInput = terminalInput;
+            // 职责拆分：输入行缓冲与 VT 生命周期独立成类，协议侧只做编排。
+            _input = new CliInputBuffer(DispatchInput, Echo);
+            _vtLifecycle = new VtTerminalLifecycle(Stop, CleanupVt);
             // ADR-0009：ScrollController 构造占位（visibleLines=1），RunVtLoop 内 UpdateVisibleLines(WindowHeight-2)。
             _scroll = new ScrollController(scrollVisibleLines: 1);
             // Phase 4-2（Q7/R4）：CLI 自有 DisplayState——从 ConfigData 取 defaultFontName，
@@ -71,7 +74,7 @@ namespace MinorShift.Emuera.GameView
                 _scroll,
                 () => _screen,
                 input => DispatchInput(input),
-                ClearInputBuffer,
+                _input.Clear,
                 _displayState);
             _countdown = new CountdownRenderer(console, () => _scroll.ScrollOffset, () => _screen, () => _renderer.LastDrawnRows);
             _redraw = new CliRedrawCoordinator(_renderer, _scroll, () => _scrollStatusBar, _countdown, _buttons, () => _vtInput);
@@ -95,10 +98,10 @@ namespace MinorShift.Emuera.GameView
 
         internal void RunCliLoop()
         {
-            // 顶层异常边界：覆盖 HandleTimeout / ProcessChar / DispatchMouseClick /
+            // 顶层异常边界：覆盖 HandleTimeout / DispatchMouseClick /
             // DispatchMouseMiss / Initialize 等所有调 RunEmueraProgram 的路径。
             // 脚本运行期异常一律 fatal——Process 内部状态不可逆，恢复无意义。
-            // VT 终端恢复由 RegisterVtCleanupHooks（AppDomain.UnhandledException /
+            // VT 终端恢复由 VtTerminalLifecycle（AppDomain.UnhandledException /
             // ProcessExit）的多钩子保障，finally 块只负责 VT 路径。
             // ADR-0005：CLI 协议层改为 VT-only。VT 初始化失败抛 HeadlessFatalException，
             // 由 HeadlessRunner 捕获并非零退出——不再静默降级到残缺体验。
@@ -140,7 +143,7 @@ namespace MinorShift.Emuera.GameView
         /// <summary>
         /// 启动 VT 路径主循环：DA1 探测 → 备用屏 → SGR mouse → 主循环轮询。
         /// 调用前 <see cref="ITerminalSetup.TryPrepareVtInput"/> 必须已返回 true（VT-only）。
-        /// VT 终端恢复由 RegisterVtCleanupHooks（AppDomain.UnhandledException /
+        /// VT 终端恢复由 VtTerminalLifecycle（AppDomain.UnhandledException /
         /// ProcessExit）的多钩子保障，finally 块负责禁用 mouse + 退出备用屏。
         /// </summary>
         private void RunVtLoop()
@@ -150,7 +153,7 @@ namespace MinorShift.Emuera.GameView
             _renderer.Screen = _screen;
             _scrollStatusBar = new ScrollStatusBarRenderer(() => _screen);
             _scroll.UpdateVisibleLines(Math.Max(1, _screen.WindowHeight - 2));
-            RegisterVtCleanupHooks();
+            _vtLifecycle.Register();
             CreateGameLoop();
 
             try
@@ -161,7 +164,7 @@ namespace MinorShift.Emuera.GameView
             }
             finally
             {
-                CleanupVt();
+                _vtLifecycle.CleanupNow();
             }
         }
 
@@ -197,46 +200,11 @@ namespace MinorShift.Emuera.GameView
         /// <summary>VT 解析器输出的 ConsoleKeyInfo 入口，复用现有 ProcessKey 分支。</summary>
         void IVtHost.ProcessKeyFromVt(ConsoleKeyInfo key) => ProcessKey(key);
 
-        /// <summary>注册异常退出钩子，确保终端恢复。多钩子保障，cleanup 幂等。</summary>
-        private void RegisterVtCleanupHooks()
-        {
-            if (_vtHooksRegistered) return;
-            _vtHooksRegistered = true;
-
-            try
-            {
-                Console.CancelKeyPress += OnVtCancelKeyPress;
-                AppDomain.CurrentDomain.UnhandledException += OnVtUnhandledException;
-                AppDomain.CurrentDomain.ProcessExit += OnVtProcessExit;
-            }
-            catch (Exception ex) { AgentLog.Instance.Write("vt cleanup hook registration failed: " + ex); }
-        }
-
-        private void OnVtCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
-        {
-            // raw mode 下 Ctrl+C 主要靠 0x03 检测，此处作为安全网
-            e.Cancel = true;
-            Stop();
-            CleanupVt();
-        }
-
-        private void OnVtUnhandledException(object sender, UnhandledExceptionEventArgs e)
-        {
-            CleanupVt();
-        }
-
-        private void OnVtProcessExit(object? sender, EventArgs e)
-        {
-            CleanupVt();
-        }
-
-        /// <summary>幂等清理：禁用 SGR mouse → 恢复 input mode → 退出备用屏。
-        /// ADR-0006：退出前恢复光标可见（Scroll Mode 可能隐藏了光标）。</summary>
+        /// <summary>一次性清理：禁用 SGR mouse → 恢复 input mode → 退出备用屏。
+        /// ADR-0006：退出前恢复光标可见（Scroll Mode 可能隐藏了光标）。
+        /// 幂等由 <see cref="VtTerminalLifecycle.CleanupNow"/> 保障，本方法不再自带标志。</summary>
         private void CleanupVt()
         {
-            if (_vtCleanupDone) return;
-            _vtCleanupDone = true;
-
             try { _scrollStatusBar?.RestoreCursor(); }
             catch (Exception ex) { AgentLog.Instance.Write("scroll status bar restore cursor failed: " + ex); }
 
@@ -260,55 +228,26 @@ namespace MinorShift.Emuera.GameView
         long IInputTimer.InputTimelimit => console.InputTimelimit;
         string? IInputTimer.TimeUpMessage => console.TimeUpMessage;
         void IInputTimer.SubmitTimeout() => console.SubmitTimeout();
-        void IInputTimer.ClearInputBuffer() => ClearInputBuffer();
+        void IInputTimer.ClearInputBuffer() => _input.Clear();
 
         #endregion
 
         #region Keyboard / character input
 
-        internal void ProcessChar(char ch)
-        {
-            if (ch == '\r' || ch == '\n')
-            {
-                EraseInputLine();
-                string input = _buf.ToString();
-                _buf.Clear();
-                DispatchInput(input);
-            }
-            else if (ch == '\b')
-            {
-                if (_buf.Length > 0)
-                {
-                    _buf.Remove(_buf.Length - 1, 1);
-                    Echo("\b \b");
-                }
-            }
-            else if (ch == 27)
-            {
-                EraseInputLine();
-                _buf.Clear();
-            }
-            else if (!char.IsControl(ch))
-            {
-                _buf.Append(ch);
-                Echo(ch.ToString());
-            }
-        }
-
         private void ProcessKey(ConsoleKeyInfo key)
         {
-            // 按钮选择模式优先处理方向键/Enter，未消费则走常规输入
+            // 按钮选择模式优先处理方向键/Enter，未消费则走输入行缓冲（CliInputBuffer）
             if (_buttons.HandleKey(key))
                 return;
 
             if (key.Key == ConsoleKey.Enter)
-                ProcessChar('\r');
+                _input.ProcessChar('\r');
             else if (key.Key == ConsoleKey.Backspace)
-                ProcessChar('\b');
+                _input.ProcessChar('\b');
             else if (key.Key == ConsoleKey.Escape)
-                ProcessChar((char)27);
+                _input.ProcessChar((char)27);
             else if (!char.IsControl(key.KeyChar))
-                ProcessChar(key.KeyChar);
+                _input.ProcessChar(key.KeyChar);
         }
 
         #endregion
@@ -346,21 +285,6 @@ namespace MinorShift.Emuera.GameView
         }
 
         #endregion
-
-        private void ClearInputBuffer()
-        {
-            if (_buf.Length > 0)
-            {
-                EraseInputLine();
-                _buf.Clear();
-            }
-        }
-
-        /// <summary>擦除终端上当前输入行的显示内容（不含缓冲区清除）。</summary>
-        private void EraseInputLine()
-        {
-            Echo("\r" + new string(' ', _buf.Length) + "\r");
-        }
 
         /// <summary>输入回显：经 VT 备用屏（与光标/滚动状态一致）。ADR-0005 VT-only 后
         /// _screen 在输入等待态必非 null，故直接断言解引用，不再保留主屏降级分支。</summary>
