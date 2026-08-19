@@ -100,7 +100,7 @@ public sealed class ScriptProcTests
 
     static ScriptProc CreateScriptProc(ExecutionState es, IVariableEvaluator eval)
     {
-        return new ScriptProc(null!, null!, eval, null!, null!, es, null!, null!);
+        return new ScriptProc(null!, eval, null!, null!, es, null!, null!, null!);
     }
 
     [Fact]
@@ -137,11 +137,10 @@ public sealed class ScriptProcTests
         var es = new ExecutionState();
         var original = new FakeProcessState { SystemState = SystemStateCode.Title_Begin, lineCount = 42 };
         es.CurrentState = original;
-        var sp = CreateScriptProc(es, new FakeEvaluator());
 
-        sp.SaveCurrentState(false);
+        es.SaveCurrentState(false);
         es.CurrentState.SystemState = SystemStateCode.Shop_Begin;
-        sp.LoadPrevState();
+        es.LoadPrevState();
 
         Assert.Equal(SystemStateCode.Title_Begin, ((FakeProcessState)es.CurrentState).SystemState);
         Assert.Equal(42, es.CurrentState.lineCount);
@@ -152,10 +151,9 @@ public sealed class ScriptProcTests
     {
         var es = new ExecutionState();
         es.CurrentState = new FakeProcessState { SystemState = SystemStateCode.Title_Begin, lineCount = 42 };
-        var sp = CreateScriptProc(es, new FakeEvaluator());
 
-        sp.SaveCurrentState(false);
-        sp.DeleteAllPrevState();
+        es.SaveCurrentState(false);
+        es.DeleteAllPrevState();
 
         Assert.Equal(42, es.CurrentState.lineCount);
         Assert.Equal(SystemStateCode.Title_Begin, ((FakeProcessState)es.CurrentState).SystemState);

@@ -3671,7 +3671,7 @@ internal sealed partial class FunctionIdentifier
 			}
 			SpCallArgment callArg = (SpCallArgment)func.Argument;
 			string labelName = callArg.ConstStr;
-			CalledFunction call = CalledFunction.CallFunction(GlobalStatic.Process, labelName, func);
+			CalledFunction call = CalledFunction.CallFunction(GlobalStatic.LabelDictionary, labelName, func);
 			if ((call == null) && (!func.Function.IsTry()))
 			{
 				FunctionoNotFoundName = labelName;
@@ -3714,7 +3714,7 @@ internal sealed partial class FunctionIdentifier
 			else
 			{
 				labelName = spCallArg.FuncnameTerm.GetStrValue(exm);
-				call = CalledFunction.CallFunction(GlobalStatic.Process, labelName, func);
+				call = CalledFunction.CallFunction(GlobalStatic.LabelDictionary, labelName, func);
 			}
 			if (call == null)
 			{
@@ -3757,7 +3757,7 @@ internal sealed partial class FunctionIdentifier
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
 			string labelName = func.Argument.ConstStr;
-			CalledFunction call = CalledFunction.CallEventFunction(GlobalStatic.Process, labelName, func);
+			CalledFunction call = CalledFunction.CallEventFunction(GlobalStatic.LabelDictionary, labelName, func);
 			if (call == null)
 				return;
 			state.IntoFunction(call, null!, null!);
@@ -3819,7 +3819,7 @@ internal sealed partial class FunctionIdentifier
 			else
 			{
 				label = ((SpCallArgment)func.Argument).FuncnameTerm.GetStrValue(exm);
-				jumpto = state.CurrentCalled.CallLabel(GlobalStatic.Process, label);
+				jumpto = state.CurrentCalled.CallLabel(GlobalStatic.LabelDictionary, label);
 			}
 			if (jumpto == null)
 			{

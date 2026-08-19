@@ -2,6 +2,7 @@ using MinorShift.Emuera.GameData.Function;
 using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Script.Statements.Function;
@@ -80,18 +81,18 @@ internal sealed class UserDefinedFunctionArgument
 internal sealed class CalledFunction
 {
 	private CalledFunction(string label) { FunctionName = label; }
-	public static CalledFunction CallEventFunction(Process parent, string label, LogicalLine retAddress)
+	public static CalledFunction CallEventFunction(LabelDictionary labelDic, string label, LogicalLine retAddress)
 	{
 		CalledFunction called = new(label)
 		{
 			//List<FunctionLabelLine> newLabelList = new List<FunctionLabelLine>();
 			Finished = false,
-			eventLabelList = parent.LabelDictionary.GetEventLabels(label)
+			eventLabelList = labelDic.GetEventLabels(label)
 		};
 		if (called.eventLabelList == null)
 		{
-			FunctionLabelLine line = parent.LabelDictionary.GetNonEventLabel(label);
-			if (parent.LabelDictionary.GetNonEventLabel(label) != null)
+			FunctionLabelLine line = labelDic.GetNonEventLabel(label);
+			if (labelDic.GetNonEventLabel(label) != null)
 			{
 				throw new CodeEE(string.Format(trerror.CalleventToNonEventFunc.Text, label, line.Position!.Value.Filename, line.Position!.Value.LineNo));
 			}
@@ -106,16 +107,16 @@ internal sealed class CalledFunction
 		return called;
 	}
 
-	public static CalledFunction CallFunction(Process parent, string label, LogicalLine retAddress)
+	public static CalledFunction CallFunction(LabelDictionary labelDic, string label, LogicalLine retAddress)
 	{
 		CalledFunction called = new(label)
 		{
 			Finished = false
 		};
-		FunctionLabelLine labelline = parent.LabelDictionary.GetNonEventLabel(label);
+		FunctionLabelLine labelline = labelDic.GetNonEventLabel(label);
 		if (labelline == null)
 		{
-			if (parent.LabelDictionary.GetEventLabels(label) != null)
+			if (labelDic.GetEventLabels(label) != null)
 			{
 				throw new CodeEE(string.Format(trerror.CallToEventFunc.Text, label, Config.Config.GetConfigName(ConfigCode.CompatiCallEvent)));
 			}
@@ -230,9 +231,9 @@ internal sealed class CalledFunction
 		return new UserDefinedFunctionArgument(convertedArg, func.Arg);
 	}
 
-	public LogicalLine CallLabel(Process parent, string label)
+	public LogicalLine CallLabel(LabelDictionary labelDic, string label)
 	{
-		return parent.LabelDictionary.GetLabelDollar(label, CurrentLabel);
+		return labelDic.GetLabelDollar(label, CurrentLabel);
 	}
 
 	public void updateRetAddress(LogicalLine line)

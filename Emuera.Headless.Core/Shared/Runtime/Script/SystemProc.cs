@@ -16,12 +16,11 @@ namespace MinorShift.Emuera.GameProc;
 
 internal sealed class SystemProc
 {
-	// required by CalledFunction.CallFunction (LabelDictionary), unavoidable without deeper refactoring
-	readonly Process process;
 	readonly EmueraConsole console;
 	readonly IVariableEvaluator vEvaluator;
 	readonly GameBase gamebase;
 	readonly string[] trainName;
+	readonly LabelDictionary labelDic;
 	readonly ExecutionState executionState;
 	IProcessState state => executionState.CurrentState;
 	delegate void SystemProcess();
@@ -38,14 +37,14 @@ internal sealed class SystemProc
 	int page;
 	int saveTarget = -1;
 
-	internal SystemProc(Process process, EmueraConsole console, IVariableEvaluator vEvaluator, GameBase gamebase, string[] trainName, ExecutionState executionState)
+	internal SystemProc(EmueraConsole console, IVariableEvaluator vEvaluator, GameBase gamebase, string[] trainName, ExecutionState executionState, LabelDictionary labelDic)
 	{
-		this.process = process;
 		this.console = console;
 		this.vEvaluator = vEvaluator;
 		this.gamebase = gamebase;
 		this.trainName = trainName;
 		this.executionState = executionState;
+		this.labelDic = labelDic;
 	}
 
 	internal void Init()
@@ -126,9 +125,9 @@ internal sealed class SystemProc
 	{
 		CalledFunction call;
 		if (isEvent)
-			call = CalledFunction.CallEventFunction(process, functionName, null!);
+			call = CalledFunction.CallEventFunction(labelDic, functionName, null!);
 		else
-			call = CalledFunction.CallFunction(process, functionName, null!);
+			call = CalledFunction.CallFunction(labelDic, functionName, null!);
 		if (call == null)
 			if (!force)
 				return false;
@@ -180,7 +179,7 @@ internal sealed class SystemProc
 				return;
 		executionState.skipPrint = false;
 		console.ResetStyle();
-		process.deleteAllPrevState();
+		executionState.DeleteAllPrevState();
 			if (Program.AnalysisMode)
 			{
 				console.PrintSystemLine(trsl.AnalysisCompleted.Text);
@@ -865,7 +864,7 @@ internal sealed class SystemProc
 		{
 			if (executionState.systemResult == 100)
 			{
-				process.loadPrevState();
+				executionState.LoadPrevState();
 				return;
 			}
 			else if (((int)executionState.systemResult / 20) != page && executionState.systemResult != AutoSaveIndex && executionState.systemResult >= 0 && executionState.systemResult < dataIsAvailable.Length - 1)
@@ -934,7 +933,7 @@ internal sealed class SystemProc
 
 			GlobalStatic.ctrlZ.OnSave();
 
-			process.loadPrevState();
+			executionState.LoadPrevState();
 		}
 
 		void loadGameWaitInput()
@@ -946,7 +945,7 @@ internal sealed class SystemProc
 					beginTitle();
 					return;
 				}
-				process.loadPrevState();
+				executionState.LoadPrevState();
 				return;
 			}
 			else if (((int)executionState.systemResult / 20) != page && executionState.systemResult != AutoSaveIndex && executionState.systemResult >= 0 && executionState.systemResult < dataIsAvailable.Length - 1)
@@ -989,7 +988,7 @@ internal sealed class SystemProc
 
 			if (!vEvaluator.LoadFrom((int)executionState.systemResult))
 				throw new ExeEE(trerror.UnexpectedErrorInLoaddata.Text);
-			process.deletePrevState();
+			executionState.DeletePrevState();
 			beginDataLoaded();
 		}
 
@@ -1001,7 +1000,7 @@ internal sealed class SystemProc
 
 		void endReloaderb()
 		{
-			process.loadPrevState();
+			executionState.LoadPrevState();
 			console.ReloadErbFinished();
 		}
 

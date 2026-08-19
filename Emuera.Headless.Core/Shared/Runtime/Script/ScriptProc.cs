@@ -19,25 +19,22 @@ namespace MinorShift.Emuera.GameProc;
 
 internal sealed class ScriptProc
 {
-	// required by CalledFunction.CallFunction (LabelDictionary), unavoidable without deeper refactoring
-	readonly Process process;
 	readonly EmueraConsole console;
 	readonly IVariableEvaluator vEvaluator;
 	readonly ExpressionMediator exm;
 	readonly IdentifierDictionary idDic;
+	readonly LabelDictionary labelDic;
 	readonly ExecutionState executionState;
 	readonly GameBase gameBase;
 	readonly string[] trainName;
 	IProcessState state => executionState.CurrentState;
-	List<IProcessState> prevStateList = [];
 	bool saveSkip;
 	bool userDefinedSkip;
 
-	internal ScriptProc(Process process, EmueraConsole console, IVariableEvaluator vEvaluator,
+	internal ScriptProc(EmueraConsole console, IVariableEvaluator vEvaluator,
 		ExpressionMediator exm, IdentifierDictionary idDic, ExecutionState executionState,
-		GameBase gameBase, string[] trainName)
+		GameBase gameBase, string[] trainName, LabelDictionary labelDic)
 	{
-		this.process = process;
 		this.console = console;
 		this.vEvaluator = vEvaluator;
 		this.exm = exm;
@@ -45,6 +42,7 @@ internal sealed class ScriptProc
 		this.executionState = executionState;
 		this.gameBase = gameBase;
 		this.trainName = trainName;
+		this.labelDic = labelDic;
 	}
 
 	/// <summary>
@@ -819,7 +817,7 @@ internal sealed class ScriptProc
 
 						cfa = (SpCallArgment)iLine.Argument;
 						funcName = cfa.FuncnameTerm.GetStrValue(exm);
-						callto = CalledFunction.CallFunction(process, funcName, func.JumpTo);
+						callto = CalledFunction.CallFunction(labelDic, funcName, func.JumpTo);
 						if (callto == null)
 							continue;
 						callto.IsJump = func.Function.IsJump();
@@ -841,7 +839,7 @@ internal sealed class ScriptProc
 						if (iLine.Argument == null)
 							ArgumentParser.SetArgumentTo(iLine);
 						funcName = ((SpCallArgment)iLine.Argument!).FuncnameTerm.GetStrValue(exm);
-						jumpto = state.CurrentCalled.CallLabel(process, funcName);
+						jumpto = state.CurrentCalled.CallLabel(labelDic, funcName);
 						if (jumpto != null)
 							break;
 					}
@@ -895,48 +893,10 @@ internal sealed class ScriptProc
 					return false;
 				}
 #if DEBUG
-			default:
-				throw new ExeEE(trerror.UndefinedFunc.Text);
+		default:
+			throw new ExeEE(trerror.UndefinedFunc.Text);
 #endif
 		}
 		return true;
-	}
-
-	internal void DeletePrevState()
-	{
-		if (prevStateList.Count == 0)
-			return;
-		prevStateList.RemoveAt(prevStateList.Count - 1);
-	}
-
-	internal void DeleteAllPrevState()
-	{
-		foreach (IProcessState state in prevStateList)
-			state.ClearFunctionList();
-		prevStateList.Clear();
-	}
-
-	internal void SaveCurrentState(bool single)
-	{
-		if (executionState.CurrentState != null)
-		{
-			prevStateList.Add(executionState.CurrentState);
-			executionState.CurrentState = executionState.CurrentState.Clone();
-		}
-	}
-
-	internal void LoadPrevState()
-	{
-		if (executionState.CurrentState != null)
-		{
-			state.ClearFunctionList();
-			executionState.CurrentState = prevStateList[prevStateList.Count - 1];
-			DeletePrevState();
-		}
-	}
-
-	internal IProcessState GetCurrentState
-	{
-		get { return executionState.CurrentState; }
 	}
 }

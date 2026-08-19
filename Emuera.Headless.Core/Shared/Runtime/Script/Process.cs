@@ -326,11 +326,9 @@ internal sealed partial class Process(EmueraConsole view)
 		state.Begin(BeginType.TITLE);
 	}
 
-	public void saveCurrentState(bool single) => _scriptProc.SaveCurrentState(single);
+	public void saveCurrentState(bool single) => executionState.SaveCurrentState(single);
 
-	public void loadPrevState() => _scriptProc.LoadPrevState();
-
-	public ProcessState getCurrentState => (ProcessState)_scriptProc.GetCurrentState;
+	public ProcessState getCurrentState => (ProcessState)executionState.CurrentState;
 
 	public void DoDebugNormalFunction(InstructionLine func, bool munchkin) => _scriptProc.DoDebugNormalFunction(func, munchkin);
 
@@ -528,16 +526,6 @@ internal sealed partial class Process(EmueraConsole view)
 			: "";
 	}
 
-	internal void deletePrevState()
-	{
-		_scriptProc.DeletePrevState();
-	}
-
-	internal void deleteAllPrevState()
-	{
-		_scriptProc.DeleteAllPrevState();
-	}
-
 	/// <summary>
 	/// ADR-0011 决策二 + ADR-0012：引擎数据加载子模块（F2 深模块）。
 	/// 字段在 <see cref="Initialize"/>（composition root）中创建；Loader 仅处理文件 I/O，
@@ -571,8 +559,8 @@ internal sealed partial class Process(EmueraConsole view)
 			StrForm.Initialize();
 			VariableParser.Initialize();
 			process.exm = new ExpressionMediator(process, process.vEvaluator, console);
-			process._systemProc = new SystemProc(process, console, process.vEvaluator, process.gamebase, process.TrainName, process.executionState);
-			process._scriptProc = new ScriptProc(process, console, process.vEvaluator, process.exm, process.idDic, process.executionState, process.gamebase, process.TrainName);
+			process._systemProc = new SystemProc(console, process.vEvaluator, process.gamebase, process.TrainName, process.executionState, process.labelDic);
+			process._scriptProc = new ScriptProc(console, process.vEvaluator, process.exm, process.idDic, process.executionState, process.gamebase, process.TrainName, process.labelDic);
 
 			PluginManager.GetInstance().SetParent(process, process.state, process.exm);
 			PluginManager.GetInstance().LoadPlugins();
