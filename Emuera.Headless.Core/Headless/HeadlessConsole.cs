@@ -22,6 +22,13 @@ namespace MinorShift.Emuera.UI.Game
 		public void Refresh() { }
 		public void Invoke(Action action) => action?.Invoke();
 		public void Focus() { }
+
+		/// <summary>
+		/// 脚本 <c>@QUIT/@EXIT</c> 系统命令的退出点。
+		/// 无头模式没有可关闭的窗口，抛出 <see cref="GameExitException"/> 中止游戏循环，
+		/// 由宿主（CLI <see cref="MinorShift.Emuera.HeadlessRunner"/> / Server <see cref="MinorShift.Emuera.Server.Session"/>）
+		/// 在循环边界捕获后走正常清理。注意：调用方会收到该异常，需在宿主层 catch。
+		/// </summary>
 		public void Close() => throw new GameExitException();
 		public void Reboot() { }
 		public void ShowConfigDialog() { }
@@ -37,6 +44,13 @@ namespace MinorShift.Emuera.UI.Game
 
 		public EmuPoint GetMousePosition() => EmuPoint.Empty;
 		public EmuPoint GetCursorPosition() => EmuPoint.Empty;
+
+		/// <summary>
+		/// 脚本 <c>FORCE_QUIT</c> 系统命令（非重启路径退出的终止点）。
+		/// 无头模式没有可关闭的窗口，抛出 <see cref="GameExitException"/> 中止游戏循环，
+		/// 由宿主（CLI <see cref="MinorShift.Emuera.HeadlessRunner"/> / Server <see cref="MinorShift.Emuera.Server.Session"/>）
+		/// 在循环边界捕获后走正常清理。注意：调用方会收到该异常，需在宿主层 catch。
+		/// </summary>
 		public void ExitApplication() => throw new GameExitException();
 		public void ProcessEvents() { }
 

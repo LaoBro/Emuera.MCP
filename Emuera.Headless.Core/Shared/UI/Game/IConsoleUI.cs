@@ -17,6 +17,13 @@ namespace MinorShift.Emuera.UI.Game
 		void Refresh();
 		void Invoke(Action action);
 		void Focus();
+
+		/// <summary>
+		/// 请求关闭当前游戏会话（脚本 <c>@QUIT/@EXIT</c> 系统命令）。
+		/// 注意：Headless 实现（<see cref="MinorShift.Emuera.UI.Game.HeadlessConsole"/>）可能抛出
+		/// <see cref="MinorShift.Emuera.GameExitException"/> 以中止深度递归的游戏循环并触发 finally 清理；
+		/// 若在交互式 UI 实现中则不抛、直接关闭窗口。宿主在调用后必须同时处理该异常与最终态退出。
+		/// </summary>
 		void Close();
 		void Reboot();
 		void ShowConfigDialog();
@@ -32,6 +39,13 @@ namespace MinorShift.Emuera.UI.Game
 
 		EmuPoint GetMousePosition();
 		EmuPoint GetCursorPosition();
+
+		/// <summary>
+		/// 请求立即终止整个程序（脚本 <c>FORCE_QUIT</c> 系统命令，非重启路径）。
+		/// 注意：Headless 实现（<see cref="MinorShift.Emuera.UI.Game.HeadlessConsole"/>）可能抛出
+		/// <see cref="MinorShift.Emuera.GameExitException"/> 以中止游戏循环并触发 finally 清理；
+		/// 若在交互式 UI 实现中则不抛、直接退出进程。宿主在调用后必须同时处理该异常与最终态退出。
+		/// </summary>
 		void ExitApplication();
 		void ProcessEvents();
 
