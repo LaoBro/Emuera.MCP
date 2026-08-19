@@ -135,13 +135,10 @@ public class FrameSyncBusyWaitTests : IDisposable
 
         public EmuPoint GetMousePosition() => _inner.GetMousePosition();
         public EmuPoint GetCursorPosition() => _inner.GetCursorPosition();
-        public int GetCursorHeight() => _inner.GetCursorHeight();
-        public int GetScreenWorkingAreaHeight(EmuPoint point) => _inner.GetScreenWorkingAreaHeight(point);
         public void ExitApplication() => _inner.ExitApplication();
         public void ProcessEvents() => ProcessEventsCount++;
 
         public ITextBox TextBox => _inner.TextBox;
-        public IToolTip ToolTip => _inner.ToolTip;
         public IPictureBox MainPicBox => _inner.MainPicBox;
     }
 

@@ -32,14 +32,11 @@ namespace MinorShift.Emuera.UI.Game
 
 		EmuPoint GetMousePosition();
 		EmuPoint GetCursorPosition();
-		int GetCursorHeight();
-		int GetScreenWorkingAreaHeight(EmuPoint point);
 		void ExitApplication();
 		void ProcessEvents();
 
 		IScrollBar ScrollBar { get; }
 		ITextBox TextBox { get; }
-		IToolTip ToolTip { get; }
 		IPictureBox MainPicBox { get; }
 	}
 
@@ -56,39 +53,11 @@ namespace MinorShift.Emuera.UI.Game
 		EmuColor BackColor { get; set; }
 	}
 
-	internal interface IToolTip
-	{
-		void RemoveAll();
-		void Show(string text, EmuPoint point);
-		void Show(string text, EmuPoint point, int duration);
-		int InitialDelay { get; set; }
-		int AutoPopDelay { get; set; }
-		bool OwnerDraw { get; set; }
-		EmuColor ForeColor { get; set; }
-		EmuColor BackColor { get; set; }
-		string GetToolTip();
-
-		event EventHandler<ToolTipDrawEventArgs> Draw;
-		event EventHandler<ToolTipPopupEventArgs> Popup;
-	}
-
 	internal interface IPictureBox
 	{
 		int Width { get; }
 		int Height { get; }
 		EmuPoint PointToClient(EmuPoint point);
 		EmuRectangle ClientRectangle { get; }
-	}
-
-	// 简化的事件参数，避免直接引用 System.Windows.Forms
-	// I-14：移除 Graphics 和 ToolTipSize，Headless 模式下 Draw/Popup 事件从未触发
-	internal class ToolTipDrawEventArgs : EventArgs
-	{
-		public string ToolTipText { get; set; } = null!;
-		public EmuRectangle Bounds { get; set; }
-	}
-
-	internal class ToolTipPopupEventArgs : EventArgs
-	{
 	}
 }

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿# 仓库根 .editorconfig
 # I-12 阶段 1：质量护栏按路径分级
 # - Emuera.Headless.Core/Shared/ 子树是 T-023 物理迁移自 Emuera/ 的历史共享源码
 #   此处抑制其 CA 分析器噪音与 EvilMask 命名风格 CS8981，避免 Core 构建被历史代码警告淹没
@@ -37,8 +37,6 @@ dotnet_diagnostic.CS8981.severity = none
 dotnet_diagnostic.CA1416.severity = none
 # CS0649：反射赋值或占位字段（tooltip_img/rikaichan 等）
 dotnet_diagnostic.CS0649.severity = none
-# CS0067：HeadlessToolTip 的 Draw/Popup 事件，接口契约要求声明但 Headless 不触发
-dotnet_diagnostic.CS0067.severity = none
 
 # CA1822：以下 5 个文件含实例方法空实现/ERB 函数 stub，改 static 会破坏调用约定
 # 仅对这 5 个文件抑制，新代码的 CA1822 仍可见
