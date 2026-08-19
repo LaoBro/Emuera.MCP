@@ -61,7 +61,7 @@ namespace MinorShift.Emuera.GameView
             _displayState = displayState;
         }
 
-        internal override async Task<string?> GetInitialTurnAsync()
+        internal async Task<string?> GetInitialTurnAsync()
         {
             if (!await WaitForInputAsync())
                 return null;
@@ -69,7 +69,7 @@ namespace MinorShift.Emuera.GameView
             return BuildTurn(isInitial: true);
         }
 
-        internal override async Task<string?> StepAsync(string input)
+        internal async Task<string?> StepAsync(string input)
         {
             if (IsStopped)
                 return null;
@@ -127,7 +127,7 @@ namespace MinorShift.Emuera.GameView
         /// ADR-0016：进入此路径前置 _pendingTimeoutFlag=true，让下一帧 BuildTurn 写出
         /// turn.timedOut=true，前端据此清空启发式检测（issue 04 已删，改消费 timedOut 旗标）。
         /// </summary>
-        internal override async Task<string?> SubmitTimeoutAsync()
+        internal async Task<string?> SubmitTimeoutAsync()
         {
             _pendingTimeoutFlag = true;
             console.SubmitTimeout();
