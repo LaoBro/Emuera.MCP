@@ -10,12 +10,25 @@ namespace MinorShift.Emuera.UI.Game
 	internal sealed class HeadlessConsole : IConsoleUI
 	{
 		private readonly HeadlessScrollBar _scrollBar = new();
-		private readonly HeadlessTextBox _textBox = new();
-		private readonly HeadlessPictureBox _pictureBox = new();
+		private readonly HeadlessTextBox _textBox;
+		private readonly HeadlessPictureBox _pictureBox;
+		private readonly int _clientWidth;
+		private readonly int _clientHeight;
+
+		public HeadlessConsole()
+		{
+			// 构造总在 GlobalStatic.OpenScope 内进行（GameLoopComposer / Session 已保证）。
+			// 构造时一次性缓存 Config 值，后续 ClientWidth/ClientHeight/BackColor 访问不再依赖
+			// AsyncLocal scope——scope 外（HTTP 线程 / 后台 task / scope 释放后）读取不会 NRE。
+			_clientWidth = Config.WindowX;
+			_clientHeight = Config.WindowY;
+			_textBox = new HeadlessTextBox(Config.BackColor);
+			_pictureBox = new HeadlessPictureBox(_clientWidth, _clientHeight);
+		}
 
 		public bool Created => true;
-		public int ClientWidth => Config.WindowX;
-		public int ClientHeight => Config.WindowY;
+		public int ClientWidth => _clientWidth;
+		public int ClientHeight => _clientHeight;
 		public string Text { get; set; } = string.Empty;
 		public bool IsActive => true;
 
@@ -69,13 +82,24 @@ namespace MinorShift.Emuera.UI.Game
 	internal sealed class HeadlessTextBox : ITextBox
 	{
 		public string Text { get; set; } = string.Empty;
-		public EmuColor BackColor { get; set; } = Config.BackColor;
+		public EmuColor BackColor { get; set; }
+
+		/// <summary>构造时由 HeadlessConsole 注入 Config.BackColor 快照（scope 内取值）。</summary>
+		internal HeadlessTextBox(EmuColor backColor) => BackColor = backColor;
 	}
 
 	internal sealed class HeadlessPictureBox : IPictureBox
 	{
-		public int Width => Config.WindowX;
-		public int Height => Config.WindowY;
+		public int Width { get; }
+		public int Height { get; }
+
+		/// <summary>构造时由 HeadlessConsole 注入 Config.WindowX/Y 快照（scope 内取值）。</summary>
+		internal HeadlessPictureBox(int width, int height)
+		{
+			Width = width;
+			Height = height;
+		}
+
 		public EmuPoint PointToClient(EmuPoint point) => point;
 		public EmuRectangle ClientRectangle => new(0, 0, Width, Height);
 	}
