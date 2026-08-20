@@ -1,6 +1,6 @@
-# Emuera.Web 前端导航
+# EraCore.Web 前端导航
 
-Emuera.Web 是 Vue 3 单页应用，使用 Vite 构建、Pinia 管理状态、Vitest 执行测试。
+EraCore.Web 是 Vue 3 单页应用，使用 Vite 构建、Pinia 管理状态、Vitest 执行测试。
 它支持两种运行模式：
 
 - HTTP 模式：通过 WebSocket 连接 `EraCore.Server`。

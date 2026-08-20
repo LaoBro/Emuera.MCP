@@ -10,7 +10,7 @@
 - `EraCore.Server`
 - `EraCore.Cli`
 - `EraCore.Maui`
-- `Emuera.Web`
+- `EraCore.Web`
 
 `Emuera/` 是已停止维护的 WinForms 参考源码；`EmueraPluginExample/` 和 `experiments/` 不属于产品主路径。
 
@@ -72,14 +72,14 @@ python tests/run_all.py
 ### Web 前端
 
 ```bash
-cd Emuera.Web && npm install
+cd EraCore.Web && npm install
 npm run dev
 npm run typecheck
 npm test
 npm run build
 ```
 
-前端文件导航和常见修改入口见 [`Emuera.Web/README.md`](Emuera.Web/README.md)。
+前端文件导航和常见修改入口见 [`EraCore.Web/README.md`](EraCore.Web/README.md)。
 
 ### emuera_agent CLI
 
@@ -103,7 +103,7 @@ python -m emuera_gateway stop
 - T-024 后 stdin pipe 和 JSONL stdin/stdout 模式已删除；自动化统一使用 `--server`。
 - 升级 Agent 协议版本时，必须同步更新 C# `TurnRecord.CurrentProtocolVersion` 和 Python `tests/emuera_server.py:PROTOCOL_VERSION`。
 - MAUI 只依赖 Core，不引入 Server/Cli 的 ASP.NET Core 依赖。
-- 修改前端结构、组件或状态时，先查看 [`Emuera.Web/README.md`](Emuera.Web/README.md)。
+- 修改前端结构、组件或状态时，先查看 [`EraCore.Web/README.md`](EraCore.Web/README.md)。
 - NativeAOT 结论以 [`docs/2026.8.4.安卓性能优化2/nativeaot-verify-report.md`](docs/2026.8.4.安卓性能优化2/nativeaot-verify-report.md) 为准，不在本文件重复论证。
 
 ## 环境陷阱
@@ -125,7 +125,7 @@ python -m emuera_gateway stop
 
 - 架构总览：[`ARCHITECTURE.md`](ARCHITECTURE.md)
 - 控制权术语：根目录 `CONTEXT.md`「控制权交接」
-- Web 前端：[`Emuera.Web/README.md`](Emuera.Web/README.md)
+- Web 前端：[`EraCore.Web/README.md`](EraCore.Web/README.md)
 - 测试：[`tests/README.md`](tests/README.md)
 - 终端行为教训：[`docs/LESSONS/terminal-windows.md`](docs/LESSONS/terminal-windows.md)
 - 全部教训索引：[`docs/LESSONS/README.md`](docs/LESSONS/README.md)

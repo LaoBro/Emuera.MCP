@@ -12,7 +12,7 @@ ADR-0016 测试场景的 ERB，并自动打开浏览器。开发者按 ERB 菜�
 
 2. 安装前端依赖（仅首次运行）：
 
-       cd Emuera.Web && npm install
+       cd EraCore.Web && npm install
 
 3. 一键启动（C# server + Vite + 浏览器）：
 
@@ -47,7 +47,7 @@ import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WEB_DIR = ROOT / "Emuera.Web"
+WEB_DIR = ROOT / "EraCore.Web"
 sys.path.insert(0, str(ROOT / "tests"))
 
 from emuera_server import PROTOCOL_VERSION, copy_test_game_with_erb, start_server, wait_for_port
@@ -114,7 +114,7 @@ GOTO LOOP
 
 
 def start_vite_dev(web_dir: Path, port: int = 5173, timeout: float = 30.0):
-    """启动 Vite dev server（在 Emuera.Web 目录运行 `npm run dev`）。
+    """启动 Vite dev server（在 EraCore.Web 目录运行 `npm run dev`）。
 
     - shell=True 让 Windows 找到 npm.cmd
     - stdout/stderr 走 DEVNULL，避免管道缓冲被填满导致 npm 阻塞
@@ -123,7 +123,7 @@ def start_vite_dev(web_dir: Path, port: int = 5173, timeout: float = 30.0):
     """
     if not (web_dir / "node_modules").is_dir():
         raise FileNotFoundError(
-            f"{web_dir} 下没有 node_modules，请先运行：cd Emuera.Web && npm install"
+            f"{web_dir} 下没有 node_modules，请先运行：cd EraCore.Web && npm install"
         )
 
     proc = subprocess.Popen(
@@ -182,7 +182,7 @@ def main():
             vite_ready = True
         except Exception as e:
             print(f"WARNING: 启动 Vite dev server 失败：{e}")
-            print(f"         可手动在另一终端运行：cd Emuera.Web && npm run dev")
+            print(f"         可手动在另一终端运行：cd EraCore.Web && npm run dev")
             vite_ready = False
 
         print()

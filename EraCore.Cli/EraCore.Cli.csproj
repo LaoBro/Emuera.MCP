@@ -44,7 +44,7 @@
   <!-- ===== issue 05 / spec ID13：Vue 前端构建 + 静态资源服务 =====
        Vue build/copy target 已抽到 build/VueBuild.targets，参数化：
          VueDistDestination（默认 wwwroot\）/ ViteBase（默认 /）
-         VueOutDir（默认 dist）/ VueSrcDir（默认 ..\Emuera.Web）
+         VueOutDir（默认 dist）/ VueSrcDir（默认 ..\EraCore.Web）
        Cli 用默认值，MAUI Import 时覆盖 ViteBase=./ VueOutDir=dist-maui 避免争用。 -->
   <!-- wwwroot/ 文件随 build/publish 复制到输出目录。
        PublishSingleFile=true（PropertyGroup 上方）下 wwwroot 是松散文件目录，不嵌入 exe，

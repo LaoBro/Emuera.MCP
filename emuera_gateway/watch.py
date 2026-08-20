@@ -11,7 +11,7 @@ IMAGE_PLACEHOLDER = "〔图〕"
 
 
 def apply_line_ops(lines: List[Dict[str, Any]], line_ops: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Apply DisplayDiff.lineOps. Semantics match Emuera.Web/src/lib/opsApplier.ts applyDiff."""
+    """Apply DisplayDiff.lineOps. Semantics match EraCore.Web/src/lib/opsApplier.ts applyDiff."""
     result = list(lines)
     for op in line_ops:
         op_type = op.get("type")

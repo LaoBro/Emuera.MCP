@@ -79,7 +79,7 @@ internal sealed class WindowsJsBridge : IJsBridge
 			}
 
 			// 禁用 WebView2 原生捏合缩放（触屏双指）——画面缩放统一由前端控制
-			// （Emuera.Web/src/composables/usePinchZoom.ts + 菜单按钮），原生缩放会双重放大。
+			// （EraCore.Web/src/composables/usePinchZoom.ts + 菜单按钮），原生缩放会双重放大。
 			_core.Settings.IsPinchZoomEnabled = false;
 
 			// unpackaged 模式下 ms-appx-web: 协议不可用——用 SetVirtualHostNameToFolderMapping

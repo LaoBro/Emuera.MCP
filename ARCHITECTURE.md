@@ -10,7 +10,7 @@
 - `EraCore.Server`：HTTP/WebSocket 服务器组件。
 - `EraCore.Cli`：CLI 和 Server 模式入口。
 - `Emuera.Maui`：Windows/Android MAUI 应用壳和 C# 桥接。
-- `Emuera.Web`：Vue 3 前端。
+- `EraCore.Web`：Vue 3 前端。
 
 不在当前维护范围：
 
@@ -22,7 +22,7 @@
 
 ```text
                          +----------------------+
-                         |   Emuera.Web (Vue)   |
+                         |   EraCore.Web (Vue)   |
                          +----------+-----------+
                                     |
                     +---------------+----------------+
@@ -138,7 +138,7 @@ MAUI 不加载 `EraCore.Server` 或 `EraCore.Cli`——`HttpListenerHost` 在 Co
 
 ## Web
 
-`Emuera.Web/` 是 Vue 3 SPA，详细页面、组件、Store 和修改入口见 [`Emuera.Web/README.md`](Emuera.Web/README.md)。
+`EraCore.Web/` 是 Vue 3 SPA，详细页面、组件、Store 和修改入口见 [`EraCore.Web/README.md`](EraCore.Web/README.md)。
 
 前端有两条传输路径：
 
@@ -186,14 +186,14 @@ agent   -> HTTP/WS -> HttpListenerHost (同一共享层会话)
 ## 构建边界
 
 - `EraCore.Cli` 的 Vue 构建通过 `build/VueBuild.targets` 集成。
-- CLI 使用 `Emuera.Web/dist/` 和默认 Vite base。
+- CLI 使用 `EraCore.Web/dist/` 和默认 Vite base。
 - MAUI 使用独立的 `dist-maui/` 和相对 Vite base，避免与 CLI 构建互相覆盖。
 - CLI 发布时 `wwwroot/` 是随 exe 分发的外部静态文件目录，不嵌入单文件 exe。
 - MAUI 不支持 `PublishSingleFile`；应使用框架依赖或独立发布。
 
 ## 相关文档
 
-- 前端导航：[`Emuera.Web/README.md`](Emuera.Web/README.md)
+- 前端导航：[`EraCore.Web/README.md`](EraCore.Web/README.md)
 - 测试说明：[`tests/README.md`](tests/README.md)
 - 文件迁移历史：[`docs/2026.6.30.架构健壮性重构/T-023前置-文件结构整理方案.md`](docs/2026.6.30.架构健壮性重构/T-023前置-文件结构整理方案.md)
 - NativeAOT 验证：[`docs/2026.8.4.安卓性能优化2/nativeaot-verify-report.md`](docs/2026.8.4.安卓性能优化2/nativeaot-verify-report.md)

@@ -13,7 +13,7 @@ Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本�
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) 或更高版本
 - Python 3.10+（用于 `emuera_agent` CLI 和测试）
-- Node.js 18+（用于 Web 前端 Emuera.Web/）
+- Node.js 18+（用于 Web 前端 EraCore.Web/）
 - Windows（跨平台支持计划中，目前仅完成 Windows）
 
 ## 构建
@@ -69,7 +69,7 @@ dotnet publish EraCore.Maui/EraCore.Maui.csproj -f net10.0-android -r android-ar
 
 1. **目录隔离**：`EraCore.Maui/Directory.Build.props` 在 `PublishAot=true` 时自动把中间产物/输出重定向到 `obj-aot/`/`bin-aot/`，并补回 `DefaultItemExcludes`（`obj/**;bin/**`）——**NativeAOT 与普通构建（Mono Full AOT）互不污染**。不要手动传 `-p:BaseIntermediateOutputPath`（全局属性会传染 Core 项目，且破坏 SDK 默认排除导致 CS0579）。
 2. **JSON 序列化必须走源生成**：NativeAOT 下 `System.Text.Json` 反射序列化被禁用（`JsonSerializerIsReflectionDisabled` 抛异常）。壳层消息已迁移到 `EraCore.Maui/Json/MauiJsonContext.cs`（具名 record + `[JsonSourceGenerationOptions(CamelCase)]`），协议层走 Core `EmueraJsonContext`。**新增壳层消息禁止匿名类型 `JsonSerializer.Serialize(new {...})`**。
-3. **`-p:SkipVueBuild=true`**：跳过 Vue 前端构建（使用 `EraCore.Maui/wwwroot/` 现有产物）。若改了 `Emuera.Web/` 前端代码，先 `npm run build` 再构建。
+3. **`-p:SkipVueBuild=true`**：跳过 Vue 前端构建（使用 `EraCore.Maui/wwwroot/` 现有产物）。若改了 `EraCore.Web/` 前端代码，先 `npm run build` 再构建。
 4. **`-p:RunAOTCompilation=false`**：避免 Mono Full AOT 与 NativeAOT 双重编译（`PublishAot=true` 时默认 `RunAOTCompilation=true`，需显式关掉）。
 5. **ILC 警告治理**：构建会多出 IL2026/IL3050/IL207x 等 AOT 警告（Core 层 30 条已登记豁免清单 + 壳层已清零）。新增警告需登记到 `docs/2026.8.4.安卓性能优化2/nativeaot-verify-report.md` §5.2，不许静默 suppress。
 6. **已知风险**：`AndroidEnableMarshalMethods=false`（csproj）与 NativeAOT JNI 通道的兼容性未做压力验证；游戏加载链路（loadGame → turn 渲染）在 NativeAOT 下待完整真机验证（2026-08-08 已通过：进入游戏选择界面，0 FATAL）。
@@ -105,7 +105,7 @@ dotnet run --project EraCore.Maui/EraCore.Maui.csproj -f net10.0-windows10.0.190
 前端为 Vue 3 + TypeScript SPA，开发时由 Vite 代理 HTTP/WS 到 C# Kestrel（:8080）。
 
 ```bash
-cd Emuera.Web && npm install     # 安装依赖
+cd EraCore.Web && npm install     # 安装依赖
 npm run dev                      # Vite dev server → localhost:5173
 npm run build                    # 生产构建 → dist/
 npm test                         # Vitest 单元测试（12 个文件）
@@ -123,10 +123,10 @@ npm test                         # Vitest 单元测试（12 个文件）
 - **`EmueraBlock`**（`src/assets/fonts/EmueraBlock.woff2`）— 补充字体，覆盖 IPAGothic 缺失的字形，避免逐字形回退到宽度随机的系统字体。字形来源**单一：DejaVu Sans(265 字符,无程序化字形)**:
   - **DejaVu Sans 提取**(全部 265 字符):`analyze_dejavu_widths.py` 列出 IPAGothic 缺失 ∩ DejaVu 覆盖的字符,构建脚本按 **MS Gothic 实测 bbox** 对 DejaVu 字形做仿射缩放(源 bbox → 目标 bbox),使字形视觉大小与 MS Gothic 完全一致;advance 强制 MS 实测值(0.5em/1.0em)。四区全覆盖:Box 96、Block 32(含象限 `▖▗▘▙▚▛▜▝▞▟`)、Geometric 57、Misc 80。平滑矢量轮廓,无位图锯齿(╱╲╳ 斜线、╭╮╰╯ 圆角、☢☯☺ 曲线符号、◢◣◤◥ 三角按 MS bbox 缩放)。许可:Bitstream Vera Fonts 版权 + 自由许可(可嵌入、可再分发)。
 
-字体注册见 `src/styles/fonts.css`(`main.ts` 全局引入)。`EmueraBlock` 由 [`scripts/build_emblock_font.py`](Emuera.Web/scripts/build_emblock_font.py) 生成(DejaVu 单一来源,可复现):
+字体注册见 `src/styles/fonts.css`(`main.ts` 全局引入)。`EmueraBlock` 由 [`scripts/build_emblock_font.py`](EraCore.Web/scripts/build_emblock_font.py) 生成(DejaVu 单一来源,可复现):
 
 ```bash
-cd Emuera.Web
+cd EraCore.Web
 # 1. 下载 DejaVu Sans 2.37(约 5MB zip;解压出 DejaVuSans.ttf)
 curl -L -o scripts/dejavu/dejavu-fonts-ttf-2.37.zip https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip
 "C:/Users/95826/miniconda3/python.exe" -c "import zipfile,os; os.makedirs('scripts/dejavu',exist_ok=True); open('scripts/dejavu/DejaVuSans.ttf','wb').write(zipfile.ZipFile('scripts/dejavu/dejavu-fonts-ttf-2.37.zip').read('dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf'))"
@@ -138,7 +138,7 @@ python scripts/build_emblock_font.py
 
 **发布提醒**（改过前端/字体后）：MAUI 的 wwwroot 由 `build/VueBuild.targets` 从 **`dist-maui/`**（不是 `npm run build` 默认的 `dist/`）复制填充；publish 时**不要带 `-p:SkipVueBuild=true`**（README 示例命令默认带它，那是"未改前端"的场景），否则 wwwroot/APK 沿用旧前端。安装前**先卸载旧 APK**——Android WebView 对 file:// 资源有缓存，覆盖安装可能继续用旧字体。产物验证：`dist-maui/assets/` 里 <4KB 的字体（如 EmueraBlock）会被 Vite 内联为 css `data:font` base64，没有独立 woff2 文件是正常现象，别误判"没打包"。
 
-排查字体覆盖用 [`scripts/check_font_coverage.py`](Emuera.Web/scripts/check_font_coverage.py)：输出 IPAGothic 在 Box/Block/Geometric/Misc 各区的缺失字符，并可对照本机 MS Gothic 的 advance width。字形尺寸验证用 [`scripts/check_glyph_bounds.py`](Emuera.Web/scripts/check_glyph_bounds.py)（跨字体提取后确认轮廓缩放正确）。
+排查字体覆盖用 [`scripts/check_font_coverage.py`](EraCore.Web/scripts/check_font_coverage.py)：输出 IPAGothic 在 Box/Block/Geometric/Misc 各区的缺失字符，并可对照本机 MS Gothic 的 advance width。字形尺寸验证用 [`scripts/check_glyph_bounds.py`](EraCore.Web/scripts/check_glyph_bounds.py)（跨字体提取后确认轮廓缩放正确）。
 
 IPA 字体许可见 `src/assets/fonts/IPA_Font_License_Agreement_v1.0.txt`（IPA Font License v1.0）。DejaVu Sans 许可（Bitstream Vera Fonts 版权 + 自由许可）见 https://dejavu-fonts.github.io/。字形来源可经 `scripts/dejavu/DejaVuSans.ttf` 复现。
 
@@ -249,7 +249,7 @@ dotnet test EraCore.Tests/EraCore.Tests.csproj
 dotnet test EraCore.Maui.Tests/EraCore.Maui.Tests.csproj
 
 # 前端测试（Vitest，13 个测试文件，224 用例）
-cd Emuera.Web && npm test
+cd EraCore.Web && npm test
 
 # Python 端到端（使用 test_game）
 python tests/test_jsonl.py --binary D:/LaoBro/Emuera.MCP/EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe --game-dir test_game
@@ -267,7 +267,7 @@ EraCore.Cli/    -- CLI 交互 & HTTP 服务器入口（Exe，唯一可运行的 
 EraCore.Core/   -- 无头核心库（Library，无 AspNetCore 依赖，MAUI 可直接引用）
 EraCore.Server/ -- HTTP 服务器组件（Library，引 AspNetCore）
 EraCore.Maui/   -- MAUI 桌面/移动应用（Windows + Android，原生 WebView 壳）
-Emuera.Web/     -- Vue 3 + TypeScript 浏览器前端（Vite + Pinia + Vitest）
+EraCore.Web/     -- Vue 3 + TypeScript 浏览器前端（Vite + Pinia + Vitest）
 EraCore.Tests/  -- C# 单元测试（xUnit，304 用例）
 EraCore.Maui.Tests/ -- MAUI 单元测试（xUnit，15 用例）
 Emuera/                 -- WinForms 残留源码（不再维护，仅作只读参考，不可独立构建）

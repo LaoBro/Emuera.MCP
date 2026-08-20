@@ -8,13 +8,13 @@
          $(VueDistDestination)  复制目标目录，默认 wwwroot\
          $(ViteBase)            Vite base 路径，默认 /
          $(VueOutDir)            Vite 输出目录（相对 $(VueSrcDir)），默认 dist
-         $(VueSrcDir)            Vue 源码目录，默认 ..\Emuera.Web
+         $(VueSrcDir)            Vue 源码目录，默认 ..\EraCore.Web
   -->
   <PropertyGroup>
     <VueDistDestination Condition="'$(VueDistDestination)' == ''">wwwroot\</VueDistDestination>
     <ViteBase Condition="'$(ViteBase)' == ''">/</ViteBase>
     <VueOutDir Condition="'$(VueOutDir)' == ''">dist</VueOutDir>
-    <VueSrcDir Condition="'$(VueSrcDir)' == ''">..\Emuera.Web</VueSrcDir>
+    <VueSrcDir Condition="'$(VueSrcDir)' == ''">..\EraCore.Web</VueSrcDir>
   </PropertyGroup>
 
   <!-- Vue 源码 + 配置文件，作为 BuildVueFrontend target 的 Inputs（用于增量检测） -->

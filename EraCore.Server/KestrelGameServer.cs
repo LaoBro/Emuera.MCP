@@ -78,7 +78,7 @@ internal sealed class KestrelGameServer : IDisposable
         // issue 10：静态资源服务——server 模式下 Kestrel 直接提供 Vue 构建产物（wwwroot/）。
         // 顺序必须 UseDefaultFiles → UseStaticFiles：前者把 `/` 重写为 `/index.html`，
         // 后者从 wwwroot 提供文件。二者必须在 MapRoutes 之前注册，否则默认文件请求不会被拦截。
-        // wwwroot/ 由 csproj BuildVueFrontend pre-build target 从 ../Emuera.Web/dist/ 复制填充。
+        // wwwroot/ 由 csproj BuildVueFrontend pre-build target 从 ../EraCore.Web/dist/ 复制填充。
         _app.UseDefaultFiles();
         _app.UseStaticFiles();
 

@@ -38,17 +38,17 @@ EraCore.Maui/bin/*
 EraCore.Maui/obj/*
 EraCore.Maui.Tests/bin/*
 EraCore.Maui.Tests/obj/*
-# issue 07：MAUI wwwroot 由 VueBuild.targets 从 Emuera.Web/dist-maui 复制填充——构建产物不入库
+# issue 07：MAUI wwwroot 由 VueBuild.targets 从 EraCore.Web/dist-maui 复制填充——构建产物不入库
 EraCore.Maui/wwwroot/*
 
 # Phase 0 SAF 验证项目——一次性验证，不入库（经验已记录在 docs/LESSONS.md + docs/adr/0019）
 SafVerification/*
 
-# Emuera.Web（Vue 3 + Vite）—— 源码入库，依赖与构建产物不入库
-Emuera.Web/node_modules/*
-Emuera.Web/dist/*
+# EraCore.Web（Vue 3 + Vite）—— 源码入库，依赖与构建产物不入库
+EraCore.Web/node_modules/*
+EraCore.Web/dist/*
 # issue 07：MAUI 专用 Vue 构建输出目录（VueBuild.targets VueOutDir=dist-maui）
-Emuera.Web/dist-maui/*
+EraCore.Web/dist-maui/*
 docs/agents/*
 docs/adr/*
 docs/2026.6.16.mouse-input/spikes/*
@@ -92,4 +92,4 @@ experiments/AndroidNativeAot/obj/
 logcat_*.txt
 emuera_mumu_screen.png
 experiments/AndroidNativeAot/artifacts/
-Emuera.Web/scripts/dejavu/DejaVuSans.ttf
+EraCore.Web/scripts/dejavu/DejaVuSans.ttf

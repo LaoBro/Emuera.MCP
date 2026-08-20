@@ -84,7 +84,7 @@
 	</ItemGroup>
 
 	<!-- ===== Issue 07 / spec ID6：MauiAsset 打包 =====
-	     wwwroot/——Vue 构建产物，由 build/VueBuild.targets 在 build 前从 Emuera.Web/dist-maui/ 复制填充。
+	     wwwroot/——Vue 构建产物，由 build/VueBuild.targets 在 build 前从 EraCore.Web/dist-maui/ 复制填充。
 	     不带 LogicalName（那是 EmbeddedResource 的元数据，对 MauiAsset 无效）。
 	     2026-08-06：移除 ../test_game/ 内置游戏打包（MauiAsset Link=game\...）——
 	     原因：应用改为无游戏启动——用户经游戏列表/目录选择器选任意游戏目录，无需内置示例；
@@ -100,7 +100,7 @@
 	</ItemGroup>
 
 	<!-- ===== Issue 07 / spec ID13：Vue 前端构建集成 =====
-	     Import 共享 build/VueBuild.targets，覆盖三个参数避免与 Headless.Cli 争用 Emuera.Web/dist/：
+	     Import 共享 build/VueBuild.targets，覆盖三个参数避免与 Headless.Cli 争用 EraCore.Web/dist/：
 	       ViteBase=./         ——MAUI WebView 用 file:// / ms-appx-web: 协议，相对 base 必需
 	       VueOutDir=dist-maui ——独立输出目录，避免 Headless.Cli（dist/）与 MAUI 同时构建 race
 	       VueDistDestination=wwwroot\ ——复制目标（与 MauiAsset Include="wwwroot\**\*" 对齐） -->
