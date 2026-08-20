@@ -92,7 +92,7 @@ public class SafIoPolicyTests
     [Fact]
     public void Shared_runtime_direct_IO_does_not_exceed_documented_SAF_baseline()
     {
-        var runtimeDir = Path.Combine(FindRepositoryRoot(), "Emuera.Headless.Core", "Shared", "Runtime");
+        var runtimeDir = Path.Combine(FindRepositoryRoot(), "EraCore.Core", "Shared", "Runtime");
         var violations = new List<string>();
         foreach (var path in Directory.EnumerateFiles(runtimeDir, "*.cs", SearchOption.AllDirectories))
         {
@@ -130,7 +130,7 @@ public class SafIoPolicyTests
     [Fact]
     public void Shared_runtime_does_not_reintroduce_known_content_path_semantics()
     {
-        var runtimeDir = Path.Combine(FindRepositoryRoot(), "Emuera.Headless.Core", "Shared", "Runtime");
+        var runtimeDir = Path.Combine(FindRepositoryRoot(), "EraCore.Core", "Shared", "Runtime");
         var violations = new List<string>();
         foreach (var path in Directory.EnumerateFiles(runtimeDir, "*.cs", SearchOption.AllDirectories))
         {

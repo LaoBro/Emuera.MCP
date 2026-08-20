@@ -12,7 +12,7 @@ DataTable 核心 API 在 AOT 下运行时行为等价。
 
 Usage:
     python test_datatable_aot.py                     # 托管 DLL
-    python test_datatable_aot.py --binary path/to/Emuera.Headless.Cli.exe   # AOT
+    python test_datatable_aot.py --binary path/to/EraCore.Cli.exe   # AOT
 """
 import argparse
 import json

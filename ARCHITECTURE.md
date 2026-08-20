@@ -6,9 +6,9 @@
 
 当前维护范围：
 
-- `Emuera.Headless.Core`：无头运行器核心。
-- `Emuera.Headless.Server`：HTTP/WebSocket 服务器组件。
-- `Emuera.Headless.Cli`：CLI 和 Server 模式入口。
+- `EraCore.Core`：无头运行器核心。
+- `EraCore.Server`：HTTP/WebSocket 服务器组件。
+- `EraCore.Cli`：CLI 和 Server 模式入口。
 - `Emuera.Maui`：Windows/Android MAUI 应用壳和 C# 桥接。
 - `Emuera.Web`：Vue 3 前端。
 
@@ -30,7 +30,7 @@
               HTTP/WebSocket                    WebView JS 桥
                     |                                |
        +------------v-------------+       +----------v----------+
-       | Emuera.Headless.Server   |       |    Emuera.Maui      |
+       | EraCore.Server   |       |    Emuera.Maui      |
        |  (Kestrel 宿主壳)         |       |  (BridgeHost +      |
        +------------+-------------+       |   HttpListenerHost) |
                     |                      +----------+----------+
@@ -38,15 +38,15 @@
                     +---------------+----------------+
                                     |
                          +----------v-----------+
-                         | Emuera.Headless.Core |
+                         | EraCore.Core |
                          |  (共享层 Server/:      |
                          |   GameServerProtocol /|
                          |   WsRelay / Session   |
                          |   / Controller ...)   |
                          +----------------------+
 
-       Emuera.Headless.Cli -> Core + Server
-       Emuera.Headless.Tests -> Core + Server
+       EraCore.Cli -> Core + Server
+       EraCore.Tests -> Core + Server
        Emuera.Maui.Tests -> Maui
 ```
 
@@ -60,7 +60,7 @@
 
 ## Core
 
-`Emuera.Headless.Core/` 是唯一维护中的引擎核心，负责：
+`EraCore.Core/` 是唯一维护中的引擎核心，负责：
 
 - 游戏路径、配置、预加载和运行时初始化。
 - `EmueraConsole`、显示状态、输入请求和按钮状态。
@@ -83,10 +83,10 @@
 
 ## Server
 
-`Emuera.Headless.Server/` 提供单进程、单活跃会话的 HTTP 服务（**Kestrel 宿主壳**——路由、静态资源、body/token 解析与 HttpResult→IResult 映射，业务协议委托给 Core 共享层）：
+`EraCore.Server/` 提供单进程、单活跃会话的 HTTP 服务（**Kestrel 宿主壳**——路由、静态资源、body/token 解析与 HttpResult→IResult 映射，业务协议委托给 Core 共享层）：
 
 - `KestrelGameServer`：Kestrel 构建 + 路由注册 + 静态资源，端点委托 `GameServerProtocol`。
-- 共享层会话与传输（在 `Emuera.Headless.Core/Server/`）：`Session`（一次游戏会话的 console/protocol/IO）、`HttpSessionIO`（HTTP 输入/输出队列）、`OutputHub`（向 WS 客户端旁路广播）、`WsRelay`（WS 旁路循环）、`SessionRegistry`（会话生命周期 + /load-game 原子序列）、`GameServerProtocol`（传输无关回合协议 + 控制状态机）、`Controller`（控制权状态机）。
+- 共享层会话与传输（在 `EraCore.Core/Server/`）：`Session`（一次游戏会话的 console/protocol/IO）、`HttpSessionIO`（HTTP 输入/输出队列）、`OutputHub`（向 WS 客户端旁路广播）、`WsRelay`（WS 旁路循环）、`SessionRegistry`（会话生命周期 + /load-game 原子序列）、`GameServerProtocol`（传输无关回合协议 + 控制状态机）、`Controller`（控制权状态机）。
 - `HttpListenerHost`（Core 内，BCL `System.Net.HttpListener`）：MAUI 托管宿主，与 Kestrel 共用同一 `GameServerProtocol`/`WsRelay`，wire 契约逐字节一致。
 
 服务器会话约束：
@@ -99,7 +99,7 @@
 
 ## CLI
 
-`Emuera.Headless.Cli/` 是统一可执行入口：
+`EraCore.Cli/` 是统一可执行入口：
 
 - `HeadlessEntry`：解析命令行选项并选择运行模式。
 - `HeadlessRunner`：交互式 CLI 模式。
@@ -110,7 +110,7 @@ T-024 后已删除 stdin pipe 和 JSONL stdin/stdout 模式。脚本、自动化
 
 ## MAUI
 
-`Emuera.Maui/` 是 Windows/Android 应用壳：
+`EraCore.Maui/` 是 Windows/Android 应用壳：
 
 - `MainPage` 承载 WebView。
 - `BridgeHost` 编排托管会话（issue 05）：起 `HttpListenerHost`、建共享层 `Session`、订阅 `OutputHub` turn 转发 WebView、`HttpSessionIO` 入输入、`ControlPumpAsync` 推控制状态、写 agent 发现记录。
@@ -134,7 +134,7 @@ MainPage / MauiProgram
   -> 写 %LOCALAPPDATA%\Emuera\emuera-maui-server.json（agent 发现）
 ```
 
-MAUI 不加载 `Emuera.Headless.Server` 或 `Emuera.Headless.Cli`——`HttpListenerHost` 在 Core 内用 BCL，避免 Android 目标引入 ASP.NET Core 依赖。托管 server 生命周期随游戏会话（退出/关闭即 Dispose 并删发现记录）。
+MAUI 不加载 `EraCore.Server` 或 `EraCore.Cli`——`HttpListenerHost` 在 Core 内用 BCL，避免 Android 目标引入 ASP.NET Core 依赖。托管 server 生命周期随游戏会话（退出/关闭即 Dispose 并删发现记录）。
 
 ## Web
 
@@ -185,7 +185,7 @@ agent   -> HTTP/WS -> HttpListenerHost (同一共享层会话)
 
 ## 构建边界
 
-- `Emuera.Headless.Cli` 的 Vue 构建通过 `build/VueBuild.targets` 集成。
+- `EraCore.Cli` 的 Vue 构建通过 `build/VueBuild.targets` 集成。
 - CLI 使用 `Emuera.Web/dist/` 和默认 Vite base。
 - MAUI 使用独立的 `dist-maui/` 和相对 Vite base，避免与 CLI 构建互相覆盖。
 - CLI 发布时 `wwwroot/` 是随 exe 分发的外部静态文件目录，不嵌入单文件 exe。

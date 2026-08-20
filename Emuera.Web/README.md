@@ -3,7 +3,7 @@
 Emuera.Web 是 Vue 3 单页应用，使用 Vite 构建、Pinia 管理状态、Vitest 执行测试。
 它支持两种运行模式：
 
-- HTTP 模式：通过 WebSocket 连接 `Emuera.Headless.Server`。
+- HTTP 模式：通过 WebSocket 连接 `EraCore.Server`。
 - MAUI 模式：通过 `mauiBridge.ts` 与 C# `IJsBridge` 通信，不使用 HTTP/WS。
 
 ## 开发命令

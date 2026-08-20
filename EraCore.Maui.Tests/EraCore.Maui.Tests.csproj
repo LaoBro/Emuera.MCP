@@ -8,6 +8,7 @@
     <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('windows'))"></TargetFrameworks>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <AssemblyName>EraCore.Maui.Tests</AssemblyName>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -24,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Emuera.Maui\Emuera.Maui.csproj" />
+    <ProjectReference Include="..\EraCore.Maui\EraCore.Maui.csproj" />
   </ItemGroup>
 
 </Project>

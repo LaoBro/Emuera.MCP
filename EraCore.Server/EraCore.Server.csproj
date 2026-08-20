@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <RootNamespace>MinorShift.Emuera</RootNamespace>
-    <AssemblyName>Emuera.Headless.Server</AssemblyName>
+    <AssemblyName>EraCore.Server</AssemblyName>
     <DefineConstants>HEADLESS</DefineConstants>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -36,15 +36,15 @@
          直接构造 server handler）访问——必须 InternalsVisibleTo 给两者。
          （共享层类型 Session/SessionRegistry/OutputHub/HttpSessionIO/GameConfigService/Controller
          已迁至 Emuera.Headless.Core，Core 的 InternalsVisibleTo 已覆盖 Server/Cli/Tests/Maui。）-->
-    <InternalsVisibleTo Include="Emuera.Headless.Cli" />
-    <InternalsVisibleTo Include="Emuera.Headless.Tests" />
+    <InternalsVisibleTo Include="EraCore.Cli" />
+    <InternalsVisibleTo Include="EraCore.Tests" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Server 引用 Core：经 InternalsVisibleTo 访问 internal 成员
          （GameLoopComposer.RunAsync / AgentJsonlProtocol / DisplayState / EmueraConsole 等，
          以及共享层 Session/SessionRegistry/OutputHub/HttpSessionIO/GameConfigService/Controller）-->
-    <ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
+    <ProjectReference Include="..\EraCore.Core\EraCore.Core.csproj" />
   </ItemGroup>
 
 </Project>

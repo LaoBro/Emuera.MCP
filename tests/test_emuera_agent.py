@@ -8,7 +8,7 @@ checks the one-call-one-turn CLI loop:
 
 Usage:
     python tests/test_emuera_agent.py
-    python tests/test_emuera_agent.py --binary path/to/Emuera.Headless.Cli.exe --game-dir test_game
+    python tests/test_emuera_agent.py --binary path/to/EraCore.Cli.exe --game-dir test_game
 """
 import json
 import os

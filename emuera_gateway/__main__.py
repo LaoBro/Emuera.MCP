@@ -87,10 +87,8 @@ def _find_binary(explicit: str | None) -> str | None:
         if os.path.isfile(resolved):
             return resolved
     candidates = (
-        os.path.join(PROJECT_DIR, "Emuera.Headless.Cli", "bin", "Debug", "net10.0", "Emuera.Headless.Cli.exe"),
-        os.path.join(PROJECT_DIR, "Emuera.Headless.Cli", "bin", "Release", "net10.0", "Emuera.Headless.Cli.exe"),
-        os.path.join(PROJECT_DIR, "Emuera.Headless", "bin", "Debug", "net10.0", "Emuera.Headless.exe"),
-        os.path.join(PROJECT_DIR, "Emuera.Headless", "bin", "Release", "net10.0", "Emuera.Headless.exe"),
+        os.path.join(PROJECT_DIR, "EraCore.Cli", "bin", "Debug", "net10.0", "EraCore.Cli.exe"),
+        os.path.join(PROJECT_DIR, "EraCore.Cli", "bin", "Release", "net10.0", "EraCore.Cli.exe"),
     )
     for path in candidates:
         if os.path.isfile(path):
@@ -446,7 +444,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--port", type=int, default=8080, help="server 端口（默认 8080）")
     start.add_argument("--host", default="127.0.0.1", help="server 主机（默认 127.0.0.1）")
     start.add_argument("--game-dir", default=None, help="游戏目录")
-    start.add_argument("--emuera-path", default=None, help="Emuera.Headless.Cli 二进制路径")
+    start.add_argument("--emuera-path", default=None, help="EraCore.Cli 二进制路径")
     start.set_defaults(func=cmd_start)
 
     acquire = sub.add_parser("acquire", help="获取控制权并返回状态确认")

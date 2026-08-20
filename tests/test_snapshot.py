@@ -17,7 +17,7 @@ plan C (v5): migrated from v4 truncate/replace_all to clear_line_diff/clear_scre
 
 Usage:
     python test_snapshot.py
-    python test_snapshot.py --binary path/to/Emuera.Headless.exe
+    python test_snapshot.py --binary path/to/EraCore.Cli.exe
     python test_snapshot.py --game-dir test_game
 """
 import argparse

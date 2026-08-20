@@ -10,6 +10,7 @@
 
 		<OutputType>Exe</OutputType>
 		<RootNamespace>Emuera.Maui</RootNamespace>
+		<AssemblyName>EraCore.Maui</AssemblyName>
 		<UseMaui>true</UseMaui>
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -27,8 +28,8 @@
 
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
-		<ApplicationTitle>Emuera</ApplicationTitle>
-		<ApplicationId>com.emuera.maui</ApplicationId>
+		<ApplicationTitle>EraCore</ApplicationTitle>
+		<ApplicationId>com.eracore.maui</ApplicationId>
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 
@@ -54,8 +55,8 @@
      Tests 需 InternalsVisibleTo 才能写契约单测（mock IJsBridge / 调 JsBridgeFactory.Create）。
      Emuera.Headless.Tests（net10.0，issue 04 MauiBridgeIO 单测）+ Emuera.Maui.Tests（net10.0-windows，issue 06 契约单测）。-->
 	<ItemGroup>
-		<InternalsVisibleTo Include="Emuera.Headless.Tests" />
-		<InternalsVisibleTo Include="Emuera.Maui.Tests" />
+		<InternalsVisibleTo Include="EraCore.Tests" />
+		<InternalsVisibleTo Include="EraCore.Maui.Tests" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -79,7 +80,7 @@
 	<!-- 引用 Emuera.Headless.Core（issue 01 已就位，InternalsVisibleTo("Emuera.Maui") 已配置）。
      MAUI 不引 Headless.Server / Cli（避免 AspNetCore 框架在 Android target 不可用）。-->
 	<ItemGroup>
-		<ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
+		<ProjectReference Include="..\EraCore.Core\EraCore.Core.csproj" />
 	</ItemGroup>
 
 	<!-- ===== Issue 07 / spec ID6：MauiAsset 打包 =====

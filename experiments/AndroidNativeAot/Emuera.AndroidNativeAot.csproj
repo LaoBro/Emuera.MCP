@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>net10.0-android</TargetFramework>
@@ -41,7 +41,7 @@
 
 	<!-- Keep one real engine assembly in the experiment so trimming/AOT is not tested in an empty app. -->
 	<ItemGroup>
-		<ProjectReference Include="..\..\Emuera.Headless.Core\Emuera.Headless.Core.csproj"
+		<ProjectReference Include="..\..\EraCore.Core\EraCore.Core.csproj"
 						  AdditionalProperties="TreatWarningsAsErrors=false" />
 	</ItemGroup>
 

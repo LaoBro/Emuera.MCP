@@ -66,7 +66,7 @@ internal sealed class HeadlessOptions
 
     public static HeadlessOptions? Parse(string[] args)
     {
-        var rootCommand = new RootCommand("Emuera.Headless - Emuera 无头模式运行器");
+        var rootCommand = new RootCommand("EraCore - Emuera 无头模式运行器");
         rootCommand.Options.Add(ExeDirOption);
         rootCommand.Options.Add(ProtocolOption);
         rootCommand.Options.Add(ServerOption);

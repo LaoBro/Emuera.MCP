@@ -17,7 +17,7 @@ namespace MinorShift.Emuera.GameView
     {
         // Issue 08：internal（原 private）—— BridgeHost.ShowFatalError 序列化 error turn 时复用，
         // 保证与 AgentJsonlProtocol.StepAsync 的 error turn 完全一致（同 converters + ignore condition）。
-        // MAUI 项目经 InternalsVisibleTo("Emuera.Maui") 可访问。
+        // MAUI 项目经 InternalsVisibleTo("EraCore.Maui") 可访问。
         // 3.3（NativeAOT）：TypeInfoResolver 指向源生成上下文——AOT 下反射序列化被禁用，
         // TurnOpConverter/LineOpConverter 的装箱 Write 经此 resolver 按运行时类型解析，wire 不变。
         internal static readonly JsonSerializerOptions TurnJsonOptions = new()

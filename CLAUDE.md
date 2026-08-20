@@ -6,10 +6,10 @@
 
 当前维护核心：
 
-- `Emuera.Headless.Core`
-- `Emuera.Headless.Server`
-- `Emuera.Headless.Cli`
-- `Emuera.Maui`
+- `EraCore.Core`
+- `EraCore.Server`
+- `EraCore.Cli`
+- `EraCore.Maui`
 - `Emuera.Web`
 
 `Emuera/` 是已停止维护的 WinForms 参考源码；`EmueraPluginExample/` 和 `experiments/` 不属于产品主路径。
@@ -31,7 +31,7 @@
 ### 构建 CLI/Server
 
 ```bash
-dotnet build Emuera.Headless.Cli/Emuera.Headless.Cli.csproj -c Debug
+dotnet build EraCore.Cli/EraCore.Cli.csproj -c Debug
 ```
 
 ### 运行交互式 CLI
@@ -39,26 +39,26 @@ dotnet build Emuera.Headless.Cli/Emuera.Headless.Cli.csproj -c Debug
 需要真实 TTY：
 
 ```bash
-dotnet exec Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.dll --ExeDir test_game --protocol cli
+dotnet exec EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.dll --ExeDir test_game --protocol cli
 ```
 
 ### 运行 HTTP Server
 
 ```bash
-dotnet exec Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.dll --ExeDir test_game --server --port 8080
+dotnet exec EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.dll --ExeDir test_game --server --port 8080
 ```
 
 ### 构建/运行 MAUI Windows
 
 ```bash
-dotnet build Emuera.Maui/Emuera.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
-dotnet run --project Emuera.Maui/Emuera.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
+dotnet build EraCore.Maui/EraCore.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
+dotnet run --project EraCore.Maui/EraCore.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
 ```
 
 ### C# 单元测试
 
 ```bash
-dotnet test Emuera.Headless.Tests/Emuera.Headless.Tests.csproj
+dotnet test EraCore.Tests/EraCore.Tests.csproj
 ```
 
 ### 全量回归
@@ -111,15 +111,15 @@ python -m emuera_gateway stop
 - 在 Windows/TRAE 环境中，不要使用 `Start-Process -RedirectStandardOutput ... -Wait` 捕获全量 `dotnet build` 输出。重定向管道可能因缓冲区填满而死锁。直接运行 `dotnet build`，或使用不会阻塞输出读取的方式。
 - 当前 Windows 沙箱中直接运行 `dotnet build` / `dotnet test` 可能在并行 MSBuild 项目引用解析阶段以“0 错误”但退出码 1 静默失败。遇到时加 `-m:1` 单节点构建/测试，例如：
   ```bash
-  dotnet test Emuera.Headless.Tests/Emuera.Headless.Tests.csproj --no-restore -m:1
+  dotnet test EraCore.Tests/EraCore.Tests.csproj --no-restore -m:1
   ```
 - 在受限沙箱中运行 `dotnet test` 时，testhost 可能因无法打开进程句柄而报 `Win32Exception (5): 拒绝访问`（`System.Diagnostics.Process.EnableRaisingEvents` 路径）。需要给测试运行授予完整进程访问权限（例如沙箱的 `danger-full-access`）才能执行测试。
 - 在 WSL 中直接运行 Windows `dotnet.exe` 并通过管道读取输出可能卡住/超时。可将 stdout/stderr 重定向到文件再查看，例如：
   ```bash
-  '/mnt/c/Program Files/dotnet/dotnet.exe' test Emuera.Headless.Tests/Emuera.Headless.Tests.csproj > /tmp/dotnet-test.log 2>&1
+  '/mnt/c/Program Files/dotnet/dotnet.exe' test EraCore.Tests/EraCore.Tests.csproj > /tmp/dotnet-test.log 2>&1
   ```
 - 从 WSL 启动 Windows 二进制做 Python e2e 时，传入 `/mnt/d/...` 这类 WSL 路径可能导致 server 起不来。应使用 Windows Python（如 `/mnt/c/Python314/python.exe`）运行 `tests/` 脚本，让路径自动变成 `D:\...`。
-- `tests/run_all.py` 在 WSL/Windows 混合环境下可能出现偶发性能护栏抖动、409 时序问题或文件锁；单项测试通常可稳定通过。若 `dotnet build` 报 DLL 被占用，先结束残留的 `Emuera.Headless.Cli` 进程（如 `taskkill.exe /PID <pid> /F`）再重试。
+- `tests/run_all.py` 在 WSL/Windows 混合环境下可能出现偶发性能护栏抖动、409 时序问题或文件锁；单项测试通常可稳定通过。若 `dotnet build` 报 DLL 被占用，先结束残留的 `EraCore.Cli` 进程（如 `taskkill.exe /PID <pid> /F`)再重试。
 
 ## 文档索引
 

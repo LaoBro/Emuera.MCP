@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <RootNamespace>MinorShift.Emuera</RootNamespace>
-    <AssemblyName>Emuera.Headless.Cli</AssemblyName>
+    <AssemblyName>EraCore.Cli</AssemblyName>
     <DefineConstants>HEADLESS</DefineConstants>
     <!-- android 交叉编译（3.2 android-arm64 验证）：Kestrel/AspNetCore 无 android runtime pack
          （NETSDK1082），真实 Android 形态（MAUI 壳）只引 Core。android RID 下排除 Server
@@ -37,8 +37,8 @@
   <ItemGroup>
     <!-- Cli 引用 Core + Server：经 InternalsVisibleTo 访问 internal 成员
          （HeadlessRunner 调 GameLoopComposer.RunAsync / ServerRunner 调 KestrelGameServer 等）-->
-    <ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
-    <ProjectReference Include="..\Emuera.Headless.Server\Emuera.Headless.Server.csproj" Condition="'$(RuntimeIdentifier)' != 'android-arm64' and '$(RuntimeIdentifier)' != 'android-x64'" />
+    <ProjectReference Include="..\EraCore.Core\EraCore.Core.csproj" />
+    <ProjectReference Include="..\EraCore.Server\EraCore.Server.csproj" Condition="'$(RuntimeIdentifier)' != 'android-arm64' and '$(RuntimeIdentifier)' != 'android-x64'" />
   </ItemGroup>
 
   <!-- ===== issue 05 / spec ID13：Vue 前端构建 + 静态资源服务 =====

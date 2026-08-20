@@ -3,7 +3,7 @@
 .idea/*
 .reasonix/*
 .kilo/*
-Emuera.Maui/Properties/
+EraCore.Maui/Properties/
 .mimocode/*
 .workbuddy*
 .agents/*
@@ -21,29 +21,25 @@ Emuera/artifacts/*
 Emuera/Properties/launchSettings.json
 Emuera/bin/*
 Emuera/obj/*
-Emuera.Headless/bin/*
-Emuera.Headless/obj/*
-Emuera.Headless/publish/*
-Emuera.Headless/wwwroot/*
 # issue 01：三项目拆分——新项目的 bin/obj/wwwroot/publish 不入库
-Emuera.Headless.Core/bin/*
-Emuera.Headless.Core/obj/*
-Emuera.Headless.Server/bin/*
-Emuera.Headless.Server/obj/*
-Emuera.Headless.Cli/bin/*
-Emuera.Headless.Cli/obj/*
-Emuera.Headless.Cli/publish/*
-Emuera.Headless.Cli/wwwroot/*
-Emuera.Headless.Tests/bin/*
-Emuera.Headless.Tests/obj/*
+EraCore.Core/bin/*
+EraCore.Core/obj/*
+EraCore.Server/bin/*
+EraCore.Server/obj/*
+EraCore.Cli/bin/*
+EraCore.Cli/obj/*
+EraCore.Cli/publish/*
+EraCore.Cli/wwwroot/*
+EraCore.Tests/bin/*
+EraCore.Tests/obj/*
 
 # issue 06：MAUI 项目骨架 + IJsBridge 抽象层——bin/obj 不入库
-Emuera.Maui/bin/*
-Emuera.Maui/obj/*
-Emuera.Maui.Tests/bin/*
-Emuera.Maui.Tests/obj/*
+EraCore.Maui/bin/*
+EraCore.Maui/obj/*
+EraCore.Maui.Tests/bin/*
+EraCore.Maui.Tests/obj/*
 # issue 07：MAUI wwwroot 由 VueBuild.targets 从 Emuera.Web/dist-maui 复制填充——构建产物不入库
-Emuera.Maui/wwwroot/*
+EraCore.Maui/wwwroot/*
 
 # Phase 0 SAF 验证项目——一次性验证，不入库（经验已记录在 docs/LESSONS.md + docs/adr/0019）
 SafVerification/*
@@ -84,9 +80,9 @@ bin-aot/
 obj-aot/
 
 # MAUI 壳 NativeAOT 产物（3.4 门控，Directory.Build.props 重定向 bin-aot/obj-aot + PublishDir artifacts）
-Emuera.Maui/bin-aot/
-Emuera.Maui/obj-aot/
-Emuera.Maui/artifacts/
+EraCore.Maui/bin-aot/
+EraCore.Maui/obj-aot/
+EraCore.Maui/artifacts/
 
 # Android Native AOT 实验项目产物
 experiments/AndroidNativeAot/bin/

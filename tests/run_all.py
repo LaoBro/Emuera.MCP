@@ -5,7 +5,7 @@ single command for routine regression runs. It runs the .NET xUnit unit
 tests (Emuera.Headless.Tests) first, then the Python end-to-end suites:
 
     python tests/run_all.py
-    python tests/run_all.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe
+    python tests/run_all.py --binary EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe
     python tests/run_all.py --game-dir test_game
 """
 import argparse

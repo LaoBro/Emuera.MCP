@@ -37,20 +37,20 @@
 构建后可运行单个测试：
 
 ```bash
-python tests/test_jsonl.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
+python tests/test_jsonl.py --binary EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe --game-dir test_game
 python tests/test_server_single_session.py
 python tests/test_tinput_timeout.py
-python tests/test_fatal_turn.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
+python tests/test_fatal_turn.py --binary EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe --game-dir test_game
 python tests/test_force_quit_survival.py
-python tests/test_assets.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
-python tests/test_cli_basic.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
+python tests/test_assets.py --binary EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe --game-dir test_game
+python tests/test_cli_basic.py --binary EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe --game-dir test_game
 python tests/test_cli_basic.py --game-dir test_game  # 自动查找 binary
 ```
 
 也可以用一个入口运行常规回归：
 
 ```bash
-python tests/run_all.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
+python tests/run_all.py --binary EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe --game-dir test_game
 ```
 
 `run_all.py` 会顺序执行：
@@ -68,7 +68,7 @@ python tests/run_all.py --binary Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.He
 在 Windows 命令行中，如果相对路径启动失败，请使用绝对路径，例如：
 
 ```bash
-D:/LaoBro/Emuera.MCP/Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe
+D:/LaoBro/Emuera.MCP/EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe
 ```
 
 ## JSONL 协议测试
@@ -76,7 +76,7 @@ D:/LaoBro/Emuera.MCP/Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.e
 `test_jsonl.py` 通过 `tests/emuera_server.py` 的 `start_server` 启动 server 模式：
 
 ```bash
-Emuera.Headless.Cli.exe --server --port <port> --ExeDir <game-dir>
+EraCore.Cli.exe --server --port <port> --ExeDir <game-dir>
 ```
 
 T-024 后 stdin 管道 JSONL 模式已废弃，`AgentJsonlProtocol` 仅由 server 模式的 `Session` 通过 `HttpSessionIO` 驱动。turn 走 `diff` 增量（无顶层 `text`/`ops`）。
@@ -115,7 +115,7 @@ T-024 后 stdin 管道 CLI 模式已废弃，`AgentCliProtocol` 仅支持交互�
 
 ## Server 测试
 
-`test_server_single_session.py` 使用仓库根目录的 `test_game` 启动 `Emuera.Headless.Cli --server`，验证：
+`test_server_single_session.py` 使用仓库根目录的 `test_game` 启动 `EraCore.Cli --server`，验证：
 
 - 空闲态 `POST /session` 返回 `503`（须先 `POST /load-game`）。
 - `POST /load-game` 建立会话；活跃期间再次 `POST /session` 返回 `409`。

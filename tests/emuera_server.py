@@ -29,8 +29,8 @@ TEST_GAME_DIR = PROJECT_DIR / "test_game"
 def find_binary(project_dir=None):
     """Auto-detect Emuera binary. Search order:
     1. EMUERA_BINARY environment variable
-    2. Emuera.Headless.Cli/bin/Debug/.../Emuera.Headless.Cli.exe  (issue 01 拆分后入口)
-    3. Emuera.Headless.Cli/bin/Release/.../Emuera.Headless.Cli.exe
+    2. EraCore.Cli/bin/Debug/.../EraCore.Cli.exe  (issue 01 拆分后入口)
+    3. EraCore.Cli/bin/Release/.../EraCore.Cli.exe
     4. Emuera.Headless/bin/Debug/.../Emuera.Headless.exe          (兼容旧构建产物)
     5. Emuera.Headless/bin/Release/.../Emuera.Headless.exe
     Returns (path, use_dotnet) tuple.
@@ -44,15 +44,15 @@ def find_binary(project_dir=None):
         use_dotnet = env_binary.endswith(".dll")
         return env_binary, use_dotnet
 
-    # 2-3. issue 01 拆分后的新入口 Emuera.Headless.Cli
+    # 2-3. issue 01 拆分后的新入口 EraCore.Cli
     cli_debug = os.path.join(
-        project_dir, "Emuera.Headless.Cli", "bin", "Debug", "net10.0", "Emuera.Headless.Cli.exe"
+        project_dir, "EraCore.Cli", "bin", "Debug", "net10.0", "EraCore.Cli.exe"
     )
     if os.path.isfile(cli_debug):
         return cli_debug, False
 
     cli_release = os.path.join(
-        project_dir, "Emuera.Headless.Cli", "bin", "Release", "net10.0", "Emuera.Headless.Cli.exe"
+        project_dir, "EraCore.Cli", "bin", "Release", "net10.0", "EraCore.Cli.exe"
     )
     if os.path.isfile(cli_release):
         return cli_release, False

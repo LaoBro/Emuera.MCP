@@ -1,13 +1,13 @@
-# Emuera
+# EraCore
 
 Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本语言，并通过 `emuera_agent` CLI 支持 AI 代理控制。
 
-本项目以 **Emuera.Headless** 无头运行器为唯一维护目标。已拆分为三个项目：
-- `Emuera.Headless.Cli` — CLI 交互模式 & HTTP 服务器模式入口（Exe）
-- `Emuera.Headless.Core` — 无头核心库（Library，无 AspNetCore 依赖）
-- `Emuera.Headless.Server` — HTTP 服务器组件（Library，引 AspNetCore）
+本项目以 **EraCore** 无头运行器为核心维护目标。已拆分为三个项目：
+- `EraCore.Cli` — CLI 交互模式 & HTTP 服务器模式入口（Exe）
+- `EraCore.Core` — 无头核心库（Library，无 AspNetCore 依赖）
+- `EraCore.Server` — HTTP 服务器组件（Library，引 AspNetCore）
 
-另有 **MAUI 桌面/移动应用**（`Emuera.Maui`）用于原生窗口体验。`Emuera/` 目录保留 WinForms 专用源码作只读参考，**不再维护，不可独立构建**。
+另有 **MAUI 桌面/移动应用**（`EraCore.Maui`，目录名 `Emuera.Maui`）用于原生窗口体验。`Emuera/` 目录保留 WinForms 专用源码作只读参考，**不再维护，不可独立构建**。
 
 ## 环境要求
 
@@ -18,35 +18,35 @@ Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本�
 
 ## 构建
 
-### CLI & Server 模式（共享 `Emuera.Headless.Cli`）
+### CLI & Server 模式（共享 `EraCore.Cli`）
 
 ```bash
-dotnet build Emuera.Headless.Cli/Emuera.Headless.Cli.csproj -c Debug
+dotnet build EraCore.Cli/EraCore.Cli.csproj -c Debug
 ```
 
 发布单文件：
 
 ```bash
-dotnet publish Emuera.Headless.Cli/Emuera.Headless.Cli.csproj -c Release --no-self-contained -o publish/cli
+dotnet publish EraCore.Cli/EraCore.Cli.csproj -c Release --no-self-contained -o publish/cli
 ```
 
 ### MAUI Windows 桌面应用
 
 ```bash
-dotnet build Emuera.Maui/Emuera.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
+dotnet build EraCore.Maui/EraCore.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
 ```
 
 MAUI 不支持 `PublishSingleFile`。发布需框架依赖或独立部署：
 
 ```bash
-dotnet publish Emuera.Maui/Emuera.Maui.csproj -f net10.0-windows10.0.19041.0 -c Release
-dotnet publish Emuera.Maui/Emuera.Maui.csproj -f net10.0-windows10.0.19041.0 -c Release --self-contained -r win-x64
+dotnet publish EraCore.Maui/EraCore.Maui.csproj -f net10.0-windows10.0.19041.0 -c Release
+dotnet publish EraCore.Maui/EraCore.Maui.csproj -f net10.0-windows10.0.19041.0 -c Release --self-contained -r win-x64
 ```
 
 ### Android APK
 
 ```bash
-dotnet publish Emuera.Maui/Emuera.Maui.csproj -f net10.0-android -c Release
+dotnet publish EraCore.Maui/EraCore.Maui.csproj -f net10.0-android -c Release
 ```
 
 需要 Android SDK + JDK 17+（`JAVA_HOME`）环境。
@@ -59,35 +59,35 @@ NativeAOT 将托管代码编译为原生 so（APK 内 0 托管 dll，仅 `lib/<a
 # x64（模拟器，如 MuMu）——单行命令，PowerShell 不认 bash 的 `\` 续行符
 # 必须带 -p:TreatWarningsAsErrors=false：Core 项目 TreatWarningsAsErrors=true，
 # 其 ILC 警告（IL2026/IL3050/IL2072，均为已登记豁免清单）会被提升为 error 导致构建失败
-dotnet publish Emuera.Maui/Emuera.Maui.csproj -f net10.0-android -r android-x64 -c Release -p:PublishAot=true -p:RunAOTCompilation=false -p:AndroidPackageFormats=apk -p:PublishDir=artifacts/nativeaot/maui-android-x64/ -p:TreatWarningsAsErrors=false -p:SkipVueBuild=true
+dotnet publish EraCore.Maui/EraCore.Maui.csproj -f net10.0-android -r android-x64 -c Release -p:PublishAot=true -p:RunAOTCompilation=false -p:AndroidPackageFormats=apk -p:PublishDir=artifacts/nativeaot/maui-android-x64/ -p:TreatWarningsAsErrors=false -p:SkipVueBuild=true
 
 # arm64（真机）
-dotnet publish Emuera.Maui/Emuera.Maui.csproj -f net10.0-android -r android-arm64 -c Release -p:PublishAot=true -p:RunAOTCompilation=false -p:AndroidPackageFormats=apk -p:PublishDir=artifacts/nativeaot/maui-android-arm64/ -p:TreatWarningsAsErrors=false -p:SkipVueBuild=true
+dotnet publish EraCore.Maui/EraCore.Maui.csproj -f net10.0-android -r android-arm64 -c Release -p:PublishAot=true -p:RunAOTCompilation=false -p:AndroidPackageFormats=apk -p:PublishDir=artifacts/nativeaot/maui-android-arm64/ -p:TreatWarningsAsErrors=false -p:SkipVueBuild=true
 ```
 
 **关键约束（务必遵守）：**
 
-1. **目录隔离**：`Emuera.Maui/Directory.Build.props` 在 `PublishAot=true` 时自动把中间产物/输出重定向到 `obj-aot/`/`bin-aot/`，并补回 `DefaultItemExcludes`（`obj/**;bin/**`）——**NativeAOT 与普通构建（Mono Full AOT）互不污染**。不要手动传 `-p:BaseIntermediateOutputPath`（全局属性会传染 Core 项目，且破坏 SDK 默认排除导致 CS0579）。
-2. **JSON 序列化必须走源生成**：NativeAOT 下 `System.Text.Json` 反射序列化被禁用（`JsonSerializerIsReflectionDisabled` 抛异常）。壳层消息已迁移到 `Emuera.Maui/Json/MauiJsonContext.cs`（具名 record + `[JsonSourceGenerationOptions(CamelCase)]`），协议层走 Core `EmueraJsonContext`。**新增壳层消息禁止匿名类型 `JsonSerializer.Serialize(new {...})`**。
-3. **`-p:SkipVueBuild=true`**：跳过 Vue 前端构建（使用 `Emuera.Maui/wwwroot/` 现有产物）。若改了 `Emuera.Web/` 前端代码，先 `npm run build` 再构建。
+1. **目录隔离**：`EraCore.Maui/Directory.Build.props` 在 `PublishAot=true` 时自动把中间产物/输出重定向到 `obj-aot/`/`bin-aot/`，并补回 `DefaultItemExcludes`（`obj/**;bin/**`）——**NativeAOT 与普通构建（Mono Full AOT）互不污染**。不要手动传 `-p:BaseIntermediateOutputPath`（全局属性会传染 Core 项目，且破坏 SDK 默认排除导致 CS0579）。
+2. **JSON 序列化必须走源生成**：NativeAOT 下 `System.Text.Json` 反射序列化被禁用（`JsonSerializerIsReflectionDisabled` 抛异常）。壳层消息已迁移到 `EraCore.Maui/Json/MauiJsonContext.cs`（具名 record + `[JsonSourceGenerationOptions(CamelCase)]`），协议层走 Core `EmueraJsonContext`。**新增壳层消息禁止匿名类型 `JsonSerializer.Serialize(new {...})`**。
+3. **`-p:SkipVueBuild=true`**：跳过 Vue 前端构建（使用 `EraCore.Maui/wwwroot/` 现有产物）。若改了 `Emuera.Web/` 前端代码，先 `npm run build` 再构建。
 4. **`-p:RunAOTCompilation=false`**：避免 Mono Full AOT 与 NativeAOT 双重编译（`PublishAot=true` 时默认 `RunAOTCompilation=true`，需显式关掉）。
 5. **ILC 警告治理**：构建会多出 IL2026/IL3050/IL207x 等 AOT 警告（Core 层 30 条已登记豁免清单 + 壳层已清零）。新增警告需登记到 `docs/2026.8.4.安卓性能优化2/nativeaot-verify-report.md` §5.2，不许静默 suppress。
 6. **已知风险**：`AndroidEnableMarshalMethods=false`（csproj）与 NativeAOT JNI 通道的兼容性未做压力验证；游戏加载链路（loadGame → turn 渲染）在 NativeAOT 下待完整真机验证（2026-08-08 已通过：进入游戏选择界面，0 FATAL）。
 
-> **注意：** I-12 阶段 1 已启用按路径分级的质量护栏。`Emuera.Headless.Core/Shared/`（迁移自 `Emuera/`）下的历史警告已全局抑制。修改自有源码时应关注新引入的 CA/CS 警告。`Emuera.Headless.Cli` 和 `Emuera.Headless.Server` 启用 `TreatWarningsAsErrors`。
+> **注意：** I-12 阶段 1 已启用按路径分级的质量护栏。`EraCore.Core/Shared/`（迁移自 `Emuera/`）下的历史警告已全局抑制。修改自有源码时应关注新引入的 CA/CS 警告。`EraCore.Cli` 和 `EraCore.Server` 启用 `TreatWarningsAsErrors`。
 
 ## 运行
 
 ### CLI 交互模式（需真实 TTY）
 
 ```bash
-dotnet exec Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.dll --ExeDir <游戏目录> --protocol cli
+dotnet exec EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.dll --ExeDir <游戏目录> --protocol cli
 ```
 
 ### HTTP 服务器模式（浏览器访问 http://localhost:8080）
 
 ```bash
-dotnet exec Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.dll --ExeDir <游戏目录> --server --port 8080
+dotnet exec EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.dll --ExeDir <游戏目录> --server --port 8080
 ```
 
 > `--protocol jsonl` 在非 server 模式下会报错；脚本/自动化统一走 `--server`。
@@ -95,7 +95,7 @@ dotnet exec Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.dll --ExeD
 ### MAUI Windows 桌面应用
 
 ```bash
-dotnet run --project Emuera.Maui/Emuera.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
+dotnet run --project EraCore.Maui/EraCore.Maui.csproj -f net10.0-windows10.0.19041.0 -c Debug
 ```
 
 启动后自动解压内置 `test_game/` 到 AppData，WebView 加载 Vue 前端界面。
@@ -151,12 +151,12 @@ agent
   └─ emuera_agent   (python -m emuera_gateway <subcommand>
                      或安装后的 emuera_agent)
        └─ HTTP      /load-game /turn /input /state /control/*
-            └─ Emuera.Headless.Server 或 MAUI 托管的 HttpListenerHost（issue 05，agent 自动侦测复用）
-                 ├─ Emuera.Headless.Core（共享层 Server/：协议 + 控制状态机 + 会话）
+            └─ EraCore.Server 或 MAUI 托管的 HttpListenerHost（issue 05，agent 自动侦测复用）
+                 ├─ EraCore.Core（共享层 Server/：协议 + 控制状态机 + 会话）
                  └─ GET /ws  →  Web 旁观（MAUI 托管 server 亦暴露同契约 /ws）
 ```
 
-`start` 自己拉起 `Emuera.Headless.Cli --server`，或复用已经在跑的实例（含 MAUI 应用托管的 server——读 `%LOCALAPPDATA%\Emuera\emuera-maui-server.json` 发现记录）。
+`start` 自己拉起 `EraCore.Cli --server`，或复用已经在跑的实例（含 MAUI 应用托管的 server——读 `%LOCALAPPDATA%\Emuera\emuera-maui-server.json` 发现记录）。
 
 ```bash
 python -m emuera_gateway start --game-dir test_game
@@ -243,19 +243,19 @@ stdout 是一行 JSON。`start` / `step` 输出 turn：
 
 ```bash
 # C# 单元测试（xUnit，304 用例）
-dotnet test Emuera.Headless.Tests/Emuera.Headless.Tests.csproj
+dotnet test EraCore.Tests/EraCore.Tests.csproj
 
 # MAUI 单元测试（11 用例）
-dotnet test Emuera.Maui.Tests/Emuera.Maui.Tests.csproj
+dotnet test EraCore.Maui.Tests/EraCore.Maui.Tests.csproj
 
 # 前端测试（Vitest，13 个测试文件，224 用例）
 cd Emuera.Web && npm test
 
 # Python 端到端（使用 test_game）
-python tests/test_jsonl.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
+python tests/test_jsonl.py --binary D:/LaoBro/Emuera.MCP/EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe --game-dir test_game
 
 # 全部回归测试（先 C# 单测+构建，再全量 Python 套件，14 套件）
-python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless.Cli/bin/Debug/net10.0/Emuera.Headless.Cli.exe --game-dir test_game
+python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe --game-dir test_game
 ```
 
 `tests/README.md` 是测试的权威文档。
@@ -263,13 +263,13 @@ python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/Emuera.Headless.Cli/bin/De
 ## 项目结构
 
 ```
-Emuera.Headless.Cli/    -- CLI 交互 & HTTP 服务器入口（Exe，唯一可运行的 Headless 入口）
-Emuera.Headless.Core/   -- 无头核心库（Library，无 AspNetCore 依赖，MAUI 可直接引用）
-Emuera.Headless.Server/ -- HTTP 服务器组件（Library，引 AspNetCore）
-Emuera.Maui/            -- MAUI 桌面/移动应用（Windows + Android，原生 WebView 壳）
-Emuera.Web/             -- Vue 3 + TypeScript 浏览器前端（Vite + Pinia + Vitest）
-Emuera.Headless.Tests/  -- C# 单元测试（xUnit，304 用例）
-Emuera.Maui.Tests/      -- MAUI 单元测试（xUnit，15 用例）
+EraCore.Cli/    -- CLI 交互 & HTTP 服务器入口（Exe，唯一可运行的 Headless 入口）
+EraCore.Core/   -- 无头核心库（Library，无 AspNetCore 依赖，MAUI 可直接引用）
+EraCore.Server/ -- HTTP 服务器组件（Library，引 AspNetCore）
+EraCore.Maui/   -- MAUI 桌面/移动应用（Windows + Android，原生 WebView 壳）
+Emuera.Web/     -- Vue 3 + TypeScript 浏览器前端（Vite + Pinia + Vitest）
+EraCore.Tests/  -- C# 单元测试（xUnit，304 用例）
+EraCore.Maui.Tests/ -- MAUI 单元测试（xUnit，15 用例）
 Emuera/                 -- WinForms 残留源码（不再维护，仅作只读参考，不可独立构建）
 emuera_gateway/         -- Python emuera_agent CLI 与 HTTP 客户端
 tests/                  -- Python 端到端测试脚本

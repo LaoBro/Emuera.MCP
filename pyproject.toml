@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "emuera-gateway"
 version = "0.1.0"
-description = "emuera_agent CLI and HTTP client for Emuera.Headless"
+description = "emuera_agent CLI and HTTP client for EraCore"
 requires-python = ">=3.10"
 readme = "README.md"
 

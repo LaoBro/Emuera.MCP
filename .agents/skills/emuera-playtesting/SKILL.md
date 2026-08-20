@@ -16,7 +16,7 @@ python -m emuera_gateway start --game-dir test_game
 python -m emuera_gateway acquire
 ```
 
-`start` 会拉起 `Emuera.Headless.Cli --server`，或复用已在跑的 server（读/写项目根 `.emuera-server.json`）。其它子命令在记录文件缺失或端口不通时直接报错退出；只有要自己开局或确认复用时才再 `start`。
+`start` 会拉起 `EraCore.Cli --server`，或复用已在跑的 server（读/写项目根 `.emuera-server.json`）。其它子命令在记录文件缺失或端口不通时直接报错退出；只有要自己开局或确认复用时才再 `start`。
 
 完成标准：`acquire` 的 stdout 含 `controller.kind == "agent"`，以及 `state` / `turn` / `turnsAdvanced`。先读确认再 `step`。全屏细节按需另调 `GET /snapshot`。
 

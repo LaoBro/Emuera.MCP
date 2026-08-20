@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <AssemblyName>EraCore.Tests</AssemblyName>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -18,8 +19,8 @@
        和 Server（KestrelGameServer/HttpSessionIO 等，KestrelGameServerIdleTests 直接构造 server handler）。
        Core 经 InternalsVisibleTo 暴露 internal 成员给 Tests。-->
   <ItemGroup>
-    <ProjectReference Include="..\Emuera.Headless.Core\Emuera.Headless.Core.csproj" />
-    <ProjectReference Include="..\Emuera.Headless.Server\Emuera.Headless.Server.csproj" />
+    <ProjectReference Include="..\EraCore.Core\EraCore.Core.csproj" />
+    <ProjectReference Include="..\EraCore.Server\EraCore.Server.csproj" />
   </ItemGroup>
 
   <ItemGroup>

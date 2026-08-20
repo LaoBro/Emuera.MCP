@@ -10,7 +10,7 @@ Verifies:
 
 Usage:
     python test_idle_start.py
-    python test_idle_start.py --binary path/to/Emuera.Headless.exe
+    python test_idle_start.py --binary path/to/EraCore.Cli.exe
     python test_idle_start.py --game-dir test_game
 """
 import argparse

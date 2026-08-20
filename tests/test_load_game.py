@@ -13,7 +13,7 @@ Verifies:
 
 Usage:
     python test_load_game.py
-    python test_load_game.py --binary path/to/Emuera.Headless.exe
+    python test_load_game.py --binary path/to/EraCore.Cli.exe
     python test_load_game.py --game-dir test_game
 """
 import argparse
