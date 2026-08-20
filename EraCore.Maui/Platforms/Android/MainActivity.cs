@@ -7,7 +7,7 @@ using AndroidX.Activity.Result.Contract;
 using AndroidX.Core.View;
 using MinorShift.Emuera;
 
-namespace Emuera.Maui;
+namespace EraCore.Maui;
 
 [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTop, ScreenOrientation = ScreenOrientation.FullSensor, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public class MainActivity : MauiAppCompatActivity

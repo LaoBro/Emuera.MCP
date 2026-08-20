@@ -11,7 +11,7 @@ using MinorShift.Emuera.Assets;
 using Windows.Storage.Streams;
 using WinRT.Interop;
 
-namespace Emuera.Maui.JsBridge;
+namespace EraCore.Maui.JsBridge;
 
 /// <summary>
 /// Windows 平台 <see cref="IJsBridge"/> 实现——基于 CoreWebView2（issue 06 / spec ID5）。

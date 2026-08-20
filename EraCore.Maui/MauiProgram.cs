@@ -12,7 +12,7 @@ using Android.Webkit;
 using Microsoft.Maui.Handlers;
 #endif
 
-namespace Emuera.Maui;
+namespace EraCore.Maui;
 
 /// <summary>
 /// MAUI 应用入口工厂——issue 07 / spec ID8。

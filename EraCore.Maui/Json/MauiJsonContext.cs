@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace Emuera.Maui.Json;
+namespace EraCore.Maui.Json;
 
 // =====================================================================
 // 3.4 壳层 NativeAOT 硬性改造（2026.8.8 白屏根因修复）

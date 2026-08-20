@@ -9,7 +9,7 @@
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
 		<OutputType>Exe</OutputType>
-		<RootNamespace>Emuera.Maui</RootNamespace>
+		<RootNamespace>EraCore.Maui</RootNamespace>
 		<AssemblyName>EraCore.Maui</AssemblyName>
 		<UseMaui>true</UseMaui>
 		<SingleProject>true</SingleProject>

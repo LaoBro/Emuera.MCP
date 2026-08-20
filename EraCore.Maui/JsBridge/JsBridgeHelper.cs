@@ -1,6 +1,6 @@
 using System;
 
-namespace Emuera.Maui.JsBridge;
+namespace EraCore.Maui.JsBridge;
 
 /// <summary>
 /// C# → JS 的 JS 字面量构造——单一来源，平台实现共用。

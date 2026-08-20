@@ -8,8 +8,8 @@ using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Emuera.Maui.JsBridge;
-using Emuera.Maui.Json;
+using EraCore.Maui.JsBridge;
+using EraCore.Maui.Json;
 using Microsoft.Maui.Storage;
 using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
@@ -17,7 +17,7 @@ using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Server;
 using MinorShift.Emuera.Terminal.Platform;
 
-namespace Emuera.Maui;
+namespace EraCore.Maui;
 
 /// <summary>
 /// MAUI 桥接编排器——issue 07 / 08 / 09 / 05（托管 server）/ spec ID8 / ID9 / ID10。

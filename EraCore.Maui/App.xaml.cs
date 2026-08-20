@@ -1,6 +1,6 @@
 using Microsoft.Maui.Controls;
 
-namespace Emuera.Maui;
+namespace EraCore.Maui;
 
 /// <summary>
 /// MAUI Application 入口——issue 07。

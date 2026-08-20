@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
 
-namespace Emuera.Maui.JsBridge;
+namespace EraCore.Maui.JsBridge;
 
 /// <summary>
 /// 游戏资源虚拟主机（issue 05，spec Q3 路线 B）——Windows 与安卓共用同一域名，

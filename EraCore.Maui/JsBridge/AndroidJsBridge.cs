@@ -12,7 +12,7 @@ using MinorShift.Emuera;
 using MinorShift.Emuera.Assets;
 using AWebView = Android.Webkit.WebView;
 
-namespace Emuera.Maui.JsBridge;
+namespace EraCore.Maui.JsBridge;
 
 /// <summary>
 /// Android 平台 <see cref="IJsBridge"/> 实现——基于 Android.Webkit.WebView（issue 06 / spec ID5）。

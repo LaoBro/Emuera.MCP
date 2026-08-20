@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="Emuera.Maui.MainPage">
+             x:Class="EraCore.Maui.MainPage">
 
     <!-- Issue 07 / spec ID6：WebView 承载 Vue 前端。
          URL 在 MainPage.xaml.cs 的 HandlerChanged 事件内按平台设置：

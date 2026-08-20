@@ -2,11 +2,11 @@
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
-using Emuera.Maui.JsBridge;
+using EraCore.Maui.JsBridge;
 using Microsoft.Maui.Controls;
 using Xunit;
 
-namespace Emuera.Maui.Tests;
+namespace EraCore.Maui.Tests;
 
 /// <summary>
 /// IJsBridge 接口契约单测——issue 06 / spec ID5（issue 07 修订：Attach 返回 Task；issue 09 新增 PostMessage + PickFolderAsync）。

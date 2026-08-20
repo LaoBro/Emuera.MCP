@@ -1,4 +1,4 @@
-namespace Emuera.Maui.JsBridge;
+namespace EraCore.Maui.JsBridge;
 
 /// <summary>
 /// <see cref="IJsBridge"/> 平台分流工厂——issue 06 / spec ID5。

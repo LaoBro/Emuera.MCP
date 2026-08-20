@@ -1,12 +1,12 @@
 using System;
 using System.Threading.Tasks;
-using Emuera.Maui.JsBridge;
-using Emuera.Maui.Json;
+using EraCore.Maui.JsBridge;
+using EraCore.Maui.Json;
 using MinorShift.Emuera;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Terminal.Platform;
 
-namespace Emuera.Maui;
+namespace EraCore.Maui;
 
 /// <summary>
 /// MAUI 主页面——issue 07 / 08 / 09 / spec ID6 + ID8。

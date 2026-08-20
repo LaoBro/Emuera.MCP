@@ -1,7 +1,7 @@
 using Android.App;
 using Android.Runtime;
 
-namespace Emuera.Maui;
+namespace EraCore.Maui;
 
 [Application]
 public class MainApplication : MauiApplication
