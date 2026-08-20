@@ -156,7 +156,7 @@ public class SafIoPolicyTests
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "Emuera.sln")))
+            if (File.Exists(Path.Combine(dir.FullName, "EraCore.sln")))
                 return dir.FullName;
         }
         throw new DirectoryNotFoundException("Could not locate repository root from test output directory.");
