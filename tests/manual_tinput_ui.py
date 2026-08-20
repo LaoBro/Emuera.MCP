@@ -8,7 +8,7 @@ ADR-0016 测试场景的 ERB，并自动打开浏览器。开发者按 ERB 菜�
 ----
 1. 构建 Debug exe（若尚未构建）：
 
-       dotnet build Emuera.Headless/Emuera.Headless.csproj -c Debug
+       dotnet build EraCore.Cli/EraCore.Cli.csproj -c Debug
 
 2. 安装前端依赖（仅首次运行）：
 

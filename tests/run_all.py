@@ -108,7 +108,7 @@ def _run_dotnet_test(timeout=None):
         return False, None, True
     print("\n=== .NET unit tests (xUnit) ===")
     completed = subprocess.run(
-        [dotnet, "test", "Emuera.Headless.Tests/Emuera.Headless.Tests.csproj", "--nologo"],
+        [dotnet, "test", "EraCore.Tests/EraCore.Tests.csproj", "--nologo"],
         cwd=str(ROOT_DIR),
         capture_output=True,
         text=True,
