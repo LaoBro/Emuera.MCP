@@ -767,7 +767,7 @@ describe('useGameStore - ADR-0016 TINPUT timer 状态', () => {
 // ---------- MAUI 启动不恢复 gameDir ----------
 //
 // MAUI 进程重启后游戏循环不会自动恢复（C# 占位 BridgeHost 不 Start），上一进程残留的
-// localStorage emuera.gameDir 是过期状态。gameDir 初始化在 MAUI 模式下跳过 localStorage，
+// localStorage app.gameDir 是过期状态。gameDir 初始化在 MAUI 模式下跳过 localStorage，
 // 避免 App.vue 误判「有活跃游戏」而隐藏游戏列表、直接进空终端画面。
 
 /** 最小 localStorage 实现——node 测试环境无 localStorage。 */
@@ -807,7 +807,7 @@ describe('useGameStore - MAUI 启动不恢复 gameDir', () => {
   });
 
   it('MAUI（ms-appx-web:）localStorage 有残留 gameDir → 初始为 null', () => {
-    localStorage.setItem('emuera.gameDir', 'D:/stale/game');
+    localStorage.setItem('app.gameDir', 'D:/stale/game');
     mockWindowLocation('ms-appx-web:', 'app');
 
     const game = useGameStore();
@@ -815,7 +815,7 @@ describe('useGameStore - MAUI 启动不恢复 gameDir', () => {
   });
 
   it('MAUI（file: Android）localStorage 有残留 gameDir → 初始为 null', () => {
-    localStorage.setItem('emuera.gameDir', '/stale/game');
+    localStorage.setItem('app.gameDir', '/stale/game');
     mockWindowLocation('file:', '');
 
     const game = useGameStore();
@@ -823,7 +823,7 @@ describe('useGameStore - MAUI 启动不恢复 gameDir', () => {
   });
 
   it('HTTP 模式 localStorage 有 gameDir → 仍从 localStorage 恢复（重连语义）', () => {
-    localStorage.setItem('emuera.gameDir', 'D:/old/game');
+    localStorage.setItem('app.gameDir', 'D:/old/game');
     mockWindowLocation('https:', 'localhost');
 
     const game = useGameStore();
@@ -836,7 +836,7 @@ describe('useGameStore - MAUI 启动不恢复 gameDir', () => {
     const game = useGameStore();
     game.setGameDir('D:/current/game');
     expect(game.gameDir).toBe('D:/current/game');
-    expect(localStorage.getItem('emuera.gameDir')).toBeNull();
+    expect(localStorage.getItem('app.gameDir')).toBeNull();
   });
 
   it('HTTP 模式 setGameDir 写 localStorage', () => {
@@ -844,7 +844,7 @@ describe('useGameStore - MAUI 启动不恢复 gameDir', () => {
 
     const game = useGameStore();
     game.setGameDir('D:/current/game');
-    expect(localStorage.getItem('emuera.gameDir')).toBe('D:/current/game');
+    expect(localStorage.getItem('app.gameDir')).toBe('D:/current/game');
   });
 });
 
@@ -1025,7 +1025,7 @@ describe('useGameStore - setScale（缩放 clamp + 持久化）', () => {
     });
     game.setScale(1.3);
     expect(game.effectiveScale).toBe(1.3);
-    expect(store['emuera.scale']).toBe('1.3');
+    expect(store['app.scale']).toBe('1.3');
   });
 
   it('超上限 2.0——截断为 2.0', () => {

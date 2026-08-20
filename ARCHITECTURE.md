@@ -123,7 +123,7 @@ MAUI 启动和游戏选择流程：
 ```text
 MainPage / MauiProgram
   -> 初始化 BridgeHost，但不启动托管 server
-  -> Vue 注册 window.__emueraOnTurn / window.__emueraOnMessage
+  -> Vue 注册 window.__onTurn / window.__onMessage
   -> MauiGameList 扫描游戏目录
   -> 用户选择游戏
   -> loadGameFromPath(fullPath)

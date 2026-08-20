@@ -123,7 +123,7 @@ App.vue
   -> MauiGameList（选择页）/ game-shell-controls + PopupMenu（游戏页）
   -> mauiBridge.ts
   -> C# BridgeHost / IJsBridge
-  -> window.__emueraOnTurn / window.__emueraOnMessage
+  -> window.__onTurn / window.__onMessage
   -> useAppInit.ts
   -> game.ts
   -> TerminalView

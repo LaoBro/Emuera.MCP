@@ -71,7 +71,7 @@ describe('initAppState (T-025 D9 rev)', () => {
   it('空闲态（gameDir==null + state=="Idle"）→ 不调 connect，展示选择器', async () => {
     // localStorage 有上次目录——选择器应预填，但不自动 loadGame
     // 必须在 useGameStore() 之前设置（store 初始化时读 localStorage）
-    localStorage.setItem('emuera.gameDir', 'D:/old/game');
+    localStorage.setItem('app.gameDir', 'D:/old/game');
 
     const game = useGameStore();
     const conn = useConnectionStore();
@@ -134,7 +134,7 @@ describe('initAppState (T-025 D9 rev)', () => {
     // issue 05 旧行为：localStorage gameDir 与 server gameDir 不同 → 自动 loadGame(localStorage)
     // T-025 D9 rev：空闲态展示选择器 + 预填，不自动 loadGame
     // 必须在 useGameStore() 之前设置（store 初始化时读 localStorage）
-    localStorage.setItem('emuera.gameDir', 'D:/old/game');
+    localStorage.setItem('app.gameDir', 'D:/old/game');
 
     const game = useGameStore();
     const conn = useConnectionStore();
@@ -215,7 +215,7 @@ describe('handleMauiMessage - gameThreadStatus', () => {
     await initAppState();
 
     const game = useGameStore();
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
     expect(typeof handler).toBe('function');
 
     handler!({ type: 'gameThreadStatus', alive: true });
@@ -232,7 +232,7 @@ describe('handleMauiMessage - gameThreadStatus', () => {
     await initAppState();
 
     const game = useGameStore();
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
 
     handler!({ type: 'gameThreadStatus', alive: false });
 
@@ -262,7 +262,7 @@ describe('handleMauiMessage - config agentLogEnabled (A0)', () => {
     const game = useGameStore();
     expect(game.agentLogEnabled).toBe(false); // 默认 false（Android 默认关闭）
 
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
     expect(typeof handler).toBe('function');
 
     handler!({ type: 'config', maxLog: 1000, agentLogEnabled: true });
@@ -283,7 +283,7 @@ describe('handleMauiMessage - config agentLogEnabled (A0)', () => {
     await initAppState();
 
     const game = useGameStore();
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
 
     handler!({ type: 'config', maxLog: 500 });
     expect(game.agentLogEnabled).toBe(false);
@@ -313,7 +313,7 @@ describe('handleMauiMessage - config noLoadingReport (issue 07)', () => {
     const game = useGameStore();
     expect(game.noLoadingReport).toBe(true); // 默认 true（覆盖启动日志）
 
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
 
     handler!({ type: 'config', noLoadingReport: false });
     expect(game.noLoadingReport).toBe(false);
@@ -332,7 +332,7 @@ describe('handleMauiMessage - config noLoadingReport (issue 07)', () => {
     await initAppState();
 
     const game = useGameStore();
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
 
     handler!({ type: 'config', noLoadingReport: false });
     expect(game.noLoadingReport).toBe(false);
@@ -362,7 +362,7 @@ describe('handleMauiMessage - agentLog (A0 日志查看器)', () => {
     expect(game.agentLogContent).toBe('');
     expect(game.agentLogTruncated).toBe(false);
 
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
     handler!({ type: 'agentLog', content: '17:20:00.123 [saf] Query ok ms=45', truncated: false });
     expect(game.agentLogContent).toBe('17:20:00.123 [saf] Query ok ms=45');
     expect(game.agentLogTruncated).toBe(false);
@@ -377,7 +377,7 @@ describe('handleMauiMessage - agentLog (A0 日志查看器)', () => {
     await initAppState();
 
     const game = useGameStore();
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
     handler!({ type: 'agentLog', content: 'x'.repeat(10), truncated: true });
     expect(game.agentLogTruncated).toBe(true);
   });
@@ -391,7 +391,7 @@ describe('handleMauiMessage - agentLog (A0 日志查看器)', () => {
     await initAppState();
 
     const game = useGameStore();
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
     handler!({ type: 'agentLog' });
     expect(game.agentLogContent).toBe('');
     expect(game.agentLogTruncated).toBe(false);
@@ -418,7 +418,7 @@ describe('handleMauiMessage - controlStatus (issue 05)', () => {
     await initAppState();
 
     const conn = useConnectionStore();
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
     handler!({
       type: 'controlStatus',
       controller: { kind: 'agent', leaseExpiresAt: '2026-08-15T10:00:00Z' },
@@ -440,7 +440,7 @@ describe('handleMauiMessage - controlStatus (issue 05)', () => {
     await initAppState();
 
     const conn = useConnectionStore();
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
     handler!({ type: 'controlStatus', controller: null, state: 'idle' });
 
     expect(conn.controller).toBeNull();
@@ -457,7 +457,7 @@ describe('handleMauiMessage - controlStatus (issue 05)', () => {
     await initAppState();
 
     const conn = useConnectionStore();
-    const handler = (window as any).__emueraOnMessage as ((msg: unknown) => void) | undefined;
+    const handler = (window as any).__onMessage as ((msg: unknown) => void) | undefined;
     handler!({
       type: 'controlStatus',
       controller: { kind: 'user', leaseExpiresAt: null },

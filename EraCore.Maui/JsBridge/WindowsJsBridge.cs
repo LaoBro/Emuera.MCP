@@ -24,7 +24,7 @@ namespace EraCore.Maui.JsBridge;
 /// </para>
 /// <para>
 /// <see cref="PostTurn"/> / <see cref="PostMessage"/>：调 <see cref="CoreWebView2.ExecuteScriptAsync"/> 执行
-/// <c>window.__emueraOnTurn(turnJson)</c> / <c>window.__emueraOnMessage(msgJson)</c>——
+/// <c>window.__onTurn(turnJson)</c> / <c>window.__onMessage(msgJson)</c>——
 /// JSON 作为 JS 字面量直接嵌入（JSON ⊂ JS 字面量）。
 /// 异步 fire-and-forget，异常捕获写日志（不阻塞游戏循环线程）。
 /// </para>
@@ -123,7 +123,7 @@ internal sealed class WindowsJsBridge : IJsBridge
 		try
 		{
 			// ExecuteScriptAsync 在 UI 线程执行；调用方（BridgeHost）已 Dispatcher.Dispatch 切到 UI 线程。
-			// 返回值是 JS 表达式的 JSON 序列化（__emueraOnTurn 返 undefined → "null"），本场景不消费。
+			// 返回值是 JS 表达式的 JSON 序列化（__onTurn 返 undefined → "null"），本场景不消费。
 			await _core.ExecuteScriptAsync(script);
 		}
 		catch (Exception ex)
@@ -142,7 +142,7 @@ internal sealed class WindowsJsBridge : IJsBridge
 		try
 		{
 			// 与 PostTurn 同样——ExecuteScriptAsync 在 UI 线程执行，调用方已 Dispatcher.Dispatch。
-			// __emueraOnMessage 在 Vue 端由 registerMessageHandler 注册，未注册时返 undefined，无副作用。
+			// __onMessage 在 Vue 端由 registerMessageHandler 注册，未注册时返 undefined，无副作用。
 			await _core.ExecuteScriptAsync(script);
 		}
 		catch (Exception ex)

@@ -20,8 +20,8 @@ import {
  *
  * MAUI 模式分支（issue 07 / spec ID7 + issue 09 文件选择器 + 用户反馈修复）：
  * - `window.location.protocol` 判断为 MAUI（`ms-appx-web:` / `file:` / `https:app.local`）时：
- *   1. 注册 `window.__emueraOnTurn`——C# PostTurn 调此函数，参数为 turn 对象，JSON.stringify 后调 game.applyTurn
- *   2. 注册 `window.__emueraOnMessage`——C# PostMessage 调此函数，按 type 分发非 turn 事件
+ *   1. 注册 `window.__onTurn`——C# PostTurn 调此函数，参数为 turn 对象，JSON.stringify 后调 game.applyTurn
+ *   2. 注册 `window.__onMessage`——C# PostMessage 调此函数，按 type 分发非 turn 事件
  *      （game-library spec ID9：`folderPicked` → `setMainGameDir` + `scanGames` 更改主目录并重扫；
  *      旧 issue 09 的「folderPicked → loadGameFromPath」语义已废弃）
  *   3. 标记 conn.status='connected'——让 sendInput / UI 组件认为已连接（MAUI 无 WS 但语义等价）
@@ -42,10 +42,10 @@ export async function initAppState(): Promise<void> {
   // Issue 07 / spec ID7：MAUI 环境分支——不走 HTTP/WS，用 JS interop 桥接
   if (isMauiEnvironment()) {
     console.log('[useAppInit] MAUI environment detected, initializing bridge');
-    // 1. 注册 C# → JS turn 回调——C# PostTurn 调 window.__emueraOnTurn(turnJson)，
+    // 1. 注册 C# → JS turn 回调——C# PostTurn 调 window.__onTurn(turnJson)，
     //    turnJson 是 JS 字面量（JSON ⊂ JS），Vue 端 JSON.stringify 还原为字符串后复用 game.applyTurn
     registerTurnHandler((rawJson) => game.applyTurn(rawJson));
-    // 2. issue 09 / game-library spec ID9：注册 C# → JS 非 turn 消息回调——C# PostMessage 调 window.__emueraOnMessage(msg)，
+    // 2. issue 09 / game-library spec ID9：注册 C# → JS 非 turn 消息回调——C# PostMessage 调 window.__onMessage(msg)，
     //    按 type 分发：folderPicked → setMainGameDir + scanGames（更改主目录 + 重扫，详见 handleMauiMessage）
     registerMessageHandler((msg) => handleMauiMessage(msg, game));
     // 3. 标记已连接——MAUI 无 WS 但 sendInput / UI 组件按 status='connected' 判定可用

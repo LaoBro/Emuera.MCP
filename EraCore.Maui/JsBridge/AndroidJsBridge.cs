@@ -21,14 +21,14 @@ namespace EraCore.Maui.JsBridge;
 /// <para>
 /// <see cref="Attach"/>：从 MAUI <see cref="Microsoft.Maui.Controls.WebView"/> 取 <see cref="AWebView"/> 平台视图，
 /// 调 <see cref="AWebView.AddJavascriptInterface(Java.Lang.Object, string?)"/> 注册 <see cref="Bridge"/> 实例，
-/// JS 端通过 <c>window.emueraBridge.postMessage(json)</c> 触发 <see cref="Bridge.PostMessage"/> → <see cref="InputReceived"/>。
+/// JS 端通过 <c>window.appBridge.postMessage(json)</c> 触发 <see cref="Bridge.PostMessage"/> → <see cref="InputReceived"/>。
 /// </para>
 /// <para>
 /// <see cref="PostTurn"/>：调 <c>AWebView.EvaluateJavascript(string, IValueCallback)</c>
-/// 执行 <c>window.__emueraOnTurn(turnJson)</c>——turnJson 作为 JS 字面量直接嵌入（JSON ⊂ JS 字面量）。
+/// 执行 <c>window.__onTurn(turnJson)</c>——turnJson 作为 JS 字面量直接嵌入（JSON ⊂ JS 字面量）。
 /// </para>
 /// <para>
-/// Vue 端（Android）： <c>window.emueraBridge.postMessage(json)</c> → 触发 <see cref="Bridge.PostMessage"/>。
+/// Vue 端（Android）： <c>window.appBridge.postMessage(json)</c> → 触发 <see cref="Bridge.PostMessage"/>。
 /// </para>
 /// <para>
 /// 注意： <see cref="Bridge"/> 必须继承 <see cref="Java.Lang.Object"/> 才能暴露给 JS（<c>AddJavascriptInterface</c> 要求）。
@@ -75,9 +75,9 @@ internal sealed class AndroidJsBridge : IJsBridge
 
 		_androidWebView = platformView;
 		_bridge = new Bridge(this);
-		platformView.AddJavascriptInterface(_bridge, "emueraBridge");
+		platformView.AddJavascriptInterface(_bridge, "appBridge");
 
-		// ADR-0019：WebViewClient 拦截 bridge:// URL——可靠 JS→C# 通道，不依赖 emueraBridge
+		// ADR-0019：WebViewClient 拦截 bridge:// URL——可靠 JS→C# 通道，不依赖 appBridge
 		// issue 05：同一 client 内接 WebViewAssetLoader（ShouldInterceptRequest 委托）——
 		// 两个 PathHandler（first-match-wins，注册顺序：窄前缀先）：
 		//   1) /wwwroot/ → WwwrootPathHandler（读 android_asset/wwwroot/ 前端静态文件 index.html/assets/*）
@@ -100,7 +100,7 @@ internal sealed class AndroidJsBridge : IJsBridge
 		platformView.SetWebViewClient(new BridgeClient(this, _assetLoader));
 
 		_attached = true;
-		Android.Util.Log.Info("EmueraMaui", "AndroidJsBridge.Attach completed: emueraBridge registered");
+		Android.Util.Log.Info("EmueraMaui", "AndroidJsBridge.Attach completed: appBridge registered");
 		// Android WebView 无需异步初始化（AddJavascriptInterface 同步生效），直接返回 CompletedTask。
 		return Task.CompletedTask;
 	}
@@ -132,7 +132,7 @@ internal sealed class AndroidJsBridge : IJsBridge
 		try
 		{
 			// 与 PostTurn 同样——EvaluateJavaScript 在 UI 线程异步执行。
-			// __emueraOnMessage 在 Vue 端由 registerMessageHandler 注册，未注册时返 undefined，无副作用。
+			// __onMessage 在 Vue 端由 registerMessageHandler 注册，未注册时返 undefined，无副作用。
 			_androidWebView.EvaluateJavascript(script, null);
 		}
 		catch (Exception ex)
@@ -142,8 +142,8 @@ internal sealed class AndroidJsBridge : IJsBridge
 	}
 
 	/// <summary>
-	/// JS → C# 桥接对象——通过 <c>AddJavascriptInterface</c> 注册为 <c>window.emueraBridge</c>。
-	/// Vue 端调 <c>window.emueraBridge.postMessage(json)</c> 触发 <see cref="PostMessage"/>，
+	/// JS → C# 桥接对象——通过 <c>AddJavascriptInterface</c> 注册为 <c>window.appBridge</c>。
+	/// Vue 端调 <c>window.appBridge.postMessage(json)</c> 触发 <see cref="PostMessage"/>，
 	/// 进而触发 <see cref="AndroidJsBridge.InputReceived"/>。
 	/// </summary>
 	/// <remarks>

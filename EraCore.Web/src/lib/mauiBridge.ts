@@ -8,12 +8,12 @@
  * - 其他 `http:` / `https:` → HTTP 模式（开发/生产浏览器模式）
  *
  * MAUI 模式下：
- * 1. 注册 `window.__emueraOnTurn = (turn) => applyTurn(JSON.stringify(turn))`——
- *    C# 侧 `IJsBridge.PostTurn` 调 `window.__emueraOnTurn(turnJson)` 作为 JS 字面量传参（JSON ⊂ JS 字面量），
+ * 1. 注册 `window.__onTurn = (turn) => applyTurn(JSON.stringify(turn))`——
+ *    C# 侧 `IJsBridge.PostTurn` 调 `window.__onTurn(turnJson)` 作为 JS 字面量传参（JSON ⊂ JS 字面量），
  *    Vue 端 `JSON.stringify` 还原为字符串后调 `game.applyTurn(rawJson)` 复用 HTTP 模式的协议消费链路。
  * 2. `postInput` 用 feature detection 选平台——
  *    Windows: `window.chrome.webview.postMessage(json)`（CoreWebView2 WebMessageReceived）
- *    Android: `window.emueraBridge.postMessage(json)`（AddJavascriptInterface 注册的桥接对象）
+ *    Android: `window.appBridge.postMessage(json)`（AddJavascriptInterface 注册的桥接对象）
  * 3. 启动后 `postMessage(JSON.stringify({type:'ready'}))`——
  *    C# 侧 `BridgeHost.OnInputFromJs` 收到后写日志（T07），T08 接入游戏循环后启动 `GameLoopComposer.RunAsync`。
  * 4. issue 09 文件选择器 / game-library spec ID9：`pickGameFolder()` 请求 C# 弹原生 FolderPicker →
@@ -80,7 +80,7 @@ export function isMauiEnvironment(): boolean {
  *
  * Feature detection 选平台：
  * - `window.chrome.webview` 存在 → Windows，调 `chrome.webview.postMessage(json)`（CoreWebView2 WebMessageReceived）
- * - `window.emueraBridge` 存在 → Android，调 `emueraBridge.postMessage(json)`（AddJavascriptInterface 桥接对象）
+ * - `window.appBridge` 存在 → Android，调 `appBridge.postMessage(json)`（AddJavascriptInterface 桥接对象）
  * - 两者都不存在 → 静默 no-op（MAUI 桥接未 Attach 时不抛错，避免 Vue 启动期 race）
  *
  * 与 C# `IJsBridge.InputReceived` 对齐——事件在 `BridgeHost.OnInputFromJs` 内识别 `{"type":"ready"}` / `{"type":"input","value":"..."}`。
@@ -95,14 +95,14 @@ export function postInput(json: string): void {
   } else if (!sendBridgeUrl('post', json)) {
     // 无 DOM 时（SSR/Node 测试）保留旧桥接 fallback；Android WebView
     // 生产环境优先使用上面的 bridge:// URL 通道，避免重复投递消息。
-    w.emueraBridge?.postMessage?.(json);
+    w.appBridge?.postMessage?.(json);
   }
 }
 
 /**
  * 注册 C# → JS 的 turn 回调（spec ID5 / ID7）。
  *
- * C# 侧 `IJsBridge.PostTurn(turnJson)` 执行 `window.__emueraOnTurn(turnJson)`，
+ * C# 侧 `IJsBridge.PostTurn(turnJson)` 执行 `window.__onTurn(turnJson)`，
  * `turnJson` 作为 JS 字面量直接嵌入（JSON ⊂ JS 字面量，无需再 `JSON.stringify` 双重转义）。
  * Vue 端 handler 收到的是已解析的 JS 对象——`JSON.stringify` 还原为字符串后调 `applyTurn(rawJson)`，
  * 复用 HTTP 模式的 `parseTurnRecord → applyDiff` 协议消费链路（零改动）。
@@ -110,7 +110,7 @@ export function postInput(json: string): void {
  * @param handler 收到 turn JSON 字符串时的回调（通常 `(rawJson) => game.applyTurn(rawJson)`）。
  */
 export function registerTurnHandler(handler: (turnJson: string) => void): void {
-  (window as any).__emueraOnTurn = (turn: unknown) => {
+  (window as any).__onTurn = (turn: unknown) => {
     // C# 传 JS 字面量 → turn 已是 JS 对象 → 还原为字符串复用 applyTurn
     const rawJson = typeof turn === 'string' ? turn : JSON.stringify(turn);
     handler(rawJson);
@@ -157,7 +157,7 @@ export function pickSafDirectory(): void {
 }
 
 /**
- * ADR-0019：通过 bridge:// URL scheme 可靠发送 C# 命令（不依赖 emueraBridge）。
+ * ADR-0019：通过 bridge:// URL scheme 可靠发送 C# 命令（不依赖 appBridge）。
  * 使用隐藏 iframe 触发 WebViewClient.ShouldOverrideUrlLoading。
  *
  * @param action 动作名（如 "pickSafDirectory"），或 "post" 表示附带 JSON 数据
@@ -183,7 +183,7 @@ export function sendBridgeUrl(action: string, data?: string): boolean {
 /**
  * issue 09 / game-library spec ID3——注册 C# → JS 的非 turn 消息回调。
  *
- * C# 侧 `IJsBridge.PostMessage(msgJson)` 执行 `window.__emueraOnMessage(msgJson)`，
+ * C# 侧 `IJsBridge.PostMessage(msgJson)` 执行 `window.__onMessage(msgJson)`，
  * `msgJson` 作为 JS 字面量直接嵌入（JSON ⊂ JS 字面量）。
  * Vue 端 handler 收到的是已解析的 JS 对象——按 `type` 字段分发：
  * - `{"type":"folderPicked","path":...}`——文件选择器成功，调 `setMainGameDir(path)` + `scanGames(path)`（spec ID9 修订）
@@ -192,13 +192,13 @@ export function sendBridgeUrl(action: string, data?: string): boolean {
  * - `{"type":"safDirectoryPicked",...}`——Android SAF 目录选择结果（ADR-0019）
  * - `{"type":"gameExited"}`——exitGame 完成，清状态 + 自动 rescan
  *
- * 与 `registerTurnHandler` 分流——turn 经 `__emueraOnTurn` 推 `applyTurn` 协议消费链路，
- * 非 turn 事件经 `__emueraOnMessage` 推此 handler，避免污染 turn 协议。
+ * 与 `registerTurnHandler` 分流——turn 经 `__onTurn` 推 `applyTurn` 协议消费链路，
+ * 非 turn 事件经 `__onMessage` 推此 handler，避免污染 turn 协议。
  *
  * @param handler 收到消息对象时的回调。
  */
 export function registerMessageHandler(handler: (msg: unknown) => void): void {
-  (window as any).__emueraOnMessage = (msg: unknown) => {
+  (window as any).__onMessage = (msg: unknown) => {
     handler(msg);
   };
 }
@@ -228,7 +228,7 @@ export function loadGameFromPath(path: string): void {
 // 与 C# `BridgeHost.OnInputFromJs` 内的 type 分发分支对齐：
 //   "scanGames" / "exitGame"
 //
-// 投递后 C# 异步处理并经 `__emueraOnMessage` 回复对应消息：
+// 投递后 C# 异步处理并经 `__onMessage` 回复对应消息：
 // - scanGames → gamesScanned（含 games 数组 + rootDir）
 // - exitGame → gameExited（无 payload）
 
@@ -294,7 +294,7 @@ export function getGameThreadStatus(): void {
  * A0（saf-accel 计划）：设置页「文件日志（agent.log）」开关——请求 C# 切换 AgentLog 状态。
  *
  * C# `BridgeHost.HandleSetAgentLogEnabled` 收到后：
- * 1. 写 Preferences（key=`emuera.agentLogEnabled`——MauiProgram 启动早期读同一 key 决定初值）
+ * 1. 写 Preferences（key=`app.agentLogEnabled`——MauiProgram 启动早期读同一 key 决定初值）
  * 2. 运行时切换 `AgentLog.Enabled`（即时生效，无需重启）
  * 3. 推回 `config` 消息（含 agentLogEnabled 字段）同步设置页开关的权威状态
  *
@@ -308,7 +308,7 @@ export function setAgentLogEnabled(enabled: boolean): void {
  * issue 07：设置页「启动日志覆盖」开关——请求 C# 覆盖游戏 `DisplayReport` 为 off/on。
  *
  * C# `BridgeHost.HandleSetNoLoadingReport` 收到后：
- * 1. 写 Preferences（key=`emuera.noLoadingReport`——游戏加载时 OnReloadGame 读同一 key 前置位）
+ * 1. 写 Preferences（key=`app.noLoadingReport`——游戏加载时 OnReloadGame 读同一 key 前置位）
  * 2. 运行时切换 `ConfigData.OverrideDisplayReport`（开启时强制 `DisplayReport=false`）
  * 3. 推回 `config` 消息（含 noLoadingReport 字段）同步设置页开关的权威状态
  *

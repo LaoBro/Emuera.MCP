@@ -84,7 +84,7 @@ describe('useGameStore.quickRestart', () => {
     expect(game.gameDir).toBe('D:/games/mygame');
     expect(game.reloadStatus).toBe('idle');
     expect(game.loadGameError).toBeNull();
-    expect(localStorage.getItem('emuera.gameDir')).toBe('D:/games/mygame');
+    expect(localStorage.getItem('app.gameDir')).toBe('D:/games/mygame');
     expect(connectSpy).toHaveBeenCalledOnce();
     // serverState 应从 GET /state 或 load-game 响应更新（非 Idle）
     expect(game.serverState).not.toBe('Idle');
@@ -97,7 +97,7 @@ describe('useGameStore.quickRestart', () => {
     vi.spyOn(conn, 'connect').mockResolvedValue(undefined);
 
     // 预设 localStorage 有值
-    localStorage.setItem('emuera.gameDir', 'D:/old/game');
+    localStorage.setItem('app.gameDir', 'D:/old/game');
     game.gameDir = 'D:/old/game';
 
     // GET /state → DELETE → POST /load-game 400
@@ -114,7 +114,7 @@ describe('useGameStore.quickRestart', () => {
     expect(game.loadGameError!.code).toBe('DIR_NOT_FOUND');
     // D14：失败时清空 gameDir + localStorage
     expect(game.gameDir).toBeNull();
-    expect(localStorage.getItem('emuera.gameDir')).toBeNull();
+    expect(localStorage.getItem('app.gameDir')).toBeNull();
     expect(game.serverState).toBe('Idle');
   });
 
@@ -135,7 +135,7 @@ describe('useGameStore.quickRestart', () => {
     expect(game.loadGameError).not.toBeNull();
     expect(game.loadGameError!.code).toBe('LOAD_FAILED');
     expect(game.gameDir).toBeNull();
-    expect(localStorage.getItem('emuera.gameDir')).toBeNull();
+    expect(localStorage.getItem('app.gameDir')).toBeNull();
     expect(game.serverState).toBe('Idle');
   });
 
@@ -145,7 +145,7 @@ describe('useGameStore.quickRestart', () => {
     vi.spyOn(conn, 'disconnect').mockImplementation(() => {});
     vi.spyOn(conn, 'connect').mockResolvedValue(undefined);
 
-    localStorage.setItem('emuera.gameDir', 'D:/old/game');
+    localStorage.setItem('app.gameDir', 'D:/old/game');
     game.gameDir = 'D:/old/game';
 
     // 第一次 fetch（GET /state）就抛错
@@ -156,7 +156,7 @@ describe('useGameStore.quickRestart', () => {
     expect(game.loadGameError).not.toBeNull();
     expect(game.loadGameError!.code).toBe('LOAD_FAILED');
     expect(game.gameDir).toBeNull();
-    expect(localStorage.getItem('emuera.gameDir')).toBeNull();
+    expect(localStorage.getItem('app.gameDir')).toBeNull();
     expect(game.serverState).toBe('Idle');
   });
 
@@ -166,7 +166,7 @@ describe('useGameStore.quickRestart', () => {
     vi.spyOn(conn, 'disconnect').mockImplementation(() => {});
     const connectSpy = vi.spyOn(conn, 'connect').mockResolvedValue(undefined);
 
-    localStorage.setItem('emuera.gameDir', 'D:/old/game');
+    localStorage.setItem('app.gameDir', 'D:/old/game');
     game.gameDir = 'D:/old/game';
 
     // GET /state 返回 idle（gameDir=null）
@@ -178,7 +178,7 @@ describe('useGameStore.quickRestart', () => {
 
     // 无活跃游戏 → 清空 gameDir，不调 load-game / DELETE / connect
     expect(game.gameDir).toBeNull();
-    expect(localStorage.getItem('emuera.gameDir')).toBeNull();
+    expect(localStorage.getItem('app.gameDir')).toBeNull();
     expect(game.serverState).toBe('Idle');
     expect(game.loadGameError).toBeNull();
     // fetch 只被调用一次（GET /state），没有 DELETE / load-game

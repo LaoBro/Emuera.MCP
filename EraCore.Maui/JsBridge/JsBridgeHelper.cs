@@ -12,7 +12,7 @@ namespace EraCore.Maui.JsBridge;
 /// 调 <c>JSON.stringify</c> 会双重转义（字符串外面再加引号），错误。
 /// </para>
 /// <para>
-/// 命名统一为 <c>window.__emueraOnTurn</c>（turn 消息）和 <c>window.__emueraOnMessage</c>（非 turn 事件）——
+/// 命名统一为 <c>window.__onTurn</c>（turn 消息）和 <c>window.__onMessage</c>（非 turn 事件）——
 /// Vue 端按 <c>window.location.protocol</c> 判断 MAUI 环境后分别注册两个回调。
 /// </para>
 /// <para>
@@ -23,7 +23,7 @@ namespace EraCore.Maui.JsBridge;
 internal static class JsBridgeHelper
 {
 	/// <summary>
-	/// 构造 C# → JS 的 turn 投递脚本： <c>window.__emueraOnTurn({turnJson})</c>。
+	/// 构造 C# → JS 的 turn 投递脚本： <c>window.__onTurn({turnJson})</c>。
 	/// </summary>
 	/// <param name="turnJson">合法 JSON 字符串，作为 JS 字面量嵌入。</param>
 	/// <returns>可直接传给 <c>CoreWebView2.ExecuteScriptAsync</c> / <c>Android.Webkit.WebView.EvaluateJavaScript</c> 的 JS 脚本。</returns>
@@ -32,15 +32,15 @@ internal static class JsBridgeHelper
 	{
 		if (turnJson is null)
 			throw new ArgumentNullException(nameof(turnJson));
-		return $"window.__emueraOnTurn({turnJson})";
+		return $"window.__onTurn({turnJson})";
 	}
 
 	/// <summary>
-	/// 构造 C# → JS 的非 turn 事件投递脚本： <c>window.__emueraOnMessage({messageJson})</c>。
+	/// 构造 C# → JS 的非 turn 事件投递脚本： <c>window.__onMessage({messageJson})</c>。
 	/// </summary>
 	/// <remarks>
 	/// issue 09 文件选择器引入——用于 <see cref="IJsBridge.PostMessage"/>，与 <see cref="FormatPostScript"/> 分流：
-	/// turn 经 <c>__emueraOnTurn</c> → Vue <c>applyTurn</c>；非 turn 事件经 <c>__emueraOnMessage</c> → Vue <c>registerMessageHandler</c>。
+	/// turn 经 <c>__onTurn</c> → Vue <c>applyTurn</c>；非 turn 事件经 <c>__onMessage</c> → Vue <c>registerMessageHandler</c>。
 	/// </remarks>
 	/// <param name="messageJson">合法 JSON 字符串，作为 JS 字面量嵌入。</param>
 	/// <returns>可直接传给 <c>CoreWebView2.ExecuteScriptAsync</c> / <c>Android.Webkit.WebView.EvaluateJavaScript</c> 的 JS 脚本。</returns>
@@ -49,6 +49,6 @@ internal static class JsBridgeHelper
 	{
 		if (messageJson is null)
 			throw new ArgumentNullException(nameof(messageJson));
-		return $"window.__emueraOnMessage({messageJson})";
+		return $"window.__onMessage({messageJson})";
 	}
 }

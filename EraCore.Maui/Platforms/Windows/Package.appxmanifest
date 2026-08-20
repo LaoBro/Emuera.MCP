@@ -5,12 +5,12 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap rescap">
 
-  <Identity Name="com.emuera.maui"
+  <Identity Name="com.eracore.maui"
             Publisher="CN=Emuera"
             Version="1.0.0.0" />
 
   <Properties>
-    <DisplayName>Emuera</DisplayName>
+    <DisplayName>Terminal</DisplayName>
     <PublisherDisplayName>Emuera</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>

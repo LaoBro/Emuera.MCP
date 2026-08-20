@@ -4,7 +4,7 @@
 		<!-- A0 补充：导出 agent.log 用——FileProvider 把 app 私有目录文件分享给系统面板（零权限） -->
 		<provider
 			android:name="androidx.core.content.FileProvider"
-			android:authorities="com.emuera.maui.fileprovider"
+			android:authorities="com.eracore.maui.fileprovider"
 			android:exported="false"
 			android:grantUriPermissions="true">
 			<meta-data

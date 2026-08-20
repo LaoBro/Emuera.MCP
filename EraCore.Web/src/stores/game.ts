@@ -16,20 +16,20 @@ import { TURN_HISTORY_MAX } from '../config/constants';
  * - 同 → 直接 connect()（不重启当前局）
  * - 异 → loadGame(localStorage value) 切换
  */
-const GAME_DIR_STORAGE_KEY = 'emuera.gameDir';
+const GAME_DIR_STORAGE_KEY = 'app.gameDir';
 
 /**
  * game-library spec ID5：主目录持久化 key（localStorage）。
  *
  * MAUI 模式下 Vue 端同步存一份 mainGameDir——
- * - C# 端 `Preferences.Set("emuera.mainGameDir", ...)` 是权威源（构造 BridgeHost 时读）
+ * - C# 端 `Preferences.Set("app.mainGameDir", ...)` 是权威源（构造 BridgeHost 时读）
  * - Vue 端 localStorage 备份供首帧渲染前知道主目录（如展示在列表页底部）
  *
- * 与 `emuera.gameDir` 区别：
- * - `emuera.gameDir`：当前加载的游戏目录（特定游戏）
- * - `emuera.mainGameDir`：游戏库主目录（包含多个游戏的父目录）
+ * 与 `app.gameDir` 区别：
+ * - `app.gameDir`：当前加载的游戏目录（特定游戏）
+ * - `app.mainGameDir`：游戏库主目录（包含多个游戏的父目录）
  */
-const MAIN_GAME_DIR_STORAGE_KEY = 'emuera.mainGameDir';
+const MAIN_GAME_DIR_STORAGE_KEY = 'app.mainGameDir';
 
 /**
  * game-library spec ID5：上次玩过的游戏名持久化 key（localStorage）。
@@ -37,7 +37,7 @@ const MAIN_GAME_DIR_STORAGE_KEY = 'emuera.mainGameDir';
  * 列表页据此高亮上次玩的游戏——存目录名（不是完整路径），
  * 主目录变更后仍可匹配同名子目录。
  */
-const LAST_PLAYED_GAME_STORAGE_KEY = 'emuera.lastPlayedGame';
+const LAST_PLAYED_GAME_STORAGE_KEY = 'app.lastPlayedGame';
 
 /**
  * game-library spec ID1：扫描到的游戏条目（与 C# `GameEntry` record 对称）。
@@ -500,7 +500,7 @@ export const useGameStore = defineStore('game', () => {
   //
   // 用于 MAUI 移动端/桌面端放大缩小终端画面。范围 0.5–2.0，步长 0.1。
   // 持久化到 localStorage，刷新后保持。
-  const SCALE_STORAGE_KEY = 'emuera.scale';
+  const SCALE_STORAGE_KEY = 'app.scale';
 
   const scale = ref<number>(readScaleFromStorage());
 

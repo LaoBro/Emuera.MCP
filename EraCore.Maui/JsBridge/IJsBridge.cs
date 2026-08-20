@@ -25,9 +25,9 @@ internal static class GameAssetConstants
 /// <remarks>
 /// 五个成员：
 /// <list type="bullet">
-///   <item><see cref="PostTurn"/>：C# → JS，调 <c>window.__emueraOnTurn(turnJson)</c>。turnJson 是合法 JSON 字符串，
+///   <item><see cref="PostTurn"/>：C# → JS，调 <c>window.__onTurn(turnJson)</c>。turnJson 是合法 JSON 字符串，
 ///       作为 JS 字面量传函数参数（无需再 JSON.stringify）。</item>
-///   <item><see cref="PostMessage"/>：C# → JS，调 <c>window.__emueraOnMessage(msgJson)</c>——
+///   <item><see cref="PostMessage"/>：C# → JS，调 <c>window.__onMessage(msgJson)</c>——
 ///       非 turn 消息（如 <c>folderPicked</c> 事件）经此通道，与 turn 分流避免污染 applyTurn 协议消费链路。
 ///       issue 09 文件选择器引入。</item>
 ///   <item><see cref="InputReceived"/>：JS → C#，Vue 端 <c>postMessage(json)</c> 触发，C# 侧 <c>MauiBridgeIO.EnqueueInput</c>。</item>
@@ -46,7 +46,7 @@ internal interface IJsBridge
 {
 	/// <summary>
 	/// C# → JS：向 WebView 投递一个 turn JSON。
-	/// 内部调 <c>EvaluateJavaScriptAsync($"window.__emueraOnTurn({turnJson})")</c>。
+	/// 内部调 <c>EvaluateJavaScriptAsync($"window.__onTurn({turnJson})")</c>。
 	/// </summary>
 	/// <param name="turnJson">合法 JSON 字符串（来自 <c>TurnRecord</c> 序列化）。作为 JS 字面量传入函数参数。</param>
 	void PostTurn(string turnJson);
@@ -60,7 +60,7 @@ internal interface IJsBridge
 	///   <item>turn（每帧渲染）：经 <see cref="PostTurn"/> → Vue <c>applyTurn</c> 协议消费链路</item>
 	///   <item>非 turn 事件（如 folderPicked）：经 <see cref="PostMessage"/> → Vue <c>registerMessageHandler</c> 分发</item>
 	/// </list>
-	/// 内部调 <c>EvaluateJavaScriptAsync($"window.__emueraOnMessage({msgJson})")</c>，
+	/// 内部调 <c>EvaluateJavaScriptAsync($"window.__onMessage({msgJson})")</c>，
 	/// 与 <see cref="PostTurn"/> 同样把 JSON 作为 JS 字面量直接嵌入。
 	/// </remarks>
 	/// <param name="messageJson">合法 JSON 字符串。作为 JS 字面量传入函数参数。</param>

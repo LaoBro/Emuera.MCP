@@ -61,7 +61,7 @@ describe('readGameDirFromStorage 纯函数', () => {
   });
 
   it('有值 → 返回值', () => {
-    localStorage.setItem('emuera.gameDir', 'D:\\games\\mygame');
+    localStorage.setItem('app.gameDir', 'D:\\games\\mygame');
     expect(readGameDirFromStorage()).toBe('D:\\games\\mygame');
   });
 
@@ -70,7 +70,7 @@ describe('readGameDirFromStorage 纯函数', () => {
   });
 
   it('空字符串 → null', () => {
-    localStorage.setItem('emuera.gameDir', '');
+    localStorage.setItem('app.gameDir', '');
     expect(readGameDirFromStorage()).toBeNull();
   });
 
@@ -146,7 +146,7 @@ describe('useGameStore.loadGame', () => {
     expect(game.gameDir).toBe('D:/games/mygame');
     expect(game.reloadStatus).toBe('idle');
     expect(game.loadGameError).toBeNull();
-    expect(localStorage.getItem('emuera.gameDir')).toBe('D:/games/mygame');
+    expect(localStorage.getItem('app.gameDir')).toBe('D:/games/mygame');
     expect(disconnectSpy).toHaveBeenCalledOnce();
     expect(connectSpy).toHaveBeenCalledOnce();
     // fetch 调用参数校验
@@ -179,7 +179,7 @@ describe('useGameStore.loadGame', () => {
     // 路径级错误——gameDir 不更新
     expect(game.gameDir).toBeNull();
     // localStorage 也不写
-    expect(localStorage.getItem('emuera.gameDir')).toBeNull();
+    expect(localStorage.getItem('app.gameDir')).toBeNull();
     // 但仍调 connect（回旧 session）
     expect(connectSpy).toHaveBeenCalledOnce();
   });
@@ -296,7 +296,7 @@ describe('useGameStore.loadGame', () => {
     await game.loadGame('  D:/trimmed  ');
 
     expect(game.gameDir).toBe('D:/trimmed');
-    expect(localStorage.getItem('emuera.gameDir')).toBe('D:/trimmed');
+    expect(localStorage.getItem('app.gameDir')).toBe('D:/trimmed');
     // fetch body 也是 trimmed
     const call = fetchMock.mock.calls[0];
     const body = JSON.parse((call[1] as RequestInit).body as string);

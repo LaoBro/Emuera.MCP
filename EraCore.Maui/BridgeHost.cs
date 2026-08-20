@@ -58,14 +58,14 @@ namespace EraCore.Maui;
 internal sealed class BridgeHost : IDisposable
 {
     /// <summary>Preferences key——主目录路径持久化（spec ID5）。</summary>
-    private const string MainGameDirKey = "emuera.mainGameDir";
+    private const string MainGameDirKey = "app.mainGameDir";
 
     /// <summary>
     /// Preferences key——文件日志（AgentLog）开关（A0，saf-accel 计划）。
     /// MauiProgram 启动早期读此 key 调 AgentLog.Configure（默认 false）；
     /// 设置页开关经 HandleSetAgentLogEnabled 写此 key + 运行时切换 AgentLog.Enabled。
     /// </summary>
-    internal const string AgentLogEnabledKey = "emuera.agentLogEnabled";
+    internal const string AgentLogEnabledKey = "app.agentLogEnabled";
 
     /// <summary>
     /// Preferences key——启动日志覆盖开关（issue 07）。
@@ -73,7 +73,7 @@ internal sealed class BridgeHost : IDisposable
     /// 设置页开关经 HandleSetNoLoadingReport 写此 key + 即时切换 ConfigData.OverrideDisplayReport。
     /// 游戏加载（OnReloadGame → Initialize）时读此 key 前置位，让启动日志从一开始就被抑制。
     /// </summary>
-    internal const string NoLoadingReportKey = "emuera.noLoadingReport";
+    internal const string NoLoadingReportKey = "app.noLoadingReport";
 
     /// <summary>app 内日志查看器推送 Vue 的内容上限（字符）——超限保留尾部最新（A0 补充，真机无 adb）。</summary>
     private const int AgentLogViewMaxChars = 200_000;
@@ -554,7 +554,7 @@ internal sealed class BridgeHost : IDisposable
                 // 仍继续扫描——读权限可能足够浏览；存档会再失败并提示
             }
 
-            // 直接扫描并推送 gamesScanned——避免 JS→C# 走不可靠的 emueraBridge
+            // 直接扫描并推送 gamesScanned——避免 JS→C# 走不可靠的 bridge
             ScanAndPushGames(result);
         }
         catch (Exception ex)
@@ -569,7 +569,7 @@ internal sealed class BridgeHost : IDisposable
 
     /// <summary>
     /// ADR-0019：直接扫描 rootDir 并推送 gamesScanned 到 Vue。
-    /// 绕过 JS→C# scanGames 消息链（emueraBridge 不可靠）。
+    /// 绕过 JS→C# scanGames 消息链（bridge 不可靠）。
     /// </summary>
     private void ScanAndPushGames(string? rootDir)
     {
@@ -876,7 +876,7 @@ internal sealed class BridgeHost : IDisposable
     /// <para>
     /// 接收 <c>{"type":"exportAgentLog"}</c>。agent.log 在 app files 目录
     /// （<see cref="AgentLog.FilePath"/> = AppDataPaths.Directory/agent.log），FileProvider 已配置
-    /// （AndroidManifest + file_paths.xml，authority=<c>com.emuera.maui.fileprovider</c>）。
+    /// （AndroidManifest + file_paths.xml，authority=<c>com.eracore.maui.fileprovider</c>）。
     /// 分享面板经 <see cref="IDispatcher.Dispatch"/> 在 UI 线程启动；Application context 启动
     /// Activity 需 <see cref="Android.Content.ActivityFlags.NewTask"/>。
     /// 文件不存在（日志未开启）时静默提示。非 Android 平台 no-op。

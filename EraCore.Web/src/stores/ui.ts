@@ -87,7 +87,7 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   /** 主题：'dark' | 'light'，从 localStorage 读取，默认 'dark'。 */
-  const THEME_STORAGE_KEY = 'emuera.theme';
+  const THEME_STORAGE_KEY = 'app.theme';
   function readThemeFromStorage(): 'dark' | 'light' {
     try {
       const v = localStorage.getItem(THEME_STORAGE_KEY);

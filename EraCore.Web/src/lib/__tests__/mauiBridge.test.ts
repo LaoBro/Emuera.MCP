@@ -18,9 +18,9 @@ import {
  *
  * 覆盖：
  * - isMauiEnvironment：协议检测（ms-appx-web: / file: / http: / https: / SSR）
- * - postInput：feature detection（chrome.webview / emueraBridge / 两者都不存在）
- * - registerTurnHandler：window.__emueraOnTurn 注册 + 调用契约
- * - registerMessageHandler：window.__emueraOnMessage 注册 + 调用契约（issue 09）
+ * - postInput：feature detection（chrome.webview / appBridge / 两者都不存在）
+ * - registerTurnHandler：window.__onTurn 注册 + 调用契约
+ * - registerMessageHandler：window.__onMessage 注册 + 调用契约（issue 09）
  * - sendReady：发送 {"type":"ready"} 消息
  * - pickGameFolder：发送 {"type":"pickFolder"} 消息（issue 09）
  * - loadGameFromPath：发送 {"type":"loadGame","path":...} 消息（issue 09）
@@ -29,14 +29,14 @@ import {
  * mauiBridge.ts 内部用 `typeof window === 'undefined'` 防 SSR——stub 前调 isMauiEnvironment 应返 false。
  */
 
-/** 模拟 window 对象——location.protocol/hostname 可按用例覆盖，chrome/emueraBridge 按需挂。 */
+/** 模拟 window 对象——location.protocol/hostname 可按用例覆盖，chrome/appBridge 按需挂。 */
 function makeMockWindow(protocol: string = 'http:', hostname: string = 'localhost'): any {
   return {
     location: { protocol, hostname },
     chrome: undefined,
-    emueraBridge: undefined,
-    __emueraOnTurn: undefined,
-    __emueraOnMessage: undefined,
+    appBridge: undefined,
+    __onTurn: undefined,
+    __onMessage: undefined,
   };
 }
 
@@ -118,9 +118,9 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       expect(postMessage).toHaveBeenCalledWith('{"type":"ready"}');
     });
 
-    it('window.emueraBridge 存在 → 调 emueraBridge.postMessage（Android）', () => {
+    it('window.appBridge 存在 → 调 appBridge.postMessage（Android）', () => {
       const postMessage = vi.fn();
-      mockWindow.emueraBridge = { postMessage };
+      mockWindow.appBridge = { postMessage };
 
       postInput('{"type":"input","value":"1"}');
 
@@ -128,11 +128,11 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       expect(postMessage).toHaveBeenCalledWith('{"type":"input","value":"1"}');
     });
 
-    it('chrome.webview 优先于 emueraBridge（Windows 平台优先）', () => {
+    it('chrome.webview 优先于 appBridge（Windows 平台优先）', () => {
       const chromePost = vi.fn();
       const bridgePost = vi.fn();
       mockWindow.chrome = { webview: { postMessage: chromePost } };
-      mockWindow.emueraBridge = { postMessage: bridgePost };
+      mockWindow.appBridge = { postMessage: bridgePost };
 
       postInput('test');
 
@@ -148,10 +148,10 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
   // ===== registerTurnHandler =====
 
   describe('registerTurnHandler', () => {
-    it('注册 window.__emueraOnTurn 函数', () => {
+    it('注册 window.__onTurn 函数', () => {
       registerTurnHandler(() => {});
 
-      expect(typeof mockWindow.__emueraOnTurn).toBe('function');
+      expect(typeof mockWindow.__onTurn).toBe('function');
     });
 
     it('C# 传 turn 对象 → handler 收到 JSON 字符串', () => {
@@ -159,7 +159,7 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       registerTurnHandler(handler);
 
       const turn = { state: 'WaitInput', buttons: [1, 2, 3] };
-      mockWindow.__emueraOnTurn(turn);
+      mockWindow.__onTurn(turn);
 
       expect(handler).toHaveBeenCalledOnce();
       const received = handler.mock.calls[0][0];
@@ -171,7 +171,7 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       const handler = vi.fn();
       registerTurnHandler(handler);
 
-      mockWindow.__emueraOnTurn('already-a-string');
+      mockWindow.__onTurn('already-a-string');
 
       expect(handler).toHaveBeenCalledWith('already-a-string');
     });
@@ -182,7 +182,7 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       registerTurnHandler(handler1);
       registerTurnHandler(handler2);
 
-      mockWindow.__emueraOnTurn({ ok: true });
+      mockWindow.__onTurn({ ok: true });
 
       expect(handler1).not.toHaveBeenCalled();
       expect(handler2).toHaveBeenCalledOnce();
@@ -203,9 +203,9 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       expect(JSON.parse(sent)).toEqual({ type: 'ready' });
     });
 
-    it('调 postInput 投递 {"type":"ready"} 消息（Android emueraBridge）', () => {
+    it('调 postInput 投递 {"type":"ready"} 消息（Android appBridge）', () => {
       const postMessage = vi.fn();
-      mockWindow.emueraBridge = { postMessage };
+      mockWindow.appBridge = { postMessage };
 
       sendReady();
 
@@ -222,10 +222,10 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
   // ===== registerMessageHandler (issue 09) =====
 
   describe('registerMessageHandler', () => {
-    it('注册 window.__emueraOnMessage 函数', () => {
+    it('注册 window.__onMessage 函数', () => {
       registerMessageHandler(() => {});
 
-      expect(typeof mockWindow.__emueraOnMessage).toBe('function');
+      expect(typeof mockWindow.__onMessage).toBe('function');
     });
 
     it('C# 传消息对象 → handler 收到原对象（非 turn 通道不 JSON.stringify）', () => {
@@ -233,7 +233,7 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       registerMessageHandler(handler);
 
       const msg = { type: 'folderPicked', path: 'D:\\games\\mygame' };
-      mockWindow.__emueraOnMessage(msg);
+      mockWindow.__onMessage(msg);
 
       expect(handler).toHaveBeenCalledOnce();
       expect(handler).toHaveBeenCalledWith(msg);
@@ -245,20 +245,20 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       registerMessageHandler(handler1);
       registerMessageHandler(handler2);
 
-      mockWindow.__emueraOnMessage({ type: 'folderPicked', path: '/x' });
+      mockWindow.__onMessage({ type: 'folderPicked', path: '/x' });
 
       expect(handler1).not.toHaveBeenCalled();
       expect(handler2).toHaveBeenCalledOnce();
     });
 
-    it('与 registerTurnHandler 互不干扰——__emueraOnTurn / __emueraOnMessage 独立', () => {
+    it('与 registerTurnHandler 互不干扰——__onTurn / __onMessage 独立', () => {
       const turnHandler = vi.fn();
       const msgHandler = vi.fn();
       registerTurnHandler(turnHandler);
       registerMessageHandler(msgHandler);
 
-      mockWindow.__emueraOnTurn({ state: 'WaitInput' });
-      mockWindow.__emueraOnMessage({ type: 'folderPicked', path: '/y' });
+      mockWindow.__onTurn({ state: 'WaitInput' });
+      mockWindow.__onMessage({ type: 'folderPicked', path: '/y' });
 
       expect(turnHandler).toHaveBeenCalledOnce();
       expect(msgHandler).toHaveBeenCalledOnce();
@@ -279,9 +279,9 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       expect(JSON.parse(sent)).toEqual({ type: 'pickFolder' });
     });
 
-    it('调 postInput 投递 {"type":"pickFolder"} 消息（Android emueraBridge）', () => {
+    it('调 postInput 投递 {"type":"pickFolder"} 消息（Android appBridge）', () => {
       const postMessage = vi.fn();
-      mockWindow.emueraBridge = { postMessage };
+      mockWindow.appBridge = { postMessage };
 
       pickGameFolder();
 
@@ -309,9 +309,9 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       expect(JSON.parse(sent)).toEqual({ type: 'loadGame', path: 'D:\\games\\mygame' });
     });
 
-    it('调 postInput 投递 {"type":"loadGame","path":...} 消息（Android emueraBridge）', () => {
+    it('调 postInput 投递 {"type":"loadGame","path":...} 消息（Android appBridge）', () => {
       const postMessage = vi.fn();
-      mockWindow.emueraBridge = { postMessage };
+      mockWindow.appBridge = { postMessage };
 
       loadGameFromPath('/sdcard/games/mygame');
 
@@ -339,9 +339,9 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       expect(JSON.parse(sent)).toEqual({ type: 'setAgentLogEnabled', enabled: true });
     });
 
-    it('false → 投递 {"type":"setAgentLogEnabled","enabled":false} 消息（Android emueraBridge）', () => {
+    it('false → 投递 {"type":"setAgentLogEnabled","enabled":false} 消息（Android appBridge）', () => {
       const postMessage = vi.fn();
-      mockWindow.emueraBridge = { postMessage };
+      mockWindow.appBridge = { postMessage };
 
       setAgentLogEnabled(false);
 
@@ -369,9 +369,9 @@ describe('mauiBridge (issue 07 / spec ID7)', () => {
       expect(JSON.parse(sent)).toEqual({ type: 'setNoLoadingReport', enabled: true });
     });
 
-    it('false → 投递 {"type":"setNoLoadingReport","enabled":false} 消息（Android emueraBridge）', () => {
+    it('false → 投递 {"type":"setNoLoadingReport","enabled":false} 消息（Android appBridge）', () => {
       const postMessage = vi.fn();
-      mockWindow.emueraBridge = { postMessage };
+      mockWindow.appBridge = { postMessage };
 
       setNoLoadingReport(false);
 

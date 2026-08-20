@@ -49,7 +49,7 @@ describe('readMainGameDirFromStorage 纯函数', () => {
   });
 
   it('有值 → 返回值', () => {
-    localStorage.setItem('emuera.mainGameDir', 'D:/games/emuera');
+    localStorage.setItem('app.mainGameDir', 'D:/games/emuera');
     expect(readMainGameDirFromStorage()).toBe('D:/games/emuera');
   });
 
@@ -58,7 +58,7 @@ describe('readMainGameDirFromStorage 纯函数', () => {
   });
 
   it('空字符串 → null', () => {
-    localStorage.setItem('emuera.mainGameDir', '');
+    localStorage.setItem('app.mainGameDir', '');
     expect(readMainGameDirFromStorage()).toBeNull();
   });
 
@@ -73,7 +73,7 @@ describe('readLastPlayedGameFromStorage 纯函数', () => {
   });
 
   it('有值 → 返回值', () => {
-    localStorage.setItem('emuera.lastPlayedGame', '战勇RPG');
+    localStorage.setItem('app.lastPlayedGame', '战勇RPG');
     expect(readLastPlayedGameFromStorage()).toBe('战勇RPG');
   });
 
@@ -82,7 +82,7 @@ describe('readLastPlayedGameFromStorage 纯函数', () => {
   });
 
   it('空字符串 → null', () => {
-    localStorage.setItem('emuera.lastPlayedGame', '');
+    localStorage.setItem('app.lastPlayedGame', '');
     expect(readLastPlayedGameFromStorage()).toBeNull();
   });
 
@@ -121,7 +121,7 @@ describe('useGameStore game-library 状态与动作', () => {
 
   describe('初始状态', () => {
     it('mainGameDir 从 localStorage 初始化', () => {
-      localStorage.setItem('emuera.mainGameDir', 'D:/games/emuera');
+      localStorage.setItem('app.mainGameDir', 'D:/games/emuera');
       const game = useGameStore();
       expect(game.mainGameDir).toBe('D:/games/emuera');
     });
@@ -132,7 +132,7 @@ describe('useGameStore game-library 状态与动作', () => {
     });
 
     it('lastPlayedGame 从 localStorage 初始化', () => {
-      localStorage.setItem('emuera.lastPlayedGame', '战勇RPG');
+      localStorage.setItem('app.lastPlayedGame', '战勇RPG');
       const game = useGameStore();
       expect(game.lastPlayedGame).toBe('战勇RPG');
     });
@@ -160,14 +160,14 @@ describe('useGameStore game-library 状态与动作', () => {
       const game = useGameStore();
       game.setMainGameDir('D:/new/emuera');
       expect(game.mainGameDir).toBe('D:/new/emuera');
-      expect(localStorage.getItem('emuera.mainGameDir')).toBe('D:/new/emuera');
+      expect(localStorage.getItem('app.mainGameDir')).toBe('D:/new/emuera');
     });
 
     it('trim 空格——前后空格被去除', () => {
       const game = useGameStore();
       game.setMainGameDir('  D:/trim/emuera  ');
       expect(game.mainGameDir).toBe('D:/trim/emuera');
-      expect(localStorage.getItem('emuera.mainGameDir')).toBe('D:/trim/emuera');
+      expect(localStorage.getItem('app.mainGameDir')).toBe('D:/trim/emuera');
     });
 
     it('空字符串不更新', () => {
@@ -183,14 +183,14 @@ describe('useGameStore game-library 状态与动作', () => {
       const game = useGameStore();
       game.setLastPlayedGame('兰斯');
       expect(game.lastPlayedGame).toBe('兰斯');
-      expect(localStorage.getItem('emuera.lastPlayedGame')).toBe('兰斯');
+      expect(localStorage.getItem('app.lastPlayedGame')).toBe('兰斯');
     });
 
     it('trim 空格', () => {
       const game = useGameStore();
       game.setLastPlayedGame('  战勇  ');
       expect(game.lastPlayedGame).toBe('战勇');
-      expect(localStorage.getItem('emuera.lastPlayedGame')).toBe('战勇');
+      expect(localStorage.getItem('app.lastPlayedGame')).toBe('战勇');
     });
 
     it('空字符串不更新', () => {
@@ -222,7 +222,7 @@ describe('useGameStore game-library 状态与动作', () => {
       game.setScannedGames(games, 'D:/new/main');
 
       expect(game.mainGameDir).toBe('D:/new/main');
-      expect(localStorage.getItem('emuera.mainGameDir')).toBe('D:/new/main');
+      expect(localStorage.getItem('app.mainGameDir')).toBe('D:/new/main');
     });
 
     it('rootDir 与当前 mainGameDir 相同时不重复写 localStorage', () => {
@@ -232,10 +232,10 @@ describe('useGameStore game-library 状态与动作', () => {
 
       game.setScannedGames([], 'D:/same/emuera');
 
-      // setScannedGames 不应再写 emuera.mainGameDir（值未变）
+      // setScannedGames 不应再写 app.mainGameDir（值未变）
       // 注意：setMainGameDir 之前已写过一次，此处只校验 setScannedGames 调用后无新写入
       const mainDirWrites = writeSpy.mock.calls.filter(
-        (c) => c[0] === 'emuera.mainGameDir',
+        (c) => c[0] === 'app.mainGameDir',
       );
       expect(mainDirWrites).toHaveLength(0);
     });
@@ -281,12 +281,12 @@ describe('useGameStore game-library 状态与动作', () => {
     it('清空 gameDir + localStorage', () => {
       const game = useGameStore();
       game.setGameDir('D:/emuera/game1');
-      expect(localStorage.getItem('emuera.gameDir')).toBe('D:/emuera/game1');
+      expect(localStorage.getItem('app.gameDir')).toBe('D:/emuera/game1');
 
       game.completeExitGame();
 
       expect(game.gameDir).toBeNull();
-      expect(localStorage.getItem('emuera.gameDir')).toBeNull();
+      expect(localStorage.getItem('app.gameDir')).toBeNull();
     });
 
     it('重置 serverState 为 Idle', () => {
@@ -336,7 +336,7 @@ describe('useGameStore game-library 状态与动作', () => {
       game.completeExitGame();
 
       expect(game.lastPlayedGame).toBe('战勇RPG');
-      expect(localStorage.getItem('emuera.lastPlayedGame')).toBe('战勇RPG');
+      expect(localStorage.getItem('app.lastPlayedGame')).toBe('战勇RPG');
     });
 
     it('不清空 mainGameDir——列表页底部「主目录」展示仍需', () => {
@@ -346,7 +346,7 @@ describe('useGameStore game-library 状态与动作', () => {
       game.completeExitGame();
 
       expect(game.mainGameDir).toBe('D:/emuera');
-      expect(localStorage.getItem('emuera.mainGameDir')).toBe('D:/emuera');
+      expect(localStorage.getItem('app.mainGameDir')).toBe('D:/emuera');
     });
 
     it('不清空 scannedGames——列表页继续展示原列表，等 scanGames 回复后覆盖', () => {

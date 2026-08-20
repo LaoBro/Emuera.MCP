@@ -37,10 +37,10 @@ public class JsBridgeContractTests
 	/// turnJson 是合法 JSON，JSON ⊂ JS 字面量，直接嵌入函数参数无需 JSON.stringify（双重转义错误）。
 	/// </remarks>
 	[Theory]
-	[InlineData("""{"turn":1,"buttons":[]}""", "window.__emueraOnTurn({\"turn\":1,\"buttons\":[]})")]
-	[InlineData("""{"name":"英雄","hp":100}""", "window.__emueraOnTurn({\"name\":\"英雄\",\"hp\":100})")]
-	[InlineData("""[]""", "window.__emueraOnTurn([])")]
-	[InlineData("""{"nested":{"deep":true}}""", "window.__emueraOnTurn({\"nested\":{\"deep\":true}})")]
+	[InlineData("""{"turn":1,"buttons":[]}""", "window.__onTurn({\"turn\":1,\"buttons\":[]})")]
+	[InlineData("""{"name":"英雄","hp":100}""", "window.__onTurn({\"name\":\"英雄\",\"hp\":100})")]
+	[InlineData("""[]""", "window.__onTurn([])")]
+	[InlineData("""{"nested":{"deep":true}}""", "window.__onTurn({\"nested\":{\"deep\":true}})")]
 	public void FormatPostScript_embeds_turnJson_as_js_literal(string turnJson, string expected)
 	{
 		var script = JsBridgeHelper.FormatPostScript(turnJson);
@@ -66,9 +66,9 @@ public class JsBridgeContractTests
 	/// JSON ⊂ JS 字面量，直接嵌入函数参数无需 JSON.stringify。
 	/// </remarks>
 	[Theory]
-	[InlineData("""{"type":"folderPicked","path":"D:\\games"}""", "window.__emueraOnMessage({\"type\":\"folderPicked\",\"path\":\"D:\\\\games\"})")]
-	[InlineData("""{"type":"folderPicked","error":"access denied"}""", "window.__emueraOnMessage({\"type\":\"folderPicked\",\"error\":\"access denied\"})")]
-	[InlineData("""{}""", "window.__emueraOnMessage({})")]
+	[InlineData("""{"type":"folderPicked","path":"D:\\games"}""", "window.__onMessage({\"type\":\"folderPicked\",\"path\":\"D:\\\\games\"})")]
+	[InlineData("""{"type":"folderPicked","error":"access denied"}""", "window.__onMessage({\"type\":\"folderPicked\",\"error\":\"access denied\"})")]
+	[InlineData("""{}""", "window.__onMessage({})")]
 	public void FormatPostMessageScript_embeds_messageJson_as_js_literal(string messageJson, string expected)
 	{
 		var script = JsBridgeHelper.FormatPostMessageScript(messageJson);
