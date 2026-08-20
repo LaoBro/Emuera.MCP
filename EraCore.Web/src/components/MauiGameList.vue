@@ -59,7 +59,8 @@ const dirMenuItems = computed<PopupMenuItem[]>(() => [
   {
     type: 'item',
     id: 'theme',
-    label: ui.theme === 'dark' ? '☀ 亮色主题' : '☾ 暗色主题',
+    icon: ui.theme === 'dark' ? 'sun' : 'moon',
+    label: ui.theme === 'dark' ? '亮色主题' : '暗色主题',
     onClick: () => ui.toggleTheme(),
   },
 ]);
@@ -324,7 +325,7 @@ onUnmounted(() => {
   /* Opaque surface keeps the compact-title row crisp while it covers content. */
   background: var(--color-bg);
   backdrop-filter: none;
-  transition: background-color 0.18s ease;
+  transition: background-color var(--motion-mid) ease;
 }
 .maui-game-list.is-scrolled .picker-appbar {
   background: var(--color-bg);
@@ -340,7 +341,7 @@ onUnmounted(() => {
   line-height: 24px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity var(--motion-mid) ease, transform var(--motion-mid) ease;
 }
 .maui-game-list.is-scrolled .compact-title {
   opacity: 1;
@@ -358,16 +359,16 @@ onUnmounted(() => {
   border: none;
   border-radius: 9999px;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--motion-fast);
 }
 .appbar-menu-btn:hover {
-  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  background: var(--state-layer-hover);
 }
 .appbar-menu-btn:active {
-  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+  background: var(--state-layer-active);
 }
 .appbar-menu-btn:focus-visible {
-  background: color-mix(in srgb, var(--color-text) 12%, transparent);
+  background: var(--state-layer-focus);
   outline: 2px solid var(--color-focus);
   outline-offset: -2px;
 }
@@ -389,8 +390,9 @@ onUnmounted(() => {
   line-height: 40px;
   color: var(--color-text);
   /* Scroll updates the target immediately; this transition provides the
-     time-based easing visible between successive scroll positions. */
-  transition: opacity 0.22s cubic-bezier(0.2, 0, 0, 1);
+     time-based easing visible between successive scroll positions.
+     ease 曲线为 DESIGN.md 特调的 hero 淡出，保留；时长收敛进运动令牌。 */
+  transition: opacity var(--motion-slow) cubic-bezier(0.2, 0, 0, 1);
 }
 .hero-title.hero-intro {
   animation: picker-hero-in 0.52s ease both;
@@ -454,7 +456,7 @@ onUnmounted(() => {
   border: 2px solid var(--color-border);
   border-top-color: var(--color-indicator);
   border-radius: 50%;
-  animation: mgl-spin 0.8s linear infinite;
+  animation: mgl-spin var(--motion-spin) linear infinite;
   flex-shrink: 0;
 }
 @keyframes mgl-spin {

@@ -6,12 +6,22 @@
  * 退出项与其它项之间用分隔线；点击外部或按 Escape 关闭（spec §6.1）。
  * 普通菜单项点击后自动关闭；出入场缩放动画由父级 <Transition name="popup"> 驱动。
  */
+export type IconName =
+  | 'sun'
+  | 'moon'
+  | 'restart'
+  | 'terminal'
+  | 'debug'
+  | 'settings'
+  | 'exit';
+
 export type PopupMenuItem =
   | {
       type: 'item';
       id: string;
       label: string;
-      icon?: string;
+      /** 内联 SVG 图标名——继承 currentColor 渲染，规避 emoji 在 Android 上按彩色字形显示。 */
+      icon?: IconName;
       danger?: boolean;
       disabled?: boolean;
       active?: boolean;
@@ -40,6 +50,9 @@ const emit = defineEmits<{
 
 const rootEl = ref<HTMLElement | null>(null);
 
+/** 菜单打开前获得焦点的元素——关闭时归还焦点（方案 3 最小焦点管理）。 */
+let previouslyFocused: HTMLElement | null = null;
+
 /** 点击菜单外部——关闭。mousedown 早于 click，避免菜单内点击冒泡误判。 */
 function onDocPointerDown(e: MouseEvent): void {
   if (rootEl.value && !rootEl.value.contains(e.target as Node)) {
@@ -55,7 +68,10 @@ function onDocKeydown(e: KeyboardEvent): void {
 onMounted(() => {
   document.addEventListener('mousedown', onDocPointerDown);
   document.addEventListener('keydown', onDocKeydown);
-  // 焦点管理（spec §9）：打开时聚焦第一个可交互项，键盘用户可直接操作菜单
+  // 焦点管理（spec §9）：记录打开前的焦点，并把焦点移入第一个可交互项
+  previouslyFocused = document.activeElement instanceof HTMLElement
+    ? document.activeElement
+    : null;
   const firstInteractive = rootEl.value?.querySelector<HTMLElement>(
     'button, [role="menuitem"]',
   );
@@ -64,6 +80,10 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('mousedown', onDocPointerDown);
   document.removeEventListener('keydown', onDocKeydown);
+  // 方案 3：关闭时把焦点归还给打开菜单的触发元素
+  if (previouslyFocused && previouslyFocused.isConnected) {
+    previouslyFocused.focus();
+  }
 });
 </script>
 
@@ -114,7 +134,34 @@ onUnmounted(() => {
         role="menuitem"
         @click="it.onClick(); emit('close')"
       >
-        <span v-if="it.icon" class="popup-item-icon" aria-hidden="true">{{ it.icon }}</span>
+        <span v-if="it.icon" class="popup-item-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <template v-if="it.icon === 'sun'">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+            </template>
+            <template v-else-if="it.icon === 'moon'">
+              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+            </template>
+            <template v-else-if="it.icon === 'restart'">
+              <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" />
+            </template>
+            <template v-else-if="it.icon === 'terminal'">
+              <path d="M4 17l6-6-6-6M12 20h8" />
+            </template>
+            <template v-else-if="it.icon === 'debug'">
+              <path d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1" />
+            </template>
+            <template v-else-if="it.icon === 'settings'">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z" />
+            </template>
+            <template v-else-if="it.icon === 'exit'">
+              <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+              <path d="M12 2v10" />
+            </template>
+          </svg>
+        </span>
         <span class="popup-item-label">{{ it.label }}</span>
       </button>
     </template>
@@ -179,8 +226,20 @@ onUnmounted(() => {
 }
 .popup-item-icon {
   width: 20px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+}
+.popup-item-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  display: block;
 }
 .popup-item-label {
   flex: 1;

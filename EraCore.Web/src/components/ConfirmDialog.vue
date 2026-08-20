@@ -1,11 +1,11 @@
 <script setup lang="ts">
 /**
  * ConfirmDialog.vue — Android 风格 Alert Dialog（ui-redesign-spec §6.1）。
- * 半透明遮罩 + 表面容器；底部「取消」与确认两个文字按钮；
- * 危险确认使用 --color-error 文字（不做红色实心按钮）；
+ * 半透明遮罩 + 表面容器；底部「取消」与确认两个文字按钮，均为普通文字色
+ * （确认动作由对话框文案与用户判断表达，不做危险色强调）；
  * 点击遮罩、按 Escape（桌面等价于 Android 返回键）取消；防重复确认由父组件控制 visible。
  */
-import { onMounted, onUnmounted } from 'vue';
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 
 const props = withDefaults(
   defineProps<{
@@ -14,10 +14,8 @@ const props = withDefaults(
     message?: string;
     confirmLabel?: string;
     cancelLabel?: string;
-    /** 确认按钮是否使用危险色（默认是）。 */
-    danger?: boolean;
   }>(),
-  { title: '确认操作', confirmLabel: '确认', cancelLabel: '取消', danger: true },
+  { title: '确认操作', confirmLabel: '确认', cancelLabel: '取消' },
 );
 
 const emit = defineEmits<{
@@ -25,6 +23,27 @@ const emit = defineEmits<{
   (e: 'cancel'): void;
   (e: 'update:visible', v: boolean): void;
 }>();
+
+/** 对话框根容器——打开时移入焦点。 */
+const dialogRef = ref<HTMLElement | null>(null);
+/** 对话框打开前获得焦点的元素——关闭时归还（方案 3 最小焦点管理）。 */
+let previouslyFocused: HTMLElement | null = null;
+
+// 方案 3：visible 变化时进出焦点——打开移入对话框，关闭归还触发元素
+watch(
+  () => props.visible,
+  (v) => {
+    if (v) {
+      previouslyFocused = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+      void nextTick(() => dialogRef.value?.focus());
+    } else if (previouslyFocused && previouslyFocused.isConnected) {
+      previouslyFocused.focus();
+      previouslyFocused = null;
+    }
+  },
+);
 
 function onConfirm(): void {
   emit('confirm');
@@ -52,9 +71,11 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown));
       @click.self="onCancel"
     >
       <div
+        ref="dialogRef"
         class="confirm-dialog"
         role="alertdialog"
         aria-modal="true"
+        tabindex="-1"
         :aria-label="title"
       >
         <h2 class="confirm-title">{{ title }}</h2>
@@ -66,7 +87,6 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown));
           <button
             type="button"
             class="btn-primary confirm-btn text"
-            :class="{ danger }"
             @click="onConfirm"
           >
             {{ confirmLabel }}
@@ -124,8 +144,5 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown));
 .confirm-btn.text {
   font-weight: 500;
   min-height: 40px;
-}
-.confirm-btn.text.danger {
-  color: var(--color-text);
 }
 </style>

@@ -31,6 +31,11 @@
   --term-btn-hover-line: #a8c7fa; /* 按钮 hover 下划线 */
   --term-btn-active: #a8c7fa;     /* 按钮 active 背景 */
 
+  /* ---------- 指针状态层（Material 风格，透明叠加在当前文字色上） ---------- */
+  --state-layer-hover: color-mix(in srgb, var(--color-text) 8%, transparent);
+  --state-layer-focus: color-mix(in srgb, var(--color-text) 12%, transparent);
+  --state-layer-active: color-mix(in srgb, var(--color-text) 14%, transparent);
+
   /* ---------- 圆角（修订方案 §2.4：DESIGN.md 2/4/8 三档） ---------- */
   --radius-indicator: 2px;        /* 左指示条 */
   --radius-control: 12px;         /* 选择页与游戏页通用大圆角控件 */
@@ -40,9 +45,11 @@
   --elevation-none: none;         /* 默认层级：仅 1px --color-border 表达边界 */
   --elevation-menu: 0 2px 8px rgba(0, 0, 0, 0.36); /* 仅 Popup Menu / 对话框等浮层 */
 
-  /* ---------- 动效（spec §3.4，两档） ---------- */
+  /* ---------- 动效（spec §3.4，档位） ---------- */
   --motion-fast: 150ms;           /* 状态切换、opacity / background */
+  --motion-mid: 180ms;            /* 介于 fast/slow 的过渡：应用栏、紧凑标题、行 hover */
   --motion-slow: 200ms;           /* 输入栏高度过渡、表面出现 */
+  --motion-spin: 800ms;           /* 循环 spinner 单圈周期 */
 
   /* ---------- 浮层出入场统一参数（PopupMenu / ConfirmDialog / InputBar / 页面切换 共用） ---------- */
   --fx-rise: 12px;                /* 上浮/下沉距离 */
@@ -77,6 +84,7 @@
   --inputbar-min-height: 64px;
   --touch-target: 48px;
   --picker-list-max-width: 720px;
+  --row-min-height: 60px;         /* 选择页整行列表项高度（≥ --touch-target） */
 
   /* ---------- 按钮留白（标准文字按钮统一规格） ----------
    * 所有实心文字按钮共用 --btn-padding-* 与 --btn-min-height；尺寸变体（.btn-sm / .btn-lg）
@@ -124,6 +132,11 @@ body {
 
 * {
   box-sizing: border-box;
+  /* 关闭 Android WebView (Chromium) 默认的蓝色 tap-highlight 覆盖层——
+     否则每次点按目标元素都会在控件自身 :active 状态层之上再蒙一层蓝色方块。
+     点按反馈改由各控件自身的 :active 状态层承担（DESIGN.md 克制状态层意图）。
+     不影响键盘 :focus-visible 焦点环。 */
+  -webkit-tap-highlight-color: transparent;
 }
 
 /**

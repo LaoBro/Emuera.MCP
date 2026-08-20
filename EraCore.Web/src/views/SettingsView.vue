@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useGameStore } from '../stores/game';
+import { useUiStore } from '../stores/ui';
 import { setAgentLogEnabled, setNoLoadingReport, getAgentLog, exportAgentLog } from '../lib/mauiBridge';
 
 const game = useGameStore();
+const ui = useUiStore();
 
 /**
  * A0（saf-accel 计划）：文件日志开关切换——投递 setAgentLogEnabled 请求 C# 切换 +
@@ -66,6 +68,22 @@ const logCopied = ref(false);
         <div class="setting-row">
           <span class="setting-label">历史日志行数</span>
           <span class="setting-value">{{ game.maxLog ?? '—' }}</span>
+        </div>
+      </div>
+      <div class="section">
+        <h3>外观</h3>
+        <div class="setting-row">
+          <span class="setting-label">亮色主题</span>
+          <button
+            class="toggle"
+            :class="{ on: ui.theme === 'light' }"
+            role="switch"
+            :aria-checked="ui.theme === 'light'"
+            @click="ui.toggleTheme()"
+          >
+            <span class="toggle-knob" />
+          </button>
+          <span class="setting-value">{{ ui.theme === 'light' ? '开' : '关' }}</span>
         </div>
       </div>
       <div class="section">
@@ -174,7 +192,7 @@ h3 {
   min-width: 120px;
 }
 .setting-value {
-  color: var(--color-warning);
+  color: var(--color-text);
   font-size: var(--font-size-base);
   font-weight: 600;
   font-variant-numeric: tabular-nums;

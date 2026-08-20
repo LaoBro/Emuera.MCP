@@ -146,7 +146,7 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     type: 'item',
     id: 'restart',
     label: isRestarting.value ? '重开中…' : '快速重开',
-    icon: '⟳',
+    icon: 'restart',
     disabled: !canQuickRestart.value || isRestarting.value,
     onClick: () => {
       void onQuickRestart();
@@ -166,7 +166,7 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     type: 'item',
     id: 'terminal',
     label: 'Terminal',
-    icon: '▣',
+    icon: 'terminal',
     active: ui.currentView === 'terminal',
     onClick: () => {
       ui.switchView('terminal');
@@ -176,7 +176,7 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     type: 'item',
     id: 'debug',
     label: 'Debug',
-    icon: '{}',
+    icon: 'debug',
     active: ui.currentView === 'debug',
     onClick: () => {
       ui.switchView('debug');
@@ -186,7 +186,7 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     type: 'item',
     id: 'settings',
     label: 'Settings',
-    icon: '⚙',
+    icon: 'settings',
     active: ui.currentView === 'settings',
     onClick: () => {
       ui.switchView('settings');
@@ -197,7 +197,7 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     type: 'item',
     id: 'exit',
     label: isExiting.value ? '退出中…' : '退出游戏',
-    icon: '⏻',
+    icon: 'exit',
     danger: true,
     disabled: !canExitGame.value || isExiting.value,
     onClick: () => {
@@ -301,7 +301,6 @@ const popupItems = computed<PopupMenuItem[]>(() => [
         message="退出后未保存的进度将丢失。"
         confirm-label="退出"
         cancel-label="取消"
-        :danger="true"
         @confirm="onExitConfirm"
         @cancel="onExitCancel"
       />

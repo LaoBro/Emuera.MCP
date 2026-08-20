@@ -46,8 +46,8 @@ defineEmits<{
   grid-template-columns: 1fr;
   align-items: center;
   overflow: hidden;
-  border-radius: 12px;
-  transition: background-color 0.2s ease;
+  border-radius: var(--radius-control);
+  transition: background-color var(--motion-mid) ease;
 }
 .game-row.last-played {
   background: transparent;
@@ -68,28 +68,28 @@ defineEmits<{
   grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: center;
   width: 100%;
-  min-height: 60px;
+  min-height: var(--row-min-height);
   text-align: left;
   background: transparent;
   color: var(--color-text);
   border: none;
   padding: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   cursor: pointer;
-  font-size: 15px;
+  font-size: var(--font-size-base);
   font-family: var(--font-ui);
-  transition: background-color 0.15s ease;
+  transition: background-color var(--motion-fast);
 }
 .game-row-btn:hover {
-  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  background: var(--state-layer-hover);
 }
 .game-row-btn:focus-visible {
-  background: color-mix(in srgb, var(--color-text) 12%, transparent);
+  background: var(--state-layer-focus);
   outline: 2px solid var(--color-focus);
   outline-offset: -2px;
 }
 .game-row-btn:active {
-  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+  background: var(--state-layer-active);
 }
 .game-row-icon {
   color: var(--color-text-muted);
