@@ -1,6 +1,6 @@
 """Process-level smoke for eracore_agent CLI (issue 02 / M2a).
 
-Seam: invoke `python -m eracore_gateway <subcommand>` against a real Headless
+Seam: invoke `python -m eracore_agent <subcommand>` against a real Headless
 server. HTTP contract is covered by test_control_handoff.py; this file only
 checks the one-call-one-turn CLI loop:
 
@@ -49,7 +49,7 @@ def parse_json_stdout(result):
 
 def run_agent(args, env, timeout=60):
     return subprocess.run(
-        [sys.executable, "-m", "eracore_gateway", *args],
+        [sys.executable, "-m", "eracore_agent", *args],
         cwd=str(ROOT_DIR),
         env=env,
         capture_output=True,

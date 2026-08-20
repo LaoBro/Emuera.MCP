@@ -5,15 +5,15 @@ description: Playtest Emuera games via eracore_agent. Use when driving test_game
 
 # Emuera Playtesting
 
-用 `python -m eracore_gateway <subcommand>` 操控本仓库的 Headless 游戏。一次调用 = 一个回合；stdout 只有 JSON，错误在 stderr + 非零退出码。
+用 `python -m eracore_agent <subcommand>` 操控本仓库的 Headless 游戏。一次调用 = 一个回合；stdout 只有 JSON，错误在 stderr + 非零退出码。
 
 术语（Controller / Spectator / Acquire / Release / Steal / Lease / Control Event / Controller Kind）以根目录 [`CONTEXT.md`](../../../CONTEXT.md)「控制权交接」为准。契约见 [`.scratch/control-handoff/spec.md`](../../../.scratch/control-handoff/spec.md)。回合字段由 `AgentJsonlProtocol` / `TurnRecord` 决定，这里不复述协议。
 
 ## 1. 启动序列
 
 ```bash
-python -m eracore_gateway start --game-dir test_game
-python -m eracore_gateway acquire
+python -m eracore_agent start --game-dir test_game
+python -m eracore_agent acquire
 ```
 
 `start` 会拉起 `EraCore.Cli --server`，或复用已在跑的 server（读/写项目根 `.eracore-server.json`）。其它子命令在记录文件缺失或端口不通时直接报错退出；只有要自己开局或确认复用时才再 `start`。
@@ -23,7 +23,7 @@ python -m eracore_gateway acquire
 ## 2. 回合循环
 
 ```bash
-python -m eracore_gateway step --value <输入>
+python -m eracore_agent step --value <输入>
 ```
 
 每步之后看 `state`：
@@ -41,7 +41,7 @@ python -m eracore_gateway step --value <输入>
 遇到 `EnterKey` / `AnyKey`（`needValue=false`）且判定为无聊翻页时，用 `advance` 一次推进到需要真实输入，不必逐条 `step --value ""`：
 
 ```bash
-python -m eracore_gateway advance --max-steps 50
+python -m eracore_agent advance --max-steps 50
 ```
 
 - 返回单行 JSON：`{"turns":[...], "stopped":{...}, "advancedCount":N}`，`turns` 是每个被推进回合（含内容），`stopped` 是需要真实输入的回合。
@@ -78,7 +78,7 @@ curl -sS "http://127.0.0.1:8080/control/wait"
 `state` 为 `Quit` / `Error`，或收到 `game_ended`：会话会清掉 Controller，不必再 `release`。若 `.eracore-server.json` 里 `startedByAgent` 为真（这次 server 是你拉起的），立刻：
 
 ```bash
-python -m eracore_gateway stop
+python -m eracore_agent stop
 ```
 
 完成标准：自己拉起的 server 已停，`.eracore-server.json` 已删除。
@@ -88,7 +88,7 @@ python -m eracore_gateway stop
 游戏还在进行、任务结束，或用户要接手：
 
 ```bash
-python -m eracore_gateway release
+python -m eracore_agent release
 ```
 
 `release` 只让权，不关 server。只有你启动的 server、且整局结束时才 `stop`。

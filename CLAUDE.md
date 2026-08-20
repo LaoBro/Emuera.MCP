@@ -86,13 +86,13 @@ npm run build
 一次调用 = 一个回合。stdout 只输出 turn JSON，错误走 stderr + 非零退出码。`start` 自己拉起 Headless server，或复用已在跑的实例（默认 `localhost:8080`，或读 `.eracore-server.json`）。
 
 ```bash
-python -m eracore_gateway start --game-dir test_game
-python -m eracore_gateway acquire
-python -m eracore_gateway step --value 0
-python -m eracore_gateway release
-python -m eracore_gateway status
-python -m eracore_gateway watch
-python -m eracore_gateway stop
+python -m eracore_agent start --game-dir test_game
+python -m eracore_agent acquire
+python -m eracore_agent step --value 0
+python -m eracore_agent release
+python -m eracore_agent status
+python -m eracore_agent watch
+python -m eracore_agent stop
 ```
 
 安装 console 入口后也可用 `eracore_agent <subcommand>`。路径预设写在 `.eracore-agent.json`，运行时 server 记录（端口 / pid / token / gameDir）写在 `.eracore-server.json`，两者都不要提交。操控礼仪见 [`.agents/skills/eracore-playtesting/SKILL.md`](.agents/skills/eracore-playtesting/SKILL.md)。
