@@ -1,4 +1,4 @@
-"""Emuera Python gateway: HTTP client and emuera_agent CLI."""
+"""EraCore Python gateway: HTTP client and eracore_agent CLI."""
 
 from .emuera_client import EmueraClient, EmueraHttpError
 

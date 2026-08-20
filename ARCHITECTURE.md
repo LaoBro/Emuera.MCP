@@ -106,7 +106,7 @@
 - `ServerRunner`：启动 `KestrelGameServer`。
 - `HeadlessOptions`：`--ExeDir`、`--server`、`--port` 和协议选项。
 
-T-024 后已删除 stdin pipe 和 JSONL stdin/stdout 模式。脚本、自动化和 `emuera_agent` CLI 统一使用 Server 模式。
+T-024 后已删除 stdin pipe 和 JSONL stdin/stdout 模式。脚本、自动化和 `eracore_agent` CLI 统一使用 Server 模式。
 
 ## MAUI
 

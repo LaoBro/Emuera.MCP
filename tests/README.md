@@ -7,7 +7,7 @@
 - JSONL 协议流程与 buttons schema（经 server 模式驱动，T-024 后 stdin 管道已废弃）。
 - server 单会话 HTTP API。
 - Server 控制权交接（acquire/release/steal、输入/生命周期门禁、lease、drain、`/control/wait`、in-flight 409）。
-- `emuera_agent` CLI 进程级冒烟（start → acquire → step → release → stop）。
+- `eracore_agent` CLI 进程级冒烟（start → acquire → step → release → stop）。
 - TINPUT timeout server 场景。
 - fatal turn 脚本异常路径（THROW）。
 - I-11 脚本退出后 server 存活。
@@ -58,7 +58,7 @@ python tests/run_all.py --binary EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.exe -
 1. JSONL 流程 + buttons schema 测试（经 server 模式驱动）。
 2. server 单会话测试。
 3. 控制权交接测试（`test_control_handoff.py`）。
-4. `emuera_agent` CLI 进程级冒烟（`test_emuera_agent.py`）。
+4. `eracore_agent` CLI 进程级冒烟（`test_eracore_agent.py`）。
 5. TINPUT timeout 测试。
 6. fatal turn 测试（脚本异常路径）。
 7. I-11 exit survival 测试。

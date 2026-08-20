@@ -195,12 +195,12 @@ def main():
 
     results.append(
         (
-            "emuera_agent CLI",
+            "eracore_agent CLI",
             _run_script(
-                "emuera_agent CLI",
+                "eracore_agent CLI",
                 [
                     sys.executable,
-                    str(TESTS_DIR / "test_emuera_agent.py"),
+                    str(TESTS_DIR / "test_eracore_agent.py"),
                     "--binary",
                     str(binary_path),
                     "--game-dir",

@@ -9,8 +9,8 @@ EraCore.Maui/Properties/
 .agents/*
 !.agents/skills/
 .agents/skills/*
-!.agents/skills/emuera-playtesting/
-!.agents/skills/emuera-playtesting/**
+!.agents/skills/eracore-playtesting/
+!.agents/skills/eracore-playtesting/**
 .scratch/*
 current_plan/*
 
@@ -64,8 +64,8 @@ Emuera.CLI/artifacts/
 *.patch
 *.pyc
 .mcp.json
-.emuera-agent.json
-.emuera-server.json
+.eracore-agent.json
+.eracore-server.json
 test_game/setting.json
 test_game/emuera.config
 .trae/rules/git-commit-message.md

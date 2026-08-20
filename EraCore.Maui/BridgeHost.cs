@@ -1155,7 +1155,7 @@ internal sealed class BridgeHost : IDisposable
             _turnPump = Task.Run(() => TurnPumpAsync(subscription.Reader, subscription.Hub));
             _controlPump = Task.Run(() => ControlPumpAsync(_session));
 
-            // 4. 写 agent 发现记录（端口 + token + gameDir）——emuera_agent start 侦测后复用本会话
+            // 4. 写 agent 发现记录（端口 + token + gameDir）——eracore_agent start 侦测后复用本会话
             WriteDiscoveryRecord();
 
             Console.WriteLine($"[bridge] hosted server on port {_serverHost.Port}, session {createResult.SessionId}");
@@ -1298,15 +1298,15 @@ internal sealed class BridgeHost : IDisposable
         PushControlStatus(session);
     }
 
-    // ===== agent 发现记录（issue 05）：MAUI 托管 server 的端口 + token 供 emuera_agent 侦测复用 =====
+    // ===== agent 发现记录（issue 05）：MAUI 托管 server 的端口 + token 供 eracore_agent 侦测复用 =====
 
-    /// <summary>发现记录路径——Windows <c>%LOCALAPPDATA%\Emuera\emuera-maui-server.json</c>（Android 托管后置）。</summary>
+    /// <summary>发现记录路径——Windows <c>%LOCALAPPDATA%\EmueraCore\eracore-maui-server.json</c>（Android 托管后置）。</summary>
     private static string? DiscoveryFilePath()
     {
         try
         {
             var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            return string.IsNullOrEmpty(dir) ? null : Path.Combine(dir, "Emuera", "emuera-maui-server.json");
+            return string.IsNullOrEmpty(dir) ? null : Path.Combine(dir, "EmueraCore", "eracore-maui-server.json");
         }
         catch
         {

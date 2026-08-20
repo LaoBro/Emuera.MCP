@@ -1,6 +1,6 @@
 # EraCore
 
-Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本语言，并通过 `emuera_agent` CLI 支持 AI 代理控制。
+Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本语言，并通过 `eracore_agent` CLI 支持 AI 代理控制。
 
 本项目以 **EraCore** 无头运行器为核心维护目标。已拆分为三个项目：
 - `EraCore.Cli` — CLI 交互模式 & HTTP 服务器模式入口（Exe）
@@ -12,7 +12,7 @@ Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本�
 ## 环境要求
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) 或更高版本
-- Python 3.10+（用于 `emuera_agent` CLI 和测试）
+- Python 3.10+（用于 `eracore_agent` CLI 和测试）
 - Node.js 18+（用于 Web 前端 EraCore.Web/）
 - Windows（跨平台支持计划中，目前仅完成 Windows）
 
@@ -144,12 +144,12 @@ IPA 字体许可见 `src/assets/fonts/IPA_Font_License_Agreement_v1.0.txt`（IPA
 
 ## Agent 集成（CLI + Skill）
 
-Agent 通过中转 CLI `emuera_agent` 操控游戏，不走 MCP。礼仪见 [`.agents/skills/emuera-playtesting/SKILL.md`](.agents/skills/emuera-playtesting/SKILL.md)。
+Agent 通过中转 CLI `eracore_agent` 操控游戏，不走 MCP。礼仪见 [`.agents/skills/eracore-playtesting/SKILL.md`](.agents/skills/eracore-playtesting/SKILL.md)。
 
 ```text
 agent
-  └─ emuera_agent   (python -m emuera_gateway <subcommand>
-                     或安装后的 emuera_agent)
+  └─ eracore_agent   (python -m eracore_gateway <subcommand>
+                     或安装后的 eracore_agent)
        └─ HTTP      /load-game /turn /input /state /control/*
             └─ EraCore.Server 或 MAUI 托管的 HttpListenerHost（issue 05，agent 自动侦测复用）
                  ├─ EraCore.Core（共享层 Server/：协议 + 控制状态机 + 会话）
@@ -159,13 +159,13 @@ agent
 `start` 自己拉起 `EraCore.Cli --server`，或复用已经在跑的实例（含 MAUI 应用托管的 server——读 `%LOCALAPPDATA%\Emuera\emuera-maui-server.json` 发现记录）。
 
 ```bash
-python -m emuera_gateway start --game-dir test_game
-python -m emuera_gateway acquire
-python -m emuera_gateway step --value 0
-python -m emuera_gateway release
-python -m emuera_gateway status
-python -m emuera_gateway watch
-python -m emuera_gateway stop
+python -m eracore_gateway start --game-dir test_game
+python -m eracore_gateway acquire
+python -m eracore_gateway step --value 0
+python -m eracore_gateway release
+python -m eracore_gateway status
+python -m eracore_gateway watch
+python -m eracore_gateway stop
 ```
 
 | 子命令 | 作用 |
@@ -182,8 +182,8 @@ python -m emuera_gateway stop
 
 | 文件 | 内容 |
 |------|------|
-| `.emuera-agent.json` | 路径预设（`binaryPath` / `gameDir`） |
-| `.emuera-server.json` | 本次运行记录（`host` / `port` / `pid` / `token` / `gameDir` / `startedByAgent`）。`start` 写入，`stop` 删除，`release` 不删 |
+| `.eracore-agent.json` | 路径预设（`binaryPath` / `gameDir`） |
+| `.eracore-server.json` | 本次运行记录（`host` / `port` / `pid` / `token` / `gameDir` / `startedByAgent`）。`start` 写入，`stop` 删除，`release` 不删 |
 
 ### 响应格式
 
@@ -271,7 +271,7 @@ EraCore.Web/     -- Vue 3 + TypeScript 浏览器前端（Vite + Pinia + Vitest�
 EraCore.Tests/  -- C# 单元测试（xUnit，304 用例）
 EraCore.Maui.Tests/ -- MAUI 单元测试（xUnit，15 用例）
 Emuera/                 -- WinForms 残留源码（不再维护，仅作只读参考，不可独立构建）
-emuera_gateway/         -- Python emuera_agent CLI 与 HTTP 客户端
+eracore_gateway/         -- Python eracore_agent CLI 与 HTTP 客户端
 tests/                  -- Python 端到端测试脚本
 build/                  -- MSBuild targets（VueBuild.targets 共享）
 test_game/              -- 开发用最小 ERB 测试游戏

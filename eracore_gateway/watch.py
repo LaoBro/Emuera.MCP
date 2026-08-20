@@ -1,4 +1,4 @@
-"""Read-only terminal spectator for emuera_agent watch."""
+"""Read-only terminal spectator for eracore_agent watch."""
 import json
 import sys
 import threading

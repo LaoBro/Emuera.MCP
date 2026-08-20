@@ -1,14 +1,14 @@
-"""Process-level smoke for emuera_agent CLI (issue 02 / M2a).
+"""Process-level smoke for eracore_agent CLI (issue 02 / M2a).
 
-Seam: invoke `python -m emuera_gateway <subcommand>` against a real Headless
+Seam: invoke `python -m eracore_gateway <subcommand>` against a real Headless
 server. HTTP contract is covered by test_control_handoff.py; this file only
 checks the one-call-one-turn CLI loop:
 
     start → acquire → step → release → stop
 
 Usage:
-    python tests/test_emuera_agent.py
-    python tests/test_emuera_agent.py --binary path/to/EraCore.Cli.exe --game-dir test_game
+    python tests/test_eracore_agent.py
+    python tests/test_eracore_agent.py --binary path/to/EraCore.Cli.exe --game-dir test_game
 """
 import json
 import os
@@ -49,7 +49,7 @@ def parse_json_stdout(result):
 
 def run_agent(args, env, timeout=60):
     return subprocess.run(
-        [sys.executable, "-m", "emuera_gateway", *args],
+        [sys.executable, "-m", "eracore_gateway", *args],
         cwd=str(ROOT_DIR),
         env=env,
         capture_output=True,
@@ -100,7 +100,7 @@ def main():
         game_dir = (ROOT_DIR / game_dir).resolve()
 
     port = free_port()
-    server_file = ROOT_DIR / ".emuera-server.json"
+    server_file = ROOT_DIR / ".eracore-server.json"
     previous = backup_server_file(server_file)
     if server_file.is_file():
         server_file.unlink()
@@ -113,13 +113,13 @@ def main():
     if binary:
         env["EMUERA_BINARY"] = str(binary)
 
-    print(f"=== emuera_agent smoke (port {port}) ===")
+    print(f"=== eracore_agent smoke (port {port}) ===")
     try:
         missing = run_agent(["status"], env, timeout=15)
         check(missing.returncode != 0, f"status without server exits non-zero (got {missing.returncode})")
         check(
-            "emuera_agent start" in (missing.stderr or ""),
-            "status without server tells user to run emuera_agent start",
+            "eracore_agent start" in (missing.stderr or ""),
+            "status without server tells user to run eracore_agent start",
         )
         check((missing.stdout or "").strip() == "", "status error does not write to stdout")
 
@@ -130,7 +130,7 @@ def main():
                 str(port),
                 "--game-dir",
                 str(game_dir),
-                "--emuera-path",
+                "--eracore-path",
                 str(binary),
             ],
             env,
@@ -141,7 +141,7 @@ def main():
         check(start_json is not None, "start stdout is JSON")
         if start_json is not None:
             check("state" in start_json, f"start turn has state (keys={list(start_json)})")
-        check(server_file.is_file(), ".emuera-server.json written")
+        check(server_file.is_file(), ".eracore-server.json written")
         saved = {}
         if server_file.is_file():
             saved = json.loads(server_file.read_text(encoding="utf-8"))
@@ -157,7 +157,7 @@ def main():
                 str(port),
                 "--game-dir",
                 str(game_dir),
-                "--emuera-path",
+                "--eracore-path",
                 str(binary),
             ],
             env,
@@ -213,7 +213,7 @@ def main():
 
         stop = run_agent(["stop"], env, timeout=30)
         check(stop.returncode == 0, f"stop exits 0 (got {stop.returncode})")
-        check(not server_file.is_file(), "stop deletes .emuera-server.json")
+        check(not server_file.is_file(), "stop deletes .eracore-server.json")
         check(wait_port_closed(port), f"stop ends the server on port {port}")
     except Exception as exc:
         check(False, f"smoke raised {type(exc).__name__}: {exc}")

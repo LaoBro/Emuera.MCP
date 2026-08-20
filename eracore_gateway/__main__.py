@@ -1,4 +1,4 @@
-"""emuera_agent: one-call-one-turn CLI over the Headless HTTP API."""
+"""eracore_agent: one-call-one-turn CLI over the Headless HTTP API."""
 import argparse
 import json
 import os
@@ -20,7 +20,7 @@ from .config import (
 from .emuera_client import EmueraClient, EmueraHttpError
 
 
-SERVER_NOT_RUNNING = "server 未运行，先 `emuera_agent start`"
+SERVER_NOT_RUNNING = "server 未运行，先 `eracore_agent start`"
 
 
 def _die(message: str, code: int = 1) -> None:
@@ -96,7 +96,7 @@ def _find_binary(explicit: str | None) -> str | None:
     return None
 
 
-def _start_emuera_server(binary_path: str, game_dir: str | None, port: int) -> subprocess.Popen:
+def _start_eracore_server(binary_path: str, game_dir: str | None, port: int) -> subprocess.Popen:
     """Launch Emuera.Headless.Cli --server in the background."""
     if binary_path.lower().endswith(".dll"):
         cmd = ["dotnet", "exec", binary_path]
@@ -194,8 +194,8 @@ def cmd_start(args) -> int:
                 token = secrets.token_urlsafe(24)
 
     if not reused:
-        # issue 05：MAUI 托管 server 发现——MAUI 应用跑游戏时在 %LOCALAPPDATA%\Emuera 写发现记录
-        # （emuera-maui-server.json，含动态端口 + MAUI 生成的 token + gameDir）。
+        # issue 05：MAUI 托管 server 发现——MAUI 应用跑游戏时在 %LOCALAPPDATA%\EmueraCore 写发现记录
+        # （eracore-maui-server.json，含动态端口 + MAUI 生成的 token + gameDir）。
         # 探活成功即复用该会话（单实例共享，agent 连的是用户正在玩的那一局），不另起 server。
         maui_record = load_maui_server_record()
         if maui_record and maui_record.get("port"):
@@ -220,13 +220,13 @@ def cmd_start(args) -> int:
             started_by_agent = False
             pid = None
         else:
-            binary = _find_binary(args.emuera_path)
+            binary = _find_binary(args.eracore_path)
             if not binary or not os.path.isfile(binary):
-                _die("找不到 Emuera 二进制，请传 --emuera-path 或在 .emuera-agent.json 配置 binaryPath")
+                _die("找不到 Emuera 二进制，请传 --eracore-path 或在 .eracore-agent.json 配置 binaryPath")
             if not os.path.isdir(game_dir):
                 _die(f"游戏目录不存在: {game_dir}")
             token = secrets.token_urlsafe(24)
-            proc = _start_emuera_server(binary, game_dir, port)
+            proc = _start_eracore_server(binary, game_dir, port)
             if proc.poll() is not None:
                 _die("Emuera server 启动后立即退出")
             pid = proc.pid
@@ -294,7 +294,7 @@ def cmd_step(args) -> int:
         _fail_http(exc)
     controller = control.get("controller") or {}
     if controller.get("kind") != "agent":
-        _die("当前未持有控制权，先 `emuera_agent acquire`")
+        _die("当前未持有控制权，先 `eracore_agent acquire`")
     try:
         client.post_input(args.value)
         turn = _read_turn(client)
@@ -331,7 +331,7 @@ def cmd_advance(args) -> int:
         _fail_http(exc)
     controller = control.get("controller") or {}
     if controller.get("kind") != "agent":
-        _die("当前未持有控制权，先 `emuera_agent acquire`")
+        _die("当前未持有控制权，先 `eracore_agent acquire`")
 
     # 当前等待态：若已是真实输入（或非翻页），不推进，直接返回当前态。
     try:
@@ -389,7 +389,7 @@ def cmd_stop(_args) -> int:
     if not record or "port" not in record:
         _die(SERVER_NOT_RUNNING)
     # issue 05：MAUI 托管的 server 生命周期归 MAUI 应用（用户关闭游戏/退出应用时随会话结束）——
-    # stop 只清本地 .emuera-server.json，不 DELETE /session（会杀掉用户正在玩的会话）、不杀进程。
+    # stop 只清本地 .eracore-server.json，不 DELETE /session（会杀掉用户正在玩的会话）、不杀进程。
     if record.get("mauiHosted"):
         delete_server_record()
         _emit({"stopped": True, "session": None, "serverStopped": False, "mauiHosted": True})
@@ -437,14 +437,14 @@ def cmd_watch(_args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="emuera_agent", description="Emuera 中转 CLI（一次调用 = 一个回合）")
+    parser = argparse.ArgumentParser(prog="eracore_agent", description="Emuera 中转 CLI（一次调用 = 一个回合）")
     sub = parser.add_subparsers(dest="command", required=True)
 
     start = sub.add_parser("start", help="拉起或复用 server，加载游戏并返回初始 turn")
     start.add_argument("--port", type=int, default=8080, help="server 端口（默认 8080）")
     start.add_argument("--host", default="127.0.0.1", help="server 主机（默认 127.0.0.1）")
     start.add_argument("--game-dir", default=None, help="游戏目录")
-    start.add_argument("--emuera-path", default=None, help="EraCore.Cli 二进制路径")
+    start.add_argument("--eracore-path", default=None, help="EraCore.Cli 二进制路径")
     start.set_defaults(func=cmd_start)
 
     acquire = sub.add_parser("acquire", help="获取控制权并返回状态确认")
