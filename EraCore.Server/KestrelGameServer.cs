@@ -95,6 +95,9 @@ internal sealed class KestrelGameServer : IDisposable
         _app.MapPost("/input", (Delegate)HandlePostInputAsync);
         _app.MapDelete("/session", (Delegate)HandleDeleteSessionForHttpAsync);
         _app.MapPost("/load-game", (Delegate)HandleLoadGameAsync);
+        // Web 模式游戏选择（issue 05 后续）：/game/scan 扫主目录下游戏，/game/dirs 目录浏览
+        _app.MapPost("/game/scan", (Delegate)HandleScanGameAsync);
+        _app.MapPost("/game/dirs", (Delegate)HandleListDirsAsync);
         // 无 body/token 的纯状态端点直连协议（本就没重复胶水，保持薄线程）。
         _app.MapPost("/session", (Delegate)HandleCreateSessionAsync);
         _app.MapGet("/control", (Delegate)HandleGetControlAsync);
@@ -202,6 +205,12 @@ internal sealed class KestrelGameServer : IDisposable
     /// 见 <see cref="SessionRegistry.ReplaceForLoadGameAsync"/>。
     /// </summary>
     internal Task<IResult> HandleLoadGameAsync(HttpContext context) => DispatchApiAsync("POST", "/load-game", context);
+
+    /// <summary>POST /game/scan —— 扫主目录下游戏（协议语义见 GameServerProtocol.ScanGameDir；body 解析在 dispatcher）。</summary>
+    internal Task<IResult> HandleScanGameAsync(HttpContext context) => DispatchApiAsync("POST", "/game/scan", context);
+
+    /// <summary>POST /game/dirs —— 目录浏览（协议语义见 GameServerProtocol.ListDirectories；body 解析在 dispatcher）。</summary>
+    internal Task<IResult> HandleListDirsAsync(HttpContext context) => DispatchApiAsync("POST", "/game/dirs", context);
 
     /// <summary>POST /native/pick-directory —— 安卓 SAF 目录选择器桩（协议语义见 PickDirectory）。</summary>
     private IResult HandlePickDirectoryAsync()

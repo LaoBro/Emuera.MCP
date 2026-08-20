@@ -13,8 +13,11 @@ internal sealed class HeadlessOptions
     public int Port { get; }
     public string TermWidthHint { get; }
     public bool NoLoadingReport { get; }
+    public bool OpenBrowser { get; }
+    /// <summary>用户是否显式传了 --port——open-browser 便捷模式下未显式指定时自动挑空闲端口。</summary>
+    public bool PortExplicit { get; }
 
-    private HeadlessOptions(string? exeDir, string protocol, bool server, int port, string termWidthHint, bool noLoadingReport)
+    private HeadlessOptions(string? exeDir, string protocol, bool server, int port, string termWidthHint, bool noLoadingReport, bool openBrowser, bool portExplicit)
     {
         ExeDir = exeDir;
         Protocol = protocol;
@@ -22,6 +25,8 @@ internal sealed class HeadlessOptions
         Port = port;
         TermWidthHint = termWidthHint;
         NoLoadingReport = noLoadingReport;
+        OpenBrowser = openBrowser;
+        PortExplicit = portExplicit;
     }
 
     // 2.0 GA API：构造器直接接收 name + 别名，描述与默认值通过初始化器设置
@@ -64,6 +69,12 @@ internal sealed class HeadlessOptions
         Description = "覆盖游戏配置的加载时显示报告（DisplayReport）为 off，隐藏启动读取日志（agent 用）"
     };
 
+    internal static readonly Option<bool> OpenBrowserOption = new(
+        "--open-browser")
+    {
+        Description = "server 启动后自动打开默认浏览器（配合 --server 使用；未显式 --port 时自动挑空闲端口）"
+    };
+
     public static HeadlessOptions? Parse(string[] args)
     {
         var rootCommand = new RootCommand("EraCore - Emuera 无头模式运行器");
@@ -73,6 +84,7 @@ internal sealed class HeadlessOptions
         rootCommand.Options.Add(PortOption);
         rootCommand.Options.Add(TermWidthHintOption);
         rootCommand.Options.Add(NoLoadingReportOption);
+        rootCommand.Options.Add(OpenBrowserOption);
 
         var result = rootCommand.Parse(args);
 
@@ -100,6 +112,8 @@ internal sealed class HeadlessOptions
         var port = result.GetValue(PortOption);
         var termWidthHint = result.GetValue(TermWidthHintOption) ?? "auto";
         var noLoadingReport = result.GetValue(NoLoadingReportOption);
+        var openBrowser = result.GetValue(OpenBrowserOption);
+        var portExplicit = ArgsContainPort(args);
 
         if (server && ArgsContainProtocol(args))
         {
@@ -108,7 +122,19 @@ internal sealed class HeadlessOptions
             return null;
         }
 
-        return new HeadlessOptions(exeDir, protocol, server, port, termWidthHint, noLoadingReport);
+        return new HeadlessOptions(exeDir, protocol, server, port, termWidthHint, noLoadingReport, openBrowser, portExplicit);
+    }
+
+    private static bool ArgsContainPort(string[] args)
+    {
+        foreach (var arg in args)
+        {
+            if (arg.Equals("--port", StringComparison.OrdinalIgnoreCase) ||
+                arg.Equals("-port", StringComparison.OrdinalIgnoreCase) ||
+                arg.Equals("-PORT", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     private static bool ArgsContainProtocol(string[] args)

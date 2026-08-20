@@ -35,8 +35,10 @@ npm run build
 | `src/components/TerminalDisplay.vue` | 渲染文本、按钮、图片、背景、虚拟滚动和终端点击推进 |
 | `src/components/SegmentRenderer.vue` | 渲染文本、图片和图形 segment |
 | `src/components/InputBar.vue` | 手动输入、TINPUT 倒计时和输入提交 |
-| `src/components/MauiGameList.vue` | MAUI 游戏库扫描、游戏选择、更改主目录 |
-| `src/components/GamePicker.vue` | HTTP 桌面模式的游戏目录输入和加载 |
+| `src/components/GameLibraryView.vue` | MAUI/Web **共用**的游戏选择页（单一设计源）：路径行/游戏列表/空状态/扫描态/目录浏览，经 `GameLibrarySource` 抽象取数 |
+| `src/components/MauiGameList.vue` | MAUI 游戏选择页 wrapper：右上角 ⋮ 菜单（更改目录/重新扫描/主题），传输走 C# 桥接 |
+| `src/components/WebGameList.vue` | Web 游戏选择页 wrapper：右上角连接按钮，传输走 C# server（/game/scan、/game/dirs） |
+| `src/components/GamePicker.vue` | HTTP 桌面模式的游戏目录输入和加载（GameLibraryView 的连接设置逃生口） |
 | `src/components/GamePickerMobile.vue` | HTTP 移动模式的游戏目录选择 |
 | `src/components/ConnectionPanel.vue` | HTTP 服务器地址、WebSocket 连接和连接状态 |
 | `src/components/DirectoryBrowser.vue` | Android SAF 目录浏览器 |
@@ -76,6 +78,7 @@ npm run build
 | `src/composables/usePinchZoom.ts` | 终端双指缩放 |
 | `src/composables/useGameDirInput.ts` | HTTP 游戏目录输入框同步 |
 | `src/lib/mauiBridge.ts` | Vue 与 MAUI C# 桥接消息、游戏扫描和加载 |
+| `src/lib/gameLibrary.ts` | 游戏库数据源抽象：`GameLibrarySource` 接口 + maui（桥接）/ http（HTTP）两个 adapter |
 | `src/lib/inputRouting.ts` | 按钮点击和终端点击的输入路由判定 |
 | `src/lib/parseTurnRecord.ts` | 解析 C# 回合协议 |
 | `src/lib/opsApplier.ts` | 应用终端增量操作 |

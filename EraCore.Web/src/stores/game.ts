@@ -1003,6 +1003,99 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
+   * Web/HTTP 模式：请求 server 扫描主目录下的游戏（复用 C# `GameScanner.Scan`）。
+   *
+   * 浏览器沙箱不能枚举本地文件系统（GamePicker 因此只能手动输入路径），但 C# server
+   * 运行在本机可访问文件系统——由它代扫，MAUI 同款游戏列表即可在 Web 模式复用。
+   *
+   * 语义对齐 MAUI 的 `gamesScanned` 消息：成功（HTTP 200）经 `setScannedGames` 写入
+   * scannedGames / scanRootDir / scanRootDirExists / scanStatus；rootDir 不存在也是 200
+   * （rootDirExists=false，空列表）。网络 / 5xx 错误返回 false（组件据此展示连接错误）。
+   *
+   * @param rootDir 主目录绝对路径。
+   * @returns 请求是否成功（HTTP 200）。
+   */
+  async function scanGamesHttp(rootDir: string): Promise<boolean> {
+    const trimmed = rootDir.trim();
+    if (!trimmed) return false;
+    const conn = useConnectionStore();
+    const httpBase = conn.deriveHttpBase(conn.serverUrl);
+    scanStatus.value = 'scanning';
+    scanRootDir.value = trimmed;
+    try {
+      const resp = await fetch(`${httpBase}/game/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rootDir: trimmed }),
+      });
+      if (resp.status !== 200) {
+        setScannedGames([], trimmed, null);
+        return false;
+      }
+      const body = (await resp.json()) as {
+        rootDir?: unknown;
+        rootDirExists?: unknown;
+        games?: Array<{ name?: unknown; fullPath?: unknown }>;
+      } | null;
+      const games: GameEntry[] = Array.isArray(body?.games)
+        ? body.games
+            .filter((g) => typeof g?.name === 'string' && typeof g?.fullPath === 'string')
+            .map((g) => ({ name: g.name as string, fullPath: g.fullPath as string }))
+        : [];
+      setScannedGames(
+        games,
+        typeof body?.rootDir === 'string' ? body.rootDir : trimmed,
+        typeof body?.rootDirExists === 'boolean' ? body.rootDirExists : null,
+      );
+      return true;
+    } catch {
+      setScannedGames([], trimmed, null);
+      return false;
+    }
+  }
+
+  /**
+   * Web/HTTP 模式：请求 server 列举目录的子目录（复用 C# `DirectoryLister`）。
+   *
+   * 供 Web 游戏选择页的「目录浏览」逐层定位主目录，替代手动输入绝对路径。
+   *
+   * @param dir 要浏览的目录绝对路径。
+   * @returns {currentPath, parentPath, dirs}；网络错误 / 目录不存在返回 null。
+   */
+  async function browseDirectoryHttp(dir: string): Promise<{
+    currentPath: string;
+    parentPath: string | null;
+    dirs: string[];
+  } | null> {
+    const trimmed = dir.trim();
+    if (!trimmed) return null;
+    const conn = useConnectionStore();
+    const httpBase = conn.deriveHttpBase(conn.serverUrl);
+    try {
+      const resp = await fetch(`${httpBase}/game/dirs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dir: trimmed }),
+      });
+      if (resp.status !== 200) return null;
+      const body = (await resp.json()) as {
+        currentPath?: unknown;
+        parentPath?: unknown;
+        dirs?: unknown;
+      } | null;
+      return {
+        currentPath: typeof body?.currentPath === 'string' ? body.currentPath : trimmed,
+        parentPath: typeof body?.parentPath === 'string' ? body.parentPath : null,
+        dirs: Array.isArray(body?.dirs)
+          ? body.dirs.filter((d): d is string => typeof d === 'string')
+          : [],
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * game-library spec ID10 / ID12：开始退出游戏流程——
    * 由 App.vue 退出按钮点击处理调用。
    *
@@ -1330,6 +1423,9 @@ export const useGameStore = defineStore('game', () => {
     setMainGameDir,
     setLastPlayedGame,
     setScannedGames,
+    // Web/HTTP 模式：server 代扫 + 目录浏览
+    scanGamesHttp,
+    browseDirectoryHttp,
     beginExitGame,
     completeExitGame,
     // T-025 D14：快速重开 + server 状态

@@ -27,7 +27,7 @@ internal readonly record struct HttpRequestData(
 /// wire 语义与原两宿主逐字节一致（行为零漂移）。
 ///
 /// 本次只收编「触及 body 或 token」的端点（/control/acquire、/control/release、/turn、
-/// /input、DELETE /session、/load-game）——它们正是原两宿主重复胶水（解析/校验/身份）所在；
+/// /input、DELETE /session、/load-game、/game/scan、/game/dirs）——它们正是原两宿主重复胶水（解析/校验/身份）所在；
 /// 无 body/token 的纯 GET/状态端点（/session、/control、/control/wait、/state、/config、/snapshot、
 /// /native/pick-directory）本就没重复胶水，仍由各宿主直连 <see cref="GameServerProtocol"/>。
 /// WS 升级 / 静态资源 / /assets 为传输专属，留宿主侧。
@@ -82,6 +82,12 @@ internal sealed class HttpRouteDispatcher
             case ("POST", "/load-game"):
                 return HandleLoadGame(request);
 
+            case ("POST", "/game/scan"):
+                return HandleScanGame(request);
+
+            case ("POST", "/game/dirs"):
+                return HandleListDirs(request);
+
             default:
                 return HttpResult.Text(NotFoundBody, statusCode: 404);
         }
@@ -105,6 +111,24 @@ internal sealed class HttpRouteDispatcher
         if (string.IsNullOrWhiteSpace(payload.gameDir))
             return MissingGameDir();
         return _protocol.LoadGame(payload.gameDir, ResolveIdentity(request, payload.token));
+    }
+
+    private HttpResult HandleScanGame(HttpRequestData request)
+    {
+        var payload = Parse<ScanGameRequest>(request.BodyText);
+        if (payload == null)
+            return InvalidJsonScanGame();
+        if (string.IsNullOrWhiteSpace(payload.rootDir))
+            return MissingRootDir();
+        return GameServerProtocol.ScanGameDir(payload.rootDir);
+    }
+
+    private HttpResult HandleListDirs(HttpRequestData request)
+    {
+        var payload = Parse<ListDirsRequest>(request.BodyText);
+        if (payload == null)
+            return InvalidJsonListDirs();
+        return GameServerProtocol.ListDirectories(payload.dir);
     }
 
     /// <summary>
@@ -149,6 +173,21 @@ internal sealed class HttpRouteDispatcher
             new JsonObject { ["error"] = new JsonObject { ["code"] = "MISSING_GAME_DIR", ["message"] = "Missing or empty 'gameDir' field" } },
             400);
 
+    private static HttpResult InvalidJsonScanGame()
+        => Json(
+            new JsonObject { ["error"] = new JsonObject { ["code"] = "INVALID_JSON", ["message"] = "Invalid JSON, expected {\"rootDir\":\"...\"}" } },
+            400);
+
+    private static HttpResult MissingRootDir()
+        => Json(
+            new JsonObject { ["error"] = new JsonObject { ["code"] = "MISSING_ROOT_DIR", ["message"] = "Missing or empty 'rootDir' field" } },
+            400);
+
+    private static HttpResult InvalidJsonListDirs()
+        => Json(
+            new JsonObject { ["error"] = new JsonObject { ["code"] = "INVALID_JSON", ["message"] = "Invalid JSON, expected {\"dir\":\"...\"}" } },
+            400);
+
     private static HttpResult Json(JsonObject payload, int statusCode = 200)
     {
         var body = payload.ToJsonString(GameServerProtocol.JsonOptions);
@@ -175,5 +214,17 @@ internal sealed class HttpRouteDispatcher
     {
         public string? gameDir { get; set; }
         public string? token { get; set; }
+    }
+
+    /// <summary>POST /game/scan body。</summary>
+    internal sealed class ScanGameRequest
+    {
+        public string? rootDir { get; set; }
+    }
+
+    /// <summary>POST /game/dirs body。</summary>
+    internal sealed class ListDirsRequest
+    {
+        public string? dir { get; set; }
     }
 }

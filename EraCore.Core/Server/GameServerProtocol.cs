@@ -276,6 +276,61 @@ internal sealed class GameServerProtocol
         });
     }
 
+    /// <summary>
+    /// POST /game/scan —— 扫描主目录下的有效游戏（Web 模式游戏选择界面）。
+    ///
+    /// 浏览器沙箱不能枚举本地文件系统（GamePicker 因此只能手动输入路径），但 C# server
+    /// 运行在本机可访问文件系统——复用 MAUI 同款 <see cref="GameScanner.Scan"/>（本地 FS 访问器）。
+    /// rootDir 不存在不视为错误：返回 200 + rootDirExists=false + 空列表，前端据此展示空状态。
+    /// </summary>
+    public static HttpResult ScanGameDir(string? rootDir)
+    {
+        if (string.IsNullOrWhiteSpace(rootDir))
+            return Json(
+                new JsonObject { ["error"] = new JsonObject { ["code"] = "MISSING_ROOT_DIR", ["message"] = "Missing or empty 'rootDir' field" } },
+                400);
+
+        var accessor = new FileSystemGameDirAccessor();
+        var exists = GameScanner.RootDirectoryExists(rootDir, accessor);
+        var games = exists ? GameScanner.Scan(rootDir, accessor) : Array.Empty<GameEntry>();
+
+        var arr = new JsonArray();
+        foreach (var g in games)
+        {
+            arr.Add(new JsonObject { ["name"] = g.Name, ["fullPath"] = g.FullPath });
+        }
+
+        return Json(new JsonObject
+        {
+            ["rootDir"] = rootDir,
+            ["rootDirExists"] = exists,
+            ["games"] = arr,
+        });
+    }
+
+    /// <summary>
+    /// POST /game/dirs —— 列举目录下的子目录名（Web 模式目录浏览）。
+    ///
+    /// 复用 <see cref="DirectoryLister.ListDirectories"/>（本地 FS 访问器），供前端逐层
+    /// 浏览文件系统定位主目录，替代手动输入绝对路径。响应含 currentPath / parentPath / dirs。
+    /// </summary>
+    public static HttpResult ListDirectories(string? dir)
+    {
+        var result = DirectoryLister.ListDirectories(dir, new FileSystemGameDirAccessor());
+        var arr = new JsonArray();
+        foreach (var d in result.SubDirectories)
+        {
+            arr.Add(d);
+        }
+
+        return Json(new JsonObject
+        {
+            ["currentPath"] = result.CurrentPath,
+            ["parentPath"] = result.ParentPath,
+            ["dirs"] = arr,
+        });
+    }
+
     /// <summary>把输入值构造成协议循环消费的 input jsonl（与 WS 输入帧同源，保证 HTTP/WS 输入格式对称）。</summary>
     public static string BuildInputJsonl(string value)
     {

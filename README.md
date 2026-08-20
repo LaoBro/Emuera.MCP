@@ -30,11 +30,20 @@
 
 ### 最简单的玩法：一次性拉起本地服务器，浏览器开玩
 
+**双击 `run-web.cmd`**（或执行下面的命令）→ 构建 → 启动 server → 自动打开默认浏览器：
+浏览器里先看到游戏选择页（输入/浏览主目录 → 点游戏即进），无需再手敲游戏路径。
+
 ```bash
 # 构建 CLI 入口
 dotnet build EraCore.Cli/EraCore.Cli.csproj -c Debug
 
-# 启动 HTTP 服务器
+# 启动 HTTP 服务器并自动打开浏览器（未显式 --port 时自动挑空闲端口）
+dotnet exec EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.dll --server --open-browser
+```
+
+手动指定端口：
+
+```bash
 dotnet exec EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.dll --ExeDir test_game --server --port 8080
 ```
 

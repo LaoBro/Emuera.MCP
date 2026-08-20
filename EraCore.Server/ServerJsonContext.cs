@@ -10,16 +10,19 @@ namespace MinorShift.Emuera.Server;
 /// Encoder 不在此设置（.NET 10 source-gen options 无 encoder 属性）——relaxed 转义
 /// 由 HttpJsonOptions 默认（UnsafeRelaxedJsonEscaping）保证，与托管时代 wire 一致。
 ///
-/// C1 后：/input、/load-game、/control/acquire 的 body POCO（<see cref="HttpRouteDispatcher"/>.HttpInput/
-/// ControlRequest/LoadGameRequest）上收 Core 的 <see cref="HttpRouteDispatcher"/>；Kestrel 把本
+/// C1 后：/input、/load-game、/control/acquire、/game/scan、/game/dirs 的 body POCO
+/// （<see cref="HttpRouteDispatcher"/> 内的 HttpInput/ControlRequest/LoadGameRequest/
+/// ScanGameRequest/ListDirsRequest）上收 Core 的 <see cref="HttpRouteDispatcher"/>；Kestrel 把本
 /// context 注入 dispatcher 作源生成反序列化（NativeAOT 安全 + 大小写不敏感）。故此处须注册
-/// 三个请求 POCO（Core 经 InternalsVisibleTo 对本程序集可见）。
+/// 全部请求 POCO（Core 经 InternalsVisibleTo 对本程序集可见）。
 /// </summary>
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(JsonObject))]
 [JsonSerializable(typeof(HttpRouteDispatcher.HttpInput))]
 [JsonSerializable(typeof(HttpRouteDispatcher.ControlRequest))]
 [JsonSerializable(typeof(HttpRouteDispatcher.LoadGameRequest))]
+[JsonSerializable(typeof(HttpRouteDispatcher.ScanGameRequest))]
+[JsonSerializable(typeof(HttpRouteDispatcher.ListDirsRequest))]
 internal partial class ServerJsonContext : JsonSerializerContext
 {
 }

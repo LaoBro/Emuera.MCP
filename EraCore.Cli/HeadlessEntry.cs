@@ -83,7 +83,9 @@ internal static class HeadlessEntry
         if (options.Server)
         {
 #if !ANDROID_NO_SERVER
-            await ServerRunner.RunAsync(options.Port, terminalSetup, configData, options.NoLoadingReport);
+            // --open-browser 便捷模式且未显式 --port → 传 0，由 ServerRunner 自动挑空闲端口。
+            var port = options.OpenBrowser && !options.PortExplicit ? 0 : options.Port;
+            await ServerRunner.RunAsync(port, terminalSetup, configData, options.NoLoadingReport, options.OpenBrowser);
 #else
             // android 交叉产物（3.2 验证）：无 Kestrel（AspNetCore 无 android runtime pack），
             // server 模式不可用——明确提示后走 CLI 模式，避免静默忽略 --server。

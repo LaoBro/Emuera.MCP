@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MinorShift.Emuera.Runtime.Config;
@@ -111,5 +114,115 @@ public class HttpRouteDispatcherTests
         var resp = await DispatchAsync(dispatcher, "POST", "/load-game", "{\"foo\":\"bar\"}");
         Assert.Equal(400, resp.StatusCode);
         Assert.Contains("MISSING_GAME_DIR", resp.Body);
+    }
+
+    // ---- /game/scan 与 /game/dirs（Web 游戏选择）----
+
+    [Theory]
+    [InlineData("not-json")]
+    [InlineData("")]
+    [InlineData(null)]
+    public async Task ScanGame_bad_or_empty_body_returns_400_invalid_json(string? body)
+    {
+        var dispatcher = CreateDispatcher();
+        var resp = await DispatchAsync(dispatcher, "POST", "/game/scan", body);
+        Assert.Equal(400, resp.StatusCode);
+        Assert.Contains("INVALID_JSON", resp.Body);
+    }
+
+    [Fact]
+    public async Task ScanGame_missing_root_dir_returns_400()
+    {
+        var dispatcher = CreateDispatcher();
+        var resp = await DispatchAsync(dispatcher, "POST", "/game/scan", "{\"foo\":\"bar\"}");
+        Assert.Equal(400, resp.StatusCode);
+        Assert.Contains("MISSING_ROOT_DIR", resp.Body);
+    }
+
+    [Fact]
+    public async Task ScanGame_nonexistent_dir_returns_200_with_root_dir_exists_false()
+    {
+        var dispatcher = CreateDispatcher();
+        var missing = Path.Combine(Path.GetTempPath(), "emuera-scan-missing-" + Guid.NewGuid().ToString("N"));
+        var resp = await DispatchAsync(dispatcher, "POST", "/game/scan", JsonSerializer.Serialize(new { rootDir = missing }));
+
+        Assert.Equal(200, resp.StatusCode);
+        Assert.Contains("\"rootDirExists\":false", resp.Body);
+        Assert.Contains("\"games\":[]", resp.Body);
+    }
+
+    [Fact]
+    public async Task ScanGame_valid_dir_returns_detected_games_only()
+    {
+        using var tmp = new TempRoot();
+        CreateGame(tmp.Root, "game-a");
+        CreateGame(tmp.Root, "game-b");
+        // 缺 erb/ 的目录不应被检测
+        Directory.CreateDirectory(Path.Combine(tmp.Root, "not-a-game", "csv"));
+
+        var dispatcher = CreateDispatcher();
+        var resp = await DispatchAsync(dispatcher, "POST", "/game/scan", JsonSerializer.Serialize(new { rootDir = tmp.Root }));
+
+        Assert.Equal(200, resp.StatusCode);
+        Assert.Contains("\"rootDirExists\":true", resp.Body);
+        Assert.Contains("\"name\":\"game-a\"", resp.Body);
+        Assert.Contains("\"name\":\"game-b\"", resp.Body);
+        Assert.DoesNotContain("\"name\":\"not-a-game\"", resp.Body);
+    }
+
+    [Theory]
+    [InlineData("not-json")]
+    [InlineData("")]
+    [InlineData(null)]
+    public async Task ListDirs_bad_or_empty_body_returns_400_invalid_json(string? body)
+    {
+        var dispatcher = CreateDispatcher();
+        var resp = await DispatchAsync(dispatcher, "POST", "/game/dirs", body);
+        Assert.Equal(400, resp.StatusCode);
+        Assert.Contains("INVALID_JSON", resp.Body);
+    }
+
+    [Fact]
+    public async Task ListDirs_returns_subdirectory_names()
+    {
+        using var tmp = new TempRoot();
+        Directory.CreateDirectory(Path.Combine(tmp.Root, "sub1"));
+        Directory.CreateDirectory(Path.Combine(tmp.Root, "sub2"));
+        File.WriteAllText(Path.Combine(tmp.Root, "file.txt"), "x");
+
+        var dispatcher = CreateDispatcher();
+        var resp = await DispatchAsync(dispatcher, "POST", "/game/dirs", JsonSerializer.Serialize(new { dir = tmp.Root }));
+
+        Assert.Equal(200, resp.StatusCode);
+        Assert.Contains("\"sub1\"", resp.Body);
+        Assert.Contains("\"sub2\"", resp.Body);
+        Assert.DoesNotContain("file.txt", resp.Body);
+    }
+
+    private static void CreateGame(string root, string name)
+    {
+        var dir = Path.Combine(root, name);
+        Directory.CreateDirectory(Path.Combine(dir, "csv"));
+        Directory.CreateDirectory(Path.Combine(dir, "erb"));
+    }
+
+    private sealed class TempRoot : IDisposable
+    {
+        public string Root { get; }
+        private bool _disposed;
+
+        public TempRoot()
+        {
+            Root = Path.Combine(Path.GetTempPath(), "emuera-dispatcher-test-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Root);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            try { if (Directory.Exists(Root)) Directory.Delete(Root, recursive: true); }
+            catch { /* 测试临时目录清理失败不致测试失败 */ }
+        }
     }
 }

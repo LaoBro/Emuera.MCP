@@ -12,9 +12,17 @@ import vue from '@vitejs/plugin-vue';
 // base 路径：默认 '/'（Headless 同源服务），MAUI 场景由 build/VueBuild.targets 经
 // VITE_BASE 环境变量（值 './'）+ vite build --base=./ 命令行参数双保险传入。
 // 这里读 process.env.VITE_BASE 作 fallback，让 vite.config.ts 自身可独立 npm run build。
+//
+// assetsDir='static'：生产模式前端构建产物由 C# Kestrel wwwroot 同源服务，但 C# 侧
+// 已有游戏图片通道路由 /assets/{**path}（spec Q3/Q5）——若前端产物仍放 /assets/ 会被
+// 该路由抢先匹配（已匹配 endpoint 时 StaticFileMiddleware 跳过），导致 JS/CSS 全部 404。
+// 故前端静态产物放到 /static/，与游戏图片通道 /assets/ 彻底分离，互不遮蔽。
 export default defineConfig({
   plugins: [vue()],
   base: process.env.VITE_BASE ?? '/',
+  build: {
+    assetsDir: 'static',
+  },
   server: {
     port: 5173,
     proxy: {
@@ -28,7 +36,8 @@ export default defineConfig({
       // 经 Vite 代理到 8080，避免 CORS。生产模式前端由 C# wwwroot 同源服务，无此问题。
       // 端点列表（KestrelGameServer.MapRoutes）：
       //   /session(POST/DELETE)、/turn(GET)、/input(POST)、/config(GET)、/snapshot(GET)、
-      //   /load-game(POST, issue 05)、/state(GET, issue 05)、/native/pick-directory(POST, issue 05)
+      //   /load-game(POST, issue 05)、/state(GET, issue 05)、/native/pick-directory(POST, issue 05)、
+      //   /game/scan(POST, Web 游戏扫描)、/game/dirs(POST, 目录浏览)
       '/session': 'http://localhost:8080',
       '/turn': 'http://localhost:8080',
       '/input': 'http://localhost:8080',
@@ -37,6 +46,7 @@ export default defineConfig({
       '/load-game': 'http://localhost:8080',
       '/state': 'http://localhost:8080',
       '/native': 'http://localhost:8080',
+      '/game': 'http://localhost:8080',
     },
   },
   test: {

@@ -15,6 +15,7 @@ import ConnectionPanel from './components/ConnectionPanel.vue';
 import GamePicker from './components/GamePicker.vue';
 import GamePickerMobile from './components/GamePickerMobile.vue';
 import MauiGameList from './components/MauiGameList.vue';
+import WebGameList from './components/WebGameList.vue';
 import TerminalView from './views/TerminalView.vue';
 
 const DebugView = defineAsyncComponent(() => import('./views/DebugView.vue'));
@@ -60,6 +61,18 @@ const isMaui = isMauiEnvironment();
  */
 const showMauiGameList = computed(() =>
   isMaui && !game.gameDir && game.serverState === 'Idle',
+);
+
+/**
+ * Web 全屏游戏选择界面可见性——HTTP 模式未加载游戏 + server 空闲时显示 WebGameList
+ * （server 代扫 + 目录浏览的游戏选择页，替代手动输入路径）。
+ *
+ * 用户点「连接设置」进入 webPickerFallback——回落到标准布局（AppBar + ConnectionPanel +
+ * 手动路径输入），作为连接异常时的逃生口。
+ */
+const webPickerFallback = ref(false);
+const showWebGameList = computed(() =>
+  !isMaui && !webPickerFallback.value && !game.gameDir && game.serverState === 'Idle',
 );
 
 /** 「快速重开」可见性：HTTP 非 Idle / MAUI 已选目录。 */
@@ -208,10 +221,15 @@ const popupItems = computed<PopupMenuItem[]>(() => [
 </script>
 
 <template>
-  <AppShell :scrollable="showMauiGameList">
+  <AppShell :scrollable="showMauiGameList || showWebGameList">
     <!-- 页面过渡动画：out-in 模式，进场 --fx-ease-in，退场 --fx-ease-out -->
     <Transition name="page" mode="out-in">
       <MauiGameList v-if="showMauiGameList" key="game-list" />
+      <WebGameList
+        v-else-if="showWebGameList"
+        key="web-game-list"
+        @open-connection="webPickerFallback = true"
+      />
       <div v-else class="game-view-wrapper" key="game-view">
         <!-- 桌面：应用栏（连接状态 + 缩放/快速重开 + SegmentedNav） -->
         <AppBar v-if="!isMaui">
