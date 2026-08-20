@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <rect x="0" y="0" width="1280" height="60" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+  <text x="24" y="40" font-family="Segoe UI, sans-serif" font-size="24" fill="#24292f" font-weight="bold">EraCore</text>
+  <text x="1100" y="40" font-family="Segoe UI, sans-serif" font-size="18" fill="#0969da" text-anchor="middle">localhost:8080</text>
+  <rect x="24" y="84" width="1232" height="40" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="40" y="111" font-family="Segoe UI, sans-serif" font-size="18" fill="#57606a">选择游戏目录…</text>
+  <rect x="24" y="150" width="600" height="400" rx="8" fill="#0d1117"/>
+  <text x="48" y="190" font-family="Consolas, monospace" font-size="24" fill="#e6edf3">标题画面</text>
+  <text x="48" y="236" font-family="Consolas, monospace" font-size="20" fill="#c9d1d9">[1] 开始新游戏</text>
+  <text x="48" y="270" font-family="Consolas, monospace" font-size="20" fill="#c9d1d9">[2] 继续</text>
+  <rect x="640" y="150" width="616" height="190" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="660" y="186" font-family="Segoe UI, sans-serif" font-size="18" fill="#1f2328" font-weight="bold">会话</text>
+  <text x="660" y="224" font-family="Segoe UI, sans-serif" font-size="16" fill="#57606a">状态: WaitInput</text>
+  <text x="660" y="256" font-family="Segoe UI, sans-serif" font-size="16" fill="#57606a">输入类型: IntValue</text>
+  <text x="660" y="288" font-family="Segoe UI, sans-serif" font-size="16" fill="#57606a">控制器: agent（eracore_agent）</text>
+  <rect x="24" y="580" width="1232" height="80" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="40" y="614" font-family="Segoe UI, sans-serif" font-size="18" fill="#57606a">HTTP Server · WebSocket 广播 · 浏览器即玩 · AI 代理可旁观/接管</text>
+</svg>

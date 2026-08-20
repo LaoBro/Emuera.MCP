@@ -1,20 +1,177 @@
 # EraCore
 
-Eramaker 引擎的 C# 移植版，基于 .NET 运行。完整支持 ERB 脚本语言，并通过 `eracore_agent` CLI 支持 AI 代理控制。
+一款基于 **.NET 的 Eramaker 引擎 C# 移植版（Emuera 精神续作）**，完整支持 ERB 脚本语言，并提供跨平台的多端体验。
 
-本项目以 **EraCore** 无头运行器为核心维护目标。已拆分为三个项目：
-- `EraCore.Cli` — CLI 交互模式 & HTTP 服务器模式入口（Exe）
-- `EraCore.Core` — 无头核心库（Library，无 AspNetCore 依赖）
-- `EraCore.Server` — HTTP 服务器组件（Library，引 AspNetCore）
+> 本项目最初 fork 自 **EvilMask 的 [Emuera.EM](https://github.com/EMHMark/Emuera.EM)** 项目，致力于在保留原汁原味 Emuera 体验的同时，迈向模块化、可扩展、可自动化与被 AI 操控的新一代架构。
 
-另有 **MAUI 桌面/移动应用**（`EraCore.Maui`，目录名 `Emuera.Maui`）用于原生窗口体验。`Emuera/` 目录保留 WinForms 专用源码作只读参考，**不再维护，不可独立构建**。
+---
 
-## 环境要求
+## 特性亮点
+
+- **模块化架构，易于扩展** — 引擎（`EraCore.Core`）、服务（`EraCore.Server`）、入口（`EraCore.Cli`）、界面（`EraCore.Maui` / `EraCore.Web`）彻底解耦。让内核完全无头，接不同前端只需实现统一协议。
+- **无头运行器 + CLI 模式** — 无需图形界面即可运行游戏。内置 HTTP 服务器与 JSONL 协议，脚本、自动化、**AI 代理（`eracore_agent`）**都能直接操控游戏。
+- **轻量级 Web 前端** — 基于 Vue 3 + TypeScript 的纯浏览器界面，任意现代浏览器打开即玩，支持 WebSocket 实时旁观与接管。
+- **跨平台** — Windows 桌面（原生 MAUI）、Android（APK，可选 NativeAOT 原生加速）、浏览器（Web SPA）一套引擎多处体验。
+- **完整 ERB 支持** — 继承自 Emuera 的语言特性：变量表、指令系统、函数方法、图片/音频/精灵、数据表等等。
+
+---
+
+## 截图预览
+
+| Windows/Android 桌面（MAUI） | CLI 交互模式 | Web 前端（Server 模式） |
+| --- | --- | --- |
+| ![](docs/preview/maui.svg) | ![](docs/preview/cli.svg) | ![](docs/preview/server.svg) |
+
+> 当前为占位图，将在正式版替换为真实截图。
+
+---
+
+## 快速开始
+
+### 最简单的玩法：一次性拉起本地服务器，浏览器开玩
+
+```bash
+# 构建 CLI 入口
+dotnet build EraCore.Cli/EraCore.Cli.csproj -c Debug
+
+# 启动 HTTP 服务器
+dotnet exec EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.dll --ExeDir test_game --server --port 8080
+```
+
+浏览器访问 <http://localhost:8080> 即可开始游戏。
+
+### 环境要求
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) 或更高版本
 - Python 3.10+（用于 `eracore_agent` CLI 和测试）
-- Node.js 18+（用于 Web 前端 EraCore.Web/）
+- Node.js 18+（用于 Web 前端 `EraCore.Web/`）
 - Windows（跨平台支持计划中，目前仅完成 Windows）
+
+---
+
+## 支持平台与运行模式
+
+| 运行模式 | 入口 | 说明 |
+| --- | --- | --- |
+| CLI 交互模式 | `EraCore.Cli` | 终端直接游玩，需真实 TTY |
+| HTTP Server | `EraCore.Cli --server` | 本地/局域网 Web 服务，浏览器即玩 |
+| Windows 桌面 | `EraCore.Maui` | 原生窗口体验，内置 WebView |
+| Android APK | `EraCore.Maui` | 移动端游玩（支持 NativeAOT 加速） |
+| AI 代理 | `eracore_agent` | 无头操控，供自动化与 AI 使用 |
+
+---
+
+## 文档
+
+- **架构总览** → [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Web 前端开发** → [EraCore.Web/README.md](EraCore.Web/README.md)
+- **测试套件** → [tests/README.md](tests/README.md)
+- **领域术语表** → [CONTEXT.md](CONTEXT.md)
+- **终端行为经验** → [docs/LESSONS/terminal-windows.md](docs/LESSONS/terminal-windows.md)
+- **项目维护说明** → [CLAUDE.md](CLAUDE.md)
+
+审查、规划、实现、测试、文档维护等内部流程，见 `.agents/skills/` 提供的专业 skill。
+
+---
+
+## Agent 集成（CLI + Skill）
+
+Agent 通过中转 CLI `eracore_agent` 操控游戏，不走 MCP。礼仪见 [`.agents/skills/eracore-playtesting/SKILL.md`](.agents/skills/eracore-playtesting/SKILL.md)。
+
+```text
+agent
+  └─ eracore_agent   (python -m eracore_agent <subcommand>
+                     或安装后的 eracore_agent)
+       └─ HTTP      /load-game /turn /input /state /control/*
+            └─ EraCore.Server 或 MAUI 托管的 HttpListenerHost（issue 05，agent 自动侦测复用）
+                 ├─ EraCore.Core（共享层 Server/：协议 + 控制状态机 + 会话）
+                 └─ GET /ws  →  Web 旁观（MAUI 托管 server 亦暴露同契约 /ws）
+```
+
+`start` 自己拉起 `EraCore.Cli --server`，或复用已经在跑的实例（含 MAUI 应用托管的 server——读 `%LOCALAPPDATA%\Emuera\emuera-maui-server.json` 发现记录）。
+
+```bash
+python -m eracore_agent start --game-dir test_game
+python -m eracore_agent acquire
+python -m eracore_agent step --value 0
+python -m eracore_agent release
+python -m eracore_agent status
+python -m eracore_agent watch
+python -m eracore_agent stop
+```
+
+| 子命令 | 作用 |
+|--------|------|
+| `start` | 拉起或复用 server，加载游戏，返回初始 turn |
+| `acquire` | 获取控制权，并返回 drain 后的状态确认 |
+| `step --value X` | 提交输入并读取下一回合 |
+| `release` | 让出控制权（不关 server） |
+| `status` | 查询当前 Controller 与游戏 state |
+| `watch` | 只读旁观终端输出 |
+| `stop` | 结束会话；若由本 CLI 拉起则同时停 server |
+
+配置不要提交：
+
+| 文件 | 内容 |
+|------|------|
+| `.eracore-agent.json` | 路径预设（`binaryPath` / `gameDir`） |
+| `.eracore-server.json` | 本次运行记录（`host` / `port` / `pid` / `token` / `gameDir` / `startedByAgent`）。`start` 写入，`stop` 删除，`release` 不删 |
+
+### 响应格式
+
+stdout 是一行 JSON。`start` / `step` 输出 turn：
+
+```json
+{
+  "state": "WaitInput",
+  "inputType": "IntValue",
+  "needValue": true,
+  "protocolVersion": 11,
+  "diff": { "lineOps": [], "bgColor": null }
+}
+```
+
+`acquire` 另带控制权确认：
+
+```json
+{
+  "controller": { "kind": "agent" },
+  "state": "WaitInput",
+  "turn": { "state": "WaitInput", "inputType": "IntValue", "needValue": true },
+  "turnsAdvanced": 0
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `state` | `WaitInput` / `Running` / `Quit` / `Error` / `Idle` |
+| `inputType` | `IntValue` / `StrValue` / `EnterKey` / `AnyKey` / `AnyValue` / `IntButton` / `StrButton` |
+| `needValue` | `true` 时需要非空输入 |
+| `diff` | 相对上一回合的行级增量；首回合为 `null`，全屏细节用 `GET /snapshot` |
+| `turnsAdvanced` | `acquire` 时 drain 掉的积压回合数 |
+
+错误走 stderr + 非零退出码（例如 `CONTROL_LOST`、`CONTROL_HELD_BY_USER`）。回合字段的权威来源是 `TurnRecord` / `AgentJsonlProtocol`。
+
+---
+
+## JSONL 协议
+
+无头运行器的 JSONL 协议由 server 模式（`--server`）通过 HTTP 暴露，适合脚本和自动化。创建会话后游戏自动输出初始 turn，之后每发送一条输入命令返回一个 turn。
+
+```python
+# 游戏自动输出初始 turn（无需发送任何命令）：
+{"text": "标题画面...", "state": "WaitInput", "inputType": "IntValue", "needValue": true, "buttons": [...]}
+
+# 客户端发送输入：
+{"type": "input", "value": "0"}
+
+# 服务器响应下一 turn：
+{"text": "输出文本...", "state": "WaitInput", "inputType": "IntValue", "needValue": true, "buttons": [...]}
+```
+
+参考 `tests/emuera_server.py`（server 模式测试 helper）和 `tests/test_jsonl.py`（示例）。
+
+---
 
 ## 构建
 
@@ -75,6 +232,8 @@ dotnet publish EraCore.Maui/EraCore.Maui.csproj -f net10.0-android -r android-ar
 6. **已知风险**：`AndroidEnableMarshalMethods=false`（csproj）与 NativeAOT JNI 通道的兼容性未做压力验证；游戏加载链路（loadGame → turn 渲染）在 NativeAOT 下待完整真机验证（2026-08-08 已通过：进入游戏选择界面，0 FATAL）。
 
 > **注意：** I-12 阶段 1 已启用按路径分级的质量护栏。`EraCore.Core/Shared/`（迁移自 `Emuera/`）下的历史警告已全局抑制。修改自有源码时应关注新引入的 CA/CS 警告。`EraCore.Cli` 和 `EraCore.Server` 启用 `TreatWarningsAsErrors`。
+
+---
 
 ## 运行
 
@@ -142,100 +301,7 @@ python scripts/build_emblock_font.py
 
 IPA 字体许可见 `src/assets/fonts/IPA_Font_License_Agreement_v1.0.txt`（IPA Font License v1.0）。DejaVu Sans 许可（Bitstream Vera Fonts 版权 + 自由许可）见 https://dejavu-fonts.github.io/。字形来源可经 `scripts/dejavu/DejaVuSans.ttf` 复现。
 
-## Agent 集成（CLI + Skill）
-
-Agent 通过中转 CLI `eracore_agent` 操控游戏，不走 MCP。礼仪见 [`.agents/skills/eracore-playtesting/SKILL.md`](.agents/skills/eracore-playtesting/SKILL.md)。
-
-```text
-agent
-  └─ eracore_agent   (python -m eracore_gateway <subcommand>
-                     或安装后的 eracore_agent)
-       └─ HTTP      /load-game /turn /input /state /control/*
-            └─ EraCore.Server 或 MAUI 托管的 HttpListenerHost（issue 05，agent 自动侦测复用）
-                 ├─ EraCore.Core（共享层 Server/：协议 + 控制状态机 + 会话）
-                 └─ GET /ws  →  Web 旁观（MAUI 托管 server 亦暴露同契约 /ws）
-```
-
-`start` 自己拉起 `EraCore.Cli --server`，或复用已经在跑的实例（含 MAUI 应用托管的 server——读 `%LOCALAPPDATA%\Emuera\emuera-maui-server.json` 发现记录）。
-
-```bash
-python -m eracore_gateway start --game-dir test_game
-python -m eracore_gateway acquire
-python -m eracore_gateway step --value 0
-python -m eracore_gateway release
-python -m eracore_gateway status
-python -m eracore_gateway watch
-python -m eracore_gateway stop
-```
-
-| 子命令 | 作用 |
-|--------|------|
-| `start` | 拉起或复用 server，加载游戏，返回初始 turn |
-| `acquire` | 获取控制权，并返回 drain 后的状态确认 |
-| `step --value X` | 提交输入并读取下一回合 |
-| `release` | 让出控制权（不关 server） |
-| `status` | 查询当前 Controller 与游戏 state |
-| `watch` | 只读旁观终端输出 |
-| `stop` | 结束会话；若由本 CLI 拉起则同时停 server |
-
-配置不要提交：
-
-| 文件 | 内容 |
-|------|------|
-| `.eracore-agent.json` | 路径预设（`binaryPath` / `gameDir`） |
-| `.eracore-server.json` | 本次运行记录（`host` / `port` / `pid` / `token` / `gameDir` / `startedByAgent`）。`start` 写入，`stop` 删除，`release` 不删 |
-
-### 响应格式
-
-stdout 是一行 JSON。`start` / `step` 输出 turn：
-
-```json
-{
-  "state": "WaitInput",
-  "inputType": "IntValue",
-  "needValue": true,
-  "protocolVersion": 11,
-  "diff": { "lineOps": [], "bgColor": null }
-}
-```
-
-`acquire` 另带控制权确认：
-
-```json
-{
-  "controller": { "kind": "agent" },
-  "state": "WaitInput",
-  "turn": { "state": "WaitInput", "inputType": "IntValue", "needValue": true },
-  "turnsAdvanced": 0
-}
-```
-
-| 字段 | 说明 |
-|------|------|
-| `state` | `WaitInput` / `Running` / `Quit` / `Error` / `Idle` |
-| `inputType` | `IntValue` / `StrValue` / `EnterKey` / `AnyKey` / `AnyValue` / `IntButton` / `StrButton` |
-| `needValue` | `true` 时需要非空输入 |
-| `diff` | 相对上一回合的行级增量；首回合为 `null`，全屏细节用 `GET /snapshot` |
-| `turnsAdvanced` | `acquire` 时 drain 掉的积压回合数 |
-
-错误走 stderr + 非零退出码（例如 `CONTROL_LOST`、`CONTROL_HELD_BY_USER`）。回合字段的权威来源是 `TurnRecord` / `AgentJsonlProtocol`。
-
-## JSONL 协议
-
-无头运行器的 JSONL 协议由 server 模式（`--server`）通过 HTTP 暴露，适合脚本和自动化。创建会话后游戏自动输出初始 turn，之后每发送一条输入命令返回一个 turn。
-
-```python
-# 游戏自动输出初始 turn（无需发送任何命令）：
-{"text": "标题画面...", "state": "WaitInput", "inputType": "IntValue", "needValue": true, "buttons": [...]}
-
-# 客户端发送输入：
-{"type": "input", "value": "0"}
-
-# 服务器响应下一 turn：
-{"text": "输出文本...", "state": "WaitInput", "inputType": "IntValue", "needValue": true, "buttons": [...]}
-```
-
-参考 `tests/emuera_server.py`（server 模式测试 helper）和 `tests/test_jsonl.py`（示例）。
+---
 
 ## 测试
 
@@ -260,6 +326,8 @@ python tests/run_all.py --binary D:/LaoBro/Emuera.MCP/EraCore.Cli/bin/Debug/net1
 
 `tests/README.md` 是测试的权威文档。
 
+---
+
 ## 项目结构
 
 ```
@@ -271,12 +339,21 @@ EraCore.Web/     -- Vue 3 + TypeScript 浏览器前端（Vite + Pinia + Vitest�
 EraCore.Tests/  -- C# 单元测试（xUnit，304 用例）
 EraCore.Maui.Tests/ -- MAUI 单元测试（xUnit，15 用例）
 Emuera/                 -- WinForms 残留源码（不再维护，仅作只读参考，不可独立构建）
-eracore_gateway/         -- Python eracore_agent CLI 与 HTTP 客户端
+eracore_agent/          -- Python eracore_agent CLI 与 HTTP 客户端
 tests/                  -- Python 端到端测试脚本
 build/                  -- MSBuild targets（VueBuild.targets 共享）
 test_game/              -- 开发用最小 ERB 测试游戏
 ```
 
+---
+
+## 致谢
+
+- **上游项目**：Emuera（Copyright (C) 2008- MinorShift），以及 fork 来源 **EvilMask 的 Emuera.EM**。
+- 社区为 Emuera 生态做出的长期贡献。
+
+---
+
 ## 许可证
 
-Copyright (C) 2008- MinorShift。社区维护分支。
+本项目基于上游 Emuera 的许可证分发。详见 [Readme/License/Emuera.LICENSE.txt](Readme/License/Emuera.LICENSE.txt)。Copyright (C) 2008- MinorShift。社区维护分支。

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#161b22"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <text x="64" y="80" font-family="Consolas, monospace" font-size="34" fill="#58a6ff" font-weight="bold">$ era-core --ExeDir test_game --protocol cli</text>
+  <text x="64" y="150" font-family="Consolas, monospace" font-size="28" fill="#e6edf3">EraCore 已启动 · ERB 引擎就绪</text>
+  <text x="64" y="200" font-family="Consolas, monospace" font-size="28" fill="#e6edf3">├─ 扫描脚本: 128 个 ERB 文件</text>
+  <text x="64" y="245" font-family="Consolas, monospace" font-size="28" fill="#e6edf3">├─ 加载 CSV: GAMEBASE + 数据表</text>
+  <text x="64" y="290" font-family="Consolas, monospace" font-size="28" fill="#e6edf3">└─ 状态: WaitInput</text>
+  <text x="64" y="370" font-family="Consolas, monospace" font-size="26" fill="#c9d1d9">[1] 新的开始</text>
+  <text x="64" y="410" font-family="Consolas, monospace" font-size="26" fill="#c9d1d9">[2] 读取存档</text>
+  <text x="64" y="450" font-family="Consolas, monospace" font-size="26" fill="#c9d1d9">[3] 设置</text>
+  <text x="64" y="530" font-family="Consolas, monospace" font-size="24" fill="#8b949e">请输入数字选择: </text>
+  <rect x="400" y="516" width="2" height="28" fill="#58a6ff">
+    <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+  </rect>
+  <text x="64" y="640" font-family="Consolas, monospace" font-size="24" fill="#3fb950">已就绪 · 等待输入</text>
+</svg>

@@ -1,4 +1,4 @@
-# Emuera Architecture
+# EraCore Architecture
 
 本文档是当前项目架构的总览入口。它描述当前有效的项目边界、依赖关系和主要运行时流程；历史迁移过程和具体任务决策仍以 `docs/` 下的专题文档为准。
 
@@ -9,7 +9,7 @@
 - `EraCore.Core`：无头运行器核心。
 - `EraCore.Server`：HTTP/WebSocket 服务器组件。
 - `EraCore.Cli`：CLI 和 Server 模式入口。
-- `Emuera.Maui`：Windows/Android MAUI 应用壳和 C# 桥接。
+- `EraCore.Maui`：Windows/Android MAUI 应用壳和 C# 桥接。
 - `EraCore.Web`：Vue 3 前端。
 
 不在当前维护范围：
@@ -30,7 +30,7 @@
               HTTP/WebSocket                    WebView JS 桥
                     |                                |
        +------------v-------------+       +----------v----------+
-       | EraCore.Server   |       |    Emuera.Maui      |
+       | EraCore.Server   |       |    EraCore.Maui    |
        |  (Kestrel 宿主壳)         |       |  (BridgeHost +      |
        +------------+-------------+       |   HttpListenerHost) |
                     |                      +----------+----------+
@@ -47,7 +47,7 @@
 
        EraCore.Cli -> Core + Server
        EraCore.Tests -> Core + Server
-       Emuera.Maui.Tests -> Maui
+       EraCore.Maui.Tests -> Maui
 ```
 
 依赖边界：
