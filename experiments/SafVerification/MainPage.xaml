@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="SafVerification.MainPage"
+             Title="SAF Verification"
+             BackgroundColor="#1E1E1E">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="12">
+
+            <Label x:Name="StatusLabel"
+                   Text="加载中…"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   TextColor="White" />
+
+            <Label x:Name="DebugLabel"
+                   Text=""
+                   FontSize="12"
+                   TextColor="#FF6666"
+                   LineBreakMode="CharacterWrap" />
+
+            <Frame Padding="8" BackgroundColor="#2A2A2A" CornerRadius="4" BorderColor="#444">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="当前 URI:" FontSize="12" TextColor="Gray" />
+                    <Label x:Name="UriLabel"
+                           Text="(无)"
+                           FontSize="11"
+                           TextColor="#AAA"
+                           LineBreakMode="CharacterWrap" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <HorizontalStackLayout Spacing="8">
+                <Button x:Name="PickButton"
+                        Text="选择目录"
+                        Clicked="OnPickDirectory"
+                        BackgroundColor="#4CAF50"
+                        TextColor="White" />
+                <Button x:Name="RefreshButton"
+                        Text="重新扫描"
+                        Clicked="OnRefresh"
+                        BackgroundColor="#444"
+                        TextColor="White" />
+            </HorizontalStackLayout>
+
+            <Label Text="根目录内容:" FontSize="14" FontAttributes="Bold" TextColor="#CCC" />
+            <CollectionView x:Name="FileList"
+                            HeightRequest="200"
+                            SelectionMode="Single"
+                            SelectionChanged="OnFileSelected">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Label Text="{Binding .}"
+                               FontSize="13"
+                               TextColor="#CCC"
+                               Padding="4,2" />
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Label Text="文件内容预览:" FontSize="14" FontAttributes="Bold" TextColor="#CCC" />
+            <Frame Padding="8" BackgroundColor="#2A2A2A" CornerRadius="4" BorderColor="#444"
+                   HeightRequest="300">
+                <ScrollView>
+                    <Label x:Name="ContentLabel"
+                           Text="(未选择文件)"
+                           FontSize="12"
+                           TextColor="#AAA"
+                           LineBreakMode="CharacterWrap" />
+                </ScrollView>
+            </Frame>
+
+            <Label x:Name="TimingLabel"
+                   Text=""
+                   FontSize="11"
+                   TextColor="Gray" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

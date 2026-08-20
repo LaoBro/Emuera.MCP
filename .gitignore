@@ -41,9 +41,6 @@ EraCore.Maui.Tests/obj/*
 # issue 07：MAUI wwwroot 由 VueBuild.targets 从 EraCore.Web/dist-maui 复制填充——构建产物不入库
 EraCore.Maui/wwwroot/*
 
-# Phase 0 SAF 验证项目——一次性验证，不入库（经验已记录在 docs/LESSONS.md + docs/adr/0019）
-SafVerification/*
-
 # EraCore.Web（Vue 3 + Vite）—— 源码入库，依赖与构建产物不入库
 EraCore.Web/node_modules/*
 EraCore.Web/dist/*
