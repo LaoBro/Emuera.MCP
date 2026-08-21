@@ -1151,6 +1151,37 @@ export const useGameStore = defineStore('game', () => {
     acceptGeneration(0);
   }
 
+  /**
+   * HTTP 模式退出游戏——前端与 server 绑定的 Web 游戏页「退出」路径
+   * （对齐 MAUI 的 exitGame 桥接语义，T-025 后无 stdin pipe）。
+   *
+   * 流程：
+   * 1. 置 exitStatus='exiting'（二次进入保护，语义对齐 beginExitGame）
+   * 2. disconnect 旧 WS
+   * 3. DELETE /session（dispose 会话）
+   * 4. completeExitGame()——清前端状态回列表态
+   * 5. 重新扫描主目录——列表页填充数据
+   *
+   * 失败不阻断——DELETE 失败也清前端状态回列表态。
+   */
+  async function exitGameHttp(): Promise<void> {
+    if (exitStatus.value === 'exiting') return;
+    exitStatus.value = 'exiting';
+    const conn = useConnectionStore();
+    const httpBase = conn.deriveHttpBase(conn.serverUrl);
+    conn.disconnect();
+    try {
+      await fetch(`${httpBase}/session`, { method: 'DELETE' });
+    } catch {
+      // DELETE 失败不阻断——仍回列表态
+    }
+    completeExitGame();
+    const rootDir = scanRootDir.value ?? mainGameDir.value;
+    if (rootDir) {
+      await scanGamesHttp(rootDir);
+    }
+  }
+
   /** issue 09：清空 mauiError——用户关闭错误提示时调用。 */
   function clearMauiError(): void {
     mauiError.value = null;
@@ -1428,6 +1459,7 @@ export const useGameStore = defineStore('game', () => {
     browseDirectoryHttp,
     beginExitGame,
     completeExitGame,
+    exitGameHttp,
     // T-025 D14：快速重开 + server 状态
     quickRestart,
     serverState,

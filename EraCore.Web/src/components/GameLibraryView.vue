@@ -3,23 +3,23 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useGameStore, mapLoadGameErrorCode, formatMainGameDirForDisplay } from '../stores/game';
 import { useConnectionStore } from '../stores/connection';
 import type { GameLibrarySource } from '../lib/gameLibrary';
+import ChangeDirDialog from './ChangeDirDialog.vue';
 import GameRow from './GameRow.vue';
 import StatusBanner from './StatusBanner.vue';
 
 /**
  * GameLibraryView — MAUI 与 Web/HTTP **共用的游戏选择页**（单一设计源）。
  *
- * 背景：浏览器沙箱不能枚举本地文件系统，MAUI 走 C# 桥接、Web 走 C# server HTTP 端点，
- * 但两者底层都调 Core 的 GameScanner/DirectoryLister，store 状态完全共享。
- * 故本组件只认 <see cref="GameLibrarySource"/> 抽象（扫描/浏览/选目录/加载），
- * 页面结构、样式、空状态、目录浏览全部只维护这一份——改设计只需动本文件。
+ * 页面体（hero / 路径行 / 游戏列表 / 空状态）两边渲染完全同一份布局；
+ * 改目录统一走 {@link ChangeDirDialog}（手动输入 + 平台选择器：MAUI 原生 / Web 浏览），
+ * **不再在页面体内联目录浏览**，因此 MAUI 与 Web 的主布局一致。
  *
- * 差异由 source 能力驱动：
- * - source.supportsNativePicker=true（MAUI）：「更改主目录」→ 原生 FolderPicker/SAF
- * - false（Web）：「浏览目录」→ 页面内目录浏览（source.listDirs）
+ * 数据获取（扫描 / 加载）经 <see cref="GameLibrarySource"/> 抽象：
+ * - maui：C# 桥接（scanGames → gamesScanned 事件回流 store），原生 FolderPicker/SAF
+ * - http：C# server /game/scan、/game/dirs，手动输入 + 页面内浏览（都在对话框内）
  *
  * 顶部应用栏右侧内容由父组件经 `#appbar-actions` 插槽注入
- * （MAUI：⋮ 菜单 = 更改目录/重新扫描/主题；Web：连接设置按钮）。
+ * （MAUI：⋮ 菜单 = 更改目录/重新扫描/主题；Web：连接状态按钮）。
  */
 const props = defineProps<{
   /** 游戏库数据源（maui 桥接 或 http）。 */
@@ -29,7 +29,7 @@ const props = defineProps<{
 const game = useGameStore();
 const conn = useConnectionStore();
 
-/** 原生选择器可用 → 走原生；否则走页面内目录浏览。 */
+/** 原生选择器可用（MAUI）——「更改目录」分派：MAUI 直接原生选择器，Web 打开手动输入对话框。 */
 const isNative = computed(() => props.source.supportsNativePicker);
 
 /** 主目录展示文案——优先 scanRootDir（最近扫描的目录），fallback mainGameDir。 */
@@ -89,21 +89,13 @@ function scheduleErrorBannerAutoDismiss(): void {
 }
 watch(currentError, () => scheduleErrorBannerAutoDismiss(), { immediate: true });
 
-// ---------- 目录浏览（仅 Web：supportsNativePicker=false） ----------
-const browsing = ref(false);
-const browsePath = ref<string>('');
-const browseDirs = ref<string[]>([]);
-const browseParent = ref<string | null>(null);
-const browseInput = ref<string>('');
+// ---------- 「更改目录」入口（统一走 ChangeDirDialog） ----------
+const dirDialogVisible = ref(false);
 
-/** 主目录输入框（仅 Web 设置行）——预填 mainGameDir。 */
-const mainDirInput = ref<string>(game.mainGameDir ?? '');
-
-/** 扫描主目录——输入框/浏览选中的路径作为主目录，经 source.scan 请求列表。 */
-async function doScan(dir?: string): Promise<void> {
-  const target = (dir ?? mainDirInput.value).trim();
+/** 以指定路径为主目录并发起扫描——成功与否由 source 判断，失败写本地错误。 */
+async function scanDir(dir: string): Promise<void> {
+  const target = dir.trim();
   if (!target) return;
-  mainDirInput.value = target;
   localError.value = null;
   const ok = await props.source.scan(target);
   if (!ok) {
@@ -111,66 +103,21 @@ async function doScan(dir?: string): Promise<void> {
   }
 }
 
-/** 切换目录浏览模式（Web）——首次打开以当前主目录为起点加载子目录。 */
-async function toggleBrowse(): Promise<void> {
-  localError.value = null;
-  if (browsing.value) {
-    browsing.value = false;
-    return;
-  }
-  browsing.value = true;
-  await enterBrowse(game.scanRootDir ?? game.mainGameDir ?? '');
-}
-
-/** 进入目录浏览指定路径。 */
-async function enterBrowse(dir: string): Promise<void> {
-  const target = dir.trim();
-  browsePath.value = target;
-  browseInput.value = target;
-  const result = await props.source.listDirs(target);
-  if (result === null) {
-    browseDirs.value = [];
-    browseParent.value = null;
-    localError.value = `无法访问目录：${target || '(空)'}`;
-    return;
-  }
-  browsePath.value = result.currentPath;
-  browseInput.value = result.currentPath;
-  browseDirs.value = result.dirs;
-  browseParent.value = result.parentPath;
-}
-
-/** 前往目录浏览器输入框中的路径。 */
-async function onBrowseGo(): Promise<void> {
-  await enterBrowse(browseInput.value);
-}
-
-/** 点击子目录——进入该目录继续浏览。 */
-async function onPickDir(name: string): Promise<void> {
-  const base = browsePath.value.replace(/[\\/]+$/, '');
-  const sep = browsePath.value.includes('\\') ? '\\' : '/';
-  await enterBrowse(name ? `${base}${sep}${name}` : base);
-}
-
-/** 回到上级目录。 */
-async function onBrowseUp(): Promise<void> {
-  if (browseParent.value) await enterBrowse(browseParent.value);
-}
-
-/** 使用浏览中的目录作为主目录 → 退出浏览 → 扫描。 */
-async function onUseBrowsePath(): Promise<void> {
-  if (!browsePath.value.trim()) return;
-  browsing.value = false;
-  game.setMainGameDir(browsePath.value);
-  mainDirInput.value = browsePath.value;
-  await doScan(browsePath.value);
-}
-
-/** 「更改主目录」——MAUI 原生选择器（结果经事件回 store）。 */
-async function onPickMainDir(): Promise<void> {
-  localError.value = null;
+/** 打开共享的「更改目录」对话框（Web 经右上角菜单调用；MAUI 不走此对话框）。 */
+function openChangeDirDialog(): void {
   game.clearMauiError();
-  await props.source.pickMainDir();
+  game.clearLoadGameError();
+  dirDialogVisible.value = true;
+}
+
+/** 「更改目录」统一入口——MAUI 直接弹原生选择器，Web 打开手动输入对话框。 */
+function changeMainDir(): void {
+  if (isNative.value) {
+    game.clearMauiError();
+    void props.source.pickMainDir();
+  } else {
+    openChangeDirDialog();
+  }
 }
 
 /** 点击游戏列表项——经 source.pickGame 加载（MAUI hot-swap / HTTP /load-game）。 */
@@ -203,10 +150,7 @@ onMounted(() => {
   // 启动自动扫描：MAUI 由 useAppInit 首扫（bridge 事件驱动），Web 由视图首扫（避免双扫）。
   if (props.source.kind === 'http') {
     const dir = game.mainGameDir;
-    if (dir) {
-      mainDirInput.value = dir;
-      void doScan(dir);
-    }
+    if (dir) void scanDir(dir);
   }
 });
 
@@ -215,6 +159,9 @@ onUnmounted(() => {
   if (heroIntroTimer) clearTimeout(heroIntroTimer);
   if (errorBannerTimer) clearTimeout(errorBannerTimer);
 });
+
+/** 暴露给外层 wrapper（如 MauiGameList ⋮ 菜单）打开共享「更改目录」对话框。 */
+defineExpose({ openChangeDirDialog });
 </script>
 
 <template>
@@ -234,26 +181,12 @@ onUnmounted(() => {
       :style="{ opacity: heroOpacity }"
     >选择游戏</div>
 
-    <!-- 路径行：主目录 + 更改主目录/浏览目录入口 -->
+    <!-- 路径行：当前目录展示（改目录经右上角菜单 → 对话框/原生选择器，两平台对齐） -->
     <div class="path-line">
-      <span class="path-prefix">主目录</span>
+      <span class="path-prefix">当前目录</span>
       <span class="path-value" :title="mainDirDisplay">
         {{ hasMainDir ? mainDirDisplay : '未选择目录' }}
       </span>
-      <button
-        v-if="isNative"
-        type="button"
-        class="btn-outline path-btn"
-        :disabled="isLoading"
-        @click="onPickMainDir"
-      >更改主目录</button>
-      <button
-        v-else
-        type="button"
-        class="btn-outline path-btn"
-        :disabled="isLoading"
-        @click="toggleBrowse"
-      >{{ browsing ? '返回列表' : '浏览目录' }}</button>
     </div>
 
     <div class="glv-body">
@@ -264,70 +197,10 @@ onUnmounted(() => {
         </StatusBanner>
       </div>
 
-      <!-- 目录浏览模式（Web） -->
-      <div v-if="browsing" class="browser">
-        <div class="browser-path-row">
-          <button
-            type="button"
-            class="btn-outline"
-            :disabled="!browseParent"
-            @click="onBrowseUp"
-          >⬆ 上级</button>
-          <input
-            v-model="browseInput"
-            class="dir-input"
-            type="text"
-            placeholder="输入目录路径后回车"
-            spellcheck="false"
-            @keyup.enter="onBrowseGo"
-          />
-          <button type="button" class="btn-primary" @click="onBrowseGo">前往</button>
-        </div>
-        <div class="browser-dirs">
-          <ul v-if="browseDirs.length" class="dir-list">
-            <li v-for="d in browseDirs" :key="d">
-              <button type="button" class="dir-row" @click="onPickDir(d)">
-                <span class="dir-icon" aria-hidden="true">📁</span>
-                <span class="dir-name">{{ d }}</span>
-                <span class="dir-arrow" aria-hidden="true">›</span>
-              </button>
-            </li>
-          </ul>
-          <div v-else class="browser-empty">此目录下没有子目录</div>
-        </div>
-        <div class="browser-footer">
-          <span class="browser-path" :title="browsePath">{{ browsePath || '(空路径)' }}</span>
-          <button
-            type="button"
-            class="btn-primary"
-            :disabled="!browsePath.trim()"
-            @click="onUseBrowsePath"
-          >使用此目录</button>
-        </div>
-      </div>
-
       <!-- 扫描状态（轻量 spinner + 文案） -->
-      <div v-else-if="isScanning" class="scanning">
+      <div v-if="isScanning" class="scanning">
         <span class="spinner" aria-hidden="true" />
         <span>正在扫描游戏列表…</span>
-      </div>
-
-      <!-- 主目录输入 + 扫描（仅 Web：尚无主目录时） -->
-      <div v-else-if="!isNative && !hasMainDir" class="setup-row">
-        <input
-          v-model="mainDirInput"
-          class="dir-input setup-input"
-          type="text"
-          placeholder="输入游戏主目录，例如 D:\games"
-          spellcheck="false"
-          @keyup.enter="doScan()"
-        />
-        <button
-          type="button"
-          class="btn-primary"
-          :disabled="!mainDirInput.trim() || isLoading"
-          @click="doScan()"
-        >扫描</button>
       </div>
 
       <!-- 空状态 -->
@@ -343,15 +216,10 @@ onUnmounted(() => {
         <div class="empty-path" :title="mainDirDisplay">{{ mainDirDisplay }}</div>
         <div class="empty-hint">游戏目录需要包含 csv/ 和 erb/ 两个子目录</div>
         <button
-          v-if="isNative"
           type="button"
           class="btn-primary btn-lg empty-primary-btn"
-          @click="onPickMainDir"
+          @click="changeMainDir"
         >更改主目录</button>
-        <div v-else class="empty-actions">
-          <button type="button" class="btn-primary btn-lg" @click="toggleBrowse">浏览目录</button>
-          <button type="button" class="btn-outline" @click="doScan()">重新扫描</button>
-        </div>
       </div>
 
       <!-- 游戏列表（文件管理器式整行） -->
@@ -367,6 +235,9 @@ onUnmounted(() => {
         </ul>
       </div>
     </div>
+
+    <!-- 共享「更改目录」对话框（MAUI 原生 / Web 浏览 + 手动输入） -->
+    <ChangeDirDialog v-model:visible="dirDialogVisible" :source="source" />
   </div>
 </template>
 
@@ -465,9 +336,6 @@ onUnmounted(() => {
   color: var(--color-text);
   opacity: 0.6;
 }
-.path-btn {
-  flex-shrink: 0;
-}
 
 .glv-body {
   flex: 1;
@@ -478,7 +346,7 @@ onUnmounted(() => {
   padding-bottom: env(safe-area-inset-bottom);
 }
 .error-slot {
-  padding: 0 var(--space-5) var(--space-2);
+  padding-bottom: var(--space-2);
 }
 .scanning {
   flex: 1;
@@ -503,105 +371,6 @@ onUnmounted(() => {
 @keyframes glv-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-/* 主目录输入 + 扫描（Web） */
-.setup-row {
-  display: flex;
-  gap: var(--space-2);
-  padding: 0 var(--space-5) var(--space-3);
-  max-width: var(--picker-list-max-width);
-  width: 100%;
-  margin: 0 auto;
-}
-.setup-input {
-  flex: 1;
-  min-width: 0;
-}
-
-/* 目录浏览器（Web） */
-.browser {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: 0 var(--space-5) var(--space-3);
-  max-width: var(--picker-list-max-width);
-  width: 100%;
-  margin: 0 auto;
-}
-.browser-path-row {
-  display: flex;
-  gap: var(--space-2);
-  width: 100%;
-}
-.browser-path-row .dir-input {
-  flex: 1;
-  min-width: 0;
-}
-.browser-dirs {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  overflow: hidden;
-}
-.dir-list {
-  list-style: none;
-  margin: 0;
-  padding: var(--space-1) 0;
-  max-height: 46vh;
-  overflow-y: auto;
-}
-.dir-row {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 24px;
-  align-items: center;
-  width: 100%;
-  min-height: 40px;
-  text-align: left;
-  background: transparent;
-  color: var(--color-text);
-  border: none;
-  padding: 0 var(--space-3);
-  cursor: pointer;
-  font-size: var(--font-size-base);
-  font-family: var(--font-ui);
-}
-.dir-row:hover {
-  background: var(--state-layer-hover);
-}
-.dir-icon {
-  color: var(--color-text-muted);
-}
-.dir-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.dir-arrow {
-  color: var(--color-text-muted);
-  justify-self: end;
-}
-.browser-empty {
-  padding: var(--space-4);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  text-align: center;
-}
-.browser-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.browser-path {
-  flex: 1;
-  min-width: 0;
-  color: var(--color-text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* 空状态（spec §5.4：居中紧凑，主按钮唯一） */
@@ -641,13 +410,8 @@ onUnmounted(() => {
 .empty-primary-btn {
   margin-top: var(--space-3);
 }
-.empty-actions {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
 
-/* 游戏列表 */
+/* 游戏列表（spec §5.3：文件管理器式整行，无卡片） */
 .game-list-wrapper {
   flex: 1;
   display: flex;
@@ -662,23 +426,10 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  max-width: var(--picker-list-max-width);
+  max-width: none;
   width: 100%;
   margin-left: auto;
   margin-right: auto;
-}
-
-.dir-input {
-  background: var(--color-bg);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  padding: 6px var(--space-2);
-  border-radius: var(--radius-control);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-}
-.dir-input:disabled {
-  opacity: 0.6;
 }
 
 @keyframes picker-hero-in {

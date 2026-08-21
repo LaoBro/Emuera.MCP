@@ -22,7 +22,7 @@ npm run build
 
 | 文件 | 职责 |
 |---|---|
-| `src/App.vue` | 应用初始化、壳层组合（AppShell/AppBar/浮钮）、HTTP/MAUI 分流、快速重开和退出游戏 |
+| `src/App.vue` | 应用初始化、壳层组合（AppShell/悬浮钮）、HTTP/MAUI 分流、快速重开和退出游戏；游戏页两端共用同一壳层 |
 | `src/views/TerminalView.vue` | 终端页面外壳、连接/加载状态展示 |
 | `src/views/SettingsView.vue` | 设置页面 |
 | `src/views/DebugView.vue` | 原始回合、协议和调试信息展示 |
@@ -35,21 +35,16 @@ npm run build
 | `src/components/TerminalDisplay.vue` | 渲染文本、按钮、图片、背景、虚拟滚动和终端点击推进 |
 | `src/components/SegmentRenderer.vue` | 渲染文本、图片和图形 segment |
 | `src/components/InputBar.vue` | 手动输入、TINPUT 倒计时和输入提交 |
-| `src/components/GameLibraryView.vue` | MAUI/Web **共用**的游戏选择页（单一设计源）：路径行/游戏列表/空状态/扫描态/目录浏览，经 `GameLibrarySource` 抽象取数 |
-| `src/components/MauiGameList.vue` | MAUI 游戏选择页 wrapper：右上角 ⋮ 菜单（更改目录/重新扫描/主题），传输走 C# 桥接 |
-| `src/components/WebGameList.vue` | Web 游戏选择页 wrapper：右上角连接按钮，传输走 C# server（/game/scan、/game/dirs） |
-| `src/components/GamePicker.vue` | HTTP 桌面模式的游戏目录输入和加载（GameLibraryView 的连接设置逃生口） |
-| `src/components/GamePickerMobile.vue` | HTTP 移动模式的游戏目录选择 |
-| `src/components/ConnectionPanel.vue` | HTTP 服务器地址、WebSocket 连接和连接状态 |
-| `src/components/DirectoryBrowser.vue` | Android SAF 目录浏览器 |
+| `src/components/GameLibraryView.vue` | MAUI/Web **共用**的游戏选择页（单一设计源）：hero/路径行/游戏列表/空状态，经 `GameLibrarySource` 抽象取数 |
+| `src/components/ChangeDirDialog.vue` | Web/HTTP 的「更改目录」对话框：手动路径输入 + 页面内目录浏览（`/game/dirs`），确认后经 `source.scan` 扫描（MAUI 不走此对话框，直接原生选择器） |
+| `src/components/MauiGameList.vue` | MAUI 游戏选择页 wrapper：右上角 ⋮ 菜单（更改目录→原生 FolderPicker/SAF / 重新扫描 / 主题），传输走 C# 桥接 |
+| `src/components/WebGameList.vue` | Web 游戏选择页 wrapper：右上角 ⋮ 菜单与 MAUI 一致（更改目录→手动输入对话框 / 重新扫描 / 主题），传输走 C# server（/game/scan、/game/dirs） |
 | `src/components/TinputCountdown.vue` | TINPUT 倒计时显示 |
 | `src/components/AppShell.vue` | 根布局壳层：全局背景、主内容与全局对话框挂载点 |
-| `src/components/AppBar.vue` | 桌面共用应用栏：连接状态 / 操作 / SegmentedNav 插槽 |
-| `src/components/PopupMenu.vue` | MAUI 更多菜单：快速重开、缩放（含恢复）、视图切换、退出 |
+| `src/components/PopupMenu.vue` | 游戏页更多菜单（MAUI/Web 共用）：快速重开、缩放（含恢复）、视图切换、退出 |
 | `src/components/ConfirmDialog.vue` | 退出 / 确认 Alert Dialog（遮罩 + 危险文字按钮，Escape/返回取消） |
 | `src/components/StatusBanner.vue` | 顶部可关闭提示条：错误 / 警告 / 成功 / 信息 |
-| `src/components/SpectatorBanner.vue` | HTTP 旁观横幅：Agent 操控提示 + 接管按钮 |
-| `src/components/SegmentedNav.vue` | Terminal / Debug / Settings 视图切换（桌面） |
+| `src/components/SpectatorBanner.vue` | 旁观横幅（MAUI/Web 共用）：Agent 操控提示 + 接管按钮 |
 | `src/components/GameRow.vue` | 游戏选择页列表项（文件管理器式整行） |
 
 ## 状态管理
@@ -76,7 +71,6 @@ npm run build
 | `src/composables/useGameStatusMonitor.ts` | MAUI 游戏线程存活状态探测 |
 | `src/composables/useVirtualScroll.ts` | 终端虚拟滚动和底部跟随 |
 | `src/composables/usePinchZoom.ts` | 终端双指缩放 |
-| `src/composables/useGameDirInput.ts` | HTTP 游戏目录输入框同步 |
 | `src/lib/mauiBridge.ts` | Vue 与 MAUI C# 桥接消息、游戏扫描和加载 |
 | `src/lib/gameLibrary.ts` | 游戏库数据源抽象：`GameLibrarySource` 接口 + maui（桥接）/ http（HTTP）两个 adapter |
 | `src/lib/inputRouting.ts` | 按钮点击和终端点击的输入路由判定 |
@@ -91,15 +85,14 @@ npm run build
 |---|---|
 | 修改终端空状态、文字、按钮或点击行为 | `components/TerminalDisplay.vue` |
 | 修改终端图片、矩形、背景和资源路径 | `components/SegmentRenderer.vue`、`lib/resourceResolver.ts`、`lib/imageLayout.ts` |
-| 修改游戏选择和加载流程 | `components/MauiGameList.vue`、`stores/game.ts`、`lib/mauiBridge.ts` |
+| 修改游戏选择和加载流程 | `components/GameLibraryView.vue`、`components/ChangeDirDialog.vue`、`stores/game.ts`、`lib/mauiBridge.ts` |
 | 修改快速重开或退出游戏 | `App.vue`、`stores/game.ts`、`lib/mauiBridge.ts` |
-| 修改 HTTP 连接或 WebSocket 输入 | `components/ConnectionPanel.vue`、`stores/connection.ts` |
-| 修改旁观/接管或控制权状态 | `stores/connection.ts`、`components/SpectatorBanner.vue`、`App.vue` |
+| 修改控制权（旁观/接管）状态 | `stores/connection.ts`、`components/SpectatorBanner.vue`、`App.vue` |
 | 修改手动输入和按钮输入 | `components/InputBar.vue`、`lib/inputRouting.ts` |
 | 修改 TINPUT 倒计时 | `components/TinputCountdown.vue`、`stores/game.ts` |
 | 修改终端滚动或缩放 | `composables/useVirtualScroll.ts`、`composables/usePinchZoom.ts`、`TerminalDisplay.vue` |
 | 修改 MAUI 启动和 C# 消息处理 | `composables/useAppInit.ts`、`lib/mauiBridge.ts` |
-| 修改页面导航、顶部按钮或模式分流 | `App.vue`、`components/AppShell.vue`、`components/AppBar.vue`、`components/SegmentedNav.vue` |
+| 修改页面导航、顶部按钮或模式分流 | `App.vue`、`components/PopupMenu.vue` |
 | 修改 UI 主题、颜色、圆角、阴影、动效或字号 | `styles/theme.css`（唯一令牌源，组件一律 `var(--token)`） |
 | 修改弹窗、菜单或确认框 | `components/PopupMenu.vue`、`components/ConfirmDialog.vue` |
 
@@ -109,7 +102,7 @@ npm run build
 
 ```text
 App.vue
-  -> AppBar (ConnectionPanel) / picker-bar (GamePicker)
+  -> WebGameList（选择页）/ game-shell-controls + PopupMenu（游戏页）
   -> connection.ts
   -> WebSocket (turns) + GET /control + GET /control/wait (control events)
   -> parseTurnRecord.ts
@@ -146,6 +139,18 @@ MauiGameList.onPickGame()
   -> TerminalDisplay 渲染输出
 ```
 
+### 更改目录（两平台右上角 ⋮ 菜单，交互对齐）
+
+```text
+MAUI ⋮ 菜单「更改目录」
+  -> 直接原生 FolderPicker/SAF（bridge folderPicked → setMainGameDir + scanGames）
+
+Web ⋮ 菜单「更改目录」
+  -> ChangeDirDialog（手动路径输入 + 浏览 /game/dirs 填框）
+  -> source.scan(path)（/game/scan）
+  -> gamesScanned 回流 -> game.setScannedGames -> 列表刷新
+```
+
 ## 测试导航
 
 组件测试位于对应目录的 `__tests__` 子目录：
@@ -157,6 +162,7 @@ MauiGameList.onPickGame()
 | `src/stores/__tests__/game.test.ts` | 游戏状态、回合和目录状态 |
 | `src/stores/__tests__/gameLoadGame.test.ts` | HTTP 游戏加载 |
 | `src/stores/__tests__/gameQuickRestart.test.ts` | HTTP 快速重开 |
+| `src/stores/__tests__/gameExitHttp.test.ts` | HTTP 退出游戏（DELETE /session + 清状态 + 重扫、二次进入保护） |
 | `src/composables/__tests__/useAppInit.test.ts` | HTTP/MAUI 初始化分流 |
 | `src/lib/__tests__/parseTurnRecord.test.ts` | 回合协议解析 |
 

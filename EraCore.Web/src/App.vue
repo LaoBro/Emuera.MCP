@@ -7,13 +7,8 @@ import { initAppState } from './composables/useAppInit';
 import { startGameStatusMonitor } from './composables/useGameStatusMonitor';
 import { isMauiEnvironment, loadGameFromPath, exitGame as exitGameBridge } from './lib/mauiBridge';
 import AppShell from './components/AppShell.vue';
-import AppBar from './components/AppBar.vue';
 import PopupMenu, { type PopupMenuItem } from './components/PopupMenu.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
-import SegmentedNav from './components/SegmentedNav.vue';
-import ConnectionPanel from './components/ConnectionPanel.vue';
-import GamePicker from './components/GamePicker.vue';
-import GamePickerMobile from './components/GamePickerMobile.vue';
 import MauiGameList from './components/MauiGameList.vue';
 import WebGameList from './components/WebGameList.vue';
 import TerminalView from './views/TerminalView.vue';
@@ -65,14 +60,10 @@ const showMauiGameList = computed(() =>
 
 /**
  * Web 全屏游戏选择界面可见性——HTTP 模式未加载游戏 + server 空闲时显示 WebGameList
- * （server 代扫 + 目录浏览的游戏选择页，替代手动输入路径）。
- *
- * 用户点「连接设置」进入 webPickerFallback——回落到标准布局（AppBar + ConnectionPanel +
- * 手动路径输入），作为连接异常时的逃生口。
+ * （server 代扫 + 目录浏览的游戏选择页）。前端与 server 绑定，无需连接配置。
  */
-const webPickerFallback = ref(false);
 const showWebGameList = computed(() =>
-  !isMaui && !webPickerFallback.value && !game.gameDir && game.serverState === 'Idle',
+  !isMaui && !game.gameDir && game.serverState === 'Idle',
 );
 
 /** 「快速重开」可见性：HTTP 非 Idle / MAUI 已选目录。 */
@@ -81,9 +72,9 @@ const canQuickRestart = computed(() =>
 );
 const isRestarting = computed(() => game.reloadStatus === 'loading');
 
-/** MAUI 模式「退出游戏」可见性。 */
+/** 「退出游戏」可见性——游戏页（非选择页）显示。 */
 const canExitGame = computed(
-  () => isMaui && (game.serverState !== 'Idle' || !!game.gameDir),
+  () => game.serverState !== 'Idle' || !!game.gameDir,
 );
 const isExiting = computed(() => game.exitStatus === 'exiting');
 
@@ -129,11 +120,15 @@ function onExitClick(): void {
   showExitConfirm.value = true;
 }
 
-/** 确认退出——投递 exitGame 消息，C# Dispose + 重建 host。 */
-function onExitConfirm(): void {
+/** 确认退出——MAUI 投递 exitGame 消息（C# Dispose + 重建 host）；Web 走 HTTP 退出。 */
+async function onExitConfirm(): Promise<void> {
   showExitConfirm.value = false;
-  if (!game.beginExitGame()) return; // 二次进入保护
-  exitGameBridge();
+  if (isMaui) {
+    if (!game.beginExitGame()) return; // 二次进入保护
+    exitGameBridge();
+    return;
+  }
+  await game.exitGameHttp();
 }
 
 /** 取消退出——关闭对话框，无副作用。 */
@@ -225,59 +220,12 @@ const popupItems = computed<PopupMenuItem[]>(() => [
     <!-- 页面过渡动画：out-in 模式，进场 --fx-ease-in，退场 --fx-ease-out -->
     <Transition name="page" mode="out-in">
       <MauiGameList v-if="showMauiGameList" key="game-list" />
-      <WebGameList
-        v-else-if="showWebGameList"
-        key="web-game-list"
-        @open-connection="webPickerFallback = true"
-      />
+      <WebGameList v-else-if="showWebGameList" key="web-game-list" />
       <div v-else class="game-view-wrapper" key="game-view">
-        <!-- 桌面：应用栏（连接状态 + 缩放/快速重开 + SegmentedNav） -->
-        <AppBar v-if="!isMaui">
-          <template #left>
-            <ConnectionPanel />
-          </template>
-          <template #actions>
-            <div class="zoom-controls">
-              <button
-                class="icon-btn sm"
-                :disabled="game.isMinScale"
-                aria-label="缩小"
-                title="缩小"
-                @click="game.setScale(game.effectiveScale - 0.1)"
-              >−</button>
-              <span class="zoom-label tabular-nums">{{ Math.round(game.effectiveScale * 100) }}%</span>
-              <button
-                class="icon-btn sm"
-                :disabled="game.isMaxScale"
-                aria-label="放大"
-                title="放大"
-                @click="game.setScale(game.effectiveScale + 0.1)"
-              >+</button>
-            </div>
-            <button
-              v-if="canQuickRestart"
-              class="btn-outline action-btn"
-              :disabled="isRestarting || !conn.canMutateLifecycle"
-              :title="!conn.canMutateLifecycle ? '旁观中，请先接管再重开' : `重开当前游戏：${game.gameDir ?? ''}`"
-              @click="onQuickRestart"
-            >
-              {{ isRestarting ? '重开中…' : '快速重开' }}
-            </button>
-          </template>
-          <template #nav>
-            <SegmentedNav />
-          </template>
-        </AppBar>
-
-        <!-- 桌面：目录选择条（spec §5.5——路径输入行不塞进应用栏） -->
-        <div v-if="!isMaui" class="picker-bar">
-          <GamePickerMobile v-if="ui.platform === 'android'" />
-          <GamePicker v-else />
-        </div>
-
-        <!-- MAUI 全屏游戏页：两个常驻无边框图标（spec §6.1），fixed 不占布局。
-             DOM 顺序在 main 之前——满足 §9 Tab 顺序「更多 → 主要内容」。 -->
-        <div v-if="isMaui" class="game-shell-controls">
+        <!-- 全屏游戏页：两个常驻无边框图标（spec §6.1），fixed 不占布局。
+             DOM 顺序在 main 之前——满足 §9 Tab 顺序「更多 → 主要内容」。
+             MAUI 与 Web 共用同一壳层——除更改目录行为外 UI 与 MAUI 一致。 -->
+        <div class="game-shell-controls">
           <button
             class="icon-btn"
             :class="{ active: keyboardActive }"
@@ -297,7 +245,7 @@ const popupItems = computed<PopupMenuItem[]>(() => [
 
         <Transition name="popup">
           <PopupMenu
-            v-if="isMaui && showFloatMenu"
+            v-if="showFloatMenu"
             :items="popupItems"
             @close="showFloatMenu = false"
           />
@@ -343,17 +291,6 @@ const popupItems = computed<PopupMenuItem[]>(() => [
   flex-direction: column;
 }
 
-/* 桌面目录选择条——路径输入 + 加载按钮成组（spec §5.5） */
-.picker-bar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-4);
-  background: var(--color-bg);
-  border-bottom: 1px solid var(--color-border);
-}
-
 /* 通用图标按钮（spec §3.3）：方形触控目标、无边框、无背景 */
 .icon-btn {
   width: var(--touch-target);
@@ -370,11 +307,6 @@ const popupItems = computed<PopupMenuItem[]>(() => [
   font-family: var(--font-ui);
   transition: background var(--motion-fast), color var(--motion-fast);
 }
-.icon-btn.sm {
-  width: 32px;
-  height: 32px;
-  font-size: 14px;
-}
 .icon-btn:hover:not(:disabled) {
   background: var(--color-surface-raised);
 }
@@ -389,24 +321,7 @@ const popupItems = computed<PopupMenuItem[]>(() => [
   cursor: not-allowed;
 }
 
-.zoom-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-.zoom-label {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  min-width: 40px;
-  text-align: center;
-}
-
-/* 桌面「快速重开」——.btn-outline 基础上略降高度，与应用栏紧凑 */
-.action-btn {
-  min-height: 32px;
-}
-
-/* MAUI 全屏游戏页：两个常驻无边框图标（spec §6.1）——透明度一致、固定位置、≥48px 点击区 */
+/* 全屏游戏页：两个常驻无边框图标（spec §6.1）——透明度一致、固定位置、≥48px 点击区 */
 .game-shell-controls {
   position: fixed;
   top: calc(var(--space-2) + env(safe-area-inset-top));

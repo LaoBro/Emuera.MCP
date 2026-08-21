@@ -1,80 +1,131 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useConnectionStore } from '../stores/connection';
+import { ref, computed } from 'vue';
+import { useGameStore } from '../stores/game';
+import { useUiStore } from '../stores/ui';
 import { httpGameLibrarySource } from '../lib/gameLibrary';
 import GameLibraryView from './GameLibraryView.vue';
+import PopupMenu, { type PopupMenuItem } from './PopupMenu.vue';
 
 /**
  * WebGameList — Web/HTTP 模式的游戏选择页。
  *
- * 现在只是 GameLibraryView（与 MAUI 共用一份设计）的薄 wrapper——
- * 平台差异只剩右上角连接状态按钮：
+ * 只是 GameLibraryView（与 MAUI 共用一份设计）的薄 wrapper——
+ * 右上角 ⋮ 菜单与 MAUI 完全一致（更改目录 / 重新扫描 / 主题）：
  * - 数据获取（扫描/目录浏览/加载）经 httpGameLibrarySource（C# server /game/scan、/game/dirs）
- * - 「浏览目录」用页面内目录浏览（浏览器沙箱无原生选择器）
- * - 点连接按钮 → 通知 App.vue 回落到标准布局（ConnectionPanel + 手动路径输入逃生口）
+ * - 「更改目录」打开手动输入对话框（ChangeDirDialog，GameLibraryView 内部挂载），
+ *   与 MAUI 直接弹原生选择器的区别即平台能力差异
+ * - 前端与 server 绑定，无连接配置 UI；菜单结构即 MAUI 结构
  */
-const emit = defineEmits<{
-  (e: 'open-connection'): void;
-}>();
+const game = useGameStore();
+const ui = useUiStore();
 
-const conn = useConnectionStore();
+/** GameLibraryView 实例引用——菜单「更改目录」经其暴露方法打开手动输入对话框。 */
+const glvRef = ref<InstanceType<typeof GameLibraryView> | null>(null);
 
-/** 连接状态文案/圆点——已连接 / 重连中显示绿点，未连接显示提示。 */
-const connLabel = computed(() =>
-  conn.status === 'connected' ? '已连接' : '连接设置',
-);
-const connDotClass = computed(() =>
-  conn.status === 'connected' || conn.status === 'reconnecting'
-    ? 'connected'
-    : 'disconnected',
-);
+/** 顶部 ⋮ 菜单展开状态。 */
+const showMenu = ref(false);
+
+/** 当前是否扫描中——菜单项禁用依据。 */
+const isScanning = computed(() => game.scanStatus === 'scanning');
+
+/** 右上角菜单项——与 MAUI 菜单完全一致（更改目录 / 重新扫描 / 主题）。 */
+const menuItems = computed<PopupMenuItem[]>(() => [
+  {
+    type: 'item',
+    id: 'change-dir',
+    label: isScanning.value ? '扫描中…' : '更改目录...',
+    disabled: isScanning.value,
+    onClick: () => glvRef.value?.openChangeDirDialog(),
+  },
+  {
+    type: 'item',
+    id: 'rescan',
+    label: '重新扫描游戏',
+    disabled: isScanning.value,
+    onClick: onRescan,
+  },
+  { type: 'separator' },
+  {
+    type: 'item',
+    id: 'theme',
+    icon: ui.theme === 'dark' ? 'sun' : 'moon',
+    label: ui.theme === 'dark' ? '亮色主题' : '暗色主题',
+    onClick: () => ui.toggleTheme(),
+  },
+]);
+
+/** 重新扫描——以当前主目录为起点重扫（未选目录时退化为更改目录对话框）。 */
+function onRescan(): void {
+  const dir = game.scanRootDir ?? game.mainGameDir;
+  if (!dir) {
+    glvRef.value?.openChangeDirDialog();
+    return;
+  }
+  game.setMainGameDir(dir);
+  void httpGameLibrarySource.scan(dir);
+}
 </script>
 
 <template>
-  <GameLibraryView :source="httpGameLibrarySource">
+  <GameLibraryView ref="glvRef" :source="httpGameLibrarySource">
     <template #appbar-actions>
       <button
         type="button"
-        class="appbar-conn-btn"
-        aria-label="打开连接设置"
-        title="连接设置"
-        @click="emit('open-connection')"
+        class="appbar-menu-btn"
+        :aria-label="showMenu ? '关闭目录操作菜单' : '目录操作菜单'"
+        aria-haspopup="true"
+        :aria-expanded="showMenu"
+        @mousedown.stop
+        @click="showMenu = !showMenu"
       >
-        <span class="conn-dot" :class="connDotClass" aria-hidden="true" />
-        {{ connLabel }}
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v.01M12 12v.01M12 19v.01" />
+        </svg>
       </button>
+      <Transition name="popup">
+        <PopupMenu
+          v-if="showMenu"
+          :items="menuItems"
+          @close="showMenu = false"
+        />
+      </Transition>
     </template>
   </GameLibraryView>
 </template>
 
 <style scoped>
-.appbar-conn-btn {
+/* 48px 圆形图标按钮（与 MauiGameList 一致——右上角菜单入口视觉对齐） */
+.appbar-menu-btn {
+  width: 48px;
+  height: 48px;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  justify-content: center;
   background: transparent;
-  color: var(--color-text-muted);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--font-size-sm);
-  font-family: var(--font-ui);
-  cursor: pointer;
-}
-.appbar-conn-btn:hover {
-  background: var(--color-surface-raised);
   color: var(--color-text);
-}
-.conn-dot {
-  width: 8px;
-  height: 8px;
+  border: none;
   border-radius: 9999px;
-  flex-shrink: 0;
+  cursor: pointer;
+  transition: background-color var(--motion-fast);
 }
-.conn-dot.connected {
-  background: var(--color-success);
+.appbar-menu-btn:hover {
+  background: var(--state-layer-hover);
 }
-.conn-dot.disconnected {
-  background: var(--color-warning);
+.appbar-menu-btn:active {
+  background: var(--state-layer-active);
+}
+.appbar-menu-btn:focus-visible {
+  background: var(--state-layer-focus);
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+.appbar-menu-btn svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 </style>

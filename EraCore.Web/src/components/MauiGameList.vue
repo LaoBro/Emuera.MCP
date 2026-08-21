@@ -9,10 +9,11 @@ import PopupMenu, { type PopupMenuItem } from './PopupMenu.vue';
 /**
  * MauiGameList — MAUI 游戏选择页（PickerShell）。
  *
- * 现在只是 GameLibraryView（与 Web 共用一份设计）的薄 wrapper——
+ * 只是 GameLibraryView（与 Web 共用一份设计）的薄 wrapper——
  * 平台差异只剩右上角 ⋮ 菜单（更改目录 / 重新扫描 / 主题）：
- * - 数据获取（扫描/浏览/加载）经 mauiGameLibrarySource（C# 桥接）
- * - 「更改主目录」走原生 FolderPicker（Windows）/ SAF（Android）
+ * - 数据获取（扫描/加载）经 mauiGameLibrarySource（C# 桥接）
+ * - 「更改目录」直接弹原生 FolderPicker（Windows）/ SAF（Android），
+ *   与 Web（手动输入对话框）的区别即平台能力差异
  */
 const game = useGameStore();
 const ui = useUiStore();
@@ -49,7 +50,7 @@ const dirMenuItems = computed<PopupMenuItem[]>(() => [
 /** 当前是否扫描中——菜单项禁用依据。 */
 const isScanning = computed(() => game.scanStatus === 'scanning');
 
-/** 点击「更改目录」——经 source 走原生选择器（Windows FolderPicker / Android SAF）。 */
+/** 点击「更改目录」——经 source 直接弹原生选择器（Windows FolderPicker / Android SAF）。 */
 function onChangeMainDir(): void {
   game.clearMauiError();
   void mauiGameLibrarySource.pickMainDir();
