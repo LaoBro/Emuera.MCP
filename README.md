@@ -1,8 +1,8 @@
 # EraCore
 
-一款基于 **.NET 的 Eramaker 引擎 C# 移植版（Emuera 精神续作）**，完整支持 ERB 脚本语言，并提供跨平台的多端体验。
+ **Emuera的现代化重构版本**，完全剥离WinForms依赖，并提供高性能跨平台构建。
 
-> 本项目最初 fork 自 **EvilMask 的 [Emuera.EM](https://github.com/EMHMark/Emuera.EM)** 项目，致力于在保留原汁原味 Emuera 体验的同时，迈向模块化、可扩展、可自动化与被 AI 操控的新一代架构。
+> 本项目最初 fork 自 **EvilMask 的 [Emuera.EM](https://gitlab.com/EvilMask/emuera.em)** 项目，致力于在保留原汁原味 Emuera 体验的同时，迈向模块化、可扩展、可自动化与被 AI 操控的新一代架构。
 
 ---
 
@@ -12,17 +12,14 @@
 - **无头运行器 + CLI 模式** — 无需图形界面即可运行游戏。内置 HTTP 服务器与 JSONL 协议，脚本、自动化、**AI 代理（`eracore_agent`）**都能直接操控游戏。
 - **轻量级 Web 前端** — 基于 Vue 3 + TypeScript 的纯浏览器界面，任意现代浏览器打开即玩，支持 WebSocket 实时旁观与接管。
 - **跨平台** — Windows 桌面（原生 MAUI）、Android（APK，可选 NativeAOT 原生加速）、浏览器（Web SPA）一套引擎多处体验。
-- **完整 ERB 支持** — 继承自 Emuera 的语言特性：变量表、指令系统、函数方法、图片/音频/精灵、数据表等等。
 
 ---
 
 ## 截图预览
 
-| Windows/Android 桌面（MAUI） | CLI 交互模式 | Web 前端（Server 模式） |
-| --- | --- | --- |
-| ![](docs/preview/maui.svg) | ![](docs/preview/cli.svg) | ![](docs/preview/server.svg) |
-
-> 当前为占位图，将在正式版替换为真实截图。
+| MAUI/Web | CLI 交互模式 |
+| --- | --- |
+| ![](docs/preview/MAUI.jpg) | ![](docs/preview/CLI模式.jpg) |
 
 ---
 
@@ -54,7 +51,6 @@ dotnet exec EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.dll --ExeDir test_game --s
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) 或更高版本
 - Python 3.10+（用于 `eracore_agent` CLI 和测试）
 - Node.js 18+（用于 Web 前端 `EraCore.Web/`）
-- Windows（跨平台支持计划中，目前仅完成 Windows）
 
 ---
 
@@ -75,11 +71,7 @@ dotnet exec EraCore.Cli/bin/Debug/net10.0/EraCore.Cli.dll --ExeDir test_game --s
 - **架构总览** → [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Web 前端开发** → [EraCore.Web/README.md](EraCore.Web/README.md)
 - **测试套件** → [tests/README.md](tests/README.md)
-- **领域术语表** → [CONTEXT.md](CONTEXT.md)
 - **终端行为经验** → [docs/LESSONS/terminal-windows.md](docs/LESSONS/terminal-windows.md)
-- **项目维护说明** → [CLAUDE.md](CLAUDE.md)
-
-审查、规划、实现、测试、文档维护等内部流程，见 `.agents/skills/` 提供的专业 skill。
 
 ---
 
