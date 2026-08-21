@@ -16,8 +16,30 @@
 | 8 | 操纵全局静态的测试必须串行 | DisableParallelization 集合；高频日志放大竞态 | 2026-08-07 |
 | 9 | 日志门面改默认阈值要与终端断言同步 | T-027 TerminalSink 默认 Warn，Info 级终端标志测试永远找不到；spawn 设 EMUERA_LOG_TERMINAL=info | 2026-08-10 |
 | 10 | Python print 双重编码在 GBK 控制台乱码 | encode/decode(errors="replace") 把中文变 �；直接 print（WinConsoleIO 写 UTF-16） | 2026-08-10 |
+| 11 | MAUI 前端资产 glob 依赖 load-time 目录存在 | CI 全新 checkout 无 wwwroot → MauiAsset 收集为空 → APK 缺前端 → 整页 ERR_NAME_NOT_RESOLVED；排查以最终 APK 为准 | 2026-08-22 |
 
 ---
+
+## 11. `MauiAsset Include="wwwroot\**\*"` 是 load-time glob——CI 全新 checkout 收集不到，APK 缺前端资源
+
+**场景**：GitHub Actions 构建的 MAUI Android APK 打开后整页报 `ERR_NAME_NOT_RESOLVED`（`https://game.local/wwwroot/index.html` 无法解析）；本地 Release APK 完全正常。Debug 版无法启动（缺运行时依赖），故无法用 Debug/Release 对照做第一轮排查。
+
+**结果**：CI 产物 APK 里**没有 `assets/wwwroot/index.html`** → `WwwrootPathHandler`（`Assets.Open`）找不到文件返回 null → WebView 放行到真实网络解析 `game.local` → DNS 失败。曾误判为 Full AOT/JNI 通道（`RunAOTCompilation` + `AndroidEnableMarshalMethods=false`）问题，方向错了。
+
+**原因**：`EraCore.Maui.csproj` 的 `MauiAsset Include="wwwroot\**\*"` 在 **MSBuild project evaluation（load-time）** 做 glob；而 Vue 前端产物由 `build/VueBuild.targets` 在 **Build target 阶段**才 `Copy` 进 `wwwroot/`。本地开发时 `EraCore.Maui/wwwroot` 残留着历史构建产物，load 阶段能扫到 → 正常；CI 全新 checkout 没有该目录（`.gitignore` 排除、不入库）→ glob 为空 → `MauiAsset` 一个文件都没收集 → APK 里没有前端资源。这解释了"本地正常、CI 异常"的割裂。
+
+**排查要点（本次踩坑）**：
+- `obj/.../android/assets` 中间目录**不是最终依据**——本地 `obj/Release/net10.0-android/android/assets` 里没有 wwwroot，但最终 APK 里有。必须以**最终 APK 内容**为准：`tar -tf com.eracore.maui-Signed.apk | grep assets/wwwroot`。
+- 整页 `ERR_NAME_NOT_RESOLVED` 不一定是网络/JNI 问题——**资源缺失被 PathHandler reject 后放行到真实网络**是同一症状的另一条路径（LESSONS `maui-android-webview.md` §6 记载了图片层同名症状，本次是整页层）。
+- 本地模拟 CI 干净场景可复现：`Remove-Item wwwroot` → 预置 dist-maui → 构建 → 查 APK。
+
+**解决**：release workflow 的 MAUI job 在 publish 前显式两步：`npm run build -- --base=./ --outDir=dist-maui` 生成最新产物，再 `Copy-Item` 到 `EraCore.Maui/wwwroot`，让 load-time glob 在 CI 也能拾取——与本地正常路径一致。已本地模拟验证 APK 正确包含 `assets/wwwroot/*`。
+
+**教训**：
+1. **load-time glob（`MauiAsset`/`Content`/`None` 的 `Include`）只拾取"项目加载时已存在"的文件**；由构建 target 在 build 期才产生的文件，要么在 target 内动态 `ItemGroup` 追加，要么在 workflow 预置，不能依赖 load-time glob。
+2. **"本地正常、CI 异常"优先查构建环境差异**（有无残留产物/目录是否存在），别急着归因运行时、编译器或 AOT——用 diff 两边的产物内容而不是猜。
+3. **排查打包问题以最终产物为准**（APK zip 内容 / publish 目录），obj 中间目录会误导；`git clean` 或 CI 全新建模拟是复现环境类 bug 的标准手段。
+
 
 ## 1. 增量构建"0 警告"是假象——强制重编译才能看到真实警告
 
