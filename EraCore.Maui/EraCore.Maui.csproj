@@ -30,7 +30,7 @@
 
 		<ApplicationTitle>EraCore</ApplicationTitle>
 		<ApplicationId>com.eracore.maui</ApplicationId>
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>0.1</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 
 		<!-- Windows 桌面 unpackaged 模式（开发期直接 dotnet run 启动，不需要 MSIX 打包）。

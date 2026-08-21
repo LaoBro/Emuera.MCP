@@ -30,10 +30,11 @@ jobs:
         working-directory: EraCore.Web
         run: npm ci
 
-      # self-contained 单文件发布，输出到绝对路径，避免 Cli Directory.Build.props 的 bin-aot/ 重定向干扰
+      # 框架依赖发布（不 self-contained）：用户安装 .NET 10 运行时即可运行，避免单包体积大。
+      # 输出到绝对路径，避免 Cli Directory.Build.props 的 bin-aot/ 重定向干扰
       - name: Publish EraCore.Cli
         run: |
-          dotnet publish EraCore.Cli/EraCore.Cli.csproj -c Release -r win-x64 --self-contained true -o "${{ github.workspace }}/publish/win-x64"
+          dotnet publish EraCore.Cli/EraCore.Cli.csproj -c Release -r win-x64 --self-contained false -o "${{ github.workspace }}/publish/win-x64"
 
       - name: Zip CLI
         run: |
@@ -73,6 +74,18 @@ jobs:
       - name: Restore npm
         working-directory: EraCore.Web
         run: npm ci
+
+      # MauiAsset Include="wwwroot\**\*" 是 load-time glob：全新 checkout 没有 wwwroot/
+      # 会收集不到任何前端文件，导致 APK 缺 assets/wwwroot → 页面 ERR_NAME_NOT_RESOLVED。
+      # 因此在 publish 前预置 dist-maui → EraCore.Maui/wwwroot，与本地构建路径一致。
+      - name: Build Vue frontend (MAUI)
+        working-directory: EraCore.Web
+        run: npm run build -- --base=./ --outDir=dist-maui
+
+      - name: Stage wwwroot for MAUI
+        run: |
+          if (Test-Path "EraCore.Maui/wwwroot") { Remove-Item -Recurse -Force "EraCore.Maui/wwwroot" }
+          Copy-Item -Recurse -Force "EraCore.Web/dist-maui" "EraCore.Maui/wwwroot"
 
       # Android Release 必须签名才能出 APK。CI 先用自生成 debug keystore，
       # 可安装调试；正式上架请在仓库 Secrets 配私有 keystore 替换下面参数。
